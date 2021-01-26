@@ -1,5 +1,5 @@
 -- {-# LANGUAGE TypeOperators #-}
-module ContingentClaims.Interpreters (clear, pruneLeaf, pruneOr) where
+module ContingentClaims.Lifecycle (settle, pruneLeaf, pruneOr) where
 
 import ContingentClaims.Claim (Claim, Claim(..), ClaimF(..))
 import ContingentClaims.Observation (Observation, eval)
@@ -11,26 +11,26 @@ import Daml.Data.Profunctor
 type Claims a = Claim Observation Date a
 type ClaimsF a = ClaimF Observation Date a
 
--- Returns a function that executes 'runClear' on nodes that are 'current' at time t.
+-- Returns a function that executes 'runSettl' on nodes that are 'current' at time t.
 -- Uses 'runSpot' to lookup spot prices.
-clear :  (a -> Decimal -> Date -> Update c) 
-      -> (Text -> Date -> Update Decimal) 
-      -> Claims a 
+settle :  (a -> Decimal -> Date -> Update c)
+      -> (Text -> Date -> Update Decimal)
+      -> Claims a
       -> Date -> Update [c]
-clear runClear runSpot o = runKleisli (runKleisli (cata reify o) 1.0)
-  where 
+settle runSettl runSpot o = runKleisli (runKleisli (cata reify o) 1.0)
+  where
     -- reify : ClaimF Observation t a (Kleisli (Kleisli Update t) Decimal [c]) -> (Kleisli (Kleisli Update t) Decimal [c])
     -- ^ Uses an continuation to 'bubble up' the scale factor.
     -- | TODO: re-write to evalute observations eagerly, and prune stale nodes top-down. Currently this traverses the entire tree (even stale nodes).
     -- | FIXME: For some reason the signatures aren't compiling.
     reify = \case
       ZeroF -> skip
-      OneF a -> do 
-        c <- runClear' a
+      OneF a -> do
+        c <- runSettl' a
         return [c]
       GiveF _ -> skip
       AndF g g' -> liftA2 (++) g g'
-      OrF _ _ -> error "clear: 'Or' unimplemented" -- TODO: another param, allowing you to pass the 'g' to match
+      OrF _ _ -> error "settle: 'Or' unimplemented" -- TODO: another param, allowing you to pass the 'g' to match
       CondF p g g' -> conditionally p g g'
       ScaleF k g -> do
         k <- lift . eval runSpot $ k
@@ -42,28 +42,28 @@ clear runClear runSpot o = runKleisli (runKleisli (cata reify o) 1.0)
     conditionally p g g' = do
       p <- lift . eval runSpot $ p
       if p then g else g'
-   
+
     skip = pure []
-                
-    -- runClear' : a -> (Kleisli (Kleisli Update t) Decimal c)
-    runClear' a =  Kleisli (rmap Kleisli (runClear a))
+
+    -- runSettl' : a -> (Kleisli (Kleisli Update t) Decimal c)
+    runSettl' a =  Kleisli (rmap Kleisli (runSettl a))
 
 lift : Kleisli Update t m -> Kleisli (Kleisli Update t) Decimal m
-lift = Kleisli . const 
+lift = Kleisli . const
 
 -- Prune the node with given asset/quantity/date
 -- FIXME: this should only prune a _single_ instance of that node.
 pruneLeaf
-  : Eq a 
-  => (Text -> Date -> Update Decimal) 
+  : Eq a
+  => (Text -> Date -> Update Decimal)
   -> a -> Decimal
-  -> Claims a 
+  -> Claims a
   -> Date -> Update (Claims a)
 pruneLeaf runSpot asset qty o = runKleisli (runKleisli (para prune o) 1.0)
   where {- prune : ClaimsF a (Claims a, Kleisli (Kleisli Update Date) Decimal (Claims a)) 
               -> Kleisli (Kleisli Update Date) Decimal (Claims a) -}
         prune ZeroF = pure Zero
-        prune (OneF a') = 
+        prune (OneF a') =
           Kleisli \qty' ->
             Kleisli \_ ->
               if qty' == qty && asset == a' then pure Zero else pure $ One a'
@@ -76,10 +76,10 @@ pruneLeaf runSpot asset qty o = runKleisli (runKleisli (para prune o) 1.0)
         prune (AndF (o, g) (o', g')) = do -- TODO: this can be optimized to eval rhs lazily
           trimmed <- g
           trimmed' <- g'
-          case (trimmed, trimmed') of 
+          case (trimmed, trimmed') of
             (Zero, _) -> pure trimmed'
             (_, Zero) -> pure trimmed
-            _ -> pure $ And o o' 
+            _ -> pure $ And o o'
         prune _ = error "prune : unimplemented"
 
 deriving instance Eq a => Eq (Claims a)

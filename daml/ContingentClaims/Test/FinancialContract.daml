@@ -5,7 +5,7 @@ import ContingentClaims.Claim (deserialize, serialize, executorOf)
 import DA.Next.Set qualified as Set
 import DA.Date
 import ContingentClaims.Test.Currency
-import ContingentClaims.Interpreters (clear, pruneLeaf, pruneOr)
+import ContingentClaims.Lifecycle (settle, pruneLeaf, pruneOr)
 
 type T = FinancialContract
 type Days = Int
@@ -33,14 +33,14 @@ template FinancialContract
     signatory Set.fromList [bearer, counterparty]
 
     let obligations = deserialize this.obligations
-        executor = executorOf bearer counterparty obligations 
+        executor = executorOf bearer counterparty obligations
 
-    -- Create dummy contracts to clear 'current' obligations
+    -- Create dummy contracts to settle 'current' obligations
     nonconsuming choice Clear : [ContractId ProposeSettlement]
       controller executor
         do t <- toDateUTC <$> getTime
-           let createPending asset quantity tradeDate = create ProposeSettlement 
-                 with 
+           let createPending asset quantity tradeDate = create ProposeSettlement
+                 with
                    payer = counterparty --FIXME: this breaks with a Give Node
                    receiver = bearer
                    asset
@@ -49,7 +49,7 @@ template FinancialContract
                getSpotRate isin t = do
                  (_, Quote{close}) <- fetchByKey (isin, t, bearer) -- FIXME: maintainer should be the market data provider
                  pure close
-           clear createPending getSpotRate obligations t
+           settle createPending getSpotRate obligations t
 
     choice Elect: ContractId FinancialContract -- FIXME: evaluate `When` to only only allow pruning at right time.
        with election: Claim Date Asset
@@ -58,7 +58,7 @@ template FinancialContract
 
 -- Dummy contract to propose settlement
 template ProposeSettlement
-  with 
+  with
     payer: Party
     receiver: Party
     quantity: Decimal
@@ -77,11 +77,9 @@ template ProposeSettlement
            contract <- fetch cid
            obl <- pruneLeaf getSpotRate asset quantity (deserialize contract.obligations) tradeDate
            let obl' = serialize obl
-           if obl' == contract.obligations 
+           if obl' == contract.obligations
              then fail "ProposeSettlement.Confirm: No matching obligation"
              else do
                cid' <- create contract with obligations = obl'
                archive cid
                return cid'
-      
-
