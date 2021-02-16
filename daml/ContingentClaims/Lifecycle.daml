@@ -11,13 +11,18 @@ import Daml.Data.Profunctor
 type Claims a = Claim Observation Date a
 type ClaimsF a = ClaimF Observation Date a
 
+deriving instance Eq a => Eq (Claims a)
+
 -- Returns a function that executes 'runSettl' on nodes that are 'current' at time t.
--- Uses 'runSpot' to lookup spot prices.
-settle :  (a -> Decimal -> Date -> Update c)
+-- Uses @runSpot@ to lookup spot prices.
+-- Uses @branch@ to make an election during a branch
+settle : Eq a
+      => (a -> Decimal -> Date -> Update c)
       -> (Text -> Date -> Update Decimal)
+      -> (Claims a -> Claims a -> Claims a)
       -> Claims a
       -> Date -> Update [c]
-settle runSettl runSpot o = runKleisli (runKleisli (cata reify o) 1.0)
+settle runSettl runSpot branch claim = runKleisli (runKleisli (para reify claim) 1.0)
   where
     -- reify : ClaimF Observation t a (Kleisli (Kleisli Update t) Decimal [c]) -> (Kleisli (Kleisli Update t) Decimal [c])
     -- ^ Uses an continuation to 'bubble up' the scale factor.
@@ -26,16 +31,19 @@ settle runSettl runSpot o = runKleisli (runKleisli (cata reify o) 1.0)
     reify = \case
       ZeroF -> skip
       OneF a -> do
-        c <- runSettl' a
-        return [c]
-      GiveF _ -> skip
-      AndF g g' -> liftA2 (++) g g'
-      OrF _ _ -> error "settle: 'Or' unimplemented" -- TODO: another param, allowing you to pass the 'g' to match
-      CondF p g g' -> conditionally p g g'
-      ScaleF k g -> do
+        cid <- runSettl' a
+        return [cid]
+      GiveF _ -> error "Unimplemented: settle GiveF" -- TODO
+      AndF (_, g) (_, g') -> liftA2 (++) g g'
+      OrF (c, g) (c', g') -> let b = branch c c' in
+        if b == c then g
+          else if b == c' then g'
+             else error "Lifecycle.settle: Non-existen branch chosen."
+      CondF p (_, g) (_, g') -> conditionally p g g'
+      ScaleF k (_, g) -> do
         k <- lift . eval runSpot $ k
         lmap (k *) g
-      WhenF p g -> conditionally p g skip
+      WhenF p (_, g) -> conditionally p g skip
 --      AnytimeF p g -> conditionally p g skip
 --      UntilF p g -> conditionally p g skip --FIXME: this is incorrect
 
@@ -81,8 +89,6 @@ pruneLeaf runSpot asset qty o = runKleisli (runKleisli (para prune o) 1.0)
             (_, Zero) -> pure trimmed
             _ -> pure $ And o o'
         prune _ = error "prune : unimplemented"
-
-deriving instance Eq a => Eq (Claims a)
 
 -- Prunes *other* branch(es) in an 'Or' node, by structural equality.
 -- FIXME: ignores 'Give'
