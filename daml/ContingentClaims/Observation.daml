@@ -6,15 +6,19 @@ import ContingentClaims.Observable qualified as O
 import Daml.Control.Kleisli
 import Daml.Control.Category
 
-type ISIN = Text
+type Key = Text
 type (>=>) = Kleisli Update
 type T = Observation
 
 data Observation t a
   = DecimalConst Decimal
-  | DecimalSpot ISIN
+  | DecimalObs Key
   | DecimalLte (Observation t Decimal, Observation t Decimal)
   | DecimalEqu (Observation t Decimal, Observation t Decimal)
+  | DecimalAdd (Observation t Decimal, Observation t Decimal)
+  | DecimalNeg (Observation t Decimal)
+  | DecimalMul (Observation t Decimal, Observation t Decimal)
+  | DecimalDiv (Observation t Decimal, Observation t Decimal)
   | BoolConst Bool
   | DateIdentity
   | DateConst t
@@ -23,7 +27,7 @@ data Observation t a
   deriving (Eq, Show)
 
 observe : Text -> Observation t a
-observe = DecimalSpot
+observe = DecimalObs
 
 instance O.TimeF Observation t where
   time = DateIdentity
@@ -42,6 +46,14 @@ instance O.InequalityF Observation t Decimal where
   (<=) = curry DecimalLte
   (==) = curry DecimalEqu
 
+instance O.RingF Observation t Decimal where
+  zero = DecimalConst 0.0
+  one = DecimalConst 1.0
+  (+) = curry DecimalAdd
+  (-) = DecimalNeg
+  (*) = curry DecimalMul
+  (/) = curry DecimalDiv
+
 --TODO: move expiry into the 'Interpret' typeclass
 -- Derive the expiry date from a boolean expression
 expiry : Observation t Bool -> Optional t
@@ -57,7 +69,7 @@ expiryDt (DateConst t) = Some t
 expiryDt _ = error "Error in  expression structure"
 
 class Interpret t a where
-  eval : (ISIN -> t -> Update Decimal) -> Observation t a -> t >=> a
+  eval : (Key -> t -> Update Decimal) -> Observation t a -> t >=> a
 
 instance Ord t => Interpret t Bool where
   eval _ (BoolConst b) = pure b
@@ -74,5 +86,9 @@ instance Interpret t t where
 
 instance Interpret t Decimal where
   eval _ (DecimalConst d) = pure d
-  eval spot (DecimalSpot isin) = Kleisli $ spot isin
+  eval spot (DecimalObs key) = Kleisli $ spot key
+  eval spot (DecimalAdd (x, x')) = liftA2 (+) (eval spot x) (eval spot x')
+  eval spot (DecimalNeg x) = fmap (\x -> (- x)) (eval spot x)
+  eval spot (DecimalMul (x, x')) = liftA2 (*) (eval spot x) (eval spot x')
+  eval spot (DecimalDiv (x, x')) = liftA2 (/) (eval spot x) (eval spot x')
   eval _ _ = error "eval: Interpret Decimal"
