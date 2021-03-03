@@ -1,11 +1,15 @@
--- {-# LANGUAGE TypeOperators #-}
-module ContingentClaims.Lifecycle (lifecycle, pruneLeaf, pruneOr) where
+module ContingentClaims.Lifecycle (
+  lifecycle, 
+  lifecycle', 
+  pruneLeaf, 
+  pruneLeaf', 
+  pruneOr
+) where
 
 import ContingentClaims.Claim (Claim, Claim(..), ClaimF(..))
 import ContingentClaims.Observation (Observation, eval)
 import Daml.Control.Kleisli
 import Daml.Control.Recursion
--- import DA.Action ((<=<))
 import Daml.Data.Profunctor
 
 type Claims a = Claim Observation Date a
@@ -17,36 +21,42 @@ deriving instance Eq a => Eq (Claims a)
 -- Uses @runSpot@ to lookup spot prices.
 -- Uses @branch@ to make an election during a branch
 lifecycle : Eq a
-      => (a -> Decimal -> Date -> Update c)
-      -> (Text -> Date -> Update Decimal)
-      -> (Claims a -> Claims a -> Claims a)
-      -> Claims a
-      -> Date -> Update [c]
-lifecycle runSettl runSpot branch claim = runKleisli (runKleisli (para reify claim) 1.0)
-  where
-    -- reify : ClaimF Observation t a (Kleisli (Kleisli Update t) Decimal [c]) -> (Kleisli (Kleisli Update t) Decimal [c])
-    -- ^ Uses an continuation to 'bubble up' the scale factor.
-    -- | TODO: re-write to evalute observations eagerly, and prune stale nodes top-down. Currently this traverses the entire tree (even stale nodes).
-    -- | FIXME: For some reason the signatures aren't compiling.
-    reify = \case
-      ZeroF -> skip
-      OneF a -> do
-        cid <- runSettl' a
-        return [cid]
-      GiveF _ -> error "Unimplemented: settle GiveF" -- TODO
-      AndF (_, g) (_, g') -> liftA2 (++) g g'
-      OrF (c, g) (c', g') -> let b = branch c c' in
-        if b == c then g
-          else if b == c' then g'
-             else error "Lifecycle.settle: Non-existen branch chosen."
-      CondF p (_, g) (_, g') -> conditionally p g g'
-      ScaleF k (_, g) -> do
-        k <- lift . eval runSpot $ k
-        lmap (k *) g
-      WhenF p (_, g) -> conditionally p g skip
+  => (a -> Decimal -> Date -> Update c)
+  -> (Text -> Date -> Update Decimal)
+  -> (Claims a -> Claims a -> Claims a)
+  -> Claims a
+  -> Date -> Update [c]
+lifecycle runSettl runSpot branch claim = runKleisli (runKleisli (para (lifecycle' runSettl runSpot branch) claim) 1.0)
+
+lifecycle' : Eq a
+  => (a -> Decimal -> Date -> Update c)
+  -> (Text -> Date -> Update Decimal)
+  -> (Claims a -> Claims a -> Claims a)
+  -> ClaimF Observation Date a (Claims a, Kleisli (Kleisli Update Date) Decimal [c])
+  -> Kleisli (Kleisli Update Date) Decimal [c]
+-- ^ Lifecycling Algebra
+-- | Uses an continuation to 'bubble up' the scale factor.
+-- | TODO: re-write to evalute observations eagerly, and prune stale nodes top-down. Currently this traverses the entire tree (even stale nodes).
+lifecycle' runSettl runSpot branch = \case
+  ZeroF -> skip
+  OneF a -> do
+    cid <- runSettl' a
+    return [cid]
+  GiveF _ -> error "Unimplemented: settle GiveF" -- TODO
+  AndF (_, g) (_, g') -> liftA2 (++) g g'
+  OrF (c, g) (c', g') -> let b = branch c c' in
+    if b == c then g
+      else if b == c' then g'
+         else error "Lifecycle.settle: Non-existent branch chosen."
+  CondF p (_, g) (_, g') -> conditionally p g g'
+  ScaleF k (_, g) -> do
+    k <- lift . eval runSpot $ k
+    lmap (k *) g
+  WhenF p (_, g) -> conditionally p g skip
 --      AnytimeF p g -> conditionally p g skip
 --      UntilF p g -> conditionally p g skip --FIXME: this is incorrect
 
+  where
     conditionally p g g' = do
       p <- lift . eval runSpot $ p
       if p then g else g'
@@ -67,28 +77,34 @@ pruneLeaf
   -> a -> Decimal
   -> Claims a
   -> Date -> Update (Claims a)
-pruneLeaf runSpot asset qty o = runKleisli (runKleisli (para prune o) 1.0)
-  where {- prune : ClaimsF a (Claims a, Kleisli (Kleisli Update Date) Decimal (Claims a)) 
-              -> Kleisli (Kleisli Update Date) Decimal (Claims a) -}
-        prune ZeroF = pure Zero
-        prune (OneF a') =
-          Kleisli \qty' ->
-            Kleisli \_ ->
-              if qty' == qty && asset == a' then pure Zero else pure $ One a'
-        prune (ScaleF k (_, g)) = do
-          k <- lift . eval runSpot $ k
-          lmap (k *) g
-        prune (WhenF p (o, g)) = do
-          b <- lift . eval runSpot $ p
-          if b then g else pure $ When p o
-        prune (AndF (o, g) (o', g')) = do -- TODO: this can be optimized to eval rhs lazily
-          trimmed <- g
-          trimmed' <- g'
-          case (trimmed, trimmed') of
-            (Zero, _) -> pure trimmed'
-            (_, Zero) -> pure trimmed
-            _ -> pure $ And o o'
-        prune _ = error "prune : unimplemented"
+pruneLeaf runSpot asset qty o = runKleisli (runKleisli (para (pruneLeaf' runSpot asset qty) o) 1.0)
+
+pruneLeaf' : Eq a
+  => (Text -> Date -> Update Decimal)
+  -> a
+  -> Decimal
+  -> ClaimF Observation Date a (Claims a, Kleisli (Kleisli Update Date) Decimal (Claims a))
+  -> Kleisli (Kleisli Update Date) Decimal (Claims a)
+pruneLeaf' runSpot asset qty = \case
+  ZeroF -> pure Zero
+  OneF a' ->
+    Kleisli \qty' ->
+      Kleisli \_ ->
+        if qty' == qty && asset == a' then pure Zero else pure $ One a'
+  ScaleF k (_, g) -> do
+    k <- lift . eval runSpot $ k
+    lmap (k *) g
+  WhenF p (o, g) -> do
+    b <- lift . eval runSpot $ p
+    if b then g else pure $ When p o
+  AndF (o, g) (o', g') -> do -- TODO: this can be optimized to eval rhs lazily
+    trimmed <- g
+    trimmed' <- g'
+    case (trimmed, trimmed') of
+      (Zero, _) -> pure trimmed'
+      (_, Zero) -> pure trimmed
+      _ -> pure $ And o o'
+  _ -> error "pruneLeaf' : unimplemented"
 
 -- Prunes *other* branch(es) in an 'Or' node, by structural equality.
 -- FIXME: ignores 'Give'
