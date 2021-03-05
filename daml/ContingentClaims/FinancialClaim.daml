@@ -3,7 +3,7 @@ module ContingentClaims.FinancialClaim where
 import Prelude hiding (and, or, time, (.))
 import ContingentClaims.Claim
 import ContingentClaims.Observable qualified as O
-import ContingentClaims.Observable (TimeF, PointF, InequalityF)
+import ContingentClaims.Observable (TimeF, PointF, InequalityF, RingF)
 import Daml.Control.Recursion
 import DA.Date (date, Month)
 
@@ -16,6 +16,17 @@ zcb
   : forall f t a . (TimeF f t, PointF f t t, PointF f t Decimal, InequalityF f t t)
   => t -> Decimal -> a -> Claim f t a
 zcb maturity principal asset = when (at maturity) $ scale (O.pure principal) (one asset)
+
+irs
+  : forall f t a . (TimeF f t, PointF f t t, PointF f t Decimal, RingF f t Decimal, InequalityF f t t)
+  => Decimal -> f t Decimal -> a -> Decimal -> a -> [t] -> Claim f t a
+irs principal floatingCcyRate floatingCcy fixedRate fixedCcy= apo \case
+  [maturity] -> swaplet maturity `AndF` Left (zcb maturity fixedRate fixedCcy `swap` fwd maturity (O.pure principal O.* floatingCcyRate))
+  (t :: ts) -> swaplet t `AndF` Right ts
+  [] -> ZeroF
+  where
+    swaplet t = Left (zcb t fixedRate fixedCcy `swap` fwd t floatingCcyRate)
+    fwd t k = when (at t) $ scale k (one floatingCcy)
 
 couponDates : Int -> Int -> [Month] -> Int -> [Date]
 couponDates issueYear maturityYear couponMonths couponDay =
@@ -33,6 +44,13 @@ european
   : forall f t a . (TimeF f t, PointF f t t, InequalityF f t t)
   => t -> Claim f t a -> Claim f t a
 european t u = when (at t) (u `or` Zero)
+
+bermudan
+  : forall f t a . (TimeF f t, PointF f t t, InequalityF f t t)
+  => Claim f t a -> [t] -> Claim f t a
+bermudan u = apo \case
+  (t :: ts) -> Left (european t u) `OrF` Right ts
+  [] -> ZeroF
 
 swap : forall f t a . Claim f t a -> Claim f t a -> Claim f t a
 swap c c' = c `and` give c'
