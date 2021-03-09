@@ -18,22 +18,23 @@ type F a = ClaimF Observation Date a
 deriving instance Eq a => Eq (C a)
 
 -- Returns a function that executes 'runSettl' on nodes that are 'current' at time t.
+-- @m@ will typically be @Update@. It is parametrised so it can be run in a @Script@.
 -- Uses @runSpot@ to lookup spot prices.
 -- Uses @branch@ to make an election during a branch
-lifecycle : Eq a
-  => (a -> Decimal -> Date -> Update c)
-  -> (Text -> Date -> Update Decimal)
+lifecycle : (Eq a, Monad m)
+  => (a -> Decimal -> Date -> m c)
+  -> (Text -> Date -> m Decimal)
   -> (C a -> C a -> C a)
   -> C a
-  -> Date -> Update [c]
+  -> Date -> m [c]
 lifecycle runSettl runSpot branch claim = runKleisli (runKleisli (para (lifecycle' runSettl runSpot branch) claim) 1.0)
 
-lifecycle' : Eq a
-  => (a -> Decimal -> Date -> Update c)
-  -> (Text -> Date -> Update Decimal)
+lifecycle' : (Eq a, Monad m)
+  => (a -> Decimal -> Date -> m c)
+  -> (Text -> Date -> m Decimal)
   -> (C a -> C a -> C a)
-  -> ClaimF Observation Date a (C a, Kleisli (Kleisli Update Date) Decimal [c])
-  -> Kleisli (Kleisli Update Date) Decimal [c]
+  -> ClaimF Observation Date a (C a, Kleisli (Kleisli m Date) Decimal [c])
+  -> Kleisli (Kleisli m Date) Decimal [c]
 -- ^ Lifecycling Algebra
 -- | Uses an continuation to 'bubble up' the scale factor.
 -- | TODO: re-write to evalute observations eagerly, and prune stale nodes top-down. Currently this traverses the entire tree (even stale nodes).
@@ -63,28 +64,28 @@ lifecycle' runSettl runSpot branch = \case
 
     skip = pure []
 
-    -- runSettl' : a -> (Kleisli (Kleisli Update t) Decimal c)
+    -- runSettl' : a -> (Kleisli (Kleisli m t) Decimal c)
     runSettl' a =  Kleisli (rmap Kleisli (runSettl a))
 
-lift : Kleisli Update t m -> Kleisli (Kleisli Update t) Decimal m
+lift : Kleisli m t x -> Kleisli (Kleisli m t) Decimal x
 lift = Kleisli . const
 
 -- Prune the node with given asset/quantity/date
 -- FIXME: this should only prune a _single_ instance of that node.
 pruneLeaf
-  : Eq a
-  => (Text -> Date -> Update Decimal)
+  : (Eq a, Monad m)
+  => (Text -> Date -> m Decimal)
   -> a -> Decimal
   -> C a
-  -> Date -> Update (C a)
+  -> Date -> m (C a)
 pruneLeaf runSpot asset qty o = runKleisli (runKleisli (para (pruneLeaf' runSpot asset qty) o) 1.0)
 
-pruneLeaf' : Eq a
-  => (Text -> Date -> Update Decimal)
+pruneLeaf' : (Eq a, Monad m)
+  => (Text -> Date -> m Decimal)
   -> a
   -> Decimal
-  -> ClaimF Observation Date a (C a, Kleisli (Kleisli Update Date) Decimal (C a))
-  -> Kleisli (Kleisli Update Date) Decimal (C a)
+  -> ClaimF Observation Date a (C a, Kleisli (Kleisli m Date) Decimal (C a))
+  -> Kleisli (Kleisli m Date) Decimal (C a)
 pruneLeaf' runSpot asset qty = \case
   ZeroF -> pure Zero
   OneF a' ->
