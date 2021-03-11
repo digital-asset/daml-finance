@@ -1,16 +1,26 @@
+{-# LANGUAGE MultiWayIf #-}
+
 module ContingentClaims.Lifecycle (
     lifecycle
   , lifecycle'
   , pruneLeaf
   , pruneLeaf'
   , pruneOr
+  , pruneOr'
 ) where
 
 import ContingentClaims.Claim (Claim, Claim(..), ClaimF(..))
 import ContingentClaims.Observation (Observation, eval)
-import Daml.Control.Kleisli
 import Daml.Control.Recursion
 import Daml.Data.Profunctor
+import Daml.Control.Monad.State (StateT)
+import Daml.Control.Monad.MonadState (MonadState(..), modify)
+import Daml.Control.Monad.Writer (WriterT)
+import Daml.Control.Monad.MonadWriter (MonadWriter(..))
+import Daml.Control.Monad.Trans (MonadTrans(..))
+import Daml.Control.Arrow ((|||),(<<<),(>>>),(&&&), Kleisli(..))
+import DA.Traversable (Traversable, mapA, sequence)
+import Prelude hiding (sequence, mapA)
 
 type C a = Claim Observation Date a
 type F a = ClaimF Observation Date a
@@ -29,11 +39,84 @@ lifecycle : (Eq a, Monad m)
   -> Date -> m [c]
 lifecycle runSettl runSpot branch claim = runKleisli (runKleisli (para (lifecycle' runSettl runSpot branch) claim) 1.0)
 
+type Orders = [(Decimal, Text)]
+type Ctx = (Date, Decimal)
+-- Date -> State (Writer (C a))
+newtype ResultT m z = ResultT (StateT Ctx (WriterT Orders m) z)  deriving Functor
+
+instance Applicative m => Applicative (ResultT m) where
+  pure = undefined
+  (<*>) = undefined
+
+instance Monad m => Action (ResultT m) where
+  (>>=) = undefined
+
+instance Monad m => MonadWriter Orders (ResultT m) where
+  tell = undefined
+  listen = undefined
+  pass = undefined
+
+instance Monad m => MonadState Ctx (ResultT m) where
+  state = undefined
+
+instance MonadTrans ResultT where
+  lift = undefined
+
+-- instance MonadState s (ResultT m) where
+
+runResultT : ResultT m (C a) -> Date -> ([(Decimal, a)], C a)
+runResultT = undefined
+
+{- seqResultT : (Functor f, Monad m) => Date -> ResultT m (f z) -> f (ResultT m z)
+seqResultT t (ResultT g)  =   -}
+
+cataM : (Monad m, Traversable f, Recursive b f) => (f a -> m a) -> b -> m a
+cataM f b = (project >>> fmap (cataM f) >>> (>>= f) . sequence) b
+
+paraM : (Monad m, Traversable f, Recursive b f) => (f (b, a) -> m a) -> b -> m a
+paraM f b = (project >>> fmap (runKleisli $ Kleisli pure &&& Kleisli (paraM f)) >>> (>>= f) . sequence) b
+
+l : (Eq a, Monad m)
+  => (Text -> Date -> m Decimal)
+  -> (C a -> C a -> C a)
+  -> F a (C a) -> ResultT m (C a)
+
+l _ _ ZeroF = pure Zero
+l _ _ (OneF id) = do
+  (t, qty) <- get
+  tell [(qty, "TODO: write should be parametrised on asset type")]
+  pure Zero -- this is is sort of redundant as When prunes nodes too.
+l _ _ (GiveF c) = do
+  modify \(t, qty) -> (t, -qty)
+  pure $ Give c
+l spot _ (WhenF obs c) = do
+  (t, qty) <- get
+  predicate <- lift ((runKleisli (eval spot obs)) t)
+  if predicate then pure Zero else pure $ When obs c
+l spot _ (ScaleF obs c) = do
+  (t, qty) <- get
+  k <- lift ((runKleisli (eval spot obs)) t)
+  put (t, qty * k)
+  pure $ Scale obs c
+l _ choose (OrF c c') = do
+  let choice' = choose c c'
+  if | choice' == c -> pure c
+     | choice' == c' -> pure c'
+     | otherwise -> error "lifecycle: Invalid branch election"
+l _ _ (AndF Zero c) = pure c
+l _ _ (AndF c Zero) = pure c
+l _ _ (AndF c c') = pure $ And c c'
+l spot _ (CondF obs c c') = do
+  (t, qty) <- get
+  predicate <- lift ((runKleisli (eval spot obs)) t)
+  if predicate then pure c else pure c'
+  
+
 lifecycle' : (Eq a, Monad m)
   => (a -> Decimal -> Date -> m c)
   -> (Text -> Date -> m Decimal)
   -> (C a -> C a -> C a)
-  -> ClaimF Observation Date a (C a, Kleisli (Kleisli m Date) Decimal [c])
+  -> F a (C a, Kleisli (Kleisli m Date) Decimal [c])
   -> Kleisli (Kleisli m Date) Decimal [c]
 -- ^ Lifecycling Algebra
 -- | Uses an continuation to 'bubble up' the scale factor.
@@ -51,7 +134,7 @@ lifecycle' runSettl runSpot branch = \case
          else error "Lifecycle.settle: Non-existent branch chosen."
   CondF p (_, g) (_, g') -> conditionally p g g'
   ScaleF k (_, g) -> do
-    k <- lift . eval runSpot $ k
+    k <- oldlift . eval runSpot $ k
     lmap (k *) g
   WhenF p (_, g) -> conditionally p g skip
 --      AnytimeF p g -> conditionally p g skip
@@ -59,7 +142,7 @@ lifecycle' runSettl runSpot branch = \case
 
   where
     conditionally p g g' = do
-      p <- lift . eval runSpot $ p
+      p <- oldlift . eval runSpot $ p
       if p then g else g'
 
     skip = pure []
@@ -67,8 +150,8 @@ lifecycle' runSettl runSpot branch = \case
     -- runSettl' : a -> (Kleisli (Kleisli m t) Decimal c)
     runSettl' a =  Kleisli (rmap Kleisli (runSettl a))
 
-lift : Kleisli m t x -> Kleisli (Kleisli m t) Decimal x
-lift = Kleisli . const
+oldlift : Kleisli m t x -> Kleisli (Kleisli m t) Decimal x
+oldlift = Kleisli . const
 
 -- Prune the node with given asset/quantity/date
 -- FIXME: this should only prune a _single_ instance of that node.
@@ -84,7 +167,7 @@ pruneLeaf' : (Eq a, Monad m)
   => (Text -> Date -> m Decimal)
   -> a
   -> Decimal
-  -> ClaimF Observation Date a (C a, Kleisli (Kleisli m Date) Decimal (C a))
+  -> F a (C a, Kleisli (Kleisli m Date) Decimal (C a))
   -> Kleisli (Kleisli m Date) Decimal (C a)
 pruneLeaf' runSpot asset qty = \case
   ZeroF -> pure Zero
@@ -96,10 +179,10 @@ pruneLeaf' runSpot asset qty = \case
     trimmed <- g
     if trimmed == Zero then pure Zero else pure $ Give o
   ScaleF k (_, g) -> do
-    k <- lift . eval runSpot $ k
+    k <- oldlift . eval runSpot $ k
     lmap (k *) g
   WhenF p (o, g) -> do
-    b <- lift . eval runSpot $ p
+    b <- oldlift . eval runSpot $ p
     if b then g else pure $ When p o
   AndF (o, g) (o', g') -> do -- TODO: this can be optimized to eval rhs lazily
     trimmed <- g
@@ -108,15 +191,9 @@ pruneLeaf' runSpot asset qty = \case
       (Zero, _) -> pure trimmed'
       (_, Zero) -> pure trimmed
       _ -> pure $ And o o'
-  OrF (o, g) (o', g') -> do
-    trimmed <- g
-    trimmed' <- g'
-    case (trimmed, trimmed') of
-      (Zero, _) -> pure trimmed'
-      (_, Zero) -> pure trimmed
-      _ -> pure $ Or o o'
+  OrF (o, _) (o', _) -> pure $ Or o o' -- These should be removes using `pruneOr`
   CondF p (o, g) (o', g') -> do
-    b <- lift . eval runSpot $ p
+    b <- oldlift . eval runSpot $ p
     if b then g else g'
 
 -- Prunes *other* branch(es) in an 'Or' node, by structural equality.
@@ -126,7 +203,14 @@ pruneOr
   => C a
   -> C a
   -> C a
-pruneOr branchToKeep = apo \case
-  Or o o' | o == branchToKeep -> Left <$> project branchToKeep
-  Or o o' | o' == branchToKeep -> Left <$> project branchToKeep
-  other -> Right <$> project other
+pruneOr = apo . pruneOr'
+
+pruneOr'
+  : Eq a
+  => C a
+  -> C a
+  -> F a (Either (C a) (C a))
+pruneOr' branchToKeep (Or o o') | o == branchToKeep = Left <$> project branchToKeep
+pruneOr' branchToKeep (Or o o') | o' == branchToKeep = Left <$> project branchToKeep
+pruneOr' _ other = Right <$> project other
+
