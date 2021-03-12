@@ -6,6 +6,9 @@ cashflows between two (implicit) parties.
 
 The implementation follows closely the papers [[1]](#1), [[2]](#2).
 
+To get started, look in the [test directory](./daml/Test) for examples how to
+create and lifecycle contracts.
+
 # License
 
 Distributed under the Apache 2.0 License.

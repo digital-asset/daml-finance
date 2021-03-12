@@ -5,7 +5,7 @@ import ContingentClaims.Claim (deserialize, serialize, executorOf)
 import DA.Next.Set qualified as Set
 import DA.Date
 import ContingentClaims.Test.Currency
-import ContingentClaims.Lifecycle (lifecycle, pruneLeaf, pruneOr)
+import ContingentClaims.Lifecycle (lifecycle)
 
 type T = FinancialContract
 type Days = Int
@@ -36,26 +36,24 @@ template FinancialContract
         executor = executorOf bearer counterparty obligations
 
     -- Create dummy contracts to settle 'current' obligations
-    nonconsuming choice Clear : [ContractId ProposeSettlement]
+    choice Clear : [ContractId ProposeSettlement]
       controller executor
         do t <- toDateUTC <$> getTime
-           let createPending asset quantity tradeDate = create ProposeSettlement
-                 with
-                   payer = counterparty --FIXME: this breaks with a Give Node
-                   receiver = bearer
-                   asset
-                   quantity
-                   tradeDate
-               getSpotRate isin t = do
+           let getSpotRate isin t = do
                  (_, Quote{close}) <- fetchByKey (isin, t, bearer) -- FIXME: maintainer should be the market data provider
                  pure close
-               elect = const -- always branch left
-           lifecycle createPending getSpotRate elect obligations t
-
-    choice Elect: ContractId FinancialContract -- FIXME: evaluate `When` to only only allow pruning at right time.
-       with election: Claim Date Asset
-      controller executor
-        do create this with obligations = serialize $ pruneOr (deserialize election) obligations
+               elect = const -- always branch left. In a real example, you would pass this in the choice params
+           lifecycleResult <- lifecycle getSpotRate elect obligations t
+           settlements <- forA lifecycleResult.pending \(quantity, asset) ->
+             create ProposeSettlement
+               with
+                 payer = counterparty --FIXME: this breaks with a Give Node
+                 receiver = bearer
+                 asset
+                 quantity
+                 tradeDate = t
+           create this with obligations = serialize lifecycleResult.remaining
+           return settlements
 
 -- Dummy contract to propose settlement
 template ProposeSettlement
@@ -69,18 +67,6 @@ template ProposeSettlement
     signatory Set.fromList [payer, receiver]
 
     controller receiver can
-      Confirm : ContractId FinancialContract
-        with
-          cid: ContractId FinancialContract
-        do let getSpotRate isin t = do
-                 (_, Quote{close}) <- fetchByKey (isin, t, payer) -- FIXME: maintainer should be the market data provider
-                 pure close
-           contract <- fetch cid
-           obl <- pruneLeaf getSpotRate asset quantity (deserialize contract.obligations) tradeDate
-           let obl' = serialize obl
-           if obl' == contract.obligations
-             then fail "ProposeSettlement.Confirm: No matching obligation"
-             else do
-               cid' <- create contract with obligations = obl'
-               archive cid
-               return cid'
+      Confirm : () do
+        debug $ "Settled: " <> show this
+        return ()
