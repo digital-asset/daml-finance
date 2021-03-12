@@ -1,0 +1,51 @@
+-- TODO: this should all be moved into the "Contingent claims" library. There is nothing specific to the marketplace here.
+{-# LANGUAGE ApplicativeDo #-}
+{-# LANGUAGE UndecidableInstances #-} --needed to derive cofree Show,Eq
+
+module Test.Lifecycle where
+
+import ContingentClaims.Claim hiding (C, F)
+import ContingentClaims.Observable qualified as O
+import ContingentClaims.Observation (Observation)
+import ContingentClaims.Observation qualified as O
+import ContingentClaims.Lifecycle qualified as Lifecycle
+import ContingentClaims.FinancialClaim
+import DA.Assert ((===))
+import DA.Date (date, Month(..))
+import Daml.Control.Recursion
+import Daml.Script
+import Prelude hiding (enumerate, length, or, and)
+
+type C = Claim Observation Date Text
+type F = ClaimF Observation Date Text
+
+deriving instance Show C
+deriving instance (Show a, Show (f (Cofree f a))) => Show (Cofree f a)
+deriving instance (Eq a, Eq (f (Cofree f a))) => Eq (Cofree f a)
+deriving instance Show (F (Cofree F Int))
+deriving instance Eq (F (Cofree F Int))
+
+[a,b,c] = ["a","b","c"]
+
+lifecycling = script do
+  let bond : C = cpb 100_000.0 0.03 a $ couponDates 2021 2022 [Jan, Jun] 15
+      spot _ _ = pure (0.0 : Decimal)
+      chooseLeft = const
+  Lifecycle.Result{remaining, pending} <-
+    Lifecycle.lifecycle spot chooseLeft bond (date 2021 Jan 15)
+  remaining === bond.rhs
+  pending === pure (100_000.0 * 0.03, a)
+
+  --FIXME how to make subtraction work naturally? Check `Numeric` source code?
+  let option : C = european (date 2021 Mar 9) $ Scale (O.observe "USD" O.+ ((O.-) (O.pure 42.0))) (One a)
+      spot _ _ = pure (43.4 : Decimal)
+  Lifecycle.Result{remaining, pending} <-
+    Lifecycle.lifecycle spot chooseLeft option (date 2021 Mar 9)
+  remaining === Zero
+  pending === pure (43.3 - 42.0, a)
+
+  let weirdNote : C = when (at $ date 2021 Mar 9) $ one a `or` one b
+  Lifecycle.Result{remaining, pending} <-
+     Lifecycle.lifecycle spot chooseLeft weirdNote (date 2021 Mar 9)
+  remaining === Zero
+  pending === pure (1.0, a)

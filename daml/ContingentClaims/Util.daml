@@ -1,0 +1,80 @@
+{-# OPTIONS -Wno-deprecations #-} -- To supress 'Monad' warnings
+
+module ContingentClaims.Util (
+    enumerateFrom
+  , enum'
+  , cataM
+  , paraM
+  , anaM
+  , funzip
+  , synthesize
+  , inherit
+  , subTreeSize'
+  , fixings
+  , fixings'
+) where
+
+import ContingentClaims.Claim (Claim, Claim(..), ClaimF(..))
+import ContingentClaims.Observation (Observation)
+import ContingentClaims.Observation qualified as O
+import DA.Foldable (Foldable, sum, fold)
+import Daml.Control.Arrow ((&&&), (>>>), (<<<), Kleisli(..))
+import Daml.Control.Recursion
+import Prelude hiding (sum, sequence)
+import DA.Traversable (Traversable, sequence)
+
+-- The morphisms ending in 'M' are monadic variants, allowing to interleave e.g. `Update` or `Script`.
+cataM : (Monad m, Traversable f, Recursive b f) => (f a -> m a) -> b -> m a
+cataM f b = (project >>> fmap (cataM f) >>> (>>= f) . sequence) b
+
+paraM : (Monad m, Traversable f, Recursive b f) => (f (b, a) -> m a) -> b -> m a
+paraM f b = (project >>> fmap (runKleisli $ Kleisli pure &&& Kleisli (paraM f)) >>> (>>= f) . sequence) b
+
+anaM : (Monad m, Traversable f, Corecursive b f) => (a -> f (m a)) -> a -> m b
+anaM f a = (fmap embed <<< sequence <<< fmap (>>= anaM f) <<< f) a
+
+-- Functor unzip
+funzip : Functor f => f (a, b) -> (f a, f b)
+funzip = fmap fst &&& fmap snd
+
+-- Annotate the tree bottom-up
+synthesize : (Functor f, Recursive b f) => (f attr -> attr) -> b -> Cofree f attr
+synthesize f = cata algebra where
+  -- alg : f (Cofree f a) -> Cofree f a
+  algebra = uncurry Cofree . (f . fmap (.attribute) &&& identity)
+
+-- Annotate the tree top-down
+inherit : (Functor f, Corecursive b f, Recursive b f) => (b -> attr -> attr) -> attr -> b -> Cofree f attr
+inherit g seed b = para algebra b seed where
+  -- f (b, attr -> Cofree f attr) -> attr -> Cofree f attr
+  algebra gbg attr = Cofree attr' f' where
+    (fb, ff) = funzip gbg
+    attr' = g (embed fb) attr
+    f' = fmap ($ attr') ff
+
+-- Returns a tree with each node annotated with the # of nodes below it + 1
+subTreeSize' : Foldable f => f Int -> Int
+subTreeSize' c = 1 + sum c
+
+-- Given a tree annotated with the number of nodes in each branch, index it, depth first.
+enum' : (Int, Cofree (ClaimF f t a) Int) -> CofreeF (ClaimF f t a) Int (Int, Cofree (ClaimF f t a) Int)
+enum' (i, Cofree _ ZeroF) = CofreeF i ZeroF
+enum' (i, Cofree _ (OneF id)) = CofreeF i (OneF id)
+enum' (i, Cofree _ (WhenF p f)) = CofreeF i (WhenF p (succ i, f))
+enum' (i, Cofree _ (ScaleF p f)) = CofreeF i (ScaleF p (succ i, f))
+enum' (i, Cofree _ (GiveF f)) = CofreeF i (GiveF (succ i, f))
+enum' (i, Cofree _ (AndF f@(Cofree depth _) f')) = CofreeF i (AndF (succ i, f) (succ (i + depth), f'))
+enum' (i, Cofree _ (OrF f@(Cofree depth _) f')) = CofreeF i (OrF (succ i, f) (succ (i + depth), f'))
+enum' (i, Cofree _ (CondF p f@(Cofree depth _) f')) = CofreeF i (CondF p (succ i, f) (succ (i + depth), f'))
+
+-- Enumerate each node in the tree, starting from from 'zero'
+enumerateFrom : Int -> Claim f t a -> Cofree (ClaimF f t a) Int
+enumerateFrom zero = ana enum' . (zero, ) . synthesize subTreeSize'
+
+fixings : Claim Observation Date a -> [Date]
+fixings = cata fixings'
+
+--TODO should fail if dates will never be executed
+fixings' : ClaimF Observation Date a [Date] -> [Date]
+fixings' (WhenF p ts) = O.fixings p ++ ts
+fixings' claim = fold claim
