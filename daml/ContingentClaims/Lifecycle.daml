@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiWayIf #-}
 {-# OPTIONS -Wno-deprecations #-} -- To supress 'Monad' warnings
 
 module ContingentClaims.Lifecycle (
@@ -9,13 +10,17 @@ module ContingentClaims.Lifecycle (
 import ContingentClaims.Claim (Claim, Claim(..), ClaimF(..))
 import ContingentClaims.Observation (Observation, eval)
 import ContingentClaims.Util (cataM)
+import Daml.Control.Recursion (para)
 import Daml.Control.Monad.State (StateT, evalStateT)
 import Daml.Control.Monad.Writer (WriterT, runWriterT)
+import Daml.Control.Monad.Reader (ReaderT(..), runReaderT)
 import Daml.Control.Monad.MonadState (MonadState(..), modify)
+import Daml.Control.Monad.MonadReader (MonadReader(..))
 import Daml.Control.Monad.MonadWriter (MonadWriter(..))
 import Daml.Control.Monad.Trans
 import Daml.Control.Arrow (Kleisli(..))
 import Prelude hiding (sequence, mapA)
+import DA.Functor (($>))
 
 type C a = Claim Observation Date a
 type F a = ClaimF Observation Date a
@@ -38,15 +43,18 @@ lifecycle : (Eq a, CanAbort m)
 lifecycle spot choose
   = runKleisli 
   . fmap (uncurry Result) 
-  . flip evalStateT 1.0 
+  . flip runReaderT 1.0 
   . runWriterT 
-  . cataM (lifecycle' spot choose)
+  . para (lifecycle' spot choose)
 
-type Seed m a = WriterT [(Decimal, a)] (StateT Decimal (Kleisli m Date)) (C a)
+type Seed m a = WriterT [(Decimal, a)] (ReaderT Decimal (Kleisli m Date)) (C a)
 
 -- TODO: these three should probably go in their respective modules
 
 instance (Monoid w, CanAbort m) => CanAbort (WriterT w m) where
+  abort = lift . abort
+
+instance CanAbort m => CanAbort (ReaderT s m) where
   abort = lift . abort
 
 instance CanAbort m => CanAbort (StateT s m) where
@@ -58,30 +66,29 @@ instance CanAbort m => CanAbort (Kleisli m a) where -- because of the order of p
 lifecycle' : (Eq a, Monad m, CanAbort m)
   => (Text -> Date -> m Decimal)
   -> (C a -> C a -> C a)
-  -> F a (C a) -> Seed m a
+  -> F a (C a, Seed m a) -> Seed m a
 
 lifecycle' _ _ ZeroF = pure Zero
 lifecycle' _ _ (OneF id) = do
-  qty <- get
+  qty <- ask
   tell [(qty, id)]
-  pure Zero -- this is is sort of redundant as `When` prunes nodes too.
-lifecycle' _ _ (GiveF c) = do
-  modify negate
-  pure $ Give c
-lifecycle' spot _ (WhenF obs c) = do
+  pure $ One id
+lifecycle' _ _ (GiveF (_, m)) = local negate m
+lifecycle' spot _ (WhenF obs (c, m)) = do
   wasLifecycled <- lift . lift $ eval spot obs
-  if wasLifecycled then pure Zero else pure $ When obs c
-lifecycle' spot _ (ScaleF obs c) = do
-  k <- lift .lift $ eval spot obs
-  modify (* k) 
-  pure $ Scale obs c
-lifecycle' _ choose (OrF c c') = do
+  if wasLifecycled then m $> Zero else pure $ When obs c
+lifecycle' spot _ (ScaleF obs (_, m)) = do
+  k <- lift . lift $ eval spot obs
+  Scale obs <$> local (* k) m
+lifecycle' _ choose (OrF (c, m) (c', m')) = do
   let chosen = choose c c'
-  assertMsg "lifecycle: Invalid branch election" $ chosen == c || chosen == c'
-  pure chosen
-lifecycle' _ _ (AndF Zero c) = pure c
-lifecycle' _ _ (AndF c Zero) = pure c
-lifecycle' _ _ (AndF c c') = pure $ And c c'
-lifecycle' spot _ (CondF obs c c') = do
+  if | chosen == c -> m
+     | chosen == c' -> m'
+     | otherwise -> abort "lifecycle: Invalid branch election"
+lifecycle' _ _ (AndF (_, m) (_, m')) = reduceZero <$> m <*> m' where
+   reduceZero Zero c' = c'
+   reduceZero c Zero = c
+   reduceZero c c' = And c c'
+lifecycle' spot _ (CondF obs (_, m) (_, m')) = do
   predicate <- lift . lift $ eval spot obs
-  if predicate then pure c else pure c'
+  if predicate then m else m'
