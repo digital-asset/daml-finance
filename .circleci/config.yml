@@ -1,0 +1,133 @@
+#
+# Copyright (c) 2019, Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+version: 2.1
+
+orbs:
+  slack: circleci/slack@3.4.2
+
+executors:
+  daml-executor:
+    docker:
+      - image: cimg/openjdk:11.0-node
+
+commands:
+  install_sdk:
+    description: "Install Daml SDK"
+    parameters:
+      version:
+        type: string
+    steps:
+      - run:
+          name: Install Daml SDK
+          command: |
+            curl -sSL https://get.daml.com/ | sh /dev/stdin << parameters.version >>
+            # idea from https://circleci.com/docs/2.0/env-vars/
+            >> $BASH_ENV echo 'export PATH="$HOME/.daml/bin:$PATH"'
+  slack_notification:
+    description: "Notify about failure on Slack"
+    steps:
+      - slack/status:
+          fail_only: true
+          only_for_branches: main
+          webhook: '${SLACK_WEBHOOK}'
+
+jobs:
+  daml_test:
+    parameters:
+      daml_sdk_version:
+        type: string
+    executor: daml-executor
+    steps:
+      # Needed for submodule access to daml-ctl
+      - add_ssh_keys:
+          fingerprints:
+            - "27:a6:f3:14:9f:e1:3c:7b:8e:62:b8:69:a8:62:4f:9e"
+      - checkout
+      - run: git submodule sync
+      - run: 
+          name: Checkout submodules
+          # Write the submodule pub key to a file, grepping on the start of the public key
+          # Then we can force the use of that key in the sequel
+          command: |
+            pubkeypath="$(mktemp)"
+            ssh-add -L | grep "AAAAC3N" > $pubkeypath
+            GIT_SSH_COMMAND="ssh -i $pubkeypath -v" git submodule update --init
+            rm $pubkeypath
+      - restore_cache:
+          keys:
+            - daml-{{ checksum "daml.yaml" }}
+      - install_sdk:
+          version: << parameters.daml_sdk_version >>
+      - run:
+          name: Build Daml
+          command: |
+            daml build
+      - run:
+          name: Daml tests
+          command: |
+            cd test
+            daml test
+      - save_cache:
+          paths:
+            - ~/.daml
+          key: daml-{{ checksum "daml.yaml" }}
+      - store_test_results:
+          path: target/daml-test-reports
+      - store_artifacts:
+          path: target/daml-test-reports
+      - slack_notification
+
+  blackduck_check:
+    parameters:
+      daml_sdk_version:
+        type: string
+    executor: daml-executor
+    steps:
+      - checkout
+      - run:
+          name: Blackduck detect
+          command: |
+            bash <(curl -s https://raw.githubusercontent.com/DACH-NY/security-blackduck/master/synopsys-detect) \
+            ci-build digitalasset_ex-bond-issuance main \
+            --logging.level.com.synopsys.integration=DEBUG \
+            --detect.excluded.detector.types=pip \
+            --detect.notices.report=false \
+            --detect.timeout=3600
+### Temporarily disabled due to Blackduck issue (see https://github.com/digital-asset/ex-bond-issuance/pull/156)
+#      - run:
+#          command: cp digitalasset_ex_bond_issuance_main_Black_Duck_Notices_Report.txt NOTICE
+#      - persist_to_workspace:
+#          root: .
+#          paths:
+#            - "NOTICE"
+      - slack_notification
+
+workflows:
+  version: 2
+  test:
+    jobs:
+      - daml_test:
+          daml_sdk_version: "1.11.1"
+          context: refapps
+  scheduled_test:
+    triggers:
+      - schedule:
+          # need to scatter jobs to reduce Blackduck load
+          # see also https://digitalasset.atlassian.net/browse/ERA-913
+          cron: "0 1 * * *"
+          filters:
+            branches:
+              only:
+                - main
+    jobs:
+      - daml_test:
+          daml_sdk_version: "1.11.1"
+          context: refapps
+      - blackduck_check:
+          daml_sdk_version: "1.11.1"
+          context:
+            - blackduck
+            - refapps
