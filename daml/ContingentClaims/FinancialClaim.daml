@@ -8,47 +8,40 @@ module ContingentClaims.FinancialClaim where
 import Prelude hiding (and, or, time, (.))
 import ContingentClaims.Claim
 import ContingentClaims.Observable qualified as O
-import ContingentClaims.Observable (TimeF, PointF, InequalityF, RingF)
+import ContingentClaims.Observable (TimeF, PointF, InequalityF, Observable)
 import Daml.Control.Recursion
 import DA.Date (date, Month)
 
--- | Observable that is true on the passed time.
+-- | Helper function to generate a series of fixing dates, e.g. for coupon payments in @cpb@.
+-- | This assumes @fixingMonths@ and @fixingDates@ are ordered.
+unrollDates : Int -> Int -> [Month] -> Int -> [Date]
+unrollDates issueYear maturityYear fixingMonths fixingDay =
+  date <$> [issueYear .. maturityYear] <*> fixingMonths <*> [fixingDay]
+
+-- | Observable that is true on the passed time. i.e. identity for the time observable.
 at
   : forall f t . (TimeF f t, PointF f t t, InequalityF f t t)
   => t -> f t Bool
 at t = O.time O.== (O.pure t)
 
+-- | Forward rate agreement. Scaled by (potentially stochastic) interest rate @r@.
+fra : Observable f t => t -> f t Decimal -> Claim f t a -> Claim f t a
+fra maturity r payoff = when (at maturity) $ scale r payoff
+
 -- | Zero Coupon Bond.
-zcb
-  : forall f t a . (TimeF f t, PointF f t t, PointF f t Decimal, InequalityF f t t)
-  => t -> Decimal -> a -> Claim f t a
-zcb maturity principal asset = when (at maturity) $ scale (O.pure principal) (one asset)
+zcb : Observable f t => t -> Decimal -> ccy -> Claim f t ccy
+zcb maturity principal ccy = fra maturity (O.pure principal) (one ccy)
 
--- | Interest Rate Swap.
-irs
-  : forall f t a . (TimeF f t, PointF f t t, PointF f t Decimal, RingF f t Decimal, InequalityF f t t)
-  => Decimal -> f t Decimal -> a -> Decimal -> a -> [t] -> Claim f t a
-irs principal floatingCcyRate floatingCcy fixedRate fixedCcy = apo \case
-  [maturity] -> swaplet maturity `AndF` Left (zcb maturity fixedRate fixedCcy `swap` fwd maturity (O.pure principal O.* floatingCcyRate))
-  (t :: ts) -> swaplet t `AndF` Right ts
-  [] -> ZeroF
-  where
-    swaplet t = Left (zcb t fixedRate fixedCcy `swap` fwd t floatingCcyRate)
-    fwd t k = when (at t) $ scale k (one floatingCcy)
-
--- | Helper function to generate coupon dates.
-couponDates : Int -> Int -> [Month] -> Int -> [Date]
-couponDates issueYear maturityYear couponMonths couponDay =
-  date <$> [issueYear .. maturityYear] <*> couponMonths <*> [couponDay]
-
--- | Coupon Paying Bond.
-cpb
-  : forall f t a . (TimeF f t, PointF f t t, PointF f t Decimal, InequalityF f t t)
-  => Decimal -> Decimal -> a -> [t] -> Claim f t a
-cpb principal coupon asset = apo \case
-     [maturity] -> Left (zcb maturity coupon asset) `AndF` Left (zcb maturity principal asset)
-     (t :: ts) -> Left (zcb t coupon asset) `AndF` Right ts
+-- | A floating rate bond. The first two arguments are @Observables@.
+floating : Observable f t => f t Decimal -> f t Decimal -> ccy -> [t] -> Claim f t ccy
+floating principal coupon asset = apo \case
+     [maturity] -> Left (fra maturity coupon (one asset)) `AndF` Left (fra maturity principal (one asset))
+     (t :: ts) -> Left (fra t coupon (one asset)) `AndF` Right ts
      [] -> ZeroF
+
+-- | A (fixed rate) coupon paying bond
+cpb : Observable f t => Decimal -> Decimal -> ccy -> [t] -> Claim f t ccy
+cpb principal coupon = floating (O.pure principal) (O.pure coupon)
 
 -- | European option on the passed claim.
 european
@@ -64,9 +57,10 @@ bermudan u = apo \case
   (t :: ts) -> Left (european t u) `OrF` Right ts
   [] -> ZeroF
 
--- | Swap, the owner has the rights of the first claim and the obligations of the second.
-swap : forall f t a . Claim f t a -> Claim f t a -> Claim f t a
-swap c c' = c `and` give c'
+-- | Asset swap on specific fixing dates @ts@. 
+-- | The owner has the rights of the first claim and the obligations of the second.
+swap : forall f t a . ([t] -> Claim f t a) -> ([t] -> Claim f t a) -> [t] -> Claim f t a
+swap c c' ts = c ts `and` give (c' ts)
 
 {-
 between
