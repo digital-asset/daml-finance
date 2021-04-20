@@ -6,8 +6,8 @@ cashflows between two (implicit) parties.
 
 The implementation follows closely the papers [[1]](#1), [[2]](#2).
 
-To get started, look in the [test directory](./daml/Test) for examples how to
-create and lifecycle contracts.
+To get started, look in the [test directory](./test/daml/Test/FinancialContract.daml) 
+for an example of how to create and lifecycle contracts.
 
 # Copyright & License
 
@@ -30,7 +30,7 @@ git submodule init && git submodule update
 
 You can build a release version (no tests in the `*.dar`) by running `daml
 build` in the root directory, or a dev version that includes test from
-`daml-test`.
+`test`.
 
 Source-code documentation can be generated through `make doc`.
 
