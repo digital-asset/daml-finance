@@ -1,0 +1,76 @@
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE IncoherentInstances #-}
+
+module ContingentClaims.Observation (Observation, expiry, eval) where
+
+import ContingentClaims.Observable qualified as O
+import Daml.Control.Kleisli
+import Daml.Control.Category
+
+type ISIN = Text
+type (>=>) = Kleisli Update
+type T = Observation
+
+data Observation t a
+  = DecimalConst Decimal
+  | DecimalSpot ISIN
+  | DecimalLte (Observation t Decimal, Observation t Decimal)
+  | DecimalEqu (Observation t Decimal, Observation t Decimal)
+  | BoolConst Bool
+  | DateIdentity
+  | DateConst t
+  | DateLte (Observation t t, Observation t t)
+  | DateEqu (Observation t t, Observation t t)
+  deriving (Eq, Show)
+
+instance O.TimeF Observation t where
+  time = DateIdentity
+
+instance O.PointF Observation t t where
+  pure = DateConst
+
+instance O.InequalityF Observation t t where
+  (<=) = curry DateLte
+  (==) = curry DateEqu
+
+instance O.PointF Observation t Decimal where
+  pure = DecimalConst
+
+instance O.InequalityF Observation t Decimal where
+  (<=) = curry DecimalLte
+  (==) = curry DecimalEqu
+
+--TODO: move expiry into the 'Interpret' typeclass
+-- Derive the expiry date from a boolean expression
+expiry : Observation t Bool -> Optional t
+expiry (DateLte (DateIdentity, o)) = expiryDt o
+expiry (DateEqu (DateIdentity, o)) = expiryDt o
+expiry o = error "Error in  expression structure"
+
+-- Helper function
+expiryDt (DateLte (DateIdentity, o)) = expiryDt o
+expiryDt (DateEqu (DateIdentity, o)) = expiryDt o
+expiryDt DateIdentity = None
+expiryDt (DateConst t) = Some t
+expiryDt _ = error "Error in  expression structure"
+
+class Interpret t a where
+  eval : (ISIN -> t -> Update Decimal) -> Observation t a -> t >=> a
+
+instance Ord t => Interpret t Bool where
+  eval _ (BoolConst b) = pure b
+  eval spot (DecimalLte (d, d')) = liftA2 (<=) (eval spot d) (eval spot d')
+  eval spot (DecimalEqu (d, d')) = liftA2 (==) (eval spot d) (eval spot d')
+  eval spot (DateLte (d, d')) = liftA2 (<=) (eval spot d) (eval spot d')
+  eval spot (DateEqu (d, d')) = liftA2 (==) (eval spot d) (eval spot d')
+  eval _ _ = error "eval: Interpret Bool"
+
+instance Interpret t t where
+  eval _ (DateConst t) = pure t
+  eval _ DateIdentity = id
+  eval _ _ = error "eval: Interpret Date"
+
+instance Interpret t Decimal where
+  eval _ (DecimalConst d) = pure d
+  eval spot (DecimalSpot isin) = Kleisli $ spot isin
+  eval _ _ = error "eval: Interpret Decimal"

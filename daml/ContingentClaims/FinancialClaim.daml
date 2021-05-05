@@ -1,0 +1,49 @@
+module ContingentClaims.FinancialClaim where
+
+import Prelude hiding (and, or, time, (.))
+import ContingentClaims.Claim
+import ContingentClaims.Observable qualified as O
+import ContingentClaims.Observable (TimeF, PointF, NumberF, InequalityF)
+import Daml.Control.Category
+import Daml.Control.Recursion
+import DA.Date (date, Month)
+
+at
+  : forall f t . (TimeF f t, PointF f t t, InequalityF f t t)
+  => t -> f t Bool
+at t = O.time O.== (O.pure t)
+
+zcb
+  : forall f t a . (TimeF f t, PointF f t t, PointF f t Decimal, InequalityF f t t)
+  => t -> Decimal -> a -> Claim f t a
+zcb maturity principal asset = when (at maturity) $ scale (O.pure principal) (one asset)
+
+couponDates : Int -> Int -> [Month] -> Int -> [Date]
+couponDates issueYear maturityYear couponMonths couponDay =
+  date <$> [issueYear .. maturityYear] <*> couponMonths <*> [couponDay]
+
+cpb
+  : forall f t a . (TimeF f t, PointF f t t, PointF f t Decimal, InequalityF f t t)
+  => Decimal -> Decimal -> a -> [t] -> Claim f t a
+cpb principal coupon asset = apo \case
+     [maturity] -> Left (zcb maturity coupon asset) `AndF` Left (zcb maturity principal asset)
+     (t :: ts) -> Left (zcb t coupon asset) `AndF` Right ts
+     [] -> ZeroF
+
+european
+  : forall f t a . (TimeF f t, PointF f t t, InequalityF f t t)
+  => t -> Claim f t a -> Claim f t a
+european t u = when (at t) (u `or` Zero)
+
+{-
+between
+  : forall f t a . (TimeF f t, PointF f t t, InequalityF (f t) t, LogicF (f t))
+  => t -> t -> f t Bool
+between t t' = liftA2 (&&) (O.time O.>= O.pure t) O.&&  (O.time O.<= O.pure t')
+
+american
+  : forall f t a . (Ord t, Category f, Applicative (f t))
+  => t -> t -> Claim f t a -> Claim f t a
+american t t' u = anytime (between t t') u
+
+-}

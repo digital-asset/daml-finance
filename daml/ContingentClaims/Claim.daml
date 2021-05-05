@@ -1,0 +1,159 @@
+module ContingentClaims.Claim where
+
+import Prelude hiding (or, and)
+import Daml.Control.Recursion
+import ContingentClaims.Claim.Serializable qualified as Serialized
+import ContingentClaims.Observation (Observation)
+import qualified ContingentClaims.Observation as Observation (expiry)
+import DA.Next.Set qualified as Set
+
+type T = Claim
+type F = ClaimF
+
+-- | In Petyon-Jones' paper, this is called 'Contract'.
+-- We renamed it to avoid ambiguity
+-- @f@ is the effect
+-- @t@ is time
+-- @a@ is the asset
+-- TODO: f should depend on t ?
+data Claim f t a
+  = Zero
+  | One a
+  | Give (Claim f t a)
+  | And with lhs: Claim f t a, rhs: Claim f t a
+  | Or with lhs: Claim f t a, rhs: Claim f t a
+  | Cond with predicate: f t Bool, success: Claim f t a, failure: Claim f t a
+  | Scale with k: f t Decimal, obligation: Claim f t a
+  | When with predicate: f t Bool, obligation: Claim f t a
+  | Anytime with predicate: f t Bool, obligation: Claim f t a
+  | Until with predicate: f t Bool, obligation: Claim f t a
+
+-- FIXME: why doesn't this work?
+-- zero : Claim f t a
+-- zero = Zero
+
+one ccy = One ccy
+
+give x = Give x
+
+and c1 c2 = And c1 c2
+
+or c1 c2 = Or c1 c2
+
+cond p c1 c2 = Cond p c1 c2
+
+scale k c1 = Scale k c1
+
+when o c1 = When o c1
+
+anytime o c1 = Anytime o c1
+
+until o c1 = Until o c1
+
+-- Return the upper time bound of the obligation; @None@ if it cannot be determined.
+-- This is called @horizon@ in the original paper
+expiry : forall t a . Ord t => Claim Observation t a -> Optional t
+expiry = cata \case
+           ZeroF -> None
+           OneF _ -> None
+           GiveF t -> t
+           AndF t t' -> liftA2 max t t'
+           OrF t t' -> liftA2 max t t'
+           CondF _ t t' -> liftA2 max t t'
+           ScaleF _ t -> t
+           WhenF p _ -> Observation.expiry p
+           AnytimeF p _ -> Observation.expiry p
+           UntilF p _ -> Observation.expiry p
+
+
+executorOf : Party -> Party -> Claim f t a -> Set.Set Party
+executorOf bearer cpty = cata \case
+  ZeroF -> mempty
+  OneF _ -> Set.singleton bearer
+  GiveF p -> case Set.toList p of
+    [p] -> Set.singleton $ if p == bearer then cpty else bearer
+    [] -> mempty
+    _ -> Set.fromList [bearer, cpty]
+  AndF p p' -> p <> p'
+  OrF p p' -> p <> p'
+  ScaleF _ p -> p
+  CondF _ p p' -> p <> p'
+  WhenF _ p -> p
+  AnytimeF _ p -> p
+  UntilF _ p -> p
+
+isBearerExecutor : forall f t a . Claim f t a -> Bool
+isBearerExecutor = cata \case
+                    OneF _ -> True
+                    GiveF p -> not p
+                    ScaleF _ p -> True
+                    AndF p _ -> True
+                    WhenF p _ -> True
+                    ZeroF -> error "Undefined: ZeroF"
+                    _ -> error "Undefined: isBearerExecutor"
+
+deserialize : Serialized.Claim t a -> Claim Observation t a
+deserialize = ana \case
+  Serialized.Zero -> ZeroF
+  Serialized.One a -> OneF a
+  Serialized.Give o -> GiveF o
+  Serialized.And o o' -> AndF o o'
+  Serialized.Or o o' -> OrF o o'
+  Serialized.Cond k o o' -> CondF k o o'
+  Serialized.Scale k o -> ScaleF k o
+  Serialized.When p o -> WhenF p o
+  Serialized.Anytime p o -> AnytimeF p o
+  Serialized.Until p o -> UntilF p o
+  
+serialize : Claim Observation t a -> Serialized.Claim t a
+serialize = ana \case
+  Zero -> Serialized.ZeroF
+  One a -> Serialized.OneF a
+  Give o -> Serialized.GiveF o
+  And o o' -> Serialized.AndF o o'
+  Or o o' -> Serialized.OrF o o'
+  Cond k o o' -> Serialized.CondF k o o'
+  Scale k o -> Serialized.ScaleF k o
+  When p o -> Serialized.WhenF p o
+  Anytime p o -> Serialized.AnytimeF p o
+  Until p o -> Serialized.UntilF p o
+
+
+-- Pattern functor on Claim, needed by the Rercursion package
+data ClaimF f t a x
+  = ZeroF
+  | OneF a
+  | GiveF x
+  | AndF with lhs: x, rhs: x
+  | OrF with lhs: x, rhs: x
+  | CondF with predicate: (f t Bool), success: x, failure: x
+  | ScaleF with k: (f t Decimal), obligation: x
+  | WhenF with predicate: (f t Bool), obligation: x
+  | AnytimeF with predicate: (f t Bool), obligation: x
+  | UntilF with predicate: (f t Bool), obligation: x
+  deriving Functor
+
+-- TODO: rename variables to be consistent with the types
+instance Recursive (Claim f t a) (ClaimF f t a) where
+  project Zero = ZeroF
+  project (One x) = OneF x
+  project (Give a) = GiveF a
+  project (And a b) = (AndF a b)
+  project (Or a b) = (OrF a b)
+  project (Cond x a b) = CondF x a b
+  project (Scale k x) = ScaleF k x
+  project (When o x) = WhenF o x
+  project (Anytime o x) = AnytimeF o x
+  project (Until o x) = UntilF o x
+
+instance Corecursive (Claim f t a) (ClaimF f t a) where
+  embed ZeroF = Zero
+  embed (OneF x) = One x
+  embed (GiveF a) = Give a
+  embed (AndF a b) = (And a b)
+  embed (OrF a b) = (Or a b)
+  embed (CondF x a b) = Cond x a b
+  embed (ScaleF k x) = Scale k x
+  embed (WhenF o x) = When o x
+  embed (AnytimeF o x) = Anytime o x
+  embed (UntilF o x) = Until o x
