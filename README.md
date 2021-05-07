@@ -1,8 +1,8 @@
 # Contingent Claims
 
-This is a library for modelling contingent claims i.e. derivatives. Briefly, a derivative is represented by a tree of `Claim`s, which describe the future cashflows between two parties.
+This is a library for modelling contingent claims, i.e. derivatives. Briefly, a derivative is represented by a tree of `Claim`s, which describe the future cashflows between two parties.
 
-The implementation follows closely the papers [[1]](#1), [[2]](#2).
+The implementation closely follows the papers [[1]](#1), [[2]](#2).
 
 To get started, go to the [quickstart](./QUICKSTART.md), or look in the [test directory](./test/daml/Test/FinancialContract.daml) for an example of how to create and lifecycle contracts.
 
