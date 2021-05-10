@@ -17,25 +17,37 @@ import DA.Traversable (Traversable(..))
 type T = Claim
 type F = ClaimF
 
--- | In Petyon-Jones' paper, this is called 'Contract'.
--- We renamed it to avoid ambiguity
--- @f@ is the effect
--- @t@ is time
--- @a@ is the asset
 -- TODO: f should depend on t ?
+
+-- | Used to model cashflows of instruments. 
+-- See [quickstart](../QUICKSTART.md) for detailed explanation.
+-- In Petyon-Jones' paper, this is called 'Contract'.
+-- We renamed it to avoid ambiguity
+-- * `f` is the effect, e.g. `(->)`
+-- * `t` is time e.g. `Date`
+-- * `a` is the asset
 data Claim f t a
   = Zero
+      -- ^ Represents an absence of claims.
   | One a
+      -- ^ The bearer acquires one unit of `a` *immediately*.
   | Give (Claim f t a)
+      -- ^ The obligations of the bearer and issuer are revesed.
   | And with lhs: Claim f t a, rhs: Claim f t a
+      -- ^ Used to combine multiple rights together.
   | Or with lhs: Claim f t a, rhs: Claim f t a
+      -- ^ Gives the bearer the right to choose between two claims.
   | Cond with predicate: f t Bool, success: Claim f t a, failure: Claim f t a
+      -- ^ Gives the bearer the right to the first claim if `predicate` is true, else the second claim.
   | Scale with k: f t Decimal, claim: Claim f t a
+      -- ^ Multiplies the `claim` by `k` (which can be non-detrerministic).
   | When with predicate: f t Bool, claim: Claim f t a
+      -- ^ Defers the acquisition of `claim` until *the first instant* that `predicate` is true.
+
 --  | Anytime with predicate: f t Bool, claim: Claim f t a
 --  | Until with predicate: f t Bool, claim: Claim f t a
 
--- FIXME: why doesn't this work?
+-- FIXME: why doesn't this work? Consider removing these, as we use mostly higher-level combinators.
 -- zero : Claim f t a
 -- zero = Zero
 
@@ -57,8 +69,8 @@ when o c1 = When o c1
 
 -- until o c1 = Until o c1
 
--- Return the upper time bound of the obligation; @None@ if it cannot be determined.
--- This is called @horizon@ in the original paper
+-- | Return the upper time bound of the obligation; `None` if it cannot be determined.
+-- This is called `horizon` in the original paper.
 expiry : forall t a . Ord t => Claim Observation t a -> Optional t
 expiry = cata \case
            ZeroF -> None
@@ -72,7 +84,7 @@ expiry = cata \case
 --           AnytimeF p _ -> Observation.expiry p
 --           UntilF p _ -> Observation.expiry p
 
-
+-- TODO: not sure these make sense
 executorOf : Party -> Party -> Claim f t a -> Set.Set Party
 executorOf bearer cpty = cata \case
   ZeroF -> mempty
@@ -89,6 +101,7 @@ executorOf bearer cpty = cata \case
 --  AnytimeF _ p -> p
 --  UntilF _ p -> p
 
+-- TODO: not sure these make sense
 isBearerExecutor : forall f t a . Claim f t a -> Bool
 isBearerExecutor = cata \case
                     OneF _ -> True
@@ -99,34 +112,36 @@ isBearerExecutor = cata \case
                     ZeroF -> error "Undefined: ZeroF"
                     _ -> error "Undefined: isBearerExecutor"
 
+-- | Converts a `Serialized.Claim` read from ledger, to a more general `Claim`, for use with `Daml.Control.Recursion`.
 deserialize : Serialized.Claim t a -> Claim Observation t a
 deserialize = ana \case
   Serialized.Zero -> ZeroF
   Serialized.One a -> OneF a
-  Serialized.Give o -> GiveF o
-  Serialized.And o o' -> AndF o o'
-  Serialized.Or o o' -> OrF o o'
-  Serialized.Cond k o o' -> CondF k o o'
-  Serialized.Scale k o -> ScaleF k o
-  Serialized.When p o -> WhenF p o
---  Serialized.Anytime p o -> AnytimeF p o
---  Serialized.Until p o -> UntilF p o
+  Serialized.Give c -> GiveF c
+  Serialized.And c c' -> AndF c c'
+  Serialized.Or c c' -> OrF c c'
+  Serialized.Cond k c c' -> CondF k c c'
+  Serialized.Scale k c -> ScaleF k c
+  Serialized.When p c -> WhenF p c
+--  Serialized.Anytime p c -> AnytimeF p c
+--  Serialized.Until p c -> UntilF p c
 
+-- | Converts a `Claim` into a `Serializable.Claim`, so it can be written to the ledger.
 serialize : Claim Observation t a -> Serialized.Claim t a
 serialize = ana \case
   Zero -> Serialized.ZeroF
   One a -> Serialized.OneF a
-  Give o -> Serialized.GiveF o
-  And o o' -> Serialized.AndF o o'
-  Or o o' -> Serialized.OrF o o'
-  Cond k o o' -> Serialized.CondF k o o'
-  Scale k o -> Serialized.ScaleF k o
-  When p o -> Serialized.WhenF p o
---  Anytime p o -> Serialized.AnytimeF p o
---  Until p o -> Serialized.UntilF p o
+  Give c -> Serialized.GiveF c
+  And c c' -> Serialized.AndF c c'
+  Or c c' -> Serialized.OrF c c'
+  Cond k c c' -> Serialized.CondF k c c'
+  Scale k c -> Serialized.ScaleF k c
+  When p c -> Serialized.WhenF p c
+--  Anytime p c -> Serialized.AnytimeF p c
+--  Until p c -> Serialized.UntilF p c
 
 
--- Pattern functor on Claim, needed by the Rercursion package
+-- | Unfixed version of `Claim`, for use with `Daml.Control.Recursion`.
 data ClaimF f t a x
   = ZeroF
   | OneF a
@@ -143,14 +158,14 @@ data ClaimF f t a x
 -- TODO: rename variables to be consistent with the types
 instance Recursive (Claim f t a) (ClaimF f t a) where
   project Zero = ZeroF
-  project (One x) = OneF x
-  project (Give a) = GiveF a
-  project (And a b) = (AndF a b)
-  project (Or a b) = (OrF a b)
-  project (Cond x a b) = CondF x a b
-  project (Scale k x) = ScaleF k x
-  project (When o x) = WhenF o x
---  project (Anytime o x) = AnytimeF o x
+  project (One a) = OneF a
+  project (Give c) = GiveF c
+  project (And c c') = (AndF c c')
+  project (Or c c') = (OrF c c')
+  project (Cond a c c') = CondF a c c'
+  project (Scale k a) = ScaleF k a
+  project (When o a) = WhenF o a
+--  project (Anytime o a) = AnytimeF o a
 --  project (Until o x) = UntilF o x
 
 instance Corecursive (Claim f t a) (ClaimF f t a) where
