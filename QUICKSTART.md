@@ -2,7 +2,7 @@
 
 This is a user guide for getting started with the `contingent-claims` library.
 The library is used for modelling arbitrary financial instruments, typically derivatives.
-This guide is meant to help you get to grips with the library as quickly as possible; it's not meant to cover every aspect. The work is based on the papers [[1]](#1), [[2]](#2), and we recommend that you refer to these for an in-depth understanding of how it works. 
+This guide is meant to help you get to grips with the library as quickly as possible; it's not meant to cover every aspect. The work is based on the papers [[1]](#1), [[2]](#2), and we recommend that you refer to these for an in-depth understanding of how it works.
 
 # The Model
 
@@ -36,7 +36,7 @@ When (time == t_0) (Scale (pure coupon) (One “USD”)) `And` ...
 Let's look at the constructors used in the above expression in more detail:
 
 * `One "USD"` means that the acquirer of the contract receives one unit of the asset, parametrised by `a`, *immediately*. In this case we use a 3-letter ISO code to represent a currency. But you can use your own type to represent any asset.
-* `Scale (pure coupon)` modifies the *magnitude* of the arrow in the diagram. So for example, in the diagram, the big arrow would have a distinct scale factor from the small arrows. Note also, that in our example the scale factor is constant : `pure coupon = const coupon`. However, it's possible to have ascale factor that varies on an unobserved value, such as a stock price, the weather, or any other measurable quantity.
+* `Scale (pure coupon)` modifies the *magnitude* of the arrow in the diagram. So for example, in the diagram, the big arrow would have a distinct scale factor from the small arrows. Note also, that in our example the scale factor is constant : `pure coupon = const coupon`. However, it's possible to have a scale factor that varies on an unobserved value, such as a stock price, the weather, or any other measurable quantity.
 * `When (time == t_0)` tells us where along the x-axis the arrow is placed. i.e. it modifies the moment the claim is acquired. The convention is that this must be the first instant that the predicate (`time == t_0` in this case) is true. In our example it is a point, but again, we could have used an expression with an unknown quantity, for example `spotPrice > pure k`, and it would trigger *the first instant* that the expression becomes true.
 * `And` is used to chain multiple expressions together. Remember that in the `data` definition above, each constructor is a function: `And : Claim a -> Claim a -> Claim a`. We use the Daml backtick syntax to write `And` as an infix operator, for legibility.
 
@@ -80,13 +80,13 @@ usdVsEur : [Date] -> Claim Ccy
 usdVsEur = fixed 100.0 0.1 "USD" `swap` floating (spot "EURUSD" * pure 100.0) (spot "EURUSD") "EUR"
 ```
 
-We define it in terms of it's two legs, `fixed` and `floating`, which themselves are functions. We use `swap` in infix form, and partially apply it - it takes a final `[Date]` argument which we omit, hence the resulting signature `[Date] -> Claim Ccy`.
+We define it in terms of its two legs, `fixed` and `floating`, which themselves are functions. We use `swap` in infix form, and partially apply it - it takes a final `[Date]` argument which we omit, hence the resulting signature `[Date] -> Claim Ccy`.
 
 As you can see, not only is this approach highly composable, but it also mirrors the way derivative instruments are modelled in finance.
 
-Another major advantage of this approach is it's extensibility. Unlike a traditional approach, where we might in an object-oriented language represent different instruments as classes, in the cashflow approach, we do not need to enumerate possible asset classes/instruments *a priori*. This is especially relevant in a distributed setting, where parties must execute the same code i.e. have the same `*.dar`s  on their ledger to interact. In other words, party A can issue a new instrument, or even write a new combinator function that is in a private `*.dar`, while being able to trade with party B, who has no knowledge of this new `*.dar`.
+Another major advantage of this approach is its extensibility. Unlike a traditional approach, where we might in an object-oriented language represent different instruments as classes, in the cashflow approach, we do not need to enumerate possible asset classes/instruments *a priori*. This is especially relevant in a distributed setting, where parties must execute the same code i.e. have the same `*.dar`s  on their ledger to interact. In other words, party A can issue a new instrument, or even write a new combinator function that is in a private `*.dar`, while being able to trade with party B, who has no knowledge of this new `*.dar`.
 
-# Concering Type Parameters
+# Concerning Type Parameters
 
 The curious reader may have noticed that the signature we gave for `data Claim` is not quite what is in the library, where we have `data Claim f t a`. In our examples, we have specialised this to `type Claim' f t a = Claim (->) Date a`. We'll briefly explain the need for this generality, and the three type parameters:
 
@@ -107,7 +107,7 @@ to use as an `(->) Date Decimal`. But as you can see, this isn't practical: we'd
 
 The solution is to read this data from a contract on the ledger. In Daml, the effect of reading (or writing) from the ledger is encapsulated by the `data Update` type. So what we would want is something like `f = (-> Update _)`. Unfortunately this still doesn't solve the serializability issue.
 
-The work around this, the typeclass [Observable](./daml/ContingentClaims/Observable.daml) abstracts these details away. We provide a concrete implementation that is both serializable and effectful, in [`Serializable/Claim.daml`](./daml/ContingentClaims/Serializable/Claim.daml). It uses `Observation` as a concrete, serializable implementation of `Observable`.
+To work around this, the typeclass [Observable](./daml/ContingentClaims/Observable.daml) abstracts these details away. We provide a concrete implementation that is both serializable and effectful, in [`Serializable/Claim.daml`](./daml/ContingentClaims/Serializable/Claim.daml). It uses `Observation` as a concrete, serializable implementation of `Observable`.
 
 ## The Time Parameter
 
@@ -152,9 +152,9 @@ do t <- toDateUTC <$> getTime
    lifecycleResult <- lifecycle getSpotRate elect claims t
 ```
 
-The first argument to lifecycle, `getSpotRate`, is a function taking an ISIN (security) code, and a today's date. All this does is to fetch a contract from the ledger that is keyed by these two values, and extract the `close`ing price of the security.
+The first argument to lifecycle, `getSpotRate`, is a function taking an ISIN (security) code, and today's date. All this does is fetch a contract from the ledger that is keyed by these two values, and extract the `close`ing price of the security.
 
-The second argument is only used in cases where there is an `Or` node in the tree. It's something we've not come across before. An `Or` node gives the bearer of the instrument the right to chose between two different branches/subtrees. That's what the second arugment, `elect`, is doing - it throws away the first branch, and returns the second. In a real application you would need the bearer to make this decision.
+The second argument is only used in cases where there is an `Or` node in the tree. It's something we've not come across before. An `Or` node gives the bearer of the instrument the right to chose between two different branches/subtrees. That's what the second argument, `elect`, is doing - it throws away the first branch, and returns the second. In a real application you would need the bearer to make this decision.
 
 The last two arguments are simply the claims we wish to process, and today's date, evaluated using `getTime`.
 
