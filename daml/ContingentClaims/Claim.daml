@@ -114,32 +114,40 @@ isBearerExecutor = cata \case
 
 -- | Converts a `Serialized.Claim` read from ledger, to a more general `Claim`, for use with `Daml.Control.Recursion`.
 deserialize : Serialized.Claim t a -> Claim Observation t a
-deserialize = ana \case
-  Serialized.Zero -> ZeroF
-  Serialized.One a -> OneF a
-  Serialized.Give c -> GiveF c
-  Serialized.And c c' -> AndF c c'
-  Serialized.Or c c' -> OrF c c'
-  Serialized.Cond k c c' -> CondF k c c'
-  Serialized.Scale k c -> ScaleF k c
-  Serialized.When p c -> WhenF p c
---  Serialized.Anytime p c -> AnytimeF p c
---  Serialized.Until p c -> UntilF p c
+deserialize = ana deserialize' 
+
+-- | F-algebra for `deserialize`; it can be composed in unfolds.
+deserialize' : Serialized.Claim t a -> ClaimF Observation t a (Serialized.Claim t a)
+deserialize' Serialized.Zero = ZeroF
+deserialize' (Serialized.One a) = OneF a
+deserialize' (Serialized.Give c) = GiveF c
+deserialize' (Serialized.And [c]) = deserialize'  c
+deserialize' (Serialized.And (c :: cs)) = AndF c (Serialized.And cs)
+deserialize' (Serialized.And []) = error "deserialize: Malformed `And` (should have at least two elements)"
+deserialize' (Serialized.Or c c') = OrF c c'
+deserialize' (Serialized.Cond k c c') = CondF k c c'
+deserialize' (Serialized.Scale k c) = ScaleF k c
+deserialize' (Serialized.When p c) = WhenF p c
+--  Serialized.Anytime p c = AnytimeF p c
+--  Serialized.Until p c = UntilF p c
 
 -- | Converts a `Claim` into a `Serializable.Claim`, so it can be written to the ledger.
 serialize : Claim Observation t a -> Serialized.Claim t a
-serialize = ana \case
-  Zero -> Serialized.ZeroF
-  One a -> Serialized.OneF a
-  Give c -> Serialized.GiveF c
-  And c c' -> Serialized.AndF c c'
-  Or c c' -> Serialized.OrF c c'
-  Cond k c c' -> Serialized.CondF k c c'
-  Scale k c -> Serialized.ScaleF k c
-  When p c -> Serialized.WhenF p c
+serialize = histo serialize'
+
+-- | F-coalgebra for `serialize`; it can be composed with other folds.
+serialize' : ClaimF Observation t a (Cofree (ClaimF Observation t a) (Serialized.Claim t a)) -> Serialized.Claim t a 
+serialize' ZeroF = Serialized.Zero
+serialize' (OneF a) = Serialized.One a
+serialize' (GiveF c) = Serialized.Give c.attribute
+serialize' (AndF c (Cofree (Serialized.And cs) _) ) = Serialized.And $ c.attribute :: cs
+serialize' (AndF c c') = Serialized.And [c.attribute, c'.attribute]
+serialize' (OrF c c') = Serialized.Or c.attribute c'.attribute
+serialize' (CondF k c c') = Serialized.Cond k c.attribute c'.attribute
+serialize' (ScaleF k c) = Serialized.Scale k c.attribute
+serialize' (WhenF p c) = Serialized.When p c.attribute
 --  Anytime p c -> Serialized.AnytimeF p c
 --  Until p c -> Serialized.UntilF p c
-
 
 -- | Unfixed version of `Claim`, for use with `Daml.Control.Recursion`.
 data ClaimF f t a x
