@@ -11,32 +11,50 @@ module ContingentClaims.Util (
   , cataM
   , paraM
   , anaM
+  , apoM
+  , apoCataM
   , funzip
   , synthesize
   , inherit
   , subTreeSize'
   , fixings
   , fixings'
+  , pruneZeros
+  , pruneZeros'
 ) where
 
 import ContingentClaims.Claim (Claim, Claim(..), ClaimF(..))
 import ContingentClaims.Observation (Observation)
 import ContingentClaims.Observation qualified as O
 import DA.Foldable (Foldable, sum, fold)
-import Daml.Control.Arrow ((&&&), (>>>), (<<<), Kleisli(..))
+import Daml.Control.Arrow ((&&&), (|||), (>>>), (<<<), Kleisli(..))
 import Daml.Control.Recursion
-import Prelude hiding (sum, sequence)
-import DA.Traversable (Traversable, sequence)
+import Prelude hiding (sum, sequence, mapA)
+import DA.Traversable (Traversable, sequence, mapA)
 
 -- The morphisms ending in 'M' are monadic variants, allowing to interleave e.g. `Update` or `Script`.
+-- `cataM` After Tim Williams' talk, https://www.youtube.com/watch?v=Zw9KeP3OzpU.
+
+-- TODO: the two folds can probably be simplified with Traverse.mapA too.
 cataM : (Monad m, Traversable f, Recursive b f) => (f a -> m a) -> b -> m a
 cataM f b = (project >>> fmap (cataM f) >>> (>>= f) . sequence) b
 
 paraM : (Monad m, Traversable f, Recursive b f) => (f (b, a) -> m a) -> b -> m a
 paraM f b = (project >>> fmap (runKleisli $ Kleisli pure &&& Kleisli (paraM f)) >>> (>>= f) . sequence) b
 
+-- FIXME : I think the algebra should be a -> m (f a)
 anaM : (Monad m, Traversable f, Corecursive b f) => (a -> f (m a)) -> a -> m b
-anaM f a = (fmap embed <<< sequence <<< fmap (>>= anaM f) <<< f) a
+anaM f a = (fmap embed <<< mapA (>>= anaM f) <<< f) a
+
+apoM : (Monad m, Traversable f, Corecursive b f) => (a -> m (f (Either b a))) -> a -> m b
+apoM f a = (fmap embed <<< (>>= (mapA (pure ||| apoM f))) <<< f) a
+
+-- | Specialised lazy re-fold, used by `lifecycle`.
+apoCataM : (Monad m, Traversable f, Corecursive b f) => (f b -> b) -> (a -> m (f (Either b a))) -> a -> m b
+apoCataM g f a = _apoCataM g f a 
+
+-- | HIDE
+_apoCataM g f a = (fmap g <<< (>>= (mapA (pure ||| apoCataM g f))) <<< f) a
 
 -- Functor unzip
 funzip : Functor f => f (a, b) -> (f a, f b)
@@ -83,3 +101,17 @@ fixings = cata fixings'
 fixings' : ClaimF Observation Date a [Date] -> [Date]
 fixings' (WhenF p ts) = O.fixings p ++ ts
 fixings' claim = fold claim
+
+pruneZeros : Claim f t a -> Claim f t a
+pruneZeros = cata pruneZeros'
+
+-- | Prunes sub-trees which are `Zero` a.s.
+pruneZeros' : ClaimF f t a (Claim f t a) -> Claim f t a
+pruneZeros' (ScaleF _ Zero) = Zero
+pruneZeros' (GiveF Zero) = Zero
+pruneZeros' (AndF Zero c) = c
+pruneZeros' (AndF c Zero) = c
+pruneZeros' (WhenF _ Zero) = Zero
+pruneZeros' (CondF _ Zero Zero) = Zero
+pruneZeros' (OrF Zero Zero) = Zero
+pruneZeros' other = embed other
