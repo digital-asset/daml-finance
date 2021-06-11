@@ -3,45 +3,48 @@
 -- SPDX-License-Identifier: Apache-2.0
 --
 
-{-# LANGUAGE NoImplicitPrelude #-}
-
 module ContingentClaims.Observable where
 
-import Prelude (Bool, Decimal)
+import Prelude hiding (pure)
+import Daml.Control.Arrow (Kleisli(..))
 
-infixl 6 +
-infixl 6 -
-infixl 7 *
-infixl 7 /
+type Key = Text
+type Param = Text
+type Observable f t x = (Point f t x , Number (f t x), Divisible (f t x))
 
-type Observable f t = (TimeF f t,
-  PointF f t t,
-  PointF f t Decimal,
-  RingF f t Decimal,
-  InequalityF f t Decimal,
-  InequalityF f t t)
+-- | This is either `time ≥ t | f t x ≤ f t x`
+data Inequality f t x = TimeGte t | Lte (f t x, f t x)
 
-class TimeF f t where
-  time : f t t
+-- | Observable that is true on the passed time. i.e. identity for the time observable.
+at : t -> Inequality f t x
+at t = TimeGte t
 
-class PointF f t a where
-  pure : a -> f t a
+infix 4 <=
+-- | `import Prelude hiding ((<=))` in order to use this.
+(<=) : f t x -> f t x -> Inequality f t x
+(<=) = curry Lte
 
-class RingF f t a where
-  zero : f t a
-  one : f t a
-  (+) : f t a -> f t a -> f t a
-  negate : f t a -> f t a
-  (-) : f t a -> f t a -> f t a
-  x - y = x + ContingentClaims.Observable.negate y
-  (*) : f t a -> f t a -> f t a
-  (/) : f t a -> f t a -> f t a
+deriving instance (Eq t, Eq (f t x)) => Eq (Inequality f t x)
 
-class InequalityF f t a where
-  (<=) : f t a -> f t a -> f t Bool
-  (==) : f t a -> f t a -> f t Bool
+deriving instance (Show t, Show (f t x)) => Show (Inequality f t x)
 
-{-
-class LogicF f where
-  (&&) : f Bool -> f Bool -> f Bool
--}
+class Point f t x where
+  pure : x -> f t x
+  observe : Key -> f t x
+
+class Interpret f where
+  -- | Reify the `Observable` into a Kleisli function. 
+  -- The function is only total when the first argument is too (typically it will fail on `t` > today).
+  eval : (Number x, Divisible x, Action m) => (Key -> t -> m x) -> f t x -> Kleisli m t x
+  -- | Reify the `Observable.Inequality` into a Kleisli function.
+  compare : (Ord t, Ord x, Number x, Divisible x, Action m) => (Key -> t -> m x) -> Inequality f t x -> Kleisli m t Bool
+  -- | The functor map operation _and_ also map any parametrs to keys.
+  -- For example, could map the param "spot" to an ISIN code "GB123456789".
+  -- Also contra-maps time parameter, i.e. from relative time values to absolute ones.
+  --
+  -- @ mapParams identity = fmap
+  --
+  mapParams : (t -> i)
+            -> (Param -> Key)
+            -> (Param -> Decimal)
+            -> f i Param -> f t Decimal

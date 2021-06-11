@@ -7,140 +7,114 @@
 
 module ContingentClaims.Observation (
     Observation(..)
-  , observe
-  , expiry
-  , eval
-  , HasFixings(..)
-  , Key
 ) where
 
 import ContingentClaims.Observable qualified as O
-import Daml.Control.Arrow (Kleisli(..))
-import Daml.Control.Category
+import ContingentClaims.Util.Recursion (cataM)
+import Daml.Control.Arrow (Kleisli(..), arr)
+import Daml.Control.Recursion (Recursive(..), Corecursive(..), project, embed)
+import DA.Traversable (Traversable(..))
+import DA.Foldable (Foldable(..))
+import Prelude hiding (key, (.))
 
-type Key = Text
 type T = Observation
 
 -- | Concrete implementation of `Observable`, which can be serialized.
-data Observation t a
-  = DecimalConst Decimal
-  | DecimalObs Key
-  | DecimalLte (Observation t Decimal, Observation t Decimal)
-  | DecimalEqu (Observation t Decimal, Observation t Decimal)
-  | DecimalAdd (Observation t Decimal, Observation t Decimal)
-  | DecimalNeg (Observation t Decimal)
-  | DecimalMul (Observation t Decimal, Observation t Decimal)
-  | DecimalDiv (Observation t Decimal, Observation t Decimal)
-  | BoolConst Bool
-  | DateIdentity
-  | DateConst t
-  | DateLte (Observation t t, Observation t t)
-  | DateEqu (Observation t t, Observation t t)
+-- Conceptually it's helpful to think of this as the type `t -> x`, or `t -> Update x`.
+data Observation t x
+  = Const with value: x 
+    -- ^ A named constant
+  | Observe with key: O.Key 
+    -- ^ A named parameter
+  | Add (Observation t x, Observation t x)
+  | Neg (Observation t x)
+  | Mul (Observation t x, Observation t x)
+  | Div (Observation t x, Observation t x)
   deriving (Eq, Show)
 
-{- TODO: The algebra in it's current form is partial, so we can't implement (Co)recursive instance.
-data ObservationF t a x
-  = DecimalConstF Decimal
-  | DecimalObsF Key
-  | DecimalLteF (x, x)
-  | DecimalEquF (x, x)
-  | DecimalAddF (x, x)
-  | DecimalNegF x
-  | DecimalMulF (x, x)
-  | DecimalDivF (x, x)
-  | BoolConstF Bool
-  | DateIdentityF
-  | DateConstF t
-  | DateLteF (x, x)
-  | DateEquF (x, x)
+data ObservationF t x b
+  = ConstF with value: x 
+  | ObserveF with key: O.Key 
+  | AddF (b, b)
+  | NegF (b)
+  | MulF (b, b)
+  | DivF (b, b)
   deriving (Eq, Show, Functor)
--}
 
-observe : Text -> Observation t a
-observe = DecimalObs
+instance Recursive (Observation t x) (ObservationF t x) where
+  project (Const value) = ConstF value
+  project (Observe key) = ObserveF key
+  project (Add (x, x')) = AddF (x, x')
+  project (Neg x) = NegF x
+  project (Mul (x, x') ) = MulF (x, x')
+  project (Div (x, x') ) = DivF (x, x')
 
-instance O.TimeF Observation t where
-  time = DateIdentity
+instance Corecursive (Observation t x) (ObservationF t x) where
+  embed (ConstF value) = Const value
+  embed (ObserveF key) = Observe key
+  embed (AddF (x, x')) = Add (x, x)
+  embed (NegF x) = Neg x
+  embed (MulF (x, x') ) = Mul (x, x')
+  embed (DivF (x, x') ) = Div (x, x')
 
-instance O.PointF Observation t t where
-  pure = DateConst
+instance O.Point Observation t t where
+  pure = Const
+  observe = Observe
 
-instance O.InequalityF Observation t t where
-  (<=) = curry DateLte
-  (==) = curry DateEqu
+instance O.Point Observation t x where
+  pure = Const
+  observe = Observe
 
-instance O.PointF Observation t Decimal where
-  pure = DecimalConst
+instance Additive x => Additive (Observation t x) where
+  aunit = Const aunit
+  (+) = curry Add
+  negate = Neg
 
-instance O.InequalityF Observation t Decimal where
-  (<=) = curry DecimalLte
-  (==) = curry DecimalEqu
+instance Multiplicative x => Multiplicative (Observation t x) where
+  munit = Const munit
+  (*) = curry Mul
+  x ^ 0 = munit
+  x ^ 1 = x
+  x ^ 2 = x * x
+  x ^ _ = error "Observation: power operator < 0 and > 2 not implemented"
 
-instance O.RingF Observation t Decimal where
-  zero = DecimalConst 0.0
-  one = DecimalConst 1.0
-  (+) = curry DecimalAdd
-  negate = DecimalNeg
-  (*) = curry DecimalMul
-  (/) = curry DecimalDiv
+instance (Additive x, Multiplicative x) => Number (Observation t x) where
 
---TODO: move expiry into the 'Interpret' typeclass
--- Derive the expiry date from a boolean expression
-expiry : Observation t Bool -> Optional t
-expiry (DateLte (DateIdentity, o)) = expiryDt o
-expiry (DateEqu (DateIdentity, o)) = expiryDt o
-expiry o = error "Error in  expression structure"
+instance Multiplicative x => Divisible (Observation t x) where
+  (/) = curry Div
 
--- Helper function
-expiryDt (DateLte (DateIdentity, o)) = expiryDt o
-expiryDt (DateEqu (DateIdentity, o)) = expiryDt o
-expiryDt DateIdentity = None
-expiryDt (DateConst t) = Some t
-expiryDt _ = error "Error in  expression structure"
+instance Foldable (ObservationF t x) where
+  foldr f seed (ConstF _) = seed
+  foldr f seed (ObserveF key) = seed
+  foldr f seed (NegF b) = f b seed
+  foldr f seed (AddF (b, b')) = f b $ f b' seed
+  foldr f seed (MulF (b, b')) = f b $ f b' seed
+  foldr f seed (DivF (b, b')) = f b $ f b' seed
 
-class Interpret t a where
-  eval : Monad m => (Key -> t -> m Decimal) -> Observation t a -> Kleisli m t a
+instance Traversable (ObservationF t x) where
+  sequence (ConstF x) = pure $ ConstF x
+  sequence (ObserveF key) = pure $ ObserveF key
+  sequence (NegF m) = NegF <$> m
+  sequence (AddF (m, m')) = curry AddF <$> m <*> m'
+  sequence (MulF (m, m')) = curry MulF <$> m <*> m'
+  sequence (DivF (m, m')) = curry DivF <$> m <*> m'
 
-instance Ord t => Interpret t Bool where
-  eval _ (BoolConst b) = pure b
-  eval spot (DecimalLte (d, d')) = liftA2 (<=) (eval spot d) (eval spot d')
-  eval spot (DecimalEqu (d, d')) = liftA2 (==) (eval spot d) (eval spot d')
-  eval spot (DateLte (d, d')) = liftA2 (<=) (eval spot d) (eval spot d')
-  eval spot (DateEqu (d, d')) = liftA2 (==) (eval spot d) (eval spot d')
-  eval _ _ = error "eval: Interpret Bool"
+instance O.Interpret Observation where
+  eval doObserve = cataM \case
+    ConstF x -> pure x
+    ObserveF key -> Kleisli (doObserve key)
+    AddF (x, x') -> pure $ x Prelude.+ x'
+    NegF x -> pure $ negate x
+    MulF (x, x') -> pure $ x * x'
+    DivF (x, x') -> pure $ x / x'
 
-instance Interpret t t where
-  eval _ (DateConst t) = pure t
-  eval _ DateIdentity = id
-  eval _ _ = error "eval: Interpret Date"
+  compare doObserve (O.Lte (f, f')) = liftA2 (<=) (O.eval doObserve f) (O.eval doObserve f')
+  compare _ (O.TimeGte t) = arr (>= t)
 
-instance Interpret t Decimal where
-  eval _ (DecimalConst d) = pure d
-  eval spot (DecimalObs key) = Kleisli $ spot key
-  eval spot (DecimalAdd (x, x')) = liftA2 (+) (eval spot x) (eval spot x')
-  eval spot (DecimalNeg x) = fmap (\x -> (- x)) (eval spot x)
-  eval spot (DecimalMul (x, x')) = liftA2 (*) (eval spot x) (eval spot x')
-  eval spot (DecimalDiv (x, x')) = liftA2 (/) (eval spot x) (eval spot x')
-  eval _ _ = error "eval: Interpret Decimal"
-
-class HasFixings t a where
-  fixings : Observation t a -> [t]
-    -- ^ Given an observation, return a list of fixing dates.
-
-instance HasFixings t Bool where
-  fixings (DateEqu (o, o')) = fixings o ++ fixings o'
-  fixings (DateLte (o, o')) = error "fixings: unimplemented DateLte"
-  fixings _ = error "fixings: unimplemented"
-
-instance HasFixings t t where
-  fixings (DateConst d) = [d]
-  fixings DateIdentity = []
-  fixings _ = error "fixings: illegal argument"
-
-instance HasFixings t Decimal where
-  fixings (DecimalObs _) = []
-  fixings (DecimalAdd _) = []
-  fixings (DecimalNeg _) = []
-  fixings (DecimalMul _) = []
-  fixings (DecimalDiv _) = []
-  fixings _ = error "fixings: illegal argument"
+  mapParams _ g f = cata \case
+    ConstF x -> Const (f x)
+    ObserveF key -> Observe (g key)
+    AddF (b, b') -> Add (b, b')
+    NegF b -> Neg b
+    MulF (b, b') -> Mul (b, b')
+    DivF (b, b') -> Div (b, b')

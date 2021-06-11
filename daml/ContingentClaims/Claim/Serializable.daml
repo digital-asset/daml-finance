@@ -14,44 +14,51 @@ type F = ClaimF
 -- | We require a separate data type for a serializable claim, because DAML
 -- does not support serialization of higher kinds. i.e. the `f` in `Claim`.
 -- Here we replace it with the concrete `Observation`.
-data Claim t a 
-  = Zero 
+data Claim t x a
+  = Zero
       -- ^ Represents an absence of claims.
-  | One a 
+  | One a
       -- ^ The bearer acquires one unit of `a` *immediately*.
-  | Give (Claim t a)
+  | Give (Claim t x a)
       -- ^ The obligations of the bearer and issuer are revesed.
-  | And with claims : [Claim t a]
-      -- ^ Used to combine multiple rights together. 
+  | And with claims : [Claim t x a]
+      -- ^ Used to combine multiple rights together.
       --   __Note__ This serialized version flattens right-associative `And`s to mitigate language recursion limits.
-  | Or with lhs: Claim t a, rhs: Claim t a 
+  | Or with lhs: Claim t x a, rhs: Claim t x a
       -- ^ Gives the bearer the right to choose between two claims.
-  | Cond with predicate: Observation t Bool, success: Claim t a, failure: Claim t a 
+  | Cond with predicate: Inequality t x, success: Claim t x a, failure: Claim t x a
       -- ^ Gives the bearer the right to the first claim if `predicate` is true, else the second claim.
-  | Scale with k: Observation t Decimal, claim: Claim t a 
+  | Scale with k: Observation t x, claim: Claim t x a
       -- ^ Multiplies the `claim` by `k` (which can be non-detrerministic).
-  | When with predicate: Observation t Bool, claim: Claim t a 
+  | When with predicate: Inequality t x, claim: Claim t x a
       -- ^ Defers the acquisition of `claim` until *the first instant* that `predicate` is true.
 
---  | Anytime with predicate: Observation t Bool, claim: Claim t a
---  | Until with predicate: Observation t Bool, claim: Claim t a
+--  | Anytime with predicate: Observation t Bool, claim: Claim t x a
+--  | Until with predicate: Observation t Bool, claim: Claim t x a
   deriving (Eq, Show, Functor)
 
+-- | Serializable version of `Observable.Inequality`
+data Inequality t x = TimeGte t | Lte (Observation t x, Observation t x)
+
+deriving instance (Eq t, Eq x) => Eq (Inequality t x)
+
+deriving instance (Show t, Show x) => Show (Inequality t x)
+
 -- | Unfixed version of `Claim`, for use with `Daml.Control.Recursion`.
-data ClaimF t a x
+data ClaimF t x a b
   = ZeroF
   | OneF a
-  | GiveF x
-  | AndF with claims: [x]
-  | OrF with lhs: x, rhs: x
-  | CondF with predicate: (Observation t Bool), success: x, failure: x
-  | ScaleF with k: (Observation t Decimal), claim: x
-  | WhenF with predicate: (Observation t Bool), claim: x
+  | GiveF b
+  | AndF with claims: [b]
+  | OrF with lhs: b, rhs: b
+  | CondF with predicate: Inequality t x, success: b, failure: b
+  | ScaleF with k: Observation t x, claim: b
+  | WhenF with predicate: Inequality t x, claim: b
 --   | AnytimeF with predicate: (Observation t Bool), claim: x
 --   | UntilF with predicate: (Observation t Bool), claim: x
   deriving Functor
 
-instance Recursive (Claim t a) (ClaimF t a) where
+instance Recursive (Claim t x a) (ClaimF t x a) where
   project Zero = ZeroF
   project (One a) = OneF a
   project (Give c) = GiveF c
@@ -63,7 +70,7 @@ instance Recursive (Claim t a) (ClaimF t a) where
 --  project (Anytime o x) = AnytimeF o x
 --  project (Until o x) = UntilF o x
 
-instance Corecursive (Claim t a) (ClaimF t a) where
+instance Corecursive (Claim t x a) (ClaimF t x a) where
   embed ZeroF = Zero
   embed (OneF a) = One a
   embed (GiveF c) = Give c

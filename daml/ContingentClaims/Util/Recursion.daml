@@ -1,0 +1,70 @@
+--
+-- Copyright (c) 2021, Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+--
+
+{-# OPTIONS -Wno-deprecations #-} -- To supress 'Monad' warnings
+
+module ContingentClaims.Util.Recursion (
+    cataM
+  , paraM
+  , anaM
+  , apoM
+  , apoCataM
+  , funzip
+  , synthesize
+  , inherit
+  , subTreeSize'
+) where
+
+import Prelude hiding (sequence, mapA, sum)
+import DA.Traversable (Traversable, sequence, mapA)
+import Daml.Control.Recursion (Recursive(..), Corecursive(..), Cofree(..))
+import DA.Foldable (Foldable, sum)
+import Daml.Control.Arrow ((&&&), (|||), (>>>), (<<<), Kleisli(..))
+
+-- The morphisms ending in 'M' are monadic variants, allowing to interleave e.g. `Update` or `Script`.
+-- `cataM` After Tim Williams' talk, https://www.youtube.com/watch?v=Zw9KeP3OzpU.
+
+-- TODO: the two folds can probably be simplified with Traverse.mapA too.
+cataM : (Monad m, Traversable f, Recursive b f) => (f a -> m a) -> b -> m a
+cataM f b = (project >>> fmap (cataM f) >>> (>>= f) . sequence) b
+
+paraM : (Monad m, Traversable f, Recursive b f) => (f (b, a) -> m a) -> b -> m a
+paraM f b = (project >>> fmap (runKleisli $ Kleisli pure &&& Kleisli (paraM f)) >>> (>>= f) . sequence) b
+
+-- FIXME : I think the algebra should be a -> m (f a)
+anaM : (Monad m, Traversable f, Corecursive b f) => (a -> f (m a)) -> a -> m b
+anaM f a = (fmap embed <<< mapA (>>= anaM f) <<< f) a
+
+apoM : (Monad m, Traversable f, Corecursive b f) => (a -> m (f (Either b a))) -> a -> m b
+apoM f a = (fmap embed <<< (>>= (mapA (pure ||| apoM f))) <<< f) a
+
+-- | Specialised lazy re-fold, used by `lifecycle`.
+apoCataM : (Monad m, Traversable f, Corecursive b f) => (f b -> b) -> (a -> m (f (Either b a))) -> a -> m b
+apoCataM g f a = (fmap g <<< (>>= (mapA (pure ||| apoCataM g f))) <<< f) a
+
+-- Functor unzip
+funzip : Functor f => f (a, b) -> (f a, f b)
+funzip = fmap fst &&& fmap snd
+
+-- Annotate the tree bottom-up
+synthesize : (Functor f, Recursive b f) => (f attr -> attr) -> b -> Cofree f attr
+synthesize f = cata algebra where
+  -- alg : f (Cofree f a) -> Cofree f a
+  algebra = uncurry Cofree . (f . fmap (.attribute) &&& identity)
+
+-- Annotate the tree top-down
+inherit : (Functor f, Corecursive b f, Recursive b f) => (b -> attr -> attr) -> attr -> b -> Cofree f attr
+inherit g seed b = para algebra b seed where
+  -- f (b, attr -> Cofree f attr) -> attr -> Cofree f attr
+  algebra gbg attr = Cofree attr' f' where
+    (fb, ff) = funzip gbg
+    attr' = g (embed fb) attr
+    f' = fmap ($ attr') ff
+
+-- Returns a tree with each node annotated with the # of nodes below it + 1
+subTreeSize' : Foldable f => f Int -> Int
+subTreeSize' c = 1 + sum c
+
+

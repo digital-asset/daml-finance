@@ -5,10 +5,10 @@
 
 module ContingentClaims.FinancialClaim where
 
-import Prelude hiding (and, or, time)
+import Prelude hiding (and, or, (<=))
 import ContingentClaims.Claim
 import ContingentClaims.Observable qualified as O
-import ContingentClaims.Observable (TimeF, PointF, InequalityF, Observable)
+import ContingentClaims.Observable (Observable, at)
 import Daml.Control.Recursion
 import DA.Date (date, Month)
 
@@ -19,26 +19,20 @@ unrollDates : Int -> Int -> [Month] -> Int -> [Date]
 unrollDates issueYear maturityYear fixingMonths fixingDay =
   date <$> [issueYear .. maturityYear] <*> fixingMonths <*> [fixingDay]
 
--- | Observable that is true on the passed time. i.e. identity for the time observable.
-at
-  : forall f t . (TimeF f t, PointF f t t, InequalityF f t t)
-  => t -> f t Bool
-at t = O.time O.== (O.pure t)
-
 -- | Forward agreement. Discounted by (potentially stochastic) interest rate `r`.
-forward : Observable f t => t -> f t Decimal -> Claim f t a -> Claim f t a
+forward : Observable f t x => t -> f t x -> Claim f t x a -> Claim f t x a
 forward maturity r payoff = When (at maturity) $ Scale r payoff
 
 -- | Forward rate agreement. 
-fra : Observable f t => t -> t -> f t Decimal -> f t Decimal -> Claim f t a -> Claim f t a
+fra : Observable f t x => t -> t -> f t x -> f t x -> Claim f t x a -> Claim f t x a
 fra t₁ t₂ r₀ r₁ = forward t₁ r₀ . forward t₂ r₁
 
 -- | Zero Coupon Bond.
-zcb : Observable f t => t -> Decimal -> ccy -> Claim f t ccy
+zcb : Observable f t x => t -> x -> ccy -> Claim f t x ccy
 zcb maturity principal ccy = forward maturity (O.pure principal) (One ccy)
 
 -- | A floating rate bond. The first two arguments are `Observable`s.
-floating : Observable f t => f t Decimal -> f t Decimal -> ccy -> [t] -> Claim f t ccy
+floating : Observable f t x => f t x -> f t x -> ccy -> [t] -> Claim f t x ccy
 floating principal coupon asset = apo \case
      [maturity] -> Left (forward maturity coupon (One asset)) `AndF` 
                    Left (forward maturity principal (One asset))
@@ -46,22 +40,18 @@ floating principal coupon asset = apo \case
      [] -> ZeroF
 
 -- | A (fixed rate) coupon paying bond.
-fixed : Observable f t => Decimal -> Decimal -> ccy -> [t] -> Claim f t ccy
+fixed : Observable f t x => x -> x -> ccy -> [t] -> Claim f t x ccy
 fixed principal coupon = floating (O.pure principal) (O.pure coupon)
 
 -- | European option on the passed claim. e.g. call option on S&P 500:
 -- ```
 -- european (at $ date 2021 05 14) (Zero `Or` observe "SPX" - pure 4200)
 -- ```
-european
-  : forall f t a . (TimeF f t, PointF f t t, InequalityF f t t)
-  => t -> Claim f t a -> Claim f t a
+european : t -> Claim f t x a -> Claim f t x a -- TODO : consider swapping ordre of parameters for consistency with bermudan?
 european t u = When (at t) (u `Or` Zero)
 
 -- | Bermudan option on the passed claim.
-bermudan
-  : forall f t a . (TimeF f t, PointF f t t, InequalityF f t t)
-  => Claim f t a -> [t] -> Claim f t a
+bermudan : Claim f t x a -> [t] -> Claim f t x a
 bermudan u = apo \case
   (t :: ts) -> Left (european t u) `OrF` Right ts
   [] -> ZeroF
@@ -71,18 +61,5 @@ bermudan u = apo \case
 -- fixedUsdVsFloatingEur : [t] -> Serializable.Claim Text 
 -- fixedUsdVsFloatingEur = fixed 100.0 0.02 "USD" `swap` floating (observe "USDEUR" * pure 100.0) (observe "EUR1M") "EUR"
 -- ```
-swap : forall f t a . ([t] -> Claim f t a) -> ([t] -> Claim f t a) -> [t] -> Claim f t a
+swap : ([t] -> Claim f t x a) -> ([t] -> Claim f t x a) -> [t] -> Claim f t x a
 swap receive pay ts = receive ts `And` Give (pay ts)
-
-{-
-between
-  : forall f t a . (TimeF f t, PointF f t t, InequalityF (f t) t, LogicF (f t))
-  => t -> t -> f t Bool
-between t t' = liftA2 (&&) (O.time O.>= O.pure t) O.&&  (O.time O.<= O.pure t')
-
-american
-  : forall f t a . (Ord t, Category f, Applicative (f t))
-  => t -> t -> Claim f t a -> Claim f t a
-american t t' u = anytime (between t t') u
-
--}
