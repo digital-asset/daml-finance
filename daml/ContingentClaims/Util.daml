@@ -8,13 +8,17 @@
 module ContingentClaims.Util (
     enumerateFrom
   , enum'
+  , fixings
+  , fixings'
   , pruneZeros
   , pruneZeros'
 ) where
 
+import ContingentClaims.Observable qualified as O (Inequality(..))
 import ContingentClaims.Claim (Claim, Claim(..), ClaimF(..))
 import ContingentClaims.Util.Recursion (synthesize, subTreeSize')
 import Daml.Control.Recursion
+import DA.Foldable (fold)
 import Prelude hiding (sum, sequence, mapA)
 
 -- Given a tree annotated with the number of nodes in each branch, index it, depth first.
@@ -27,10 +31,20 @@ enum' (i, Cofree _ (GiveF f)) = CofreeF i (GiveF (succ i, f))
 enum' (i, Cofree _ (AndF f@(Cofree depth _) f')) = CofreeF i (AndF (succ i, f) (succ (i + depth), f'))
 enum' (i, Cofree _ (OrF f@(Cofree depth _) f')) = CofreeF i (OrF (succ i, f) (succ (i + depth), f'))
 enum' (i, Cofree _ (CondF p f@(Cofree depth _) f')) = CofreeF i (CondF p (succ i, f) (succ (i + depth), f'))
+enum' (i, Cofree _ (AnytimeF p f)) = CofreeF i (AnytimeF p (succ i, f))
+enum' (i, Cofree _ (UntilF p f)) = CofreeF i (UntilF p (succ i, f))
 
 -- Enumerate each node in the tree, starting from from 'zero'
 enumerateFrom : Int -> Claim f t x a -> Cofree (ClaimF f t x a) Int
 enumerateFrom zero = ana enum' . (zero, ) . synthesize subTreeSize'
+
+fixings : Claim f t x a -> [t]
+fixings = cata fixings'
+
+--TODO should fail if dates will never be executed
+fixings' : ClaimF f t x a [t] -> [t]
+fixings' (WhenF (O.TimeGte t) ts) = t :: ts
+fixings' claim = fold claim
 
 pruneZeros : Claim f t x a -> Claim f t x a
 pruneZeros = cata pruneZeros'
@@ -44,4 +58,6 @@ pruneZeros' (AndF c Zero) = c
 pruneZeros' (WhenF _ Zero) = Zero
 pruneZeros' (CondF _ Zero Zero) = Zero
 pruneZeros' (OrF Zero Zero) = Zero
+pruneZeros' (UntilF _ Zero) = Zero
+pruneZeros' (AnytimeF _ Zero) = Zero
 pruneZeros' other = embed other

@@ -11,6 +11,8 @@ module ContingentClaims.Util.Recursion (
   , anaM
   , apoM
   , apoCataM
+  , hyloM
+  , ghyloM
   , funzip
   , synthesize
   , inherit
@@ -19,6 +21,7 @@ module ContingentClaims.Util.Recursion (
 
 import Prelude hiding (sequence, mapA, sum)
 import DA.Traversable (Traversable, sequence, mapA)
+import Daml.Control.Comonad
 import Daml.Control.Recursion (Recursive(..), Corecursive(..), Cofree(..))
 import DA.Foldable (Foldable, sum)
 import Daml.Control.Arrow ((&&&), (|||), (>>>), (<<<), Kleisli(..))
@@ -33,9 +36,8 @@ cataM f b = (project >>> fmap (cataM f) >>> (>>= f) . sequence) b
 paraM : (Monad m, Traversable f, Recursive b f) => (f (b, a) -> m a) -> b -> m a
 paraM f b = (project >>> fmap (runKleisli $ Kleisli pure &&& Kleisli (paraM f)) >>> (>>= f) . sequence) b
 
--- FIXME : I think the algebra should be a -> m (f a)
-anaM : (Monad m, Traversable f, Corecursive b f) => (a -> f (m a)) -> a -> m b
-anaM f a = (fmap embed <<< mapA (>>= anaM f) <<< f) a
+anaM : (Monad m, Traversable f, Corecursive b f) => (a -> m (f a)) -> a -> m b
+anaM f a = (fmap embed <<< (>>= mapA (anaM f)) <<< f) a
 
 apoM : (Monad m, Traversable f, Corecursive b f) => (a -> m (f (Either b a))) -> a -> m b
 apoM f a = (fmap embed <<< (>>= (mapA (pure ||| apoM f))) <<< f) a
@@ -43,6 +45,21 @@ apoM f a = (fmap embed <<< (>>= (mapA (pure ||| apoM f))) <<< f) a
 -- | Specialised lazy re-fold, used by `lifecycle`.
 apoCataM : (Monad m, Traversable f, Corecursive b f) => (f b -> b) -> (a -> m (f (Either b a))) -> a -> m b
 apoCataM g f a = (fmap g <<< (>>= (mapA (pure ||| apoCataM g f))) <<< f) a
+
+-- A modified `hylo` (refold), whith an interleaved monad effect (typically `Update`).
+hyloM : (Traversable f, Monad n) => (f b -> b) -> (a -> n (f a)) -> a -> n b
+hyloM f g a = (fmap f <<< (>>= mapA (hyloM f g)) <<< g) a
+
+ghyloM : (Comonad w, Traversable f, Monad m, Traversable m, Monad n)
+       => (forall c . f (w c) -> w (f c))
+       -> (forall d . m (f d) -> f (m d))
+       -> (f (w b) -> b)
+       -> (a -> n (f (m a)))
+       -> a
+       -> n b
+ghyloM w m f g a = (fmap f <<< (>>= mapA (hyloM alg coalg)) <<< g) a where
+  coalg  = fmap g >>> sequence >>> fmap m >>> fmap (fmap join)
+  alg  = fmap f <<< w <<< fmap duplicate
 
 -- Functor unzip
 funzip : Functor f => f (a, b) -> (f a, f b)
@@ -66,5 +83,3 @@ inherit g seed b = para algebra b seed where
 -- Returns a tree with each node annotated with the # of nodes below it + 1
 subTreeSize' : Foldable f => f Int -> Int
 subTreeSize' c = 1 + sum c
-
-

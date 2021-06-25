@@ -23,6 +23,8 @@ data Claim a
  | Or with lhs: Claim a, rhs: Claim a
  | Scale with k: Date -> Decimal, claim: Claim a
  | When with predicate: Date -> Bool, claim: Claim a
+ | Anytime with predicate : Date -> Bool, claim: Claim a
+ | Until with predicate : Date -> Bool, claim: Claim a
 ```
 
 There are couple of things to consider.
@@ -45,6 +47,8 @@ Additionally we have several constructors which we've not used in this example:
 * `Zero`, used to indicate an absence of obligations. While it may not make sense to create a `Zero` claim, it could, for example, result from applying a function on a tree of claims.
 * `Give` would flip the direction of the arrows in our diagram. So for example, in a swap we could use `Give` to distinguishing the received/paid legs.
 * `Or` is used to give the bearer the right to choose between two different claims.
+* `Anytime` is like `When`, except it allows the bearer to choose (vs. no choice) acquisition in a *region* (vs. a point).
+* `Until` is used to adjust the expiration (*horizon* in [[1]]) of a claim. Typically used with `Anytime` to limit aforesaid acquisition region.
 
 The tree produced by our expression is pictured below:
 
@@ -72,7 +76,7 @@ We define the fixed rate bond by induction, iterating over a list of dates `[t]`
 * The second definition handles the base case, at maturity: we create both a coupon (interest) payment, and the principal payment.
 * The third definition is the induction step; it peels the first element off the list, and calls itself recursively on the tail of the list, until it reaches the base case at maturity.
 
-This re-use of code is prevalent thorughout the library. It's great as it mirrors how instruments are defined in the industry. Let's look at yet another example, a fixed vs floating USD/EUR swap.
+This re-use of code is prevalent throughout the library. It's great as it mirrors how instruments are defined in the industry. Let's look at yet another example, a fixed vs floating USD/EUR swap.
 
 ```Haskell
 type Ccy = Text
@@ -113,7 +117,7 @@ To work around this, the typeclass [Observable](./daml/ContingentClaims/Observab
 
 `t` is used to represent the input argument to `f`, and above we used `Date` for this purpose. The reason this has been left parametrised is to be able to distinguish different calendar and day count conventions at the type level. This is quite a technical topic, but it suffices to know that for financial calculations, interest is not always accrued the same way, nor is settlement possible every day, as this depends on local jurisdictions or market conventions. Having different types makes this explicit at the instrument level.
 
-This is currently WIP, and we're planning to add specific types for day-counts and settlement calendars.
+One use of this is having instruments 'templates' expressed with time as an ordinal value, representing e.g. days from issue, which can then be re-used to list at different dates. Think for example, of listed futures or options which are listed at regular intervals.
 
 ## The Asset Parameter
 
@@ -136,7 +140,6 @@ data Result a = Result with
 
 lifecycle : (Eq a, CanAbort m)
   => (Text -> Date -> m Decimal)
-  -> (C a -> C a -> C a)
   -> C a
   -> Date -> m (Result a)
 ```
@@ -148,13 +151,10 @@ do t <- toDateUTC <$> getTime
    let getSpotRate isin t = do
          (_, Quote{close}) <- fetchByKey (isin, t, bearer)
          pure close
-       elect = const -- always branch right. In a real example, you would pass this in the choice params
-   lifecycleResult <- lifecycle getSpotRate elect claims t
+   lifecycleResult <- Lifecycle.lifecycle getSpotRate claims t
 ```
 
 The first argument to lifecycle, `getSpotRate`, is a function taking an ISIN (security) code, and today's date. All this does is fetch a contract from the ledger that is keyed by these two values, and extract the `close`ing price of the security.
-
-The second argument is only used in cases where there is an `Or` node in the tree. It's something we've not come across before. An `Or` node gives the bearer of the instrument the right to chose between two different branches/subtrees. That's what the second argument, `elect`, is doing - it throws away the first branch, and returns the second. In a real application you would need the bearer to make this decision.
 
 The last two arguments are simply the claims we wish to process, and today's date, evaluated using `getTime`.
 
