@@ -7,16 +7,19 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE UndecidableInstances #-} --needed to derive cofree Show,Eq
 
-module Test.Enumerate where
+module Test.Util where
 
 import ContingentClaims.Claim hiding (C, F)
 import ContingentClaims.Observable qualified as O
+import ContingentClaims.Observation qualified as O
 import ContingentClaims.Observation (Observation)
-import DA.Assert qualified as Assert ((===))
+import ContingentClaims.FinancialClaim
+import DA.Assert ((===))
+import DA.Date
 import Daml.Control.Recursion
 import Daml.Script
 import Prelude hiding (enumerate, length, or, and)
-import ContingentClaims.Util (enumerateFrom)
+import ContingentClaims.Util (enumerateFrom, expiry, payoffs)
 
 type C = Claim Observation Date Decimal Text
 type F = ClaimF Observation Date Decimal Text
@@ -29,10 +32,9 @@ deriving instance Eq (F (Cofree F Int))
 
 [a,b,c] = ["a","b","c"]
 
-(===) : CanAbort m => Cofree F Int -> Cofree F Int -> m ()
-(===) = (Assert.===)
-
 enumerate = script do
+  let (===) : CanAbort m => Cofree F Int -> Cofree F Int -> m ()
+      (===) = (DA.Assert.===)
   enumerateFrom 0 Zero === Cofree 0 ZeroF
   enumerateFrom 0 (Scale (O.pure 2.0) (One a)) === Cofree 0 (ScaleF (O.pure 2.0) (Cofree 1 (OneF a)))
   enumerateFrom 0 (One a `And` Zero) === Cofree 0 (AndF (Cofree 1 (OneF a)) (Cofree 2 ZeroF))
@@ -51,7 +53,7 @@ enumerate = script do
         )
       )
     ) ===
-   ( Cofree 0 (ScaleF (O.pure 3.0)
+   ( Cofree (0 : Int) (ScaleF (O.pure 3.0)
      ( Cofree 1 ( AndF
        ( Cofree 2 ( AndF
          ( Cofree 3 ( ScaleF (O.pure 5.0)
@@ -65,3 +67,14 @@ enumerate = script do
        ) )
      ) )
    ) )
+
+utils = script do
+  let call : O.Observation Date Decimal = O.observe "VOD.L" - O.pure 103.4
+      t = date 2021 Jul 30
+      multiplier : O.Observation Date Decimal = O.pure 50_000.0
+
+  expiry (european t (Scale call $ One "USD")) === Some t
+  payoffs (european t (Scale call $ One "USD")) === [(call, "USD")]
+
+  expiry (forward t multiplier (One "USD")) === Some t
+  payoffs (forward t multiplier (One "USD")) === [(multiplier, "USD")]

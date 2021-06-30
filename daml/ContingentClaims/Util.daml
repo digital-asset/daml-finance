@@ -12,13 +12,17 @@ module ContingentClaims.Util (
   , fixings'
   , pruneZeros
   , pruneZeros'
+  , expiry
+  , payoffs
 ) where
 
+import ContingentClaims.Observable (Observable)
 import ContingentClaims.Observable qualified as O (Inequality(..))
 import ContingentClaims.Claim (Claim, Claim(..), ClaimF(..))
 import ContingentClaims.Util.Recursion (synthesize, subTreeSize')
 import Daml.Control.Recursion
-import DA.Foldable (fold)
+import DA.Foldable (fold, maximum)
+import DA.Bifunctor (first)
 import Prelude hiding (sum, sequence, mapA)
 
 -- Given a tree annotated with the number of nodes in each branch, index it, depth first.
@@ -38,6 +42,10 @@ enum' (i, Cofree _ (UntilF p f)) = CofreeF i (UntilF p (succ i, f))
 enumerateFrom : Int -> Claim f t x a -> Cofree (ClaimF f t x a) Int
 enumerateFrom zero = ana enum' . (zero, ) . synthesize subTreeSize'
 
+-- | Return the fixing dates of a claim. This does not discriminate between
+-- optional dates which *may* result from a condition, and outright fixings.  It
+-- also does not correctly account for malformed trees, where subtrees are
+-- orphaned due to impossible `When` statements. e.g. `When (t > 1) ((When t < 1) _)`
 fixings : Claim f t x a -> [t]
 fixings = cata fixings'
 
@@ -46,10 +54,33 @@ fixings' : ClaimF f t x a [t] -> [t]
 fixings' (WhenF (O.TimeGte t) ts) = t :: ts
 fixings' claim = fold claim
 
+-- | Return the time after which the claim is worthless i.e. value = 0, if such a
+-- time exists.  Also known as 'maturity' or 'horizon' in the Eber/Jones paper.
+expiry : Ord t => Claim f t x a -> Optional t
+expiry c = case fixings c of
+  [] -> None
+  ts -> Some . maximum $ ts
+
+-- | Return a list of possible scale-factor/payoff pairs.
+-- This does not discriminate between conditional and outright payoffs.
+payoffs : (Eq (f t x), Observable f t x) => Claim f t x a -> [(f t x, a)]
+payoffs = fmap (first ($ munit)) . cata payoffs'
+
+-- | Algebra for `payoffs`. This also applies 'multiplication by one' identity,
+-- hence the continuation.
+payoffs' : (Eq (f t x), Observable f t x) => ClaimF f t x a [(f t x -> f t x, a)] -> [(f t x -> f t x, a)]
+payoffs' ZeroF = []
+payoffs' (OneF a) = [(identity, a)]
+payoffs' (ScaleF k fs) = first multK <$> fs where
+  multK f x | x == munit = f k -- prune unit
+  multK f x = f (x * k)
+payoffs' other = fold other
+
+-- | Prunes sub-trees which are `Zero` a.s.
 pruneZeros : Claim f t x a -> Claim f t x a
 pruneZeros = cata pruneZeros'
 
--- | Prunes sub-trees which are `Zero` a.s.
+-- | Algebra for `pruneZeros`
 pruneZeros' : ClaimF f t x a (Claim f t x a) -> Claim f t x a
 pruneZeros' (ScaleF _ Zero) = Zero
 pruneZeros' (GiveF Zero) = Zero
