@@ -19,7 +19,7 @@ import ContingentClaims.Observation qualified as O
 import ContingentClaims.Util.Recursion
 import DA.Action ((>=>))
 import DA.Assert ((===))
-import DA.Date (date, Month(..), addDays, toDateUTC)
+import DA.Date (date, Month(..), toDateUTC)
 import DA.Time (time)
 import Daml.Control.Arrow (runKleisli)
 import Daml.Control.Monad.Writer (runWriterT)
@@ -36,8 +36,8 @@ deriving instance Eq a => Eq (F a)
 
 [a,b,c] = ["a","b","c"]
 today = date 1970 Jan 1
-tomorrow = today `addDays` 1
-afterTomorrow = tomorrow `addDays` 1
+tomorrow = succ today
+afterTomorrow = succ tomorrow
 two : O.Observation Date Decimal = O.pure 2.0
 observe25: Text -> Date -> Script Decimal = const . const . pure $ 25.0
 false = O.TimeGte $ date 3000 Jan 1
@@ -258,7 +258,7 @@ testAmericanPut = script do
   setDate tomorrow
   t <- getDate
 
-  -- Settlement before exercise has been done is a no-op
+  -- Settlement before exercise is a no-op
   Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 option t
   remaining === option
   pending === []
@@ -268,10 +268,10 @@ testAmericanPut = script do
   remaining === option
 
   remaining <- Lifecycle.exercise observe25 (bearer, payoff `Or` Zero) remaining t
-  remaining === Until (O.TimeGte $ succ afterTomorrow) (payoff `Or` Zero)
+  remaining === Until (O.TimeGte $ afterTomorrow) (payoff `Or` Zero)
 
   remaining <- Lifecycle.exercise observe25 (bearer, payoff) remaining t
-  remaining === Until (O.TimeGte $ succ afterTomorrow) payoff
+  remaining === Until (O.TimeGte afterTomorrow) payoff
 
   Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t
   remaining === Zero
@@ -281,14 +281,14 @@ testAmericanPut = script do
   setDate afterTomorrow
   t <- getDate
 
+  -- Expiration at maturity n.b. this means you must *first* exercise & settle *before* expiring.
+  remaining <- Lifecycle.expire observe25 option t
+  remaining === Zero
+
   -- Settlement before exercise has been done is a no-op
   Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 option t
   remaining === option
   pending === []
-
-  -- So is expiration before maturity
-  remaining <- Lifecycle.expire observe25 remaining t
-  remaining === option
 
   -- Trying to exercise inner `Or` before `Anytime` won't work.
   remaining <- Lifecycle.exercise observe25 (bearer, payoff) remaining t
@@ -296,22 +296,22 @@ testAmericanPut = script do
 
   -- You must first exercise the 'outer' `Anytime`, and then ...
   remaining <- Lifecycle.exercise observe25 (bearer, payoff `Or` Zero) remaining t
-  remaining === Until (O.TimeGte $ succ afterTomorrow) (payoff `Or` Zero)
+  remaining === Until (O.TimeGte $ afterTomorrow) (payoff `Or` Zero)
 
   -- ... the inner `Or`.
   remaining <- Lifecycle.exercise observe25 (bearer, payoff) remaining t
-  remaining === Until (O.TimeGte $ succ afterTomorrow) payoff
+  remaining === Until (O.TimeGte $ afterTomorrow) payoff
 
   Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t
   remaining === Zero
   pending === pure (5.0, a)
 
-  -- Scenario 4) afte expiration
+  -- Scenario 4) after expiration
   setDate $ succ afterTomorrow
   t <- getDate
 
   remaining <- Lifecycle.exercise observe25 (bearer, payoff) option t
-  remaining === option -- passed maturity; no exercise possible
+  remaining === option -- past maturity; no exercise possible
 
   Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t
   remaining === option
