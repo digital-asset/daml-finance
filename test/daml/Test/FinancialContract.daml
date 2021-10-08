@@ -9,30 +9,28 @@ import ContingentClaims.Claim.Serializable (Claim)
 import ContingentClaims.Claim (deserialize, serialize)
 import DA.Set qualified as Set
 import DA.Date
-import Test.Currency
 import ContingentClaims.Lifecycle qualified as Lifecycle
 
 type T = FinancialContract
 type Days = Int
-type ISIN = Text
-type Asset = Either Currency ISIN
+type Instrument = Text
 
 template Quote
   with
-    isin: ISIN
+    instrument: Instrument
     quoteDate: Date
     close: Decimal
     source: Party
   where
     signatory source
-    key (isin, quoteDate, source) : (ISIN, Date, Party)
+    key (instrument, quoteDate, source) : (Instrument, Date, Party)
     maintainer key._3
 
 template FinancialContract
   with
     bearer: Party
     counterparty: Party
-    claims: Claim Date Decimal Asset
+    claims: Claim Date Decimal Instrument
   where
     signatory Set.fromList [bearer, counterparty]
 
@@ -42,16 +40,16 @@ template FinancialContract
     choice Clear : [ContractId ProposeSettlement]
       controller bearer
         do t <- toDateUTC <$> getTime
-           let getSpotRate isin t = do
-                 (_, Quote{close}) <- fetchByKey (isin, t, bearer) -- FIXME: maintainer should be the market data provider
+           let getSpotRate ccyOrIsin t = do
+                 (_, Quote{close}) <- fetchByKey (ccyOrIsin, t, bearer) -- FIXME: maintainer should be the market data provider
                  pure close
            lifecycleResult <- Lifecycle.lifecycle getSpotRate claims t
-           settlements <- forA lifecycleResult.pending \(quantity, asset) ->
+           settlements <- forA lifecycleResult.pending \(quantity, instrument) ->
              create ProposeSettlement
                with
                  payer = counterparty --FIXME: this breaks with a Give Node
                  receiver = bearer
-                 asset
+                 instrument
                  quantity
                  tradeDate = t
            create this with claims = serialize lifecycleResult.remaining
@@ -63,7 +61,7 @@ template ProposeSettlement
     payer: Party
     receiver: Party
     quantity: Decimal
-    asset: Asset
+    instrument: Instrument
     tradeDate : Date
   where
     signatory Set.fromList [payer, receiver]

@@ -1,0 +1,252 @@
+-- Mathematical expression, derived from `Claim`, used for pricing
+
+module ContingentClaims.Math.Stochastic (
+    Expr(..)
+  , ExprF(..)
+  , fapf
+  , gbm
+  , IsIdentifier(..)
+  , Process(..)
+  , riskless
+  , simplify
+  , unitIdentity
+) where
+
+import ContingentClaims.Claim
+import ContingentClaims.Observable (Inequality(..))
+import ContingentClaims.Observation qualified as O
+import ContingentClaims.Util.Recursion (futuM)
+import DA.Foldable
+import Daml.Control.Arrow ((|||))
+import Daml.Control.Monad.MonadState
+import Daml.Control.Monad.State (evalState)
+import Daml.Control.Recursion
+import DA.Traversable
+import Prelude hiding (Time, sequence, mapA, const)
+
+-- | A stochastic processes. Currently this represents GBM - eventually we
+-- wish to support other processes such as Levy.
+data Process t = Process { dt : Expr t, dW: Expr t } deriving (Show, Eq)-- Geometric i.e. dX / X = α dt + β dW, so we have closed solns.
+-- TODO: make sum type and support Poisson
+
+-- | Helper function to create a riskless process `dS = r dt`
+riskless r = Process { dt = Ident r, dW = Const 0.0 }
+
+-- | Helper function to create a geometric BM `dS = μ dt + σ dW`
+gbm μ σ = Process { dt = Ident μ, dW = Ident σ }
+
+-- | Base functor for `Expr`. Note that this is ADT is re-used in a couple of
+-- places e.g. `Process`, where however not every choice is legal and will lead to
+-- a partial evaluator.
+data ExprF t x
+  = ConstF Decimal
+  | IdentF t
+  | ProcF { name : Text, process: Process t, filtration : t }
+  | SupF { lowerBound: t, tau: t, rv : x }
+  | AddF { lhs: x, rhs: x }
+  | NegF x
+  | MulF { lhs: x, rhs: x }
+  | PowF { lhs: x, rhs: x }
+  | I_F { lhs : x, rhs: x }
+  | E_F { rv : x, filtration: t }
+  deriving (Functor)
+
+-- | Represents an expression of t-adapted stochastic processes
+data Expr t
+  = Const Decimal
+  | Ident t
+  | Proc { name : Text, process : Process t, filtration : t }
+  | Sup { lowerBound: t, tau: t, rv : Expr t }
+  | Add (Expr t, Expr t)
+  | Neg (Expr t)
+  | Mul (Expr t, Expr t)
+  | Pow (Expr t, Expr t)
+  | I (Expr t , Expr t)
+  | E { rv : Expr t, filtration: t }
+  deriving (Show, Eq)
+
+instance Recursive (Expr t) (ExprF t) where
+  project (Const d) = ConstF d
+  project (Ident s) = IdentF s
+  project Proc{..} = ProcF with ..
+  project Sup{..} = SupF with ..
+  project (Add (x, x')) = AddF x x'
+  project (Neg x) = NegF x
+  project (Mul (x,x')) = MulF x x'
+  project (Pow (x, x')) = PowF x x'
+  project (I (x, x')) = I_F x x'
+  project E{..} = E_F with ..
+
+instance Corecursive (Expr t) (ExprF t) where
+  embed (ConstF d) = Const d
+  embed (IdentF s) = Ident s
+  embed ProcF{..} = Proc with ..
+  embed SupF{..} = Sup with ..
+  embed (AddF x x') = Add (x, x')
+  embed (NegF x) = Neg x
+  embed (MulF x x') = Mul (x, x')
+  embed (PowF x x') = Pow (x, x')
+  embed (I_F x x') = I (x, x')
+  embed E_F{..} = E with ..
+
+class IsIdentifier t where
+  -- | Produce a local identifier of type `t`, subindexed by `i`
+  localVar : Int -> t
+
+instance Foldable (ExprF t) where
+  foldMap f (ConstF _) = mempty
+  foldMap f (IdentF _) = mempty
+  foldMap f (ProcF {}) = mempty
+  foldMap f (SupF _ _ x) = f x
+  foldMap f (AddF x x') = f x <> f x'
+  foldMap f (NegF x) = f x
+  foldMap f (MulF x x') = f x <> f x'
+  foldMap f (PowF x x') = f x <> f x'
+  foldMap f (I_F x x') = f x <> f x'
+  foldMap f (E_F x t) = f x
+
+instance Traversable (ExprF t) where
+  sequence (ConstF d) = pure $ ConstF d
+  sequence (IdentF t) = pure $ IdentF t
+  sequence (ProcF {..}) = pure $ ProcF {..}
+  sequence (SupF t τ fa) = SupF t τ <$> fa
+  sequence (AddF fa fa') = AddF <$> fa <*> fa'
+  sequence (NegF fa) = NegF <$> fa
+  sequence (MulF fa fa') = MulF <$> fa <*> fa'
+  sequence (PowF fa fa') = PowF <$> fa <*> fa'
+  sequence (I_F fa fa') = I_F <$> fa <*> fa'
+  sequence (E_F fa t) = flip E_F t <$> fa
+
+{-# WARNING fapf "This is an experimental feature" #-}
+-- | Converts a `Claim` into the Fundamental Asset Pricing Formula. The ϵ
+-- expressions are defined as E1-E10 in the Eber/Peyton-Jones paper. If you
+-- squint you can almost see they correspond one-to-one to the formulae in our
+-- whitepaper.
+fapf : (Eq a, Show a, IsIdentifier t)
+     => a
+     -> (a -> Process t)
+     -> (a -> a -> Process t)
+     -> t
+     -> Claim O.Observation t Decimal a -> Expr t
+fapf ccy disc exch today = flip evalState 0 . futuM coalg . Left . (, today) where
+  -- coalg : (Either (Claim, t) (Observable, t)) -> State Int (ExprF t (Free (ExprF t) (Either (Claim, t) (Observation, t))))
+  coalg = ϵ ||| υ
+  -- ϵ : (Claim, t) -> State Int (ExprF t (Free (ExprF t) (Claim, t)))
+  ϵ (Zero, _) = pure $ ConstF zero
+  ϵ (One asset, t) = pure $ exch' asset ccy t
+  ϵ (Give c, t) = pure . NegF . claim $ (c, t)
+  ϵ (Scale k c, t) = pure $ obs (k, t) `MulF` claim (c, t)
+  ϵ (And c c', t) = pure $ claim (c, t) `AddF` claim (c', t)
+  ϵ (Or c c', t) = pure $ AddF
+      (ind (claim (c , t)) (claim (c', t)) * claim (c , t))
+      (ind (claim (c', t)) (claim (c , t)) * claim (c', t))
+  ϵ (Cond (TimeGte t') c c', t) = pure $ AddF --FIXME: both conditions are true when t == t'
+      (ind (id t) (id t') * claim (c, t))
+      (ind (id t') (id t) * claim (c' ,t))
+  ϵ (Cond (Lte (x, x')) c c', t) = pure $ AddF
+      (ind (obs (x, t)) (obs (x', t)) * claim (c, t))
+      (ind (obs (x', t)) (obs (x, t)) * claim (c', t))
+  ϵ (When (TimeGte t') c, t) = pure $ disc' ccy t `MulF` ex (claim (c, t') / disc' ccy t') t
+  ϵ (Anytime (TimeGte t') c, t) = do
+    i <- get
+    let τ = localVar i
+    put (i + 1)
+    return $ SupF t' τ $ disc' ccy t * ex (claim (c, τ) / disc' ccy τ) t
+  ϵ (Until (TimeGte t') c, t) = pure $ claim (c, t) `MulF` ind (id t) (id t')
+  ϵ _ = error "fapf: Stochastic 'Indicator = Lte' functions not supported yet"
+  -- υ : (Observable, t) -> State Int (ExprF t (Free (ExprF t) (Observation, t)))
+  υ (O.Const {value=k}, _) = pure $ ConstF k
+  υ (O.Observe {key=asset}, t) = pure $ exch' asset ccy t
+  υ (O.Add (x, x'), t) = pure $ obs (x, t) `AddF` obs (x', t)
+  υ (O.Neg x, t) = pure . NegF $ obs (x, t)
+  υ (O.Mul (x, x'), t) = pure $ obs (x, t) `MulF` obs (x', t)
+  υ (O.Div (x, x'), t) = pure $ obs (x, t) `MulF` inv (obs (x', t))
+
+  -- these operators are sugar for writing the futumorphism using `Free`, above
+  x * y = Free $ MulF x y
+  x / y = Free $ MulF x (inv y)
+  inv x = Free $ PowF x (obs (O.Neg . O.Const $ one, today)) -- t for a `Const` is ignored
+  ind x y =  Free $ I_F x y
+  sup t i x =  Free $ SupF t i x
+  ex x t =  Free $ E_F x t
+  id =  Free . IdentF
+  claim = Pure . Left
+  obs = Pure . Right
+  disc' k t =  Free $ ProcF (show k) (disc k) t
+  exch' asset ccy t = if asset == ccy then ConstF one else ProcF (show asset) (exch asset ccy) t
+  one = munit
+  zero = aunit
+
+{-# WARNING simplify "This is an experimental feature" #-}
+-- | This is meant to be a function that algebraically simplifies the FAPF by
+-- 1) using simple identities and ring laws
+-- 2) change of numeraire technique.
+simplify : Expr t -> Expr t
+simplify = 
+    cata unitIdentity 
+  . cata zeroIdentity 
+  . cata factNeg
+  . \case [] -> Const aunit
+          [x] -> x
+          x :: xs -> cata distAdd' xs x
+  . cata distAdd
+  . ana commuteLeft 
+  . cata mulBeforeAdd
+
+{- Functions below here are helpers for simplifying the expression tree, used mainly in `simplify` -}
+
+zeroIdentity : ExprF t (Expr t) -> Expr t
+zeroIdentity (MulF (Const 0.0) x) = Const 0.0
+zeroIdentity (MulF x (Const 0.0)) = Const 0.0
+zeroIdentity (PowF x (Const 0.0)) = Const 1.0
+zeroIdentity (AddF (Const 0.0) x) = x
+zeroIdentity (AddF x (Const 0.0)) = x
+zeroIdentity (E_F (Const 0.0) _) = Const 0.0
+zeroIdentity other = embed other
+
+unitIdentity : ExprF t (Expr t) -> Expr t
+unitIdentity (MulF (Const 1.0) x) = x
+unitIdentity (MulF x (Const 1.0)) = x
+unitIdentity (PowF x (Const 1.0)) = x
+unitIdentity other = embed other
+
+factNeg : ExprF t (Expr t) -> Expr t
+factNeg (NegF (Neg x)) = x
+factNeg (MulF (Neg x) (Neg y)) = Mul (x, y)
+factNeg (MulF (Neg x) y) = Neg $ Mul (x, y)
+factNeg (MulF y (Neg x)) = Neg $ Mul (y, x)
+factNeg (E_F (Neg x) t) = Neg $ E x t
+factNeg other = embed other
+
+-- | Turn any expression into a list of terms to be summed together
+distAdd : ExprF t [Expr t] -> [Expr t]
+distAdd = \case
+  ConstF x -> [Const x]
+  IdentF x -> [Ident x]
+  AddF xs xs' -> xs ++ xs'
+  MulF xs xs' -> curry Mul <$> xs <*> xs'
+  NegF xs -> Neg <$> xs
+  E_F xs t -> flip E t <$> xs
+  I_F xs xs' -> [I (unroll xs, unroll xs')]
+  PowF xs is -> [Pow (unroll xs, unroll is)]
+  ProcF{..} -> [Proc{..}]
+  SupF t τ xs -> [Sup t τ (unroll xs)]
+  where unroll xs = cata distAdd' xs (Const aunit)
+
+-- | Unroll a list of terms to be summed together into a (left commutative) tree of `Add`s.
+distAdd' : ListF (Expr t) (Expr t -> Expr t) -> (Expr t -> Expr t)
+distAdd' Nil = identity
+distAdd' (Cons r f) = \l -> f . Add $ (l, r)
+
+
+-- | Change `(a + b) x c` to `c x (a + b)`
+mulBeforeAdd : ExprF t (Expr t) -> Expr t
+mulBeforeAdd (MulF y@Add{} x) = Mul (x, y)
+mulBeforeAdd (MulF (Mul (x, y@Add{})) x') = Mul (Mul (x,x'), y)
+mulBeforeAdd other = embed other
+
+-- | Change e.g. `a x (b x c)` to `(a x b) x c`
+commuteLeft : Expr t -> ExprF t (Expr t)
+commuteLeft (Mul (x,(Mul (a, b)))) = Mul (x, a) `MulF` b
+commuteLeft (Add (x,(Add (a, b)))) = Add (x, a) `AddF` b
+commuteLeft other = project other

@@ -47,7 +47,7 @@ data Result a = Result with
 -- The first argument is used to lookup the value of any `Observables`.
 -- Results in a function taking today's date, and returning the pruned tree + pending settlements.
 lifecycle : (Eq a, CanAbort m)
-  => (Text -> Date -> m Decimal)
+  => (a -> Date -> m Decimal)
   -> C a
   -> Date -> m (Result a)
 lifecycle spot
@@ -82,7 +82,7 @@ lifecycle spot
 -- Consumes `When` and `Cond` when appropriate, leaving their subtrees.
 -- This is useless on its own. Composed with other functions, it adds laziness.
 acquire' : (Eq a, Monad m)
-  => (Text -> Date -> m Decimal)
+  => (a -> Date -> m Decimal)
   -> C a -> Kleisli m Date (F a (Either (C a) (C a)))
 acquire' spot (When obs c) = do
   predicate <- compare spot obs
@@ -99,7 +99,7 @@ acquire' _ other = pure $ Right <$> project other
 -- top-down, and log these with their corresponding leaf values. Skip `Or` and
 -- `Anytime` branches, guaranteeing liveness.
 lifecycle' : CanAbort m
-        => (Text -> Date -> m Decimal)
+        => (a -> Date -> m Decimal)
         -> (Decimal, C a) -> WriterT [(Decimal, a)] (Kleisli m Date) (F a (Either (C a) (Decimal, C a)))
 lifecycle' _ (qty, One asset) = do
   tell [(qty, asset)]
@@ -115,7 +115,7 @@ lifecycle' _ (qty, other) = pure $ Right . (qty, ) <$> project other
 
 --  | Acquire `Anytime` and `Or` nodes, by making an election.
 -- `import` this `qualified`, to avoid clashes with `Prelude.exercise`.
-exercise : (Eq a, Monad m) => (Text -> Date -> m Decimal) -> (Bool, C a) -> C a -> Date -> m (C a)
+exercise : (Eq a, Monad m) => (a -> Date -> m Decimal) -> (Bool, C a) -> C a -> Date -> m (C a)
 exercise spot election = runKleisli . apoCataM pruneZeros' acquireThenExercise . (True, ) where
   acquireThenExercise = fmap (fmap (fmap join))
                         . fmap (fmap distE)
@@ -148,7 +148,7 @@ exercise' (elector, election) (isBearer, f@(Anytime _ c)) =
 exercise' _ (isBearer, other) = Right . (isBearer, ) <$> project other
 
 -- | Replace any subtrees that have expired with `Zero`s.
-expire : (Eq a, Monad m) => (Text -> Date -> m Decimal) -> C a -> Date -> m (C a)
+expire : (Eq a, Monad m) => (a -> Date -> m Decimal) -> C a -> Date -> m (C a)
 expire spot = runKleisli . apoCataM pruneZeros' acquireThenExpire where
   acquireThenExpire = fmap (fmap distE)
                       . fmap join
@@ -165,7 +165,7 @@ expire spot = runKleisli . apoCataM pruneZeros' acquireThenExpire where
   foldE (Right x) = x
 
 -- | Coalgebra for `expire`.
-expire' : Monad m => (Text -> Date -> m Decimal) -> C a -> Kleisli m Date (F a (C a))
+expire' : Monad m => (a -> Date -> m Decimal) -> C a -> Kleisli m Date (F a (C a))
 expire' spot (Until obs c) = do
   predicate <- compare spot obs
   if predicate then pure ZeroF else pure $ UntilF obs c
