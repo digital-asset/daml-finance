@@ -18,7 +18,7 @@ There is a dependency on [daml-ctl](https://github.com/digital-asset/daml-ctl).
 
 # Building
 
-First off, you need to build [daml-ctl](https://github.com/digital-asset/daml-ctl) and drop the resulting `daml-ctl-x.x.x.dar` in `lib/`.
+First off, you need to fetch [daml-ctl](https://github.com/digital-asset/daml-ctl/releases) and drop  in `lib/`.
 
 You can then build a release version (no tests in the `*.dar`) by running `daml build` in the root directory, or a dev version that includes test from `test`.
 
