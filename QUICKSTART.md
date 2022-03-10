@@ -16,39 +16,39 @@ We use the following data type, slightly simplified from [`Claim.daml`](./daml/C
 
 ```Haskell
 data Claim a
- = Zero
- | One a
- | Give (Claim a)
- | And with lhs: Claim a, rhs: Claim a
- | Or with lhs: Claim a, rhs: Claim a
- | Scale with k: Date -> Decimal, claim: Claim a
- | When with predicate: Date -> Bool, claim: Claim a
- | Anytime with predicate : Date -> Bool, claim: Claim a
- | Until with predicate : Date -> Bool, claim: Claim a
+ = zero
+ | one a
+ | give (Claim a)
+ | and with lhs: Claim a, rhs: Claim a
+ | or with lhs: Claim a, rhs: Claim a
+ | scale with k: Date -> Decimal, claim: Claim a
+ | when with predicate: Date -> Bool, claim: Claim a
+ | anytime with predicate : Date -> Bool, claim: Claim a
+ | until with predicate : Date -> Bool, claim: Claim a
 ```
 
 There are couple of things to consider.
 
-First note that the constructors of this data type create a tree structure. The leaf constructors are `Zero` and `One a`, and the other constructors create branches (observe they call `Claim a` recursively). The constructors are just functions, and can be combined to produce complex cashflows. For example, to represent the above bond, we could write the following:
+First note that the constructors of this data type create a tree structure. The leaf constructors are `zero` and `one a`, and the other constructors create branches (observe they call `Claim a` recursively). The constructors are just functions, and can be combined to produce complex cashflows. For example, to represent the above bond, we could write the following:
 
 ```Haskell
-When (time == t_0) (Scale (pure coupon) (One “USD”)) `And` ...
+when (time == t_0) (scale (pure coupon) (one “USD”)) `and` ...
 ```
 
 Let's look at the constructors used in the above expression in more detail:
 
-* `One "USD"` means that the acquirer of the contract receives one unit of the asset, parametrised by `a`, *immediately*. In this case we use a 3-letter ISO code to represent a currency. But you can use your own type to represent any asset.
-* `Scale (pure coupon)` modifies the *magnitude* of the arrow in the diagram. So for example, in the diagram, the big arrow would have a distinct scale factor from the small arrows. Note also, that in our example the scale factor is constant : `pure coupon = const coupon`. However, it's possible to have a scale factor that varies on an unobserved value, such as a stock price, the weather, or any other measurable quantity.
-* `When (time == t_0)` tells us where along the x-axis the arrow is placed. i.e. it modifies the moment the claim is acquired. The convention is that this must be the first instant that the predicate (`time == t_0` in this case) is true. In our example it is a point, but again, we could have used an expression with an unknown quantity, for example `spotPrice > pure k`, and it would trigger *the first instant* that the expression becomes true.
-* `And` is used to chain multiple expressions together. Remember that in the `data` definition above, each constructor is a function: `And : Claim a -> Claim a -> Claim a`. We use the Daml backtick syntax to write `And` as an infix operator, for legibility.
+* `one "USD"` means that the acquirer of the contract receives one unit of the asset, parametrised by `a`, *immediately*. In this case we use a 3-letter ISO code to represent a currency. But you can use your own type to represent any asset.
+* `scale (pure coupon)` modifies the *magnitude* of the arrow in the diagram. So for example, in the diagram, the big arrow would have a distinct scale factor from the small arrows. Note also, that in our example the scale factor is constant : `pure coupon = const coupon`. However, it's possible to have a scale factor that varies on an unobserved value, such as a stock price, the weather, or any other measurable quantity.
+* `when (time == t_0)` tells us where along the x-axis the arrow is placed. i.e. it modifies the moment the claim is acquired. The convention is that this must be the first instant that the predicate (`time == t_0` in this case) is true. In our example it is a point, but again, we could have used an expression with an unknown quantity, for example `spotPrice > pure k`, and it would trigger *the first instant* that the expression becomes true.
+* `and` is used to chain multiple expressions together. Remember that in the `data` definition above, each constructor is a function: `and : Claim a -> Claim a -> Claim a`. We use the Daml backtick syntax to write `and` as an infix operator, for legibility.
 
 Additionally we have several constructors which we've not used in this example:
 
-* `Zero`, used to indicate an absence of obligations. While it may not make sense to create a `Zero` claim, it could, for example, result from applying a function on a tree of claims.
-* `Give` would flip the direction of the arrows in our diagram. So for example, in a swap we could use `Give` to distinguishing the received/paid legs.
-* `Or` is used to give the bearer the right to choose between two different claims.
-* `Anytime` is like `When`, except it allows the bearer to choose (vs. no choice) acquisition in a *region* (vs. a point).
-* `Until` is used to adjust the expiration (*horizon* in [[1]](#1)) of a claim. Typically used with `Anytime` to limit aforesaid acquisition region.
+* `zero`, used to indicate an absence of obligations. While it may not make sense to create a `zero` claim, it could, for example, result from applying a function on a tree of claims.
+* `give` would flip the direction of the arrows in our diagram. So for example, in a swap we could use `give` to distinguishing the received/paid legs.
+* `or` is used to give the bearer the right to choose between two different claims.
+* `anytime` is like `when`, except it allows the bearer to choose (vs. no choice) acquisition in a *region* (vs. a point).
+* `until` is used to adjust the expiration (*horizon* in [[1]](#1)) of a claim. Typically used with `anytime` to limit aforesaid acquisition region.
 
 The tree produced by our expression is pictured below:
 
@@ -66,12 +66,12 @@ zcb maturity principal asset =
 Here we've just wrapped our expression from the previous section in a function `zcb`, that we can reuse to build the `fixed`-rate bond:
 
 ```Haskell
-fixed : Decimal -> Decimal -> a -> [t] -> Claim a
-fixed principal coupon asset [] = Zero
-fixed principal coupon asset [maturity] = zcb maturity coupon asset `And` zcb maturity principal asset
-fixed principal coupon asset (t :: ts) = zcb t coupon asset `And` fixed principal coupon asset ts
+fixed : Decimal -> Decimal -> a -> [Date] -> Claim a
+fixed principal coupon asset [] = zero
+fixed principal coupon asset [maturity] = zcb maturity coupon asset `and` zcb maturity principal asset
+fixed principal coupon asset (t :: ts) = zcb t coupon asset `and` fixed principal coupon asset ts
 ```
-We define the fixed rate bond by induction, iterating over a list of dates `[t]`, and producing multiple zero-coupon bonds `zcb` combined together with `And`.
+We define the fixed rate bond by induction, iterating over a list of dates `[t]`, and producing multiple zero-coupon bonds `zcb` combined together with `and`.
 * The first definition covers the trivial case where we pass an empty list of dates.
 * The second definition handles the base case, at maturity: we create both a coupon (interest) payment, and the principal payment.
 * The third definition is the induction step; it peels the first element off the list, and calls itself recursively on the tail of the list, until it reaches the base case at maturity.
@@ -92,36 +92,21 @@ Another major advantage of this approach is its extensibility. Unlike a traditio
 
 # Concerning Type Parameters
 
-The curious reader may have noticed that the signature we gave for `data Claim` is not quite what is in the library, where we have `data Claim f t a`. In our examples, we have specialised this to `type Claim' f t a = Claim (->) Date a`. We'll briefly explain the need for this generality, and the three type parameters:
-
-## The Effect Parameter
-
-`f : * -> * -> *` is a binary type constructor, and in our examples we used `f t a = (->) t a`, which you should think of as `t -> a`. This allows us to express time-dependent values in expressions involving `Scale` or `When`. Although using `(->)` is great for learning the library, it has two main limitations. First, it is not serializable, which means you can't store it in a contract on-ledger; and second, because functions in Daml are pure, it means we can't really have unknown (future) quantities. So we *could* write something like:
-
-```Haskell
-price : Date -> Decimal
-price t = case toGregorian t of
-   (2021, May, 4) -> 121.50
-   (2021, May, 5) -> 121.00
-   (2021, May, 6) -> 123.35
-   anotherDate -> error "No stock price for this date"
-```
-
-to use as an `(->) Date Decimal`. But as you can see, this isn't practical: we'd need to enumerate all future stock prices.
-
-The solution is to read this data from a contract on the ledger. In Daml, the effect of reading (or writing) from the ledger is encapsulated by the `data Update` type. So what we would want is something like `f = (-> Update _)`. Unfortunately this still doesn't solve the serializability issue.
-
-To work around this, the typeclass [Observable](./daml/ContingentClaims/Observable.daml) abstracts these details away. We provide a concrete implementation that is both serializable and effectful, in [`Serializable/Claim.daml`](./daml/ContingentClaims/Serializable/Claim.daml). It uses `Observation` as a concrete, serializable implementation of `Observable`.
+The curious reader may have noticed that the signature we gave for `data Claim` is not quite what is in the library, where we have `data Claim t x a`. In our examples, we have specialised this to `type Claim' t x a = Claim Date Decimal a`. Parametrising these variables allows us to reason about `Observation`s that appear in`Claim`s as function-like objects. The main use of this is to create claims with 'placeholders' for actual parameters, that can later be 'filled in' by mapping over them (`mapParams`).
 
 ## The Time Parameter
 
-`t` is used to represent the input argument to `f`, and above we used `Date` for this purpose. The reason this has been left parametrised is to be able to distinguish different calendar and day count conventions at the type level. This is quite a technical topic, but it suffices to know that for financial calculations, interest is not always accrued the same way, nor is settlement possible every day, as this depends on local jurisdictions or market conventions. Having different types makes this explicit at the instrument level.
+`t` is used to represent the first input argument to an `Observation`, and above we used `Date` for this purpose. One reason this has been left parametrised is to be able to distinguish different calendar and day count conventions at the type level. This is quite a technical topic, but it suffices to know that for financial calculations, interest is not always accrued the same way, nor is settlement possible every day, as this depends on local jurisdictions or market conventions. Having different types makes this explicit at the instrument level.
 
-One use of this is having instruments 'templates' expressed with time as an ordinal value, representing e.g. days from issue, which can then be re-used to list at different dates. Think for example, of listed futures or options which are listed at regular intervals.
+Another use for this is expressing time as an ordinal values, representing e.g. days from issue. Such a `Claim` can be used repeatedly to list at different dates, but with the same durations. Think for example, of series of listed futures or options which are issued with quarterly/monthly maturities - their duration is about the same, but they are issued on different dates.
 
 ## The Asset Parameter
 
-`a` as we already explained, is the type used to represent assets in our program. Keeping this generic means the library can be used with any asset representation. For example, you could use that in [lib-finance](https://github.com/digital-asset/lib-finance), but are not forced to do so.
+`a` as we already explained, is the type used to represent assets in our program. This is the second parameter to `Observation`. Keeping this generic means the library can be used with any asset representation. For example, you could use that in [lib-finance](https://github.com/digital-asset/lib-finance), but are not forced to do so.
+
+## The Value Parameter
+
+`x` is the 'output' type of an `Observation`, but it can also serve as input when defining a constant observation using e.g. `Observation.pure 10.08`.
 
 # Lifecycling
 

@@ -8,28 +8,25 @@ To get started, go to the [quickstart](./QUICKSTART.md), or look in the [test di
 
 # Copyright & License
 
-*Copyright © 2021, Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.*
+*Copyright © 2022, Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.*
 
 Distributed under the Apache 2.0 License.
 
 # Dependencies
 
-There is a dependency on `Daml.Control.Recursion` which is currently provided
-through a [git submodule](https://git-scm.com/book/en/v2/Git-Tools-Submodules).
+There is a dependency on [daml-ctl](https://github.com/digital-asset/daml-ctl).
 
 # Building
 
-First off, if `daml-ctl` directory is empty, remember to:
+First off, you need to build [daml-ctl](https://github.com/digital-asset/daml-ctl) and drop the resulting `daml-ctl-x.x.x.dar` in `lib/`.
 
-```
-git submodule init && git submodule update
-```
-
-You can build a release version (no tests in the `*.dar`) by running `daml
-build` in the root directory, or a dev version that includes test from
-`test`.
+You can then build a release version (no tests in the `*.dar`) by running `daml build` in the root directory, or a dev version that includes test from `test`.
 
 Source-code documentation can be generated through `make doc`.
+
+# Releases
+
+We aim to adhere to the 'semantic versioning' scheme. [Upgrading.md](./UPGRADING.md) documents breaking changes across versions.
 
 # Contribution Policy
 

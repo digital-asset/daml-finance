@@ -6,9 +6,7 @@
 {-# OPTIONS -Wno-deprecations #-} -- To supress 'Monad' warnings
 
 module ContingentClaims.Util (
-    enumerateFrom
-  , enum'
-  , fixings
+    fixings
   , fixings'
   , pruneZeros
   , pruneZeros'
@@ -16,59 +14,40 @@ module ContingentClaims.Util (
   , payoffs
 ) where
 
-import ContingentClaims.Observable (Observable)
-import ContingentClaims.Observable qualified as O (Inequality(..))
-import ContingentClaims.Claim (Claim, Claim(..), ClaimF(..))
-import ContingentClaims.Util.Recursion (synthesize, subTreeSize')
+import ContingentClaims.Claim (Claim, Claim(..), ClaimF(..), Inequality(..))
+import ContingentClaims.Observation (Observation)
 import Daml.Control.Recursion
-import DA.Foldable (fold, maximum)
+import DA.Foldable (fold, maximum, all)
 import DA.Bifunctor (first)
-import Prelude hiding (sum, sequence, mapA)
-
--- Given a tree annotated with the number of nodes in each branch, index it, depth first.
-enum' : (Int, Cofree (ClaimF f t x a) Int) -> CofreeF (ClaimF f t x a) Int (Int, Cofree (ClaimF f t x a) Int)
-enum' (i, Cofree _ ZeroF) = CofreeF i ZeroF
-enum' (i, Cofree _ (OneF id)) = CofreeF i (OneF id)
-enum' (i, Cofree _ (WhenF p f)) = CofreeF i (WhenF p (succ i, f))
-enum' (i, Cofree _ (ScaleF p f)) = CofreeF i (ScaleF p (succ i, f))
-enum' (i, Cofree _ (GiveF f)) = CofreeF i (GiveF (succ i, f))
-enum' (i, Cofree _ (AndF f@(Cofree depth _) f')) = CofreeF i (AndF (succ i, f) (succ (i + depth), f'))
-enum' (i, Cofree _ (OrF f@(Cofree depth _) f')) = CofreeF i (OrF (succ i, f) (succ (i + depth), f'))
-enum' (i, Cofree _ (CondF p f@(Cofree depth _) f')) = CofreeF i (CondF p (succ i, f) (succ (i + depth), f'))
-enum' (i, Cofree _ (AnytimeF p f)) = CofreeF i (AnytimeF p (succ i, f))
-enum' (i, Cofree _ (UntilF p f)) = CofreeF i (UntilF p (succ i, f))
-
--- Enumerate each node in the tree, starting from from 'zero'
-enumerateFrom : Int -> Claim f t x a -> Cofree (ClaimF f t x a) Int
-enumerateFrom zero = ana enum' . (zero, ) . synthesize subTreeSize'
+import Prelude hiding (sum, sequence, mapA, all)
 
 -- | Return the fixing dates of a claim. This does not discriminate between
 -- optional dates which *may* result from a condition, and outright fixings.  It
 -- also does not correctly account for malformed trees, where subtrees are
 -- orphaned due to impossible `When` statements. e.g. `When (t > 1) ((When t < 1) _)`
-fixings : Claim f t x a -> [t]
+fixings : Claim t x a -> [t]
 fixings = cata fixings'
 
 --TODO should fail if dates will never be executed
-fixings' : ClaimF f t x a [t] -> [t]
-fixings' (WhenF (O.TimeGte t) ts) = t :: ts
+fixings' : ClaimF t x a [t] -> [t]
+fixings' (WhenF (TimeGte t) ts) = t :: ts
 fixings' claim = fold claim
 
 -- | Return the time after which the claim is worthless i.e. value = 0, if such a
 -- time exists.  Also known as 'maturity' or 'horizon' in the Eber/Jones paper.
-expiry : Ord t => Claim f t x a -> Optional t
+expiry : Ord t => Claim t x a -> Optional t
 expiry c = case fixings c of
   [] -> None
   ts -> Some . maximum $ ts
 
 -- | Return a list of possible scale-factor/payoff pairs.
 -- This does not discriminate between conditional and outright payoffs.
-payoffs : (Eq (f t x a), Observable f t x a) => Claim f t x a -> [(f t x a, a)]
+payoffs : (Eq x, Eq a, Multiplicative x) => Claim t x a -> [(Observation t x a, a)]
 payoffs = fmap (first ($ munit)) . cata payoffs'
 
 -- | Algebra for `payoffs`. This also applies 'multiplication by one' identity,
 -- hence the continuation.
-payoffs' : (Eq (f t x a), Observable f t x a) => ClaimF f t x a [(f t x a -> f t x a, a)] -> [(f t x a -> f t x a, a)]
+payoffs' : (Eq x, Eq a, Multiplicative x) => ClaimF t x a [(Observation t x a -> Observation t x a, a)] -> [(Observation t x a -> Observation t x a, a)]
 payoffs' ZeroF = []
 payoffs' (OneF a) = [(identity, a)]
 payoffs' (ScaleF k fs) = first multK <$> fs where
@@ -77,18 +56,29 @@ payoffs' (ScaleF k fs) = first multK <$> fs where
 payoffs' other = fold other
 
 -- | Prunes sub-trees which are `Zero` a.s.
-pruneZeros : Claim f t x a -> Claim f t x a
+pruneZeros : Claim t x a -> Claim t x a
 pruneZeros = cata pruneZeros'
 
--- | Algebra for `pruneZeros`
-pruneZeros' : ClaimF f t x a (Claim f t x a) -> Claim f t x a
+-- | Algebra for `pruneZeros`. N.b. the `Or` case : we only reduce the case
+-- when all elements are `Zero`. It's incorrect to remove a single `Or` (as this
+-- would remove a choice for 'inaction' from the bearer - think option lapse).
+-- However, we don't handle the case for `Or > 1`, as this can be unintuitive
+-- (although semantically correct); this may change in the future, so don't rely
+-- on this behaviour.
+pruneZeros' : ClaimF t x a (Claim t x a) -> Claim t x a
 pruneZeros' (ScaleF _ Zero) = Zero
 pruneZeros' (GiveF Zero) = Zero
-pruneZeros' (AndF Zero c) = c
-pruneZeros' (AndF c Zero) = c
+pruneZeros' (AndF c c' cs) = case filter (not . isZero) (c :: c' :: cs) of
+  [] -> Zero
+  [c] -> c
+  c :: c' :: cs -> And c c' cs
 pruneZeros' (WhenF _ Zero) = Zero
 pruneZeros' (CondF _ Zero Zero) = Zero
-pruneZeros' (OrF Zero Zero) = Zero
+pruneZeros' ors@OrF{} | isZero `all` ors = Zero
 pruneZeros' (UntilF _ Zero) = Zero
 pruneZeros' (AnytimeF _ Zero) = Zero
 pruneZeros' other = embed other
+
+-- | This avoids requiring the equality type constraint on `a`
+isZero Zero = True
+isZero _ = False

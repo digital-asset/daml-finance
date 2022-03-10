@@ -13,13 +13,12 @@ module ContingentClaims.Math.Stochastic (
 ) where
 
 import ContingentClaims.Claim
-import ContingentClaims.Observable (Inequality(..))
 import ContingentClaims.Observation qualified as O
 import ContingentClaims.Util.Recursion (futuM)
 import DA.Foldable
 import Daml.Control.Arrow ((|||))
-import Daml.Control.Monad.MonadState
-import Daml.Control.Monad.State (evalState)
+import Daml.Control.Monad.State.Class
+import Daml.Control.Monad.Trans.State (evalState)
 import Daml.Control.Recursion
 import DA.Traversable
 import Prelude hiding (Time, sequence, mapA, const)
@@ -43,7 +42,7 @@ data ExprF t x
   | IdentF t
   | ProcF { name : Text, process: Process t, filtration : t }
   | SupF { lowerBound: t, tau: t, rv : x }
-  | AddF { lhs: x, rhs: x }
+  | SumF [x]
   | NegF x
   | MulF { lhs: x, rhs: x }
   | PowF { lhs: x, rhs: x }
@@ -57,7 +56,7 @@ data Expr t
   | Ident t
   | Proc { name : Text, process : Process t, filtration : t }
   | Sup { lowerBound: t, tau: t, rv : Expr t }
-  | Add (Expr t, Expr t)
+  | Sum [Expr t]
   | Neg (Expr t)
   | Mul (Expr t, Expr t)
   | Pow (Expr t, Expr t)
@@ -70,7 +69,7 @@ instance Recursive (Expr t) (ExprF t) where
   project (Ident s) = IdentF s
   project Proc{..} = ProcF with ..
   project Sup{..} = SupF with ..
-  project (Add (x, x')) = AddF x x'
+  project (Sum xs) = SumF xs
   project (Neg x) = NegF x
   project (Mul (x,x')) = MulF x x'
   project (Pow (x, x')) = PowF x x'
@@ -82,7 +81,7 @@ instance Corecursive (Expr t) (ExprF t) where
   embed (IdentF s) = Ident s
   embed ProcF{..} = Proc with ..
   embed SupF{..} = Sup with ..
-  embed (AddF x x') = Add (x, x')
+  embed (SumF xs) = Sum xs
   embed (NegF x) = Neg x
   embed (MulF x x') = Mul (x, x')
   embed (PowF x x') = Pow (x, x')
@@ -98,7 +97,7 @@ instance Foldable (ExprF t) where
   foldMap f (IdentF _) = mempty
   foldMap f (ProcF {}) = mempty
   foldMap f (SupF _ _ x) = f x
-  foldMap f (AddF x x') = f x <> f x'
+  foldMap f (SumF xs) = foldMap f xs
   foldMap f (NegF x) = f x
   foldMap f (MulF x x') = f x <> f x'
   foldMap f (PowF x x') = f x <> f x'
@@ -110,7 +109,10 @@ instance Traversable (ExprF t) where
   sequence (IdentF t) = pure $ IdentF t
   sequence (ProcF {..}) = pure $ ProcF {..}
   sequence (SupF t τ fa) = SupF t τ <$> fa
-  sequence (AddF fa fa') = AddF <$> fa <*> fa'
+  sequence (SumF [fa]) = (\a -> SumF [a]) <$> fa
+  sequence (SumF (fa :: fas)) = s <$> fa <*> sequence fas
+    where s a as = SumF (a :: as)
+  sequence (SumF []) = error "Traversable ExprF: sequence empty SumF"
   sequence (NegF fa) = NegF <$> fa
   sequence (MulF fa fa') = MulF <$> fa <*> fa'
   sequence (PowF fa fa') = PowF <$> fa <*> fa'
@@ -127,7 +129,7 @@ fapf : (Eq a, Show a, IsIdentifier t)
      -> (a -> Process t)
      -> (a -> a -> Process t)
      -> t
-     -> Claim O.Observation t Decimal a -> Expr t
+     -> Claim t Decimal a -> Expr t
 fapf ccy disc exch today = flip evalState 0 . futuM coalg . Left . (, today) where
   -- coalg : (Either (Claim, t) (Observable, t)) -> State Int (ExprF t (Free (ExprF t) (Either (Claim, t) (Observation, t))))
   coalg = ϵ ||| υ
@@ -136,16 +138,19 @@ fapf ccy disc exch today = flip evalState 0 . futuM coalg . Left . (, today) whe
   ϵ (One asset, t) = pure $ exch' asset ccy t
   ϵ (Give c, t) = pure . NegF . claim $ (c, t)
   ϵ (Scale k c, t) = pure $ obs (k, t) `MulF` claim (c, t)
-  ϵ (And c c', t) = pure $ claim (c, t) `AddF` claim (c', t)
-  ϵ (Or c c', t) = pure $ AddF
-      (ind (claim (c , t)) (claim (c', t)) * claim (c , t))
+  ϵ (And c c' cs, t) = pure . SumF $ fmap (claim . (, t)) (c :: c' :: cs)
+  ϵ (Or c c' [], t) = pure $ SumF [ -- FIXME: handle nested ors; consider writing in nCr form.
+      (ind (claim (c , t)) (claim (c', t)) * claim (c , t)),
       (ind (claim (c', t)) (claim (c , t)) * claim (c', t))
-  ϵ (Cond (TimeGte t') c c', t) = pure $ AddF --FIXME: both conditions are true when t == t'
-      (ind (id t) (id t') * claim (c, t))
+    ]
+  ϵ (Cond (TimeGte t') c c', t) = pure $ SumF [ --FIXME: both conditions are true when t == t'
+      (ind (id t) (id t') * claim (c, t)),
       (ind (id t') (id t) * claim (c' ,t))
-  ϵ (Cond (Lte (x, x')) c c', t) = pure $ AddF
-      (ind (obs (x, t)) (obs (x', t)) * claim (c, t))
+    ]
+  ϵ (Cond (Lte (x, x')) c c', t) = pure $ SumF [
+      (ind (obs (x, t)) (obs (x', t)) * claim (c, t)),
       (ind (obs (x', t)) (obs (x, t)) * claim (c', t))
+    ]
   ϵ (When (TimeGte t') c, t) = pure $ disc' ccy t `MulF` ex (claim (c, t') / disc' ccy t') t
   ϵ (Anytime (TimeGte t') c, t) = do
     i <- get
@@ -157,7 +162,7 @@ fapf ccy disc exch today = flip evalState 0 . futuM coalg . Left . (, today) whe
   -- υ : (Observable, t) -> State Int (ExprF t (Free (ExprF t) (Observation, t)))
   υ (O.Const {value=k}, _) = pure $ ConstF k
   υ (O.Observe {key=asset}, t) = pure $ exch' asset ccy t
-  υ (O.Add (x, x'), t) = pure $ obs (x, t) `AddF` obs (x', t)
+  υ (O.Add (x, x'), t) = pure $ SumF [obs (x, t), obs (x', t)]
   υ (O.Neg x, t) = pure . NegF $ obs (x, t)
   υ (O.Mul (x, x'), t) = pure $ obs (x, t) `MulF` obs (x', t)
   υ (O.Div (x, x'), t) = pure $ obs (x, t) `MulF` inv (obs (x', t))
@@ -188,10 +193,10 @@ simplify =
   . cata factNeg
   . \case [] -> Const aunit
           [x] -> x
-          x :: xs -> cata distAdd' xs x
-  . cata distAdd
+          xs -> Sum xs
+  . cata distSum
   . ana commuteLeft 
-  . cata mulBeforeAdd
+  . cata mulBeforeSum
 
 {- Functions below here are helpers for simplifying the expression tree, used mainly in `simplify` -}
 
@@ -199,8 +204,9 @@ zeroIdentity : ExprF t (Expr t) -> Expr t
 zeroIdentity (MulF (Const 0.0) x) = Const 0.0
 zeroIdentity (MulF x (Const 0.0)) = Const 0.0
 zeroIdentity (PowF x (Const 0.0)) = Const 1.0
-zeroIdentity (AddF (Const 0.0) x) = x
-zeroIdentity (AddF x (Const 0.0)) = x
+zeroIdentity (SumF xs) = Sum $ filter (not . isZero) xs
+  where isZero (Const 0.0) = True
+        isZero _ = False
 zeroIdentity (E_F (Const 0.0) _) = Const 0.0
 zeroIdentity other = embed other
 
@@ -219,11 +225,11 @@ factNeg (E_F (Neg x) t) = Neg $ E x t
 factNeg other = embed other
 
 -- | Turn any expression into a list of terms to be summed together
-distAdd : ExprF t [Expr t] -> [Expr t]
-distAdd = \case
+distSum : ExprF t [Expr t] -> [Expr t]
+distSum = \case
   ConstF x -> [Const x]
   IdentF x -> [Ident x]
-  AddF xs xs' -> xs ++ xs'
+  SumF xs -> join xs
   MulF xs xs' -> curry Mul <$> xs <*> xs'
   NegF xs -> Neg <$> xs
   E_F xs t -> flip E t <$> xs
@@ -231,22 +237,15 @@ distAdd = \case
   PowF xs is -> [Pow (unroll xs, unroll is)]
   ProcF{..} -> [Proc{..}]
   SupF t τ xs -> [Sup t τ (unroll xs)]
-  where unroll xs = cata distAdd' xs (Const aunit)
-
--- | Unroll a list of terms to be summed together into a (left commutative) tree of `Add`s.
-distAdd' : ListF (Expr t) (Expr t -> Expr t) -> (Expr t -> Expr t)
-distAdd' Nil = identity
-distAdd' (Cons r f) = \l -> f . Add $ (l, r)
-
+  where unroll xs = Sum xs
 
 -- | Change `(a + b) x c` to `c x (a + b)`
-mulBeforeAdd : ExprF t (Expr t) -> Expr t
-mulBeforeAdd (MulF y@Add{} x) = Mul (x, y)
-mulBeforeAdd (MulF (Mul (x, y@Add{})) x') = Mul (Mul (x,x'), y)
-mulBeforeAdd other = embed other
+mulBeforeSum : ExprF t (Expr t) -> Expr t
+mulBeforeSum (MulF y@Sum{} x) = Mul (x, y)
+mulBeforeSum (MulF (Mul (x, y@Sum{})) x') = Mul (Mul (x,x'), y)
+mulBeforeSum other = embed other
 
 -- | Change e.g. `a x (b x c)` to `(a x b) x c`
 commuteLeft : Expr t -> ExprF t (Expr t)
 commuteLeft (Mul (x,(Mul (a, b)))) = Mul (x, a) `MulF` b
-commuteLeft (Add (x,(Add (a, b)))) = Add (x, a) `AddF` b
 commuteLeft other = project other

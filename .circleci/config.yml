@@ -5,50 +5,105 @@
 
 version: 2.1
 
-orbs:
-  slack: circleci/slack@3.4.2
-
 executors:
   daml-executor:
     docker:
-      - image: cimg/openjdk:11.0-node
+      - image: cimg/openjdk:11.0
 
 commands:
   install_sdk:
     description: "Install Daml SDK"
-    parameters:
-      version:
-        type: string
     steps:
       - run:
           name: Install Daml SDK
           command: |
-            curl -sSL https://get.daml.com/ | sh /dev/stdin << parameters.version >>
+            curl -sSL https://get.daml.com/ | sh /dev/stdin ${SDK_VERSION}
             # idea from https://circleci.com/docs/2.0/env-vars/
             >> $BASH_ENV echo 'export PATH="$HOME/.daml/bin:$PATH"'
-  slack_notification:
-    description: "Notify about failure on Slack"
+  install_yq:
+    description: "Install yq from binary"
     steps:
-      - slack/status:
-          fail_only: true
-          only_for_branches: master
-          webhook: '${SLACK_WEBHOOK}'
+      - run:
+          name: Install yq
+          command: |
+            mkdir -p $HOME/yq
+            curl -L https://github.com/mikefarah/yq/releases/download/3.4.1/yq_linux_amd64 -o $HOME/yq/yq &&\
+              chmod +x $HOME/yq/yq &&\
+              echo 'export PATH=$HOME/yq/yq:$PATH' >> $BASH_ENV
+  install_gh:
+    description: "Install GitHub Cli"
+    steps:
+      - run:
+          name: Install gh
+          command: |
+            curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+            sudo apt update
+            sudo apt install gh
+  set_sdk_version:
+    description: "Set Daml SDK version environment version"
+    steps:
+      - run:
+          name: Set Daml SDK version
+          command: echo 'export SDK_VERSION=$(yq e '.sdk-version' daml.yaml)' >> $BASH_ENV
+  get_dependencies:
+    description: "Get project data-dependencies from Github"
+    steps:
+      - run:
+          name: Get data-dependencies
+          command: |
+            readarray DEPENDENCIES < <(yq e '.data-dependencies[]' daml.yaml)
+            for DEPENDENCYPATH in "${DEPENDENCIES[@]}"; do
+
+              # Take the full path, split on the unix file separator and take the last element in array
+              FILENAME=`awk '{ n=split($0,array,"/"); print array[n] }' \<<< ${DEPENDENCYPATH}`
+
+              # From the end of the file name, remove the file extension and the version to get the repo name
+              REPO=`awk '{ sub(/\-[0-9]*\..*$/, "") ; print }' \<<< ${FILENAME}`
+
+              # Match from the major version until the end of the file name; keep what was matched from the input string; remove the file extension
+              VERSION=`awk '{ match($0, /[0-9a-zA-Z]+\..*/) ; $0=substr($0, RSTART, RLENGTH); sub(/.[a-z]+$/, ""); print }' \<<< ${FILENAME}`
+
+              echo "Downloading ${FILENAME} from Github repository at https://github.com/digital-asset/${REPO}/releases/download/v${VERSION}/${FILENAME}"
+              curl -Lf# https://github.com/digital-asset/${REPO}/releases/download/v${VERSION}/${FILENAME} -o ${DEPENDENCYPATH}
+              echo ""
+              echo "${FILENAME} downloaded successfully! Dependency saved to ${DEPENDENCYPATH}"
+              echo ""
+            done
+  run_release:
+    description: "Run Release"
+    steps:
+      - run:
+          name: "Get target release version"
+          command: echo 'export VERSION=$(yq e '.version' daml.yaml)' >> $BASH_ENV
+      - run:
+          name: "Validate target release version"
+          command: |
+            if [ `git tag` == $VERSION ] ; then
+              echo "New tag detected ${VERSION}. Releasing..."
+            else
+              echo "Tag ${VERSION} already exists; Skipping Release."
+              circleci-agent step halt
+            fi
+      - run:
+          name: "Tag and push to GitHub"
+          command: gh release create v${VERSION} .daml/dist/contingent-claims-${VERSION}.dar --generate-notes
+      - store_artifacts:
+          path: .daml/dist/contingent-claims-${VERSION}.dar
+          destination: contingent-claims-dar-${VERSION}
 
 jobs:
-  daml_test:
-    parameters:
-      daml_sdk_version:
-        type: string
+  build:
     executor: daml-executor
     steps:
       - checkout
-      - run: git submodule sync
-      - run: git submodule update --init
+      - install_yq
       - restore_cache:
           keys:
-            - daml-{{ checksum "daml.yaml" }}
-      - install_sdk:
-          version: << parameters.daml_sdk_version >>
+            - contingent-claims-{{ checksum "daml.yaml" }}
+      - set_sdk_version
+      - install_sdk
+      - get_dependencies
       - run:
           name: Build Daml
           command: |
@@ -60,18 +115,21 @@ jobs:
             daml test
       - save_cache:
           paths:
-            - ~/.daml
-          key: daml-{{ checksum "daml.yaml" }}
-      - store_test_results:
-          path: target/daml-test-reports
-      - store_artifacts:
-          path: target/daml-test-reports
-      - slack_notification
+            - .daml
+          key: contingent-claims-{{ checksum "daml.yaml" }}
 
-  blackduck_check:
-    parameters:
-      daml_sdk_version:
-        type: string
+  release:
+    executor: daml-executor
+    steps:
+      - checkout
+      - install_yq
+      - install_gh
+      - restore_cache:
+          keys:
+            - contingent-claims-{{ checksum "daml.yaml" }}
+      - run_release
+
+  blackduck:
     executor: daml-executor
     steps:
       - checkout
@@ -84,22 +142,31 @@ jobs:
             --detect.excluded.detector.types=pip \
             --detect.notices.report=false \
             --detect.timeout=3600
-### Temporarily disabled due to Blackduck issue (see https://github.com/digital-asset/ex-bond-issuance/pull/156)
-#      - run:
-#          command: cp digitalasset_ex_bond_issuance_master_Black_Duck_Notices_Report.txt NOTICE
-#      - persist_to_workspace:
-#          root: .
-#          paths:
-#            - "NOTICE"
-      - slack_notification
 
 workflows:
   version: 2
-  test:
+  build:
     jobs:
-      - daml_test:
-          daml_sdk_version: "1.13.1"
-          context: refapps
+      - build:
+          filters:
+            branches:
+              ignore:
+                - master
+  build_and_release:
+    jobs:
+      - build:
+          filters:
+            branches:
+              only:
+                - master
+      - release:
+          context: github-fin-eng-context
+          requires:
+            - build
+          filters:
+            branches:
+              only:
+                - master
   scheduled_test:
     triggers:
       - schedule:
@@ -111,11 +178,7 @@ workflows:
               only:
                 - master
     jobs:
-      - daml_test:
-          daml_sdk_version: "1.13.1"
-          context: refapps
-      - blackduck_check:
-          daml_sdk_version: "1.13.1"
+      - build
+      - blackduck:
           context:
             - blackduck
-            - refapps

@@ -4,18 +4,17 @@
 --
 
 {-# OPTIONS -Wno-deprecations #-} -- To supress 'Monad' warnings
+{-# LANGUAGE NoImplicitPrelude #-}
 
-module ContingentClaims.Observation (
-    Observation(..)
-) where
+module ContingentClaims.Observation where
 
-import ContingentClaims.Observable qualified as O
 import ContingentClaims.Util.Recursion (cataM)
-import Daml.Control.Arrow (Kleisli(..), arr)
-import Daml.Control.Recursion (Recursive(..), Corecursive(..), project, embed)
-import DA.Traversable (Traversable(..))
 import DA.Foldable (Foldable(..))
-import Prelude hiding (key, (.))
+import DA.Traversable (Traversable(..))
+import Daml.Control.Arrow (Kleisli(..))
+import Daml.Control.Recursion (Recursive(..), Corecursive(..), project, embed)
+import Prelude hiding (key, (.), pure)
+import qualified Prelude (pure)
 
 type T = Observation
 
@@ -30,7 +29,7 @@ data Observation t x a
   | Neg (Observation t x a)
   | Mul (Observation t x a, Observation t x a)
   | Div (Observation t x a, Observation t x a)
-  deriving (Eq, Show, Functor)
+  deriving (Eq, Functor)
 
 data ObservationF t x a b
   = ConstF with value: x
@@ -57,9 +56,42 @@ instance Corecursive (Observation t x a) (ObservationF t x a) where
   embed (MulF (x, x') ) = Mul (x, x')
   embed (DivF (x, x') ) = Div (x, x')
 
-instance O.Point Observation t x a where
-  pure = Const
-  observe = Observe
+-- | Lift a constant to an observation
+pure : x -> Observation t x a
+pure = Const
+
+-- | Look up the value of `a`
+observe : a -> Observation t x a
+observe = Observe
+
+-- | Reify the `Observable` into a Kleisli function.
+-- The function is only total when the first argument is too (typically it will fail on `t` > today).
+eval : (Number x, Divisible x, Action m) => (a -> t -> m x) -> Observation t x a -> Kleisli m t x
+eval doObserve = cataM \case
+  ConstF x -> Prelude.pure x
+  ObserveF key -> Kleisli (doObserve key)
+  AddF (x, x') -> Prelude.pure $ x Prelude.+ x'
+  NegF x -> Prelude.pure $ negate x
+  MulF (x, x') -> Prelude.pure $ x * x'
+  DivF (x, x') -> Prelude.pure $ x / x'
+
+-- | The functor map operation _and_ also map any parametrs to keys.
+-- For example, could map the param "spot" to an ISIN code "GB123456789".
+-- Also contra-maps time parameter, i.e. from relative time values to absolute ones.
+--
+-- @ mapParams identity = bimap
+--
+mapParams : (t -> i)
+          -> (a -> a')
+          -> (x -> x')
+          -> Observation i x a -> Observation t x' a'
+mapParams _ g f = cata \case
+  ConstF x -> Const (f x)
+  ObserveF key -> Observe (g key)
+  AddF (b, b') -> Add (b, b')
+  NegF b -> Neg b
+  MulF (b, b') -> Mul (b, b')
+  DivF (b, b') -> Div (b, b')
 
 instance Additive x => Additive (Observation t x a) where
   aunit = Const aunit
@@ -88,29 +120,19 @@ instance Foldable (ObservationF t x a) where
   foldr f seed (DivF (b, b')) = f b $ f b' seed
 
 instance Traversable (ObservationF t x a) where
-  sequence (ConstF x) = pure $ ConstF x
-  sequence (ObserveF key) = pure $ ObserveF key
+  sequence (ConstF x) = Prelude.pure $ ConstF x
+  sequence (ObserveF key) = Prelude.pure $ ObserveF key
   sequence (NegF m) = NegF <$> m
   sequence (AddF (m, m')) = curry AddF <$> m <*> m'
   sequence (MulF (m, m')) = curry MulF <$> m <*> m'
   sequence (DivF (m, m')) = curry DivF <$> m <*> m'
 
-instance O.Interpret Observation where
-  eval doObserve = cataM \case
-    ConstF x -> pure x
-    ObserveF key -> Kleisli (doObserve key)
-    AddF (x, x') -> pure $ x Prelude.+ x'
-    NegF x -> pure $ negate x
-    MulF (x, x') -> pure $ x * x'
-    DivF (x, x') -> pure $ x / x'
-
-  compare doObserve (O.Lte (f, f')) = liftA2 (<=) (O.eval doObserve f) (O.eval doObserve f')
-  compare _ (O.TimeGte t) = arr (>= t)
-
-  mapParams _ g f = cata \case
-    ConstF x -> Const (f x)
-    ObserveF key -> Observe (g key)
-    AddF (b, b') -> Add (b, b')
-    NegF b -> Neg b
-    MulF (b, b') -> Mul (b, b')
-    DivF (b, b') -> Div (b, b')
+instance (Show t, Show x, Show a) => Show (Observation t x a) where
+  show = cata \case
+    ConstF x -> "Const " <> show x
+    ObserveF a -> "Observe " <> show a
+    AddF ss -> pair "Add" ss
+    NegF s -> "Neg (" <> s <> ")"
+    MulF ss -> pair "Mul" ss
+    DivF ss -> pair "Div" ss
+    where pair o (s, s') = o <> " (" <> s <> ", " <> s' <> ")"

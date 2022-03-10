@@ -3,7 +3,6 @@
 -- SPDX-License-Identifier: Apache-2.0
 --
 
-{-# LANGUAGE MultiWayIf #-}
 {-# OPTIONS -Wno-deprecations #-} -- To supress 'Monad' warnings
 
 module ContingentClaims.Lifecycle (
@@ -16,24 +15,21 @@ module ContingentClaims.Lifecycle (
   , Result(..)
 ) where
 
-import ContingentClaims.Claim (Claim, Claim(..), ClaimF(..))
-import ContingentClaims.Observation (Observation)
-import ContingentClaims.Observable (Interpret(..))
+import ContingentClaims.Claim (Claim, Claim(..), ClaimF(..), compare)
+import ContingentClaims.Observation qualified as Observation
 import ContingentClaims.Util.Recursion (apoCataM)
 import ContingentClaims.Util (pruneZeros')
 import Daml.Control.Recursion (project, embed, distApo)
-import Daml.Control.Monad.Writer (WriterT, runWriterT)
-import Daml.Control.Monad.MonadWriter (MonadWriter(..))
-import Daml.Control.Monad.Trans
+import Daml.Control.Monad.Trans.Writer (WriterT, runWriterT)
+import Daml.Control.Monad.Writer.Class (MonadWriter(..))
+import Daml.Control.Monad.Trans.Class
 import Daml.Control.Arrow (Kleisli(..))
 import DA.Traversable (sequence)
-import DA.Foldable (sequence_)
-import Prelude hiding (sequence, mapA, exercise, compare)
+import DA.Foldable (sequence_, elem)
+import Prelude hiding (sequence, mapA, exercise, compare, elem)
 
-type C t a = Claim Observation t Decimal a
-type F t a = ClaimF Observation t Decimal a
-
-deriving instance (Eq t, Eq a) => Eq (C t a)
+type C t a = Claim t Decimal a
+type F t a = ClaimF t Decimal a
 
 -- | Returned from a `lifecycle` operation.
 data Result t a = Result with
@@ -107,9 +103,9 @@ lifecycle' _ (qty, One asset) = do
 lifecycle' _ (qty, Give c) =
   pure . GiveF $ Right (-qty, c)
 lifecycle' spot (qty, Scale obs c) = do
-  k <- lift $ eval spot obs
+  k <- lift $ Observation.eval spot obs
   pure . ScaleF obs $ Right (k * qty, c)
-lifecycle' _ (_, c@(Or _ _)) = pure $ Left <$> project c
+lifecycle' _ (_, c@Or{}) = pure $ Left <$> project c
 lifecycle' _ (_, c@(Anytime _ _)) = pure $ Left <$> project c
 lifecycle' _ (qty, other) = pure $ Right . (qty, ) <$> project other
 
@@ -138,10 +134,9 @@ exercise spot election = runKleisli . apoCataM pruneZeros' acquireThenExercise .
 -- and this is compared against available branches of the choice.
 exercise' : (Eq t, Eq a) => (Bool, C t a) -> (Bool, C t a) -> (F t a (Either (C t a) (Bool, C t a)))
 exercise' _ (isBearer, Give c) = GiveF . Right $ (not isBearer, c)
-exercise' (elector, election) (isBearer, Or c c') =
-  if | elector == isBearer && election == c  -> Right . (isBearer, ) <$> project c
-     | elector == isBearer && election == c' -> Right . (isBearer, ) <$> project c'
-     | otherwise -> OrF (Left c) (Left c')
+exercise' (elector, election) (isBearer, ors@Or {}) | elector /= isBearer = Left <$> project ors 
+                                                    | election `elem` project ors = Right . (isBearer,) <$> project election 
+                                                    | otherwise = Left <$> project ors 
 exercise' (elector, election) (isBearer, f@(Anytime _ c)) =
   if elector == isBearer && election == c then Right . (isBearer, ) <$> project c
                                           else Left <$> project f
