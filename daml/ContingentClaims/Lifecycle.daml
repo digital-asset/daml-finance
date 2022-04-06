@@ -11,19 +11,19 @@ module ContingentClaims.Lifecycle (
   , exercise'
   , expire
   , Result(..)
+  , AcquisitionTime(..)
 ) where
 
-import ContingentClaims.Claim (Claim, Claim(..), ClaimF(..), compare)
+import ContingentClaims.Claim (Claim, Claim(..), ClaimF(..), compare, Inequality(..))
 import ContingentClaims.Observation qualified as Observation
 import ContingentClaims.Util.Recursion (apoCataM)
 import ContingentClaims.Util (pruneZeros')
-import Daml.Control.Recursion (project, embed, distApo)
+import Daml.Control.Recursion (project, distApo)
 import Daml.Control.Monad.Trans.Writer (WriterT, runWriterT)
 import Daml.Control.Monad.Writer.Class (MonadWriter(..))
-import Daml.Control.Monad.Trans.Class
-import Daml.Control.Arrow (Kleisli(..))
+import Daml.Control.Monad.Trans.Class (lift)
 import DA.Traversable (sequence)
-import DA.Foldable (sequence_, elem)
+import DA.Foldable (elem)
 import Prelude hiding (sequence, mapA, exercise, compare, elem)
 
 type C t a = Claim t Decimal a
@@ -37,20 +37,34 @@ data Result t a = Result with
     -- ^ the tree after lifecycled branches have been pruned.
     deriving (Eq, Show)
 
+-- | Acquisition time of a (sub)contract. 
+-- It becomes known after we cross the first `When` node. Before that, we consider it is "minus infinity". 
+data AcquisitionTime t = MinusInfinity | Time t deriving (Eq, Show)
+
+instance (Ord t) => Ord (AcquisitionTime t) where 
+  (Time s) <= (Time t) = s <= t
+  MinusInfinity <= _ = True
+  _ <= MinusInfinity = False
+
 -- | Collect claims falling due into a list, and return the tree with those nodes pruned.
 -- `m` will typically be `Update`. It is parametrised so it can be run in a `Script`.
 -- The first argument is used to lookup the value of any `Observables`.
 -- Results in a function taking today's date, and returning the pruned tree + pending settlements.
 lifecycle : (Ord t, Eq a, CanAbort m)
   => (a -> t -> m Decimal)
+  -- ^ function to evaluate observables 
   -> C t a
-  -> t -> m (Result t a)
-lifecycle spot
-  = runKleisli
-  . fmap (uncurry $ flip Result)
+  -- ^ the input claim
+  -> t
+  -- ^ the today's date
+  -> m (Result t a)
+lifecycle spot claim today
+  = fmap (uncurry $ flip Result)
   . runWriterT
   . apoCataM pruneZeros' acquireThenSettle
-  . (1.0, )
+  . (1.0, ) -- initial scaling factor
+  . (MinusInfinity, ) -- initial acquisition time
+  $ claim
   where
     acquireThenSettle =
       fmap (fmap (fmap join))
@@ -61,106 +75,136 @@ lifecycle spot
       . fmap (fmap sequence)
       . fmap sequence
       . fmap
-      . fmap (fmap (fmap embed))
-      . fmap (fmap (tsidE : F t a (Either (C t a) (C t a)) -> Either (C t a) (F t a (C t a)) ))
       . fmap lift
-      $ acquire' spot
+      $ acquire' spot today
     distE = distApo
-     -- This is degenerate if you have e.g. `And Left Right`, but that should never happen in practice.
-    tsidE f = case sequence_ f of
-      Left _ -> Left (embed (fmap foldE f))
-      Right _ -> Right (fmap foldE f)
-    foldE (Left x) = x
-    foldE (Right x) = x
 
--- | Evaluate observables and skip branches for which predicates don't hold.
--- Consumes `When` and `Cond` when appropriate, leaving their subtrees.
+-- | Evaluate observables and skip branches for which predicates don't hold, calculate the acquisition time of the claim's sub-trees.
+-- Consume `Cond` nodes, leaving the relevant sub-tree.
+-- Replace `When pred c` nodes with `When (TimeGte t) c` if the predicate is non-deterministic and evaluates to True.
 -- This is useless on its own. Composed with other functions, it adds laziness.
-acquire' : (Ord t, Eq a, Monad m)
+acquire' : (Ord t, Eq a, CanAbort m)
   => (a -> t -> m Decimal)
-  -> C t a -> Kleisli m t (F t a (Either (C t a) (C t a)))
-acquire' spot (When obs c) = do
-  predicate <- compare spot obs
-  if predicate then acquire' spot c else pure $ WhenF obs (Left c)
-acquire' spot (Cond obs c c') = do
-  predicate <- compare spot obs
-  if predicate then acquire' spot c else acquire' spot c'
-acquire' spot (Anytime obs c) = do
-  predicate <- compare spot obs
-  pure $ AnytimeF obs if predicate then Right c else Left c
-acquire' _ other = pure $ Right <$> project other
+  -- ^ function to evaluate observables 
+  -> t
+  -- ^ the today date
+  -> (AcquisitionTime t, C t a)
+  -- ^ input claim and its acquisition time
+  -> m (Either (C t a) (AcquisitionTime t, C t a))
+acquire' spot t (s, (When obs c)) = do
+  predicate <- compare spot obs t
+  if predicate then
+    case obs of
+      TimeGte sNew -> pure $ Right . (max s (Time sNew), ) $ When obs c
+      other -> pure $ Right . (Time t, ) $ When (TimeGte t) c
+      -- ^ if the predicate is non-deterministic, we assume that we are lifecycling at a time `t` corresponding to the first instant the predicate becomes True
+    else
+      pure . Left $ When obs c
+acquire' spot today (Time s,(Cond obs c c')) = do
+  predicate <- compare spot obs s
+  if predicate 
+    then acquire' spot today (Time s,c) 
+    else acquire' spot today (Time s,c')
+acquire' spot today (MinusInfinity,(Cond obs c c')) = do
+  abort "Found Cond node with undefined acquisition time"
+acquire' spot today (_,c@(Anytime obs _)) = do
+  predicate <- compare spot obs today
+  pure $ if predicate then Right (Time today,c) else Left c
+  -- ^ the acquisition time of an Anytime node is assumed to be the time at which we lifecycle
+acquire' _ _ (s,other) = pure $ Right (s, other)
 
--- | Evaluate any observables in `Scale` nodes, accumulating scale factors
--- top-down, and log these with their corresponding leaf values. Skip `Or` and
--- `Anytime` branches, guaranteeing liveness.
-lifecycle' : CanAbort m
+-- | Evaluate any observables in `Scale` nodes, accumulating scale factors top-down.
+-- Log the scale factors with their corresponding leaf values. 
+-- Skip `Or` and `Anytime` branches, guaranteeing liveness. 
+-- Replace any Ones that can be reached with Zeros.
+lifecycle' : (Ord t, CanAbort m)
         => (a -> t -> m Decimal)
-        -> (Decimal, C t a) -> WriterT [(Decimal, a)] (Kleisli m t) (F t a (Either (C t a) (Decimal, C t a)))
-lifecycle' _ (qty, One asset) = do
+        -> (Decimal, (AcquisitionTime t, C t a))
+        -- ^ the input claim, the acquisition time of its sub-trees and the accumulated scaling factor
+        -> WriterT [(Decimal,a)] m (F t a (Either (C t a) ((Decimal, (AcquisitionTime t, C t a)))))
+lifecycle' _ (qty, (_, One asset)) = do
   tell [(qty, asset)]
   pure $ Right <$> ZeroF
-lifecycle' _ (qty, Give c) =
-  pure . GiveF $ Right (-qty, c)
-lifecycle' spot (qty, Scale obs c) = do
-  k <- lift $ Observation.eval spot obs
-  pure . ScaleF obs $ Right (k * qty, c)
-lifecycle' _ (_, c@Or{}) = pure $ Left <$> project c
-lifecycle' _ (_, c@(Anytime _ _)) = pure $ Left <$> project c
-lifecycle' _ (qty, other) = pure $ Right . (qty, ) <$> project other
+lifecycle' _ (qty, (s, Give c)) =
+  pure . GiveF $ Right (-qty, (s, c))
+lifecycle' spot (qty, (Time s, Scale obs c)) = do
+  k <- lift $ Observation.eval spot obs s
+  pure . ScaleF obs $ Right (k * qty, (Time s, c))
+lifecycle' spot (qty, (MinusInfinity, Scale obs c)) = do
+  abort "Found Scale node with undefined acquisition time"
+lifecycle' _ (_, (_, c@Or{})) = pure $ Left <$> project c
+lifecycle' _ (_, (_, c@(Anytime _ _))) = pure $ Left <$> project c
+lifecycle' _ (qty, (s, other)) = pure $ Right . (qty, ) . (s, ) <$> project other
 
 --  | Acquire `Anytime` and `Or` nodes, by making an election.
 -- `import` this `qualified`, to avoid clashes with `Prelude.exercise`.
-exercise : (Ord t, Eq a, Monad m) => (a -> t -> m Decimal) -> (Bool, C t a) -> C t a -> t -> m (C t a)
-exercise spot election = runKleisli . apoCataM pruneZeros' acquireThenExercise . (True, ) where
-  acquireThenExercise = fmap (fmap (fmap join))
+exercise : (Ord t, Eq a, CanAbort m)
+  => (a -> t -> m Decimal)
+  -- ^ function to evaluate observables 
+  -> (Bool, C t a)
+  -- ^ the election being made
+  -> C t a
+  -- ^ the input claim
+  -> t
+  -- ^ the election date
+  -> m (C t a)
+exercise spot election claim today = 
+  apoCataM pruneZeros' acquireThenExercise
+  . (True, ) -- initial election authorizer (`True = bearer`)
+  . (MinusInfinity, ) -- initial acquisition time
+  $ claim 
+  where
+    acquireThenExercise = fmap (fmap (fmap join))
                         . fmap (fmap distE)
-                        . fmap (fmap (fmap (exercise' election)))
+                        . fmap (fmap (fmap (exercise' election today)))
                         . fmap (fmap sequence)
                         . fmap sequence . fmap
-                        . fmap (fmap (fmap embed))
-                        . fmap (fmap tsidE)
-                        $ acquire' spot
-  distE = distApo
-  tsidE f = case sequence_ f of
-    Left _ -> Left (embed (fmap foldE f))
-    Right _ -> Right (fmap foldE f)
-  foldE (Left x) = x
-  foldE (Right x) = x
+                        $ acquire' spot today
+    distE = distApo
 
 -- | Coalgebra for `exercise`.
--- Resolves `Or` and `Anytime` nodes by removing them (keeping elected subtrees).
+-- Resolves `Or` nodes by removing them (keeping elected subtrees).
+-- Fixes acquisition time of exercised `Anytime` nodes by replacing them with `When (TimeGte t)`.
 -- The election consists of a boolean representing the authorizer (`True = bearer`),
 -- and this is compared against available branches of the choice.
-exercise' : (Eq t, Eq a) => (Bool, C t a) -> (Bool, C t a) -> (F t a (Either (C t a) (Bool, C t a)))
-exercise' _ (isBearer, Give c) = GiveF . Right $ (not isBearer, c)
-exercise' (elector, election) (isBearer, ors@Or {}) | elector /= isBearer = Left <$> project ors 
-                                                    | election `elem` project ors = Right . (isBearer,) <$> project election 
-                                                    | otherwise = Left <$> project ors 
-exercise' (elector, election) (isBearer, f@(Anytime _ c)) =
-  if elector == isBearer && election == c then Right . (isBearer, ) <$> project c
-                                          else Left <$> project f
-exercise' _ (isBearer, other) = Right . (isBearer, ) <$> project other
+exercise' : (Eq t, Eq a)
+  => (Bool, C t a)
+  -- ^ the election being made
+  -> t
+  -- ^ the election date
+  -> (Bool, (AcquisitionTime t, C t a))
+  -- ^ the input claim, its sub-trees acquisition time and a flag keeping track of who is the entitled to the election (`True = bearer`)
+  -> (F t a (Either (C t a) (Bool, (AcquisitionTime t, C t a))))
+exercise' _ _ (isBearer, (s, Give c)) = GiveF . Right . (not isBearer, ) $ (s, c)
+exercise' (elector, election) t (isBearer, (s, ors@Or {}))
+  | elector /= isBearer = Left <$> project ors
+  | Time t /= s = Left <$> project ors
+  | election `elem` project ors = Right . (isBearer,) . (s,) <$> project election
+  | otherwise = Left <$> project ors
+exercise' (elector, election) t (isBearer, (s, f@(Anytime _ c)))
+  | elector /= isBearer = Left <$> project f
+  | Time t /= s = Left <$> project f
+  | election == c = Right . (isBearer, ) . (s,) <$> WhenF (TimeGte t) c
+  | otherwise = Left <$> project f
+exercise' _ _ (isBearer, (s, other)) = Right . (isBearer, ) . (s, ) <$> project other
 
 -- | Replace any subtrees that have expired with `Zero`s.
-expire : (Ord t, Eq a, Monad m) => (a -> t -> m Decimal) -> C t a -> t -> m (C t a)
-expire spot = runKleisli . apoCataM pruneZeros' acquireThenExpire where
-  acquireThenExpire = fmap (fmap distE)
+expire : (Ord t, Eq a, CanAbort m) => (a -> t -> m Decimal) -> C t a -> t -> m (C t a)
+expire spot claim today =
+  apoCataM pruneZeros' acquireThenExpire
+  . (MinusInfinity, )  -- initial acquisition time
+  $ claim 
+  where
+    acquireThenExpire = fmap (fmap distE)
                       . fmap join
                       . fmap (fmap sequence)
-                      . fmap (fmap (fmap (expire' spot)))
-                      . fmap (fmap (fmap embed))
-                      . fmap (fmap tsidE)
-                      $ acquire' spot
-  distE = distApo
-  tsidE f = case sequence_ f of
-    Left _ -> Left (embed (fmap foldE f))
-    Right _ -> Right (fmap foldE f)
-  foldE (Left x) = x
-  foldE (Right x) = x
+                      . fmap (fmap (fmap (expire' spot today)))
+                      $ acquire' spot today
+    distE = distApo
 
 -- | Coalgebra for `expire`.
-expire' : (Ord t, Monad m) => (a -> t -> m Decimal) -> C t a -> Kleisli m t (F t a (C t a))
-expire' spot (Until obs c) = do
-  predicate <- compare spot obs
-  if predicate then pure ZeroF else pure $ UntilF obs c
-expire' _ other = pure . project $ other
+expire' : (Ord t, Monad m) => (a -> t -> m Decimal) -> t -> (AcquisitionTime t, C t a) -> m (F t a (AcquisitionTime t, C t a))
+expire' spot t (s, Until obs c) = do
+  predicate <- compare spot obs t
+  if predicate then pure ZeroF else pure $ UntilF obs (s, c)
+expire' _ _ (s, other) = pure $ (s, ) <$> project other
