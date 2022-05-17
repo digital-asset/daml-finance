@@ -14,6 +14,7 @@ install:
 clean:
 	daml clean
 	./scripts/remove-dependencies.sh daml.yaml
+	rm -f doc/*.*
 
 .PHONY: test
 test: install
@@ -25,4 +26,7 @@ doc: $(DAML_SRC)
 	daml damlc docs --format html \
     --exclude-instances=HasField \
     --drop-orphan-instances \
-    --output doc $(DAML_SRC)
+    --output docs $(DAML_SRC)
+
+publish-api-doc:
+	./scripts/publish-api-doc.sh
