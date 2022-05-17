@@ -11,19 +11,19 @@ module ContingentClaims.Lifecycle (
   , exercise'
   , expire
   , Result(..)
-  , AcquisitionTime(..)
 ) where
 
 import ContingentClaims.Claim (Claim, Claim(..), ClaimF(..), compare, Inequality(..))
 import ContingentClaims.Observation qualified as Observation
 import ContingentClaims.Util.Recursion (apoCataM)
-import ContingentClaims.Util (pruneZeros')
+import ContingentClaims.Util (pruneZeros', intrinsicAcquisitionTime)
 import Daml.Control.Recursion (project, distApo)
 import Daml.Control.Monad.Trans.Writer (WriterT, runWriterT)
 import Daml.Control.Monad.Writer.Class (MonadWriter(..))
 import Daml.Control.Monad.Trans.Class (lift)
 import DA.Traversable (sequence)
 import DA.Foldable (elem)
+import DA.Optional (fromSomeNote)
 import Prelude hiding (sequence, mapA, exercise, compare, elem)
 
 type C t a = Claim t Decimal a
@@ -36,15 +36,6 @@ data Result t a = Result with
   remaining : C t a
     -- ^ the tree after lifecycled branches have been pruned.
     deriving (Eq, Show)
-
--- | Acquisition time of a (sub)contract. 
--- It becomes known after we cross the first `When` node. Before that, we consider it is "minus infinity". 
-data AcquisitionTime t = MinusInfinity | Time t deriving (Eq, Show)
-
-instance (Ord t) => Ord (AcquisitionTime t) where 
-  (Time s) <= (Time t) = s <= t
-  MinusInfinity <= _ = True
-  _ <= MinusInfinity = False
 
 -- | Collect claims falling due into a list, and return the tree with those nodes pruned.
 -- `m` will typically be `Update`. It is parametrised so it can be run in a `Script`.
@@ -63,8 +54,7 @@ lifecycle spot claim today
   . runWriterT
   . apoCataM pruneZeros' acquireThenSettle
   . (1.0, ) -- initial scaling factor
-  . (MinusInfinity, ) -- initial acquisition time
-  $ claim
+  $ (acquisitionTime, claim)
   where
     acquireThenSettle =
       fmap (fmap (fmap join))
@@ -78,6 +68,7 @@ lifecycle spot claim today
       . fmap lift
       $ acquire' spot today
     distE = distApo
+    acquisitionTime = fromSomeNote "Claim does not have an intrinsic acquisition time" $ intrinsicAcquisitionTime claim
 
 -- | Evaluate observables and skip branches for which predicates don't hold, calculate the acquisition time of the claim's sub-trees.
 -- Consume `Cond` nodes, leaving the relevant sub-tree.
@@ -88,27 +79,25 @@ acquire' : (Ord t, Eq a, CanAbort m)
   -- ^ function to evaluate observables 
   -> t
   -- ^ the today date
-  -> (AcquisitionTime t, C t a)
+  -> (t, C t a)
   -- ^ input claim and its acquisition time
-  -> m (Either (C t a) (AcquisitionTime t, C t a))
+  -> m (Either (C t a) (t, C t a))
 acquire' spot t (s, (When obs c)) = do
   predicate <- compare spot obs t
   if predicate then
     case obs of
-      TimeGte sNew -> pure $ Right . (max s (Time sNew), ) $ When obs c
-      other -> pure $ Right . (Time t, ) $ When (TimeGte t) c  -- if the predicate is non-deterministic, we assume that we are lifecycling at a time `t` corresponding to the first instant the predicate becomes True
+      TimeGte sNew -> pure $ Right . (max s sNew, ) $ When obs c
+      other -> pure $ Right . (t, ) $ When (TimeGte t) c  -- if the predicate is non-deterministic, we assume that we are lifecycling at a time `t` corresponding to the first instant the predicate becomes True
     else
       pure . Left $ When obs c
-acquire' spot today (Time s,(Cond obs c c')) = do
+acquire' spot today (s,(Cond obs c c')) = do
   predicate <- compare spot obs s
   if predicate 
-    then acquire' spot today (Time s,c) 
-    else acquire' spot today (Time s,c')
-acquire' spot today (MinusInfinity,(Cond obs c c')) = do
-  abort "Found Cond node with undefined acquisition time"
+    then acquire' spot today (s,c)
+    else acquire' spot today (s,c')
 acquire' spot today (_,c@(Anytime obs _)) = do
   predicate <- compare spot obs today
-  pure $ if predicate then Right (Time today,c) else Left c  -- the acquisition time of an Anytime node is assumed to be the time at which we lifecycle
+  pure $ if predicate then Right (today,c) else Left c  -- the acquisition time of a subcontract of `Anytime` is assumed to be the time at which we lifecycle
 acquire' _ _ (s,other) = pure $ Right (s, other)
 
 -- | Evaluate any observables in `Scale` nodes, accumulating scale factors top-down.
@@ -117,19 +106,17 @@ acquire' _ _ (s,other) = pure $ Right (s, other)
 -- Replace any Ones that can be reached with Zeros.
 lifecycle' : (Ord t, CanAbort m)
         => (a -> t -> m Decimal)
-        -> (Decimal, (AcquisitionTime t, C t a))
+        -> (Decimal, (t, C t a))
         -- ^ the input claim, the acquisition time of its sub-trees and the accumulated scaling factor
-        -> WriterT [(Decimal,a)] m (F t a (Either (C t a) ((Decimal, (AcquisitionTime t, C t a)))))
+        -> WriterT [(Decimal,a)] m (F t a (Either (C t a) ((Decimal, (t, C t a)))))
 lifecycle' _ (qty, (_, One asset)) = do
   tell [(qty, asset)]
   pure $ Right <$> ZeroF
 lifecycle' _ (qty, (s, Give c)) =
   pure . GiveF $ Right (-qty, (s, c))
-lifecycle' spot (qty, (Time s, Scale obs c)) = do
+lifecycle' spot (qty, (s, Scale obs c)) = do
   k <- lift $ Observation.eval spot obs s
-  pure . ScaleF obs $ Right (k * qty, (Time s, c))
-lifecycle' spot (qty, (MinusInfinity, Scale obs c)) = do
-  abort "Found Scale node with undefined acquisition time"
+  pure . ScaleF obs $ Right (k * qty, (s, c))
 lifecycle' _ (_, (_, c@Or{})) = pure $ Left <$> project c
 lifecycle' _ (_, (_, c@(Anytime _ _))) = pure $ Left <$> project c
 lifecycle' _ (qty, (s, other)) = pure $ Right . (qty, ) . (s, ) <$> project other
@@ -149,8 +136,7 @@ exercise : (Ord t, Eq a, CanAbort m)
 exercise spot election claim today = 
   apoCataM pruneZeros' acquireThenExercise
   . (True, ) -- initial election authorizer (`True = bearer`)
-  . (MinusInfinity, ) -- initial acquisition time
-  $ claim 
+  $ (acquisitionTime, claim)
   where
     acquireThenExercise = fmap (fmap (fmap join))
                         . fmap (fmap distE)
@@ -159,6 +145,7 @@ exercise spot election claim today =
                         . fmap sequence . fmap
                         $ acquire' spot today
     distE = distApo
+    acquisitionTime = fromSomeNote "Claim does not have an intrinsic acquisition time" $ intrinsicAcquisitionTime claim
 
 -- | Coalgebra for `exercise`.
 -- Resolves `Or` nodes by removing them (keeping elected subtrees).
@@ -170,18 +157,18 @@ exercise' : (Eq t, Eq a)
   -- ^ the election being made
   -> t
   -- ^ the election date
-  -> (Bool, (AcquisitionTime t, C t a))
+  -> (Bool, (t, C t a))
   -- ^ the input claim, its sub-trees acquisition time and a flag keeping track of who is the entitled to the election (`True = bearer`)
-  -> (F t a (Either (C t a) (Bool, (AcquisitionTime t, C t a))))
+  -> (F t a (Either (C t a) (Bool, (t, C t a))))
 exercise' _ _ (isBearer, (s, Give c)) = GiveF . Right . (not isBearer, ) $ (s, c)
 exercise' (elector, election) t (isBearer, (s, ors@Or {}))
   | elector /= isBearer = Left <$> project ors
-  | Time t /= s = Left <$> project ors
+  | t /= s = Left <$> project ors
   | election `elem` project ors = Right . (isBearer,) . (s,) <$> project election
   | otherwise = Left <$> project ors
 exercise' (elector, election) t (isBearer, (s, f@(Anytime _ c)))
   | elector /= isBearer = Left <$> project f
-  | Time t /= s = Left <$> project f
+  | t /= s = Left <$> project f
   | election == c = Right . (isBearer, ) . (s,) <$> WhenF (TimeGte t) c
   | otherwise = Left <$> project f
 exercise' _ _ (isBearer, (s, other)) = Right . (isBearer, ) . (s, ) <$> project other
@@ -190,8 +177,7 @@ exercise' _ _ (isBearer, (s, other)) = Right . (isBearer, ) . (s, ) <$> project 
 expire : (Ord t, Eq a, CanAbort m) => (a -> t -> m Decimal) -> C t a -> t -> m (C t a)
 expire spot claim today =
   apoCataM pruneZeros' acquireThenExpire
-  . (MinusInfinity, )  -- initial acquisition time
-  $ claim 
+  $ (acquisitionTime, claim)
   where
     acquireThenExpire = fmap (fmap distE)
                       . fmap join
@@ -199,9 +185,10 @@ expire spot claim today =
                       . fmap (fmap (fmap (expire' spot today)))
                       $ acquire' spot today
     distE = distApo
+    acquisitionTime = fromSomeNote "Claim does not have an intrinsic acquisition time" $ intrinsicAcquisitionTime claim
 
 -- | Coalgebra for `expire`.
-expire' : (Ord t, Monad m) => (a -> t -> m Decimal) -> t -> (AcquisitionTime t, C t a) -> m (F t a (AcquisitionTime t, C t a))
+expire' : (Ord t, Monad m) => (a -> t -> m Decimal) -> t -> (t, C t a) -> m (F t a (t, C t a))
 expire' spot t (s, Until obs c) = do
   predicate <- compare spot obs t
   if predicate then pure ZeroF else pure $ UntilF obs (s, c)
