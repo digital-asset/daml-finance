@@ -11,12 +11,12 @@ import ContingentClaims.Lifecycle qualified as Lifecycle
 import ContingentClaims.Observation qualified as O
 import ContingentClaims.Util.Recursion
 import ContingentClaims.Util (intrinsicAcquisitionTime)
-import DA.Action ((>=>))
 import DA.Assert ((===))
 import DA.Date (date, Month(..), toDateUTC, toGregorian)
 import DA.Optional (fromSome)
 import DA.Time (time)
 import DA.Tuple (thd3)
+import Daml.Control.Arrow ((&&&))
 import Daml.Control.Monad.Trans.Writer (runWriterT)
 import Daml.Control.Recursion
 import Daml.Script
@@ -54,11 +54,12 @@ testAcquire = script do
   let acquiredF asset = OneF $ "acquired " <> asset
       acquired asset : C = embed $ acquiredF asset
       g acqTime c t =
-        apoM (Lifecycle.acquire' observe25 t >=> process) (acqTime, c)
-        where process (Left c) = pure $ Left <$> project c
-              process (Right (_, One asset)) = pure $ acquiredF asset
-              process (Right (_, Zero)) = pure $ acquiredF "0"
-              process (Right (s, c)) = pure $ pure . (s, ) <$> project c
+        apoM coalg (acqTime,c)
+        where 
+          coalg = fmap process . (Lifecycle.acquire' observe25 t)
+          process (OneF asset) = acquiredF asset
+          process ZeroF = acquiredF "0"
+          process other = other 
 
       f c = g (fromSome $ intrinsicAcquisitionTime c) c
 
@@ -108,8 +109,13 @@ testAcquire = script do
 testSettle = script do
   let f = fmap (uncurry $ flip Lifecycle.Result)
           . runWriterT
-          . apoM (Lifecycle.lifecycle' observe25)
+          . apoM coalg
           . (1.0, )
+          where
+            coalg = (Lifecycle.lifecycle' observe25) . process
+            process = fmap ( Prelude.fst &&& acquired) -- process the input so that lifecycle' <<< process is a co-algebra that can be used for testing
+            acquired (t,c) = Right . (t, ) <$> project c -- map a claim to an acquired claim
+
 
   Lifecycle.Result{pending, remaining} <- f (today, scale two zero)
   remaining === scale two zero
@@ -146,7 +152,10 @@ testSettle = script do
 
 -- | Replace any `or/anytime` nodes with the elections that have been made.
 testExercise = script do
-  let f election = apo (Lifecycle.exercise' @Date election today) . (True, )
+  let acquired (t,c) = Right . (t, ) <$> project c -- map a claim to an acquired claim
+      process = fmap ( Prelude.fst &&& acquired) -- process the input so that exercise' <<< process is a co-algebra that can be used for testing
+      coalg election today = (Lifecycle.exercise' election today) . process
+      f election = apo (coalg election today) . (True, )
 
   let rem = f (True, one a) (today, one a `or` one b)
   rem === one a
@@ -172,17 +181,20 @@ testExercise = script do
   rem === (anytime true (anytime true (one a)))
 
   -- wrong `Or` election date
-  let rem = apo (Lifecycle.exercise' (True, one a) tomorrow) . (True, ) . (today, ) $ one a `or` one b
+  let rem = apo (coalg (True, one a) tomorrow) . (True, ) . (today, ) $ one a `or` one b
   rem === one a `or` one b
 
   -- wrong `Anytime` election date
   -- This case should never happen in practice as it is prevented by acquire'
-  let rem = apo (Lifecycle.exercise' (True, one a) tomorrow) . (True, ) . (today, ) $ anytime true (one a)
+  let rem = apo (coalg (True, one a) tomorrow) . (True, ) . (today, ) $ anytime true (one a)
   rem === anytime true (one a)
 
 
 testgiveExercise = script do
-  let f election = apo (Lifecycle.exercise' election today) . (True, )
+  let f election = apo (coalg election today) . (True, )
+        where
+          coalg election today = (Lifecycle.exercise' election today) . (fmap ( Prelude.fst &&& acquired))
+          acquired (t,c) = Right . (t, ) <$> project c -- map a claim to an acquired claim
 
   let rem = f (False, one a) (today, anytime true (one a))
   rem === (anytime true (one a))
