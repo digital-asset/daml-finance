@@ -16,17 +16,25 @@ import Prelude hiding (max)
 
 data Instrument = USD | EUR | AMZN | APPL deriving (Show, Eq)
 
-call : Instrument -> Decimal -> Instrument -> Claim t Decimal Instrument
-call s k a = scale (O.observe s - O.pure k) $ one a
+data Observable = Spot_AMZN | Spot_APPL deriving (Show, Eq)
 
-margrabe s1 s2 a = scale (O.observe s1 - O.observe s2) $ one a
+spot : Instrument -> Observable
+spot AMZN = Spot_AMZN
+spot APPL = Spot_APPL
+spot other = error $ "disc: " <> show other
+
+call : Instrument -> Decimal -> Instrument -> Claim t Decimal Instrument Observable
+call s k a = scale (O.observe (spot s) - O.pure k) $ one a
+
+margrabe s1 s2 a = scale (O.observe (spot s1) - O.observe (spot s2)) $ one a
 
 disc USD = riskless "r_USD"
 disc EUR = riskless "r_EUR"
 disc other = error $ "disc: " <> show other
 
-exch AMZN _ = gbm "μ_AMZN" "σ_AMZN"
-exch APPL _ = gbm "μ_APPL" "σ_APPL"
+val Spot_AMZN = gbm "μ_AMZN" "σ_AMZN"
+val Spot_APPL = gbm "μ_APPL" "σ_APPL"
+
 exch a a' = error $ "exch: " <> show a <> "/" <> show a'
 
 t = "t"  -- today
@@ -62,8 +70,8 @@ print f e = do debug $ "Formula:" <> prnt f
   where prnt = show . MathML.presentation {- . simplify -} 
 
 valueCall = script do
-  let formula = fapf USD disc exch t $ european t' (call AMZN 3300.0 USD)
-      s = Proc "AMZN" (exch AMZN USD)
+  let formula = fapf USD disc exch val t $ european t' (call AMZN 3300.0 USD)
+      s = Proc "Spot_AMZN" (val Spot_AMZN)
       k = Const 3300.0
       usd = Proc "USD" (disc USD)
       expect = usd t * E (max (s t' - k) aunit / usd t') t
@@ -71,17 +79,17 @@ valueCall = script do
   multIdentity formula === expect
 
 valueMargrabe = script do
-  let formula = fapf USD disc exch t $ european t' (margrabe AMZN APPL USD)
-      s = Proc "AMZN" (exch AMZN USD)
-      s' = Proc "APPL" (exch APPL USD)
+  let formula = fapf USD disc exch val t $ european t' (margrabe AMZN APPL USD)
+      s = Proc "Spot_AMZN" (val Spot_AMZN)
+      s' = Proc "Spot_APPL" (val Spot_APPL)
       usd = Proc "USD" (disc USD)
       expect = usd t * E (max (s t' - s' t') aunit / usd t') t
   print formula expect
   multIdentity formula === expect
 
 valueAmerican = script do
-  let formula = fapf USD disc exch t $ american t t' (call APPL 142.50 USD)
-      s = Proc "APPL" (exch APPL USD)
+  let formula = fapf USD disc exch val t $ american t t' (call APPL 142.50 USD)
+      s = Proc "Spot_APPL" (val Spot_APPL)
       k = Const 142.50
       usd = Proc "USD" (disc USD)
       τ = "τ_0"
@@ -97,7 +105,7 @@ testMonadicBind = script do
       t₀ = "t_0"
       t₁ = "t_1"
       usd = Proc "USD" (disc USD)
-      formula = fapf USD disc exch t $ anytime (TimeGte t₀) (anytime (TimeGte t₁) (one USD))
+      formula = fapf USD disc exch val t $ anytime (TimeGte t₀) (anytime (TimeGte t₁) (one USD))
       expect = Sup t₀ τ₀ (usd t * E (Sup t₁ τ₁ (usd τ₀ * E (munit / usd τ₁) τ₀) / usd τ₀) t) -- note the innermost 1/USD_τ₁ is mult identity
   print formula expect
   multIdentity formula === multIdentity expect

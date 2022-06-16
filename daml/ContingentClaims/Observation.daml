@@ -17,27 +17,27 @@ type T = Observation
 
 -- | Concrete implementation of `Observable`, which can be serialized.
 -- Conceptually it's helpful to think of this as the type `t -> x`, or `t -> Update x`.
-data Observation t x a
+data Observation t x o
   = Const with value: x
     -- ^ A named constant
-  | Observe with key: a
+  | Observe with key: o
     -- ^ A named parameter
-  | Add (Observation t x a, Observation t x a)
-  | Neg (Observation t x a)
-  | Mul (Observation t x a, Observation t x a)
-  | Div (Observation t x a, Observation t x a)
+  | Add (Observation t x o, Observation t x o)
+  | Neg (Observation t x o)
+  | Mul (Observation t x o, Observation t x o)
+  | Div (Observation t x o, Observation t x o)
   deriving (Eq, Functor)
 
-data ObservationF t x a b
+data ObservationF t x o b
   = ConstF with value: x
-  | ObserveF with key: a
+  | ObserveF with key: o
   | AddF (b, b)
   | NegF (b)
   | MulF (b, b)
   | DivF (b, b)
   deriving (Eq, Show, Functor)
 
-instance Recursive (Observation t x a) (ObservationF t x a) where
+instance Recursive (Observation t x o) (ObservationF t x o) where
   project (Const value) = ConstF value
   project (Observe key) = ObserveF key
   project (Add (x, x')) = AddF (x, x')
@@ -45,7 +45,7 @@ instance Recursive (Observation t x a) (ObservationF t x a) where
   project (Mul (x, x') ) = MulF (x, x')
   project (Div (x, x') ) = DivF (x, x')
 
-instance Corecursive (Observation t x a) (ObservationF t x a) where
+instance Corecursive (Observation t x o) (ObservationF t x o) where
   embed (ConstF value) = Const value
   embed (ObserveF key) = Observe key
   embed (AddF (x, x')) = Add (x, x)
@@ -54,16 +54,16 @@ instance Corecursive (Observation t x a) (ObservationF t x a) where
   embed (DivF (x, x') ) = Div (x, x')
 
 -- | Lift a constant to an observation
-pure : x -> Observation t x a
+pure : x -> Observation t x o
 pure = Const
 
--- | Look up the value of `a`
-observe : a -> Observation t x a
+-- | Look up the value of `o`
+observe : o -> Observation t x o
 observe = Observe
 
 -- | Reify the `Observable` into an observation function.
 -- The function is only total when the first argument is too (typically it will fail on `t` > today).
-eval : (Number x, Divisible x, Action m) => (a -> t -> m x) -> Observation t x a -> t -> m x
+eval : (Number x, Divisible x, Action m) => (o -> t -> m x) -> Observation t x o -> t -> m x
 eval doObserve obs t = cataM alg obs
   where 
     alg = \case
@@ -81,9 +81,9 @@ eval doObserve obs t = cataM alg obs
 -- @ mapParams identity = bimap
 --
 mapParams : (t -> i)
-          -> (a -> a')
+          -> (o -> o')
           -> (x -> x')
-          -> Observation i x a -> Observation t x' a'
+          -> Observation i x o -> Observation t x' o'
 mapParams _ g f = cata \case
   ConstF x -> Const (f x)
   ObserveF key -> Observe (g key)
@@ -92,12 +92,12 @@ mapParams _ g f = cata \case
   MulF (b, b') -> Mul (b, b')
   DivF (b, b') -> Div (b, b')
 
-instance Additive x => Additive (Observation t x a) where
+instance Additive x => Additive (Observation t x o) where
   aunit = Const aunit
   (+) = curry Add
   negate = Neg
 
-instance Multiplicative x => Multiplicative (Observation t x a) where
+instance Multiplicative x => Multiplicative (Observation t x o) where
   munit = Const munit
   (*) = curry Mul
   x ^ 0 = munit
@@ -105,12 +105,12 @@ instance Multiplicative x => Multiplicative (Observation t x a) where
   x ^ 2 = x * x
   x ^ _ = error "Observation: power operator < 0 and > 2 not implemented"
 
-instance (Additive x, Multiplicative x) => Number (Observation t x a) where
+instance (Additive x, Multiplicative x) => Number (Observation t x o) where
 
-instance Multiplicative x => Divisible (Observation t x a) where
+instance Multiplicative x => Divisible (Observation t x o) where
   (/) = curry Div
 
-instance Foldable (ObservationF t x a) where
+instance Foldable (ObservationF t x o) where
   foldr f seed (ConstF _) = seed
   foldr f seed (ObserveF key) = seed
   foldr f seed (NegF b) = f b seed
@@ -118,7 +118,7 @@ instance Foldable (ObservationF t x a) where
   foldr f seed (MulF (b, b')) = f b $ f b' seed
   foldr f seed (DivF (b, b')) = f b $ f b' seed
 
-instance Traversable (ObservationF t x a) where
+instance Traversable (ObservationF t x o) where
   sequence (ConstF x) = Prelude.pure $ ConstF x
   sequence (ObserveF key) = Prelude.pure $ ObserveF key
   sequence (NegF m) = NegF <$> m
@@ -126,7 +126,7 @@ instance Traversable (ObservationF t x a) where
   sequence (MulF (m, m')) = curry MulF <$> m <*> m'
   sequence (DivF (m, m')) = curry DivF <$> m <*> m'
 
-instance (Show t, Show x, Show a) => Show (Observation t x a) where
+instance (Show t, Show x, Show o) => Show (Observation t x o) where
   show = cata \case
     ConstF x -> "Const " <> show x
     ObserveF a -> "Observe " <> show a

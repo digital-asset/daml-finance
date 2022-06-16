@@ -20,39 +20,40 @@ type F = ClaimF
 -- We renamed it to avoid ambiguity.
 -- * `t` and `x` respectively correspond to the `Observation`s input type and the resulting output type.
 -- * `a` is the representation of an asset, e.g. a `Text` ISIN code.
-data Claim t x a
+-- * `o` is the representation of an observable, e.g. a `Text`.
+data Claim t x a o
   = Zero
       -- ^ Represents an absence of claims. Monoid `And` identity.
   | One a
       -- ^ The bearer acquires one unit of `a` *immediately*.
-  | Give (Claim t x a)
+  | Give (Claim t x a o)
       -- ^ The obligations of the bearer and issuer are revesed.
-  | And with fst: Claim t x a, snd: Claim t x a, tail: [Claim t x a]
+  | And with fst: Claim t x a o, snd: Claim t x a o, tail: [Claim t x a o]
       -- ^ Used to combine multiple rights together.
-  | Or with fst: Claim t x a, snd: Claim t x a, tail: [Claim t x a]
+  | Or with fst: Claim t x a o, snd: Claim t x a o, tail: [Claim t x a o]
       -- ^ Gives the bearer the right to choose between several claims.
-  | Cond with predicate: Inequality t x a, success: Claim t x a, failure: Claim t x a
+  | Cond with predicate: Inequality t x o, success: Claim t x a o, failure: Claim t x a o
       -- ^ Gives the bearer the right to the first claim if `predicate` is true, else the second claim.
-  | Scale with k: Observation t x a, claim: Claim t x a
+  | Scale with k: Observation t x o, claim: Claim t x a o
       -- ^ Multiplies the `claim` by `k` (which can be non-deterministic).
-  | When with predicate: Inequality t x a, claim: Claim t x a
+  | When with predicate: Inequality t x o, claim: Claim t x a o
       -- ^ Defers the acquisition of `claim` until *the first instant* that `predicate` is true.
-  | Anytime with predicate: Inequality t x a, claim: Claim t x a
+  | Anytime with predicate: Inequality t x o, claim: Claim t x a o
       -- ^ Like `When`, but valid any time the predicate is true (not just infinium).
-  | Until with predicate: Inequality t x a, claim: Claim t x a
+  | Until with predicate: Inequality t x o, claim: Claim t x a o
       -- ^ Expires said claim on the *first instant* that `predicate` is true.
   deriving (Eq)
 
 -- | Smart constructor for `Zero`.
-zero : forall t x a . Claim t x a
+zero : forall t x a o . Claim t x a o
 zero = Zero
 
 -- | Smart constructor for `One`.
-one : a -> Claim t x a
+one : a -> Claim t x a o
 one = One
 
 -- | Smart constructor for `Give`.
-give : Claim t x a -> Claim t x a
+give : Claim t x a o -> Claim t x a o
 give = Give
 
 -- | Smart constructor for `And`. Because of the explicit representation of the
@@ -60,7 +61,7 @@ give = Give
 -- With this constructor, you can write `c \`and\` c'` instead. Flattens nested 
 -- `And`s and applies additive monoid identity eagerly. Note this is an `O(n)` 
 -- operation. For a more efficient alternative, consider `mconcat`.
-and : Claim t x a -> Claim t x a -> Claim t x a
+and : Claim t x a o -> Claim t x a o -> Claim t x a o
 and (And a b cs) (And d e fs) = And a b (cs ++ d :: e :: fs)
 and x Zero = x
 and (And a b cs) claim = And a b (cs ++ [claim])
@@ -73,43 +74,44 @@ and claim claim' = And claim claim' []
 -- With this constructor, you can write `c \`or\` c'` instead. Flattens nested 
 -- `Or`s. Unlike `and`, this does not apply a monoid identity. Note this is an 
 -- `O(n)` operation.
-or : Claim t x a -> Claim t x a -> Claim t x a
+or : Claim t x a o -> Claim t x a o -> Claim t x a o
 or (Or a b cs) (Or d e fs) = Or a b (cs ++ d :: e :: fs)
 or (Or a b cs) claim = Or a b (cs ++ [claim])
 or claim (Or a b cs) = Or claim a (b :: cs)
 or claim claim' = Or claim claim' []
 
 -- | Smart constructor for `Cond`.
-cond : Inequality t x a -> Claim t x a -> Claim t x a -> Claim t x a
+cond : Inequality t x o -> Claim t x a o -> Claim t x a o -> Claim t x a o
 cond = Cond
 
 -- | Smart constructor for `Scale`
-scale : Observation t x a -> Claim t x a -> Claim t x a
+scale : Observation t x o -> Claim t x a o -> Claim t x a o
 scale = Scale
 
 -- | Smart constructor for `When`.
-when : Inequality t x a -> Claim t x a -> Claim t x a
+when : Inequality t x o -> Claim t x a o -> Claim t x a o
 when = When
 
 -- | Smart constructor for `Anytime`.
-anytime : Inequality t x a -> Claim t x a -> Claim t x a
+anytime : Inequality t x o -> Claim t x a o -> Claim t x a o
 anytime = Anytime
 
 -- | Smart constructor for `Until`.
-until : Inequality t x a -> Claim t x a -> Claim t x a
+until : Inequality t x o -> Claim t x a o -> Claim t x a o
 until = Until
 
 -- | Replace parameters in an `Claim` with actual values.
 mapParams :  (t -> i)
           -> (i -> t)
           -> (a -> a')
+          -> (o -> o')
           -> (x -> x')
-          -> Claim i x a -> Claim t x' a'
-mapParams ft' ft fk fv =
+          -> Claim i x a o -> Claim t x' a' o'
+mapParams ft' ft fa fk fv =
   let f = Observation.mapParams ft' fk fv
   in cata \case
     ZeroF -> Zero
-    OneF a -> One $ fk a
+    OneF a -> One $ fa a
     GiveF c -> Give c
     AndF c c' cs -> And c c' cs
     OrF c c' cs -> Or c c' cs
@@ -124,20 +126,20 @@ mapParams ft' ft fk fv =
     UntilF (TimeGte t) c -> Until (TimeGte (ft t)) c
 
 -- | Unfixed version of `Claim`, for use with `Daml.Control.Recursion`.
-data ClaimF t x a b
+data ClaimF t x a o b
   = ZeroF
   | OneF a
   | GiveF b
   | AndF with fst: b, snd: b, tail : [b]
   | OrF with fst: b, snd: b, tail : [b]
-  | CondF with predicate: Inequality t x a, success: b, failure: b
-  | ScaleF with k: Observation t x a, claim: b
-  | WhenF with predicate: Inequality t x a, claim: b
-  | AnytimeF with predicate: Inequality t x a, claim: b
-  | UntilF with predicate: Inequality t x a, claim: b
+  | CondF with predicate: Inequality t x o, success: b, failure: b
+  | ScaleF with k: Observation t x o, claim: b
+  | WhenF with predicate: Inequality t x o, claim: b
+  | AnytimeF with predicate: Inequality t x o, claim: b
+  | UntilF with predicate: Inequality t x o, claim: b
   deriving (Functor)
 
-instance Recursive (Claim t x a) (ClaimF t x a) where
+instance Recursive (Claim t x a o) (ClaimF t x a o) where
   project Zero = ZeroF
   project (One a) = OneF a
   project (Give c) = GiveF c
@@ -149,7 +151,7 @@ instance Recursive (Claim t x a) (ClaimF t x a) where
   project (Anytime p c) = AnytimeF p c
   project (Until p c) = UntilF p c
 
-instance Corecursive (Claim t x a) (ClaimF t x a) where
+instance Corecursive (Claim t x a o) (ClaimF t x a o) where
   embed ZeroF = Zero
   embed (OneF x) = One x
   embed (GiveF a) = Give a
@@ -162,18 +164,18 @@ instance Corecursive (Claim t x a) (ClaimF t x a) where
   embed (UntilF p c) = Until p c
 
 -- | `Claim` semigroup under `And`.
-instance Semigroup (Claim t x a) where
+instance Semigroup (Claim t x a o) where
   (<>) = and
 
 -- | `Claim` monoid under `And`.
-instance Monoid (Claim t x a) where
+instance Monoid (Claim t x a o) where
   mempty = Zero
   mconcat [] = mempty
   mconcat [c] = c
   mconcat (c :: c' :: cs) = And c c' cs 
   -- ^ A more efficient `O(1)` version of (<>) for lists.
 
-instance Foldable (ClaimF t x a) where
+instance Foldable (ClaimF t x a o) where
   foldr _ seed ZeroF = seed
   foldr _ seed (OneF _) = seed
   foldr f seed (GiveF c) = f c seed
@@ -185,7 +187,7 @@ instance Foldable (ClaimF t x a) where
   foldr f seed (AnytimeF _ c) = f c seed
   foldr f seed (UntilF _ c) = f c seed
 
-instance Traversable (ClaimF t x b) where
+instance Traversable (ClaimF t x a o) where
   sequence ZeroF = pure ZeroF
   sequence (OneF asset) = pure $ OneF asset
   sequence (GiveF fa) = GiveF <$> fa
@@ -197,7 +199,7 @@ instance Traversable (ClaimF t x b) where
   sequence (AnytimeF p fa) = AnytimeF p <$> fa
   sequence (UntilF p fa) = UntilF p <$> fa
 
-instance (Show t, Show x, Show a) => Show (Claim t x a) where
+instance (Show t, Show x, Show a, Show o) => Show (Claim t x a o) where
   show = cata \case
     ZeroF -> "Zero"
     OneF a -> unwords ["One", show a]
@@ -217,19 +219,19 @@ instance (Show t, Show x, Show a) => Show (Claim t x a) where
 -- Inequality --
 
 -- | This is either `time ≥ t | f t x ≤ f t x`
-data Inequality t x a = TimeGte t | Lte (Observation t x a, Observation t x a) 
+data Inequality t x o = TimeGte t | Lte (Observation t x o, Observation t x o) 
      deriving (Eq, Show)
 
 -- | Observable that is true on the passed time. i.e. identity for the time observable.
-at : t -> Inequality t x a
+at : t -> Inequality t x o
 at t = TimeGte t
 
 infix 4 <=
 -- | `import Prelude hiding ((<=))` in order to use this.
-(<=) : Observation t x a -> Observation t x a -> Inequality t x a
+(<=) : Observation t x o -> Observation t x o -> Inequality t x o
 (<=) = curry Lte
 
 -- | Reify the `Observable.Inequality` into an observation function.
-compare : (Ord t, Ord x, Number x, Divisible x, Action m) => (a -> t -> m x) -> Inequality t x a -> t -> m Bool
+compare : (Ord t, Ord x, Number x, Divisible x, Action m) => (o -> t -> m x) -> Inequality t x o -> t -> m Bool
 compare doObserve (Lte (f, f')) t = liftA2 (Prelude.<=) (Observation.eval doObserve f t) (Observation.eval doObserve f' t)
 compare _ (TimeGte s) t = pure $ t >= s
