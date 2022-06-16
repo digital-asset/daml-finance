@@ -56,7 +56,7 @@ The tree produced by our expression is pictured below:
 
 # Composition and Extensibility
 
-Although we could model every subsequent arrow the way we did the first one, as good programmers we wish to avoid repeating ourselves. Hence we could write functions to re-use subexpressions of the tree. But which parts should we factor out? It turns out, that Finance 101 comes to the rescue again. Fixed income practitioners will typically model a fixed-rate bond as a sum of zero-coupon bonds. That's how we model them in [`FinancialClaims.daml`](./daml/ContingentClaims/FinancialClaim.daml). Below are slightly simplified versions:
+Although we could model every subsequent arrow the way we did the first one, as good programmers we wish to avoid repeating ourselves. Hence we could write functions to re-use subexpressions of the tree. But which parts should we factor out? It turns out, that Finance 101 comes to the rescue again. Fixed income practitioners will typically model a fixed-rate bond as a sum of zero-coupon bonds. That's how we model them in [`Financial.daml`](./daml/ContingentClaims/Financial.daml). Below are slightly simplified versions:
 
 ```Haskell
 zcb maturity principal asset =
@@ -71,6 +71,7 @@ fixed principal coupon asset [] = zero
 fixed principal coupon asset [maturity] = zcb maturity coupon asset `and` zcb maturity principal asset
 fixed principal coupon asset (t :: ts) = zcb t coupon asset `and` fixed principal coupon asset ts
 ```
+
 We define the fixed rate bond by induction, iterating over a list of dates `[t]`, and producing multiple zero-coupon bonds `zcb` combined together with `and`.
 * The first definition covers the trivial case where we pass an empty list of dates.
 * The second definition handles the base case, at maturity: we create both a coupon (interest) payment, and the principal payment.
@@ -92,7 +93,7 @@ Another major advantage of this approach is its extensibility. Unlike a traditio
 
 # Concerning Type Parameters
 
-The curious reader may have noticed that the signature we gave for `data Claim` is not quite what is in the library, where we have `data Claim t x a`. In our examples, we have specialised this to `type Claim' t x a = Claim Date Decimal a`. Parametrising these variables allows us to reason about `Observation`s that appear in`Claim`s as function-like objects. The main use of this is to create claims with 'placeholders' for actual parameters, that can later be 'filled in' by mapping over them (`mapParams`).
+The curious reader may have noticed that the signature we gave for `data Claim` is not quite what is in the library, where we have `data Claim t x a o`. In our examples, we have specialised this to `type Claim' t x a o = Claim Date Decimal a a`. Parametrising these variables allows us to reason about `Asset`s and `Observation`s that appear in`Claim`s as function-like objects. The main use of this is to create claims with 'placeholders' for actual parameters, that can later be 'filled in' by mapping over them (`mapParams`).
 
 ## The Time Parameter
 
@@ -102,7 +103,11 @@ Another use for this is expressing time as an ordinal values, representing e.g. 
 
 ## The Asset Parameter
 
-`a` as we already explained, is the type used to represent assets in our program. This is the second parameter to `Observation`. Keeping this generic means the library can be used with any asset representation. For example, you could use that in [lib-finance](https://github.com/digital-asset/lib-finance), but are not forced to do so.
+`a`, as we already explained, is the type used to represent assets in our program. Keeping this generic means the library can be used with any asset representation. For example, you could use that in [lib-finance](https://github.com/digital-asset/lib-finance), but are not forced to do so.
+
+## The Observation Parameter
+
+`o` is the type used to represent `Observation`s, which are time-dependent quantities that can be observed at any given time (such as the "EURUSD" exchange rate in the example above).
 
 ## The Value Parameter
 
@@ -117,14 +122,14 @@ The original paper [[1]](#1) focuses on using these trees for valuing the instru
 Let's go back to our fixed-rate bond example, above. We want to process the coupon payments. There is a function in [`Lifecycle.daml`](./daml/ContingentClaims/Lifecycle.daml) for doing just this:
 
 ```Haskell
-type C a = Claim Observation Date a
+type C a = Claim Observation Date a a
 
 data Result a = Result with
   remaining : C a
   pending : [(Decimal, a)]
 
 lifecycle : (Eq a, CanAbort m)
-  => (Text -> Date -> m Decimal)
+  => (a -> Date -> m Decimal)
   -> C a
   -> Date -> m (Result a)
 ```
@@ -174,5 +179,3 @@ ACM SIG-PLAN Notices 35.9 (2000): 280-292.
 Jones, SL Peyton, and J. M. Eber.
 "How to write a financial contract",
 volume "Fun Of Programming" of "Cornerstones of Computing." (2005).
-
-
