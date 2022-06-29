@@ -11,7 +11,7 @@ The library offers life-cycling capabilities, as well as a valuation semantics t
 
 The implementation closely follows the model outlined in the papers [[1]](#1), [[2]](#2).
 
-To get started, we recommend reading through the [quickstart](./QUICKSTART.md) document.
+To get started, we recommend reading through the [quickstart](./docs/QUICKSTART.md) document.
 
 Examples of how to create and lifecycle contracts can be found in the [test directory](./test/daml/Test/FinancialContract.daml).
 
@@ -21,7 +21,7 @@ To use the library in your Daml project, it is sufficient to download the latest
 
 ## Releases
 
-Releases adhere to the 'semantic versioning' specification. Breaking changes across major versions are documented in [Upgrading.md](./UPGRADING.md).
+Releases adhere to the 'semantic versioning' specification. Breaking changes across major versions are documented in [Upgrading.md](./docs/UPGRADING.md). The steps required to release this library are documented in [RELEASE.MD](./docs/RELEASE.MD).
 
 ## Building the code
 
