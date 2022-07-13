@@ -10,10 +10,8 @@ import ContingentClaims.Financial (fixed, european, american)
 import ContingentClaims.Lifecycle qualified as Lifecycle
 import ContingentClaims.Observation qualified as O
 import ContingentClaims.Util.Recursion
-import ContingentClaims.Util (intrinsicAcquisitionTime)
 import DA.Assert ((===))
 import DA.Date (date, Month(..), toDateUTC, toGregorian)
-import DA.Optional (fromSome)
 import DA.Time (time)
 import DA.Tuple (thd3)
 import Daml.Control.Arrow ((&&&))
@@ -28,12 +26,12 @@ type F = ClaimF Date Decimal Text Text
 -- | Assets
 [a,b,c] = ["a","b","c"]
 
--- | Dates
-today = date 1970 Jan 1
-tomorrow = succ today
-afterTomorrow = succ tomorrow
+-- | Dates (t0 < t1 < t2)
+t0 = date 1970 Jan 1
+t1 = succ t0
+t2 = succ t1
 
--- | Observations 
+-- | Observations
 two : O.Observation Date Decimal Text = O.pure 2.0
 
 -- | Functions performing observations
@@ -53,55 +51,53 @@ setDate = setTime . noon where noon d = time d 12 0 0
 testAcquire = script do
   let acquiredF asset = OneF $ "acquired " <> asset
       acquired asset : C = embed $ acquiredF asset
-      g acqTime c t =
+      g c acqTime t0 =
         apoM coalg (acqTime,c)
-        where 
-          coalg = fmap process . (Lifecycle.acquire' observe25 t)
+        where
+          coalg = fmap process . (Lifecycle.acquire' observe25 t0)
           process (OneF asset) = acquiredF asset
           process ZeroF = acquiredF "0"
-          process other = other 
+          process other = other
 
-      f c = g (fromSome $ intrinsicAcquisitionTime c) c
-
-  res <- g today (one a) today
+  res <- g (one a) t0 t0
   res === acquired a
 
-  res <- g today zero tomorrow
+  res <- g zero t0 t1
   res === acquired "0"
 
-  res <- f (when (at tomorrow) $ scale two (one a)) today
-  res === when (at tomorrow) (scale two (one a))
+  res <- g (when (at t1) $ scale two (one a)) t0 t0
+  res === when (at t1) (scale two (one a))
 
-  res <- f (when (at tomorrow) $ scale two (one a)) tomorrow
-  res === when (at tomorrow) (scale two (acquired a))
+  res <- g (when (at t1) $ scale two (one a)) t0 t1
+  res === when (at t1) (scale two (acquired a))
 
-  res <- g today (cond (at tomorrow) (one a) (one b)) today
+  res <- g (cond (at t1) (one a) (one b)) t0 t0
   res === acquired b
 
-  res <- g tomorrow (cond (at tomorrow) (one a) (one b)) tomorrow
+  res <- g (cond (at t1) (one a) (one b)) t1 t1
   res === acquired a
 
 {- FIXME: confirm if this test makes sense; it broke when we changed observable with inequality
-  res <- f (when (O.TimeGte today) (when (O.TimeGte tomorrow) (one a)) ) tomorrow
-  res === (when (O.TimeGte today) (when (at tomorrow) (one a)) )
+  res <- f (when (O.TimeGte t0) (when (O.TimeGte t1) (one a)) ) t1
+  res === (when (O.TimeGte t0) (when (at t1) (one a)) )
 -}
 
-  res <- f (when (TimeGte today) (when (TimeGte tomorrow) (one a)) ) tomorrow
-  res === when (TimeGte today) (when (TimeGte tomorrow) (acquired a))
+  res <- g (when (TimeGte t0) (when (TimeGte t1) (one a))) t0 t1
+  res === when (TimeGte t0) (when (TimeGte t1) (acquired a))
 
-  res <- g today (one a `or` one b) today
+  res <- g (one a `or` one b) t0 t0
   res === acquired a `or` acquired b
 
-  res <- f (anytime true (one a)) today
+  res <- g (anytime true (one a)) t0 t0
   res === anytime true (acquired a)
 
-  res <- f (anytime false (one a)) today
+  res <- g (anytime false (one a)) t0 t0
   res === anytime false (one a)
 
-  res <- g today (until false (one a)) today
+  res <- g (until false (one a)) t0 t0
   res === until false (acquired a)
 
-  res <- g today (until true (one a)) today
+  res <- g (until true (one a)) t0 t0
   res === until true (acquired a)
 
 -- | This test replaces all leaves with zeros, logging their qty/asset pair into a `Writer`.
@@ -117,32 +113,32 @@ testSettle = script do
             acquired (t,c) = Right . (t, ) <$> project c -- map a claim to an acquired claim
 
 
-  Lifecycle.Result{pending, remaining} <- f (today, scale two zero)
+  Lifecycle.Result{pending, remaining} <- f (t0, scale two zero)
   remaining === (scale two zero : C)
   pending === []
 
-  Lifecycle.Result{pending, remaining} <- f (today, scale two (one a))
+  Lifecycle.Result{pending, remaining} <- f (t0, scale two (one a))
   remaining === scale two zero
-  pending === [Lifecycle.Pending today 2.0 a]
+  pending === [Lifecycle.Pending t0 2.0 a]
 
-  Lifecycle.Result{pending, remaining} <- f (today, give (one a))
+  Lifecycle.Result{pending, remaining} <- f (t0, give (one a))
   remaining === give zero
-  pending === [Lifecycle.Pending today (-1.0) a]
+  pending === [Lifecycle.Pending t0 (-1.0) a]
 
-  Lifecycle.Result{pending, remaining} <- f (today, scale two (one a `and` one b))
+  Lifecycle.Result{pending, remaining} <- f (t0, scale two (one a `and` one b))
   remaining === scale two (zero `And` zero $ []) -- using the explicit constructor because the smart constructor reduces this to `Zero`
-  pending === [Lifecycle.Pending today 2.0 a, Lifecycle.Pending today 2.0 b]
+  pending === [Lifecycle.Pending t0 2.0 a, Lifecycle.Pending t0 2.0 b]
 
-  Lifecycle.Result{pending, remaining} <- f (today, scale two (one a) `and` scale two (one b))
+  Lifecycle.Result{pending, remaining} <- f (t0, scale two (one a) `and` scale two (one b))
   remaining === scale two zero `and` scale two zero
-  pending === [Lifecycle.Pending today 2.0 a, Lifecycle.Pending today 2.0 b]
+  pending === [Lifecycle.Pending t0 2.0 a, Lifecycle.Pending t0 2.0 b]
 
   -- This is a case we don't hit in practice, as it is prevented from acquire'
-  Lifecycle.Result{pending, remaining} <- f (today, when false (one a))
+  Lifecycle.Result{pending, remaining} <- f (t0, when false (one a))
   remaining === when false zero
-  pending === [Lifecycle.Pending today 1.0 a]
+  pending === [Lifecycle.Pending t0 1.0 a]
 
-  Lifecycle.Result{pending, remaining} <- f (today, anytime true (one a))
+  Lifecycle.Result{pending, remaining} <- f (t0, anytime true (one a))
   remaining === anytime true (one a)
   pending === []
 
@@ -154,58 +150,58 @@ testSettle = script do
 testExercise = script do
   let acquired (t,c) = Right . (t, ) <$> project c -- map a claim to an acquired claim
       process = fmap ( Prelude.fst &&& acquired) -- process the input so that exercise' <<< process is a co-algebra that can be used for testing
-      coalg election today = (Lifecycle.exercise' election today) . process
-      f election = apo (coalg election today) . (True, )
+      coalg election t0 = (Lifecycle.exercise' election t0) . process
+      f election = apo (coalg election t0) . (True, )
 
-  let rem = f (True, one a) (today, one a `or` one b)
+  let rem = f (True, one a) (t0, one a `or` one b)
   rem === (one a : C)
 
-  let rem = f (True, one b) (today, one a `or` one b)
+  let rem = f (True, one b) (t0, one a `or` one b)
   rem === one b
 
-  let rem = f (True, one c) (today, one a `or` one b)
+  let rem = f (True, one c) (t0, one a `or` one b)
   rem === one a `or` one b
 
-  let rem = f (True, one a) (today, anytime true $ one a)
-  rem === When (TimeGte today) (one a)
+  let rem = f (True, one a) (t0, anytime true $ one a)
+  rem === When (TimeGte t0) (one a)
 
   -- n.b. conditions are handled by the `Lifecyle.acquire'` function, so in practice we should never hit this case
-  let rem = f (True, one a) (today, anytime false $ one a)
-  rem === When (TimeGte today) (one a)
+  let rem = f (True, one a) (t0, anytime false $ one a)
+  rem === When (TimeGte t0) (one a)
 
-  let rem = f (True, one c) (today, anytime true $ one a)
+  let rem = f (True, one c) (t0, anytime true $ one a)
   rem === anytime true (one a)
 
   -- nested choice: the outer one must be exercised before the inner!
-  let rem = f (True, one a) (today, anytime true $ anytime true $ one a)
+  let rem = f (True, one a) (t0, anytime true $ anytime true $ one a)
   rem === (anytime true (anytime true (one a)))
 
   -- wrong `Or` election date
-  let rem = apo (coalg (True, one a) tomorrow) . (True, ) . (today, ) $ one a `or` one b
+  let rem = apo (coalg (True, one a) t1) . (True, ) . (t0, ) $ one a `or` one b
   rem === one a `or` one b
 
   -- wrong `Anytime` election date
   -- This case should never happen in practice as it is prevented by acquire'
-  let rem = apo (coalg (True, one a) tomorrow) . (True, ) . (today, ) $ anytime true (one a)
+  let rem = apo (coalg (True, one a) t1) . (True, ) . (t0, ) $ anytime true (one a)
   rem === anytime true (one a)
 
 
 testgiveExercise = script do
-  let f election = apo (coalg election today) . (True, )
+  let f election = apo (coalg election t0) . (True, )
         where
-          coalg election today = (Lifecycle.exercise' election today) . (fmap ( Prelude.fst &&& acquired))
+          coalg election t0 = (Lifecycle.exercise' election t0) . (fmap ( Prelude.fst &&& acquired))
           acquired (t,c) = Right . (t, ) <$> project c -- map a claim to an acquired claim
 
-  let rem = f (False, one a) (today, anytime true (one a))
+  let rem = f (False, one a) (t0, anytime true (one a))
       expected : C = anytime true (one a)
   rem === expected
 
-  let rem = f (False, one a) (today, give (anytime true (one a)))
-      expected : C = give (When (TimeGte today) (one a))
+  let rem = f (False, one a) (t0, give (anytime true (one a)))
+      expected : C = give (When (TimeGte t0) (one a))
   rem === expected
 
-  let rem = f (True, one a) (today, give . give . anytime true $ one a)
-      expected : C = give (give (When (TimeGte today) (one a)))
+  let rem = f (True, one a) (t0, give . give . anytime true $ one a)
+      expected : C = give (give (When (TimeGte t0) (one a)))
   rem === expected
 
 -- | Lifecycle a bond with three fixing dates. Uses ledger time effects.
@@ -214,29 +210,29 @@ testBond = script do
       coupon = principal * 0.015
       bond = fixed principal coupon a
 
-  setDate today
+  setDate t0
   t <- getDate
 
-  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 (bond [today, tomorrow, afterTomorrow]) t
-  remaining === bond [tomorrow, afterTomorrow]
+  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 (bond [t0, t1, t2]) t0 t
+  remaining === bond [t1, t2]
   pending === [Lifecycle.Pending t coupon a]
 
-  setDate tomorrow
+  setDate t1
   t <- getDate
 
-  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t
-  remaining === bond [afterTomorrow]
+  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t0 t
+  remaining === bond [t2]
   pending === [Lifecycle.Pending t coupon a]
 
   -- Check bond coupon doesn't get processed twice
-  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t
-  remaining === bond [afterTomorrow]
+  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t0 t
+  remaining === bond [t2]
   pending === []
 
-  setDate afterTomorrow
+  setDate t2
   t <- getDate
 
-  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t
+  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t0 t
   remaining === zero
   pending === [Lifecycle.Pending t coupon a, Lifecycle.Pending t principal a]
 
@@ -244,137 +240,139 @@ testBond = script do
 testEuropeanCall = script do
   let strike = 23.0
       payoff = scale (O.observe "spot" - O.pure strike) (one a)
-      option = european tomorrow payoff
+      option = european t1 payoff
       bearer = True
 
   -- Before maturity
-  setDate today
+  setDate t0
   t <- getDate
 
   -- Exercise is a no-op
-  remaining <- Lifecycle.exercise observe25 (bearer, zero) option t
+  remaining <- Lifecycle.exercise observe25 (bearer, zero) option t0 t
   remaining === option
 
   -- and so is settlement
-  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 option t
+  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 option t0 t
   remaining === option
   pending === []
 
   -- At maturity
-  setDate tomorrow
+  setDate t1
   t <- getDate
 
-  remaining <- Lifecycle.exercise observe25 (bearer, payoff) option t
-  remaining === when (at tomorrow) payoff
+  remaining <- Lifecycle.exercise observe25 (bearer, payoff) option t0 t
+  remaining === when (at t1) payoff
 
-  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t
+  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t0 t
   remaining === zero
   pending === [Lifecycle.Pending t 2.0 a]
 
--- Knock-in tomorrow
+-- | Test for an american option.
+-- The contract is acquired at time `t0` and can be exercised between `t1` and `t2`.
 testAmericanPut : Script ()
 testAmericanPut = script do
   let strike = 30.0
       payoff = scale (O.pure strike - O.observe "spot") (one a)
-      option = american tomorrow afterTomorrow payoff
+      option = american t1 t2 payoff
       bearer = True
 
   -- Scenario 1) Before knock-in
-  setDate today
+  setDate t0
   t <- getDate
 
-  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 option t
+  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 option t0 t
   remaining === option
   pending === []
 
-  remaining <- Lifecycle.exercise observe25 (bearer, payoff) remaining t
+  remaining <- Lifecycle.exercise observe25 (bearer, payoff) remaining t0 t
   remaining === option -- not in acquisition range yet
 
   -- Scenario 2) in acquisition range
-  setDate tomorrow
+  setDate t1
   t <- getDate
 
   -- Settlement before exercise is a no-op
-  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 option t
+  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 option t0 t
   remaining === option
   pending === []
 
   -- So is expiration before maturity
-  remaining <- Lifecycle.expire observe25 remaining t
+  remaining <- Lifecycle.expire observe25 remaining t0 t
   remaining === option
 
   -- Exercise `anytime`
-  remaining <- Lifecycle.exercise observe25 (bearer, remaining.claim) remaining t
-  remaining === when (TimeGte t) (until (TimeGte $ afterTomorrow) (payoff `or`  zero))
+  remaining <- Lifecycle.exercise observe25 (bearer, remaining.claim) remaining t0 t
+  remaining === when (TimeGte t) (until (TimeGte $ t2) (payoff `or`  zero))
 
   -- Exercise `or`
-  remaining <- Lifecycle.exercise observe25 (bearer, payoff) remaining t
-  remaining === when (TimeGte t) (until (TimeGte afterTomorrow) payoff)
+  remaining <- Lifecycle.exercise observe25 (bearer, payoff) remaining t0 t
+  remaining === when (TimeGte t) (until (TimeGte t2) payoff)
 
-  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t
+  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t0 t
   remaining === zero
   pending === [Lifecycle.Pending t 5.0 a]
 
   -- Scenario 3) at maturity
-  setDate afterTomorrow
+  setDate t2
   t <- getDate
 
   -- Expiration at maturity n.b. this means you must *first* exercise & settle *before* expiring.
-  remaining <- Lifecycle.expire observe25 option t
+  remaining <- Lifecycle.expire observe25 option t0 t
   remaining === zero
 
   -- Settlement before exercise has been done is a no-op
-  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 option t
+  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 option t0 t
   remaining === option
   pending === []
 
   -- Trying to exercise inner `or` before `anytime` won't work.
-  remaining <- Lifecycle.exercise observe25 (bearer, payoff) remaining t
+  remaining <- Lifecycle.exercise observe25 (bearer, payoff) remaining t0 t
   remaining === option
 
   -- You must first exercise the 'outer' `anytime`, and then ...
-  remaining <- Lifecycle.exercise observe25 (bearer, remaining.claim) remaining t
-  remaining === when (TimeGte t) (until (TimeGte $ afterTomorrow) (payoff `or` zero))
+  remaining <- Lifecycle.exercise observe25 (bearer, remaining.claim) remaining t0 t
+  remaining === when (TimeGte t) (until (TimeGte $ t2) (payoff `or` zero))
 
   -- ... the inner `or`.
-  remaining <- Lifecycle.exercise observe25 (bearer, payoff) remaining t
-  remaining === when (TimeGte t) (until (TimeGte $ afterTomorrow) payoff)
+  remaining <- Lifecycle.exercise observe25 (bearer, payoff) remaining t0 t
+  remaining === when (TimeGte t) (until (TimeGte $ t2) payoff)
 
-  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t
+  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t0 t
   remaining === zero
   pending === [Lifecycle.Pending t 5.0 a]
 
   -- Scenario 4) after expiration
-  setDate $ succ afterTomorrow
+  setDate $ succ t2
   t <- getDate
 
-  remaining <- Lifecycle.exercise observe25 (bearer, payoff) option t
+  remaining <- Lifecycle.exercise observe25 (bearer, payoff) option t0 t
   remaining === option -- past maturity; no exercise possible
 
-  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t
+  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t0 t
   remaining === option
   pending === []
 
-  remaining <- Lifecycle.expire observe25 remaining t
+  remaining <- Lifecycle.expire observe25 remaining t0 t
   remaining === zero
 
 -- | Ensure that acquisition time is propagated correctly (deterministic time)
 testFloatingRateNote = script do
-  let 
+  let
+    acquisitionDate = date 2022 Mar 01
     innerFrn = Scale (O.Observe a) $ When (TimeGte $ date 2022 Mar 10) $ One b
     frn = When (TimeGte $ date 2022 Mar 05) innerFrn
 
-  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observeDayOfMonth frn $ date 2022 Feb 28
+  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observeDayOfMonth frn acquisitionDate $ date 2022 Feb 28
   remaining === frn
 
-  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observeDayOfMonth frn $ date 2022 Mar 07
+  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observeDayOfMonth frn acquisitionDate $ date 2022 Mar 07
   remaining === frn
 
-  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observeDayOfMonth frn $ date 2022 Mar 10
+  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observeDayOfMonth frn acquisitionDate $ date 2022 Mar 10
   remaining === Zero
   pending === [Lifecycle.Pending (date 2022 Mar 10) 5.0 b]
 
-  pure ()  
+  pure ()
 
 -- | Ensure that acquisition time is propagated correctly (stochastic time)
 testKnockOutBarrier = script do
@@ -385,33 +383,33 @@ testKnockOutBarrier = script do
     frn = When (at start) $ When inequality innerFrn
 
   -- Predicate is False, contract should be unchanged
-  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observeDayOfMonth frn $ date 2022 Mar 01
+  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observeDayOfMonth frn start $ date 2022 Mar 01
   remaining === frn
 
   -- Predicate becomes True and `When pred` should be replaced by `When (TimeGte τ)`
-  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observeDayOfMonth frn $ date 2022 Mar 25
+  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observeDayOfMonth frn start $ date 2022 Mar 25
   remaining === When (at start) (When (TimeGte $ date 2022 Mar 25) innerFrn)
   pending === []
 
   -- Payment of the correct amount is made on payment date
-  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observeDayOfMonth remaining $ date 2022 Mar 27
+  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observeDayOfMonth remaining start $ date 2022 Mar 27
   remaining === Zero
   pending === [Lifecycle.Pending (date 2022 Mar 27) 25.0 b]
 
   -- With a stochastic predicate, if we lifecycle too late (e.g. on the 26th rather than on the 25th) we end up with an incorrect claim
-  wrongLifecycleResult <- Lifecycle.lifecycle observeDayOfMonth frn $ date 2022 Mar 26
+  wrongLifecycleResult <- Lifecycle.lifecycle observeDayOfMonth frn start $ date 2022 Mar 26
   wrongLifecycleResult.remaining === When (at start) (When (TimeGte $ date 2022 Mar 26) innerFrn)
 
   pure ()
 
--- | Ensure that `Cond` nodes are lifecycled appropriately 
+-- | Ensure that `Cond` nodes are lifecycled appropriately
 testCondLifecycle = script do
   let c = When true $ Cond true (One a) (One b)
       expected : C = zero
 
-  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observeDayOfMonth c today
+  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observeDayOfMonth c t0 t0
   remaining === expected
-  pending === [Lifecycle.Pending today 1.0 a]
+  pending === [Lifecycle.Pending t0 1.0 a]
 
   pure ()
 

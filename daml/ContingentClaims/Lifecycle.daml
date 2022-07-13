@@ -17,7 +17,7 @@ module ContingentClaims.Lifecycle (
 import ContingentClaims.Claim (Claim(..), ClaimF(..), compare, Inequality(..))
 import ContingentClaims.Observation qualified as Observation
 import ContingentClaims.Util.Recursion (apoCataM)
-import ContingentClaims.Util (pruneZeros', intrinsicAcquisitionTime)
+import ContingentClaims.Util (pruneZeros')
 import Daml.Control.Arrow ((|||),(&&&))
 import Daml.Control.Recursion (project)
 import Daml.Control.Monad.Trans.Writer (WriterT, runWriterT)
@@ -26,7 +26,6 @@ import Daml.Control.Monad.Trans.Class (lift)
 import DA.List (singleton)
 import DA.Traversable (sequence)
 import DA.Foldable (elem, foldMap)
-import DA.Optional (fromSomeNote)
 import Prelude hiding (sequence, mapA, exercise, compare, elem)
 
 type C t a o = Claim t Decimal a o
@@ -45,24 +44,26 @@ data Pending t a = Pending with
 -- | Returned from a `lifecycle` operation.
 data Result t a o = Result with
   pending : [Pending t a]
-    -- ^ payments requiring settlement.
+    -- ^ Payments requiring settlement.
   remaining : C t a o
-    -- ^ the tree after lifecycled branches have been pruned.
+    -- ^ The tree after lifecycled branches have been pruned.
     deriving (Eq, Show)
 
 -- | Collect claims falling due into a list, and return the tree with those nodes pruned.
 -- `m` will typically be `Update`. It is parametrised so it can be run in a `Script`.
 -- The first argument is used to lookup the value of any `Observables`.
--- Results in a function taking today's date, and returning the pruned tree + pending settlements.
+-- Returns the pruned tree + pending settlements up to the provided market time.
 lifecycle : (Ord t, Eq a, CanAbort m)
   => (o -> t -> m Decimal)
-  -- ^ function to evaluate observables 
+  -- ^ Function to evaluate observables.
   -> C t a o
-  -- ^ the input claim
+  -- ^ The input claim.
   -> t
-  -- ^ the today's date
+  -- ^ The input claim's acquisition time.
+  -> t
+  -- ^ The current market time. This is the time up to which observations are known.
   -> m (Result t a o)
-lifecycle spot claim today
+lifecycle spot claim acquisitionTime today
   = fmap (uncurry $ flip Result)
   . runWriterT
   . apoCataM pruneZeros' acquireThenSettle
@@ -74,7 +75,6 @@ lifecycle spot claim today
       . lift
       . sequence
       . fmap (sequence . (Prelude.fst &&& acquire' spot today))
-    acquisitionTime = fromSomeNote "Claim does not have an intrinsic acquisition time" $ intrinsicAcquisitionTime claim
 
 -- | Helper type used to write apomorphisms on a claim. `Left` is used if unfolding shall not continue. Otherwise, `Right` is used.
 -- The generic type parameter `x` is the carrier of the R-CoAlgebra (typically the sub-tree as well as some additional information).
@@ -89,9 +89,9 @@ type Acquired t a o = FE t a o (t, C t a o)
 -- This is useless on its own. Composed with other functions, it adds laziness.
 acquire' : (Ord t, Eq a, CanAbort m)
   => (o -> t -> m Decimal)
-  -- ^ function to evaluate observables 
+  -- ^ function to evaluate observables
   -> t
-  -- ^ the today date
+  -- ^ the current market time. This is the time up to which observations are known.
   -> (t, C t a o)
   -- ^ input claim in functor form and its acquisition time
   -> m (Acquired t a o)
@@ -115,7 +115,7 @@ acquire' _ _ (s, other) = pure $ Right . (s, ) <$> project other
 type LifecycleCarrier t a o = (Decimal, (t, C t a o))
 
 -- | Evaluate any observables in `Scale` nodes, accumulating scale factors top-down.
--- Log the scale factors with their corresponding leaf values. 
+-- Log the scale factors with their corresponding leaf values.
 -- Stop recursion at `Or` and `Anytime` branches, guaranteeing liveness.
 -- Replace any Ones that can be reached with Zeros.
 lifecycle' : (Ord t, CanAbort m)
@@ -143,15 +143,17 @@ lifecycle' _ (qty, (_, other)) = pure $ fmap (qty, ) <$> other
 -- `import` this `qualified`, to avoid clashes with `Prelude.exercise`.
 exercise : (Ord t, Eq a, Eq o, CanAbort m)
   => (o -> t -> m Decimal)
-  -- ^ function to evaluate observables 
+  -- ^ function to evaluate observables
   -> (Bool, C t a o)
   -- ^ the election being made
   -> C t a o
   -- ^ the input claim
   -> t
+  -- ^ the input claim's acquisition time
+  -> t
   -- ^ the election date
   -> m (C t a o)
-exercise spot election claim today = 
+exercise spot election claim acquisitionTime today =
   apoCataM pruneZeros' acquireThenExercise
   . (True, ) -- initial election authorizer (`True = bearer`)
   $ (acquisitionTime, claim)
@@ -160,7 +162,6 @@ exercise spot election claim today =
       fmap (exercise' election today)
       . sequence
       . fmap (sequence . (Prelude.fst &&& acquire' spot today))
-    acquisitionTime = fromSomeNote "Claim does not have an intrinsic acquisition time" $ intrinsicAcquisitionTime claim
 
 -- | Carrier type used for `exercise`. It consists of a claim, its acquisition time and a flag keeping track of who is the entitled to the election (`True = bearer`).
 type ExerciseCarrier t a o = (Bool, (t, C t a o))
@@ -193,15 +194,14 @@ exercise' (elector, election) t (isBearer, (s, f@(AnytimeF _ _)))
 exercise' _ _ (isBearer, (_, other)) = fmap (isBearer, ) <$> other
 
 -- | Replace any subtrees that have expired with `Zero`s.
-expire : (Ord t, Eq a, CanAbort m) => (o -> t -> m Decimal) -> C t a o -> t -> m (C t a o)
-expire spot claim today =
+expire : (Ord t, Eq a, CanAbort m) => (o -> t -> m Decimal) -> C t a o -> t -> t -> m (C t a o)
+expire spot claim acquisitionTime today =
   apoCataM pruneZeros' acquireThenExpire
   $ (acquisitionTime, claim)
   where
-    acquireThenExpire = 
+    acquireThenExpire =
       (expire' spot today =<<)
       . sequence . (Prelude.fst &&& acquire' spot today)
-    acquisitionTime = fromSomeNote "Claim does not have an intrinsic acquisition time" $ intrinsicAcquisitionTime claim
 
 -- | Carrier type used for `expire`. It consists of a claim and its acquisition time.
 type ExpireCarrier t a o = (t, C t a o)
