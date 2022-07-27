@@ -1,5 +1,5 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/digital-asset/daml/blob/main/LICENSE)
-<!-- [![CircleCI](https://circleci.com/gh/digital-asset/daml-finance.svg?style=shield)](https://circleci.com/gh/digital-asset/daml-finance) -->
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/digital-asset/daml-finance/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/digital-asset/daml-finance/tree/main)
 
 Copyright © 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All Rights Reserved. SPDX-License-Identifier: Apache-2.0
 
