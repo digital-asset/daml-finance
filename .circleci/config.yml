@@ -1,0 +1,173 @@
+#
+# Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+version: 2.1
+
+executors:
+  daml-executor:
+    docker:
+      - image: cimg/openjdk:11.0
+
+commands:
+  install_sdk:
+    description: "Install Daml SDK"
+    steps:
+      - run:
+          name: "Create download directory"
+          command: |
+            mkdir -p $HOME/downloads
+            >> $BASH_ENV echo 'export TEMPDIR=$HOME/downloads'
+      - run:
+          name: Install Daml SDK
+          command: |
+            curl -sSL https://get.daml.com/ | sh /dev/stdin ${SDK_VERSION}
+            # idea from https://circleci.com/docs/2.0/env-vars/
+            >> $BASH_ENV echo 'export PATH="$HOME/.daml/bin:$PATH"'
+      - run:
+          name: Verify Daml SDK
+          command: |
+            DAR=`basename ${TEMPDIR}/*.tar.gz`
+            curl -SLf https://github.com/digital-asset/daml/releases/download/v${SDK_VERSION}/${DAR}.asc --output $TEMPDIR/$DAR.asc --progress-bar
+            gpg --verify ${TEMPDIR}/${DAR}.asc
+  install_yq:
+    description: "Install yq from binary"
+    steps:
+      - run:
+          name: Install yq
+          command: |
+            mkdir -p $HOME/yq
+            curl -L https://github.com/mikefarah/yq/releases/download/3.4.1/yq_linux_amd64 -o $HOME/yq/yq &&\
+              chmod +x $HOME/yq/yq &&\
+              echo 'export PATH=$HOME/yq/yq:$PATH' >> $BASH_ENV
+      - run:
+          name: Verify yq
+          command: |
+            curl -L https://github.com/mikefarah/yq/releases/download/3.4.1/checksums -o $HOME/yq/checksums
+            curl -L https://github.com/mikefarah/yq/releases/download/3.4.1/checksums_hashes_order -o $HOME/yq/checksums_hashes_order
+            HASHPOSITION=`grep -m 1 -n "SHA3-512" ${HOME}/yq/checksums_hashes_order | cut -f1 -d:`
+            CHECKSUM=`grep "yq_linux_amd64" ${HOME}/yq/checksums | sed 's/  /\t/g' | cut -f$((${HASHPOSITION}+1))`
+
+            if [[ `openssl dgst -sha3-512 ${HOME}/yq/yq | cut -f2 -d" "` != ${CHECKSUM} ]] ; then
+              echo "ERROR: yq - invalid checksum"
+              exit 1
+            fi
+  install_gh:
+    description: "Install GitHub Cli"
+    steps:
+      - run:
+          name: Install gh
+          command: |
+            curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+            sudo apt update
+            sudo apt install gh
+  set_sdk_version:
+    description: "Set Daml SDK version environment version"
+    steps:
+      - run:
+          name: Set Daml SDK version
+          command: echo 'export SDK_VERSION=$(yq e '.sdk-version' daml.yaml)' >> $BASH_ENV
+  import_gpg_da_public_key:
+    description: "Import Digital Asset public key"
+    steps:
+      - run:
+          name: "Import DA public key into GPG"
+          command: gpg --import .keys/digital-asset.pub
+  import_gpg_key:
+    description: "Setup GPG for signing artifacts as part of a release"
+    steps:
+      - run:
+          name: Import GPG key
+          command: echo -e ${GPG_KEY} | gpg --import --quiet
+  run_release:
+    description: "GitHub Release"
+    steps:
+      - run:
+          name: "Run GitHub Release"
+          command: |
+            PACKAGES=(`ls package/main/daml/*/daml.yaml`)
+
+            for package in ${PACKAGES[@]}; do
+              PACKAGE=`echo ${package} | cut -f4 -d "/"`
+              VERSION=`yq e '.version' ${package}`
+              TAG="${PACKAGE}/${VERSION}"
+              echo "Processing package '${PACKAGE}' with tag '${TAG}'..."
+
+              if [[ `git tag -l ${TAG} | wc -l` -eq 0 ]]; then
+                DAR_PREFIX=`awk '{ gsub(/\./, "-", $0); print tolower($0); }' \<<< ${PACKAGE}`
+                DAR="${DAR_PREFIX}-${VERSION}.dar"
+                gpg --armor --detach-sign .dars/${DAR}
+
+                if [[ `echo $VERSION | grep ".99." | wc -l` -eq 0 ]] ; then
+                  gh release create ${TAG} .dars/${DAR}* --target ${CIRCLE_BRANCH} --notes "See release notes (insert link here) for further details."
+                else
+                  gh release create ${TAG} .dars/${DAR}* --target ${CIRCLE_BRANCH} --prerelease --notes "Development snapshot of package '${PACKAGE}'. Use at your own risk."
+                fi
+                echo -e "Successfully released package '${PACKAGE}' with tag '${TAG}'.\n"
+              else
+                echo -e "Tag '${TAG}' already exists for package '${PACKAGE}'; Ignoring...\n"
+              fi
+            done
+      - store_artifacts:
+          path: .dars
+          destination: daml-finance-dar-${VERSION}
+
+jobs:
+  build:
+    executor: daml-executor
+    steps:
+      - checkout
+      - run:
+          name: Validate Copyright headers
+          command: |
+            make headers-check
+      - install_yq
+      - set_sdk_version
+      - import_gpg_da_public_key
+      - install_sdk
+      - run:
+          name: Build and execute tests
+          command: |
+            make test
+      - save_cache:
+          paths:
+            - .dars
+          key: daml-finance-dars-{{ .Revision }}
+
+  release:
+    executor: daml-executor
+    steps:
+      - checkout
+      - install_yq
+      - install_gh
+      - import_gpg_key
+      - restore_cache:
+          keys:
+            - daml-finance-dars-{{ .Revision }}
+      - run_release
+
+workflows:
+  version: 2
+  build:
+    jobs:
+      - build:
+          filters:
+            branches:
+              ignore:
+                - /^(R|r)elease.*$/
+  build-release:
+    jobs:
+      - build:
+          filters:
+            branches:
+              only:
+                - /^(R|r)elease.*$/
+      - release:
+          context: github-fin-eng-context
+          requires:
+            - build
+          filters:
+            branches:
+              only:

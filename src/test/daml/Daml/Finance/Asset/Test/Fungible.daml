@@ -1,0 +1,233 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Asset.Test.Fungible where
+
+import DA.Action (foldlA)
+import DA.Map qualified as M
+import DA.Set (singleton)
+import Daml.Finance.Asset.Holding qualified as Holding (T)
+import Daml.Finance.Asset.Test.Util.Account qualified as Account (credit, createAccount, createFactory)
+import Daml.Finance.Asset.Test.Util.Holding qualified as Holding (createFactory)
+import Daml.Finance.Asset.Test.Util.Instrument qualified as Instrument (originate)
+import Daml.Finance.Interface.Asset.Fungible qualified as Fungible (HasImplementation, I, Merge(..), Split(..), SplitResult(..), View(..), verifyQuantityPreserving, verifySplit)
+import Daml.Finance.Interface.Asset.Holding qualified as Holding (I, View(..))
+import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (K, GetView(..), I, Reference(..), View(..))
+import Daml.Finance.Interface.Asset.Lockable qualified as Lockable (I, Lock, View(..))
+import Daml.Finance.Interface.Asset.Transferable qualified as Transferable (I, View(..))
+import Daml.Finance.Interface.Asset.Types (AccountKey(..), Id(..), InstrumentKey(..))
+import Daml.Finance.Interface.Asset.Util (getLocker)
+import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (I, View(..))
+import Daml.Finance.Interface.Common.Types (Observers)
+import Daml.Finance.Interface.Common.Util (flattenObservers)
+import Daml.Finance.Test.Util.Common (createParties, validateAssertionFailure)
+import Daml.Script
+
+data TestParties = TestParties
+  with
+    custodian : Party
+    issuer : Party
+    investor : Party
+
+setup : Script (TestParties, AccountKey)
+setup = do
+  -- Create parties
+  [custodian, issuer, investor] <- createParties ["Custodian", "Issuer", "Investor"]
+
+  -- Account and holding factory
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory custodian []
+  holdingFactoryCid <- toInterfaceContractId <$> Holding.createFactory custodian []
+
+  -- Create account
+  issuerAccount <- Account.createAccount [] accountFactoryCid holdingFactoryCid [] custodian issuer
+
+  pure ((TestParties with custodian; issuer; investor), issuerAccount)
+
+run1 = do
+  -- Initial setup
+  ((TestParties with custodian; issuer; investor), issuerAccount) <- setup
+
+  -- Originate instrument
+  instrument <- Instrument.originate custodian issuer "ABC.DE" []
+
+  -- Issue asset
+  holdingCid <- Account.credit [] instrument 1_000.0 issuerAccount
+  let fungibleCid : ContractId Fungible.I = coerceContractId holdingCid
+
+  -- Attempt to split more than the amount available on the holding fails
+  submitMultiMustFail [issuer, investor] [] do exerciseCmd fungibleCid Fungible.Split with amounts = [1_000.1]
+  submitMultiMustFail [issuer, investor] [] do exerciseCmd fungibleCid Fungible.Split with amounts = [1_000.0, 0.1]
+
+  -- Successfully split the holding into 3 holdings
+  Fungible.SplitResult [splitCid1, splitCid2] (Some restCid) <- submitMulti [issuer, investor] [] do exerciseCmd fungibleCid Fungible.Split with amounts = [500.0, 250.0]
+
+  -- Merge holdings
+  submitMulti [issuer, investor] [] do exerciseCmd restCid Fungible.Merge with fungibleCids = [splitCid1, splitCid2]
+
+  pure ()
+
+run2 : Script ()
+run2 = do
+  -- Initial setup
+  ((TestParties with custodian; issuer; investor), issuerAccountCid) <- setup
+
+  -- Originate bad instrument
+  let id = Id with label = "MAL.INST"; version = "0"
+  maliciousInstrumentCid <- coerceContractId <$> submitMulti [custodian, issuer] [] do
+    createCmd MaliciousInstrument with depository = custodian; issuer; id; observers = M.empty
+
+  cid <- coerceContractId <$> submitMulti [custodian, issuer] [] do createCmd MaliciousInstrument with depository = custodian; issuer; id; observers = M.empty
+  instrumentView <- submitMulti [custodian, issuer] [] do exerciseCmd cid Instrument.GetView with viewer = issuer
+  let ref = Instrument.Reference with instrumentView; cid; observers = M.empty
+  coerceContractId <$> submitMulti [custodian, issuer] [] do createCmd ref
+  let maliciousInstrument = key ref
+
+  -- Issue bad asset
+  maliciousHoldingCid <- submitMulti [custodian, issuer] [] do
+    createCmd MaliciousHolding
+      with
+        instrument = maliciousInstrument
+        account = AccountKey with custodian; owner = issuer; id = "Issuer@Custodian"
+        amount = 1_000.0
+        lock = None
+        observers = M.empty
+  let badFungibleCid : ContractId Fungible.I = coerceContractId maliciousHoldingCid
+
+  -- Attempt to split fails
+  submitMultiMustFail [issuer, investor] [] do exerciseCmd badFungibleCid Fungible.Split with amounts = [1_000.1]
+  submitMultiMustFail [issuer, investor] [] do exerciseCmd badFungibleCid Fungible.Split with amounts = [1_000.0, 0.1]
+  submitMultiMustFail [issuer, investor] [] do exerciseCmd badFungibleCid Fungible.Split with amounts = [1_000.0]
+  submitMultiMustFail [issuer, investor] [] do exerciseCmd badFungibleCid Fungible.Split with amounts = [900.0]
+
+  -- Split holding - these quantites gets multipled by 10 which matches the total original amount
+  Fungible.SplitResult [badFungibleCid1, badFungibleCid2] None <- submitMulti [issuer, investor] [] do exerciseCmd badFungibleCid Fungible.Split with amounts = [50.0, 50.0]
+
+  -- Merge holdings fails as amount isn't preserved
+  submitMultiMustFail [issuer, investor] [] do exerciseCmd badFungibleCid1 Fungible.Merge with fungibleCids = [badFungibleCid2]
+
+  pure ()
+
+run3 : Script ()
+run3 = do
+  -- Positive case - Sum of quantites to split matches current amount
+  Fungible.verifySplit [1.0, 2.0, 3.0, 4.0, 5.0] 15.0
+
+  -- Positive case - Sum of quantites to split is less than current amount
+  Fungible.verifySplit [1.0, 2.0, 3.0] 15.0
+
+  -- Negative case - Sum of quantities to split higher than current amount
+  validateAssertionFailure (Fungible.verifySplit [1.0, 2.0, 3.0] 1.0)
+    "Fungible::verifySplit - Summed amount must not be larger than current amount. splitQuantitySum=6.0, currentQuantity=1.0"
+
+  pure ()
+
+run4 : Script ()
+run4 = do
+  -- Initial setup
+  (TestParties{..}, issuerAccount) <- setup
+
+  -- Originate instrument
+  instrument <- Instrument.originate custodian issuer "ABC.DE" []
+
+  -- Issue asset
+  holdingCid : ContractId Holding.I <- Account.credit [] instrument 1_000.0 issuerAccount
+
+  -- Convert to implementation cid from the interface cid
+  let holdingImplCid = fromInterfaceContractId @Holding.T holdingCid
+
+  -- Acquire holding contract from the ledger
+  Some holdingImpl <- queryContractId issuer holdingImplCid
+
+  -- Convert the holding implementation value to the fungible interface value
+  let fungible : Fungible.I = toInterface holdingImpl
+
+  -- Positive case - Single quantities match
+  Fungible.verifyQuantityPreserving [fungible] [fungible]
+
+  -- Positive case - Multiple amounts match
+  Fungible.verifyQuantityPreserving [fungible, fungible] [fungible, fungible]
+
+  -- Negative case - Quantites of new fungibles do not match previous fungible
+  validateAssertionFailure (Fungible.verifyQuantityPreserving [fungible, fungible] [fungible])
+    "Fungible::verifyQuantityPreserving - Sum of fungible amounts do not match the expected amount. newQuantityTotal=2000.0, previousQuantityTotal=1000.0"
+
+  -- Negative case - Quantites of previous fungibles do not match new fungible
+  validateAssertionFailure (Fungible.verifyQuantityPreserving [fungible] [fungible, fungible])
+    "Fungible::verifyQuantityPreserving - Sum of fungible amounts do not match the expected amount. newQuantityTotal=1000.0, previousQuantityTotal=2000.0"
+
+  -- Negative edge case - No new fungibles provided
+  validateAssertionFailure (Fungible.verifyQuantityPreserving [] [fungible, fungible])
+    "Fungible::verifyQuantityPreserving - Sum of fungible amounts do not match the expected amount. newQuantityTotal=0.0, previousQuantityTotal=2000.0"
+
+  -- Negative edge case - No previous fungibles provided
+  validateAssertionFailure (Fungible.verifyQuantityPreserving [fungible, fungible] [])
+    "Fungible::verifyQuantityPreserving - Sum of fungible amounts do not match the expected amount. newQuantityTotal=2000.0, previousQuantityTotal=0.0"
+
+  pure ()
+
+instance Fungible.HasImplementation MaliciousHolding
+template MaliciousHolding
+  with
+    instrument : Instrument.K
+    account : AccountKey
+    amount : Decimal
+    lock : Optional Lockable.Lock
+    observers : Observers
+  where
+    signatory account.custodian, account.owner, getLocker this
+    observer flattenObservers observers
+
+    implements Disclosure.I where
+      view = Disclosure.View with disclosureControllers = (singleton $ singleton account.owner); observers
+      setObserversImpl = undefined
+      archiveImpl = undefined
+
+    implements Holding.I where
+      asDisclosure = toInterface @Disclosure.I this
+      view = Holding.View with instrument; account; amount
+
+    implements Lockable.I where
+      asHolding = toInterface @Holding.I this
+      view = Lockable.View with lock = None
+      acquireImpl = undefined
+      releaseImpl = undefined
+
+    implements Transferable.I where
+      asLockable = toInterface @Lockable.I this
+      view = Transferable.View ()
+      transferImpl = undefined
+
+    implements Fungible.I where
+      asTransferable = toInterface @Transferable.I this
+      view = Fungible.View with modifiers = singleton account.owner
+      splitImpl Fungible.Split{amounts}  = do
+        splitCids <- forA amounts $ \q -> toInterfaceContractId <$> create this with amount = q * 10.0
+        pure $ Fungible.SplitResult with splitCids; rest = None
+      mergeImpl Fungible.Merge{fungibleCids} = do
+        let
+          f qty cid = do
+            Some (tokenCid, token) <- fetchFromInterface @MaliciousHolding cid
+            archive tokenCid
+            pure $ qty + token.amount
+        tot <- foldlA f amount fungibleCids
+        toInterfaceContractId <$> create this with amount = tot + 100.0
+
+template MaliciousInstrument
+  with
+    depository : Party
+    issuer : Party
+    id : Id
+    observers : Observers
+  where
+    signatory depository, issuer
+    observer flattenObservers observers
+
+    implements Disclosure.I where
+      view = undefined
+      setObserversImpl = undefined
+      archiveImpl = undefined
+
+    implements Instrument.I where
+      asDisclosure = toInterface @Disclosure.I this
+      view = Instrument.View with depository; issuer; id
+      getKey = InstrumentKey with depository; issuer; id

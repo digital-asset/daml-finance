@@ -1,0 +1,82 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.RefData.Time.DateClock
+  ( DateClock(..)
+  , DateClockUpdateEvent(..)
+  , Unit(..)
+  ) where
+
+import DA.Date (addDays)
+import DA.Time (time)
+import Daml.Finance.Interface.Common.Classes (HasUTCTimeConversion(..))
+import Daml.Finance.Interface.Common.Types (Parties)
+import Daml.Finance.Interface.Lifecycle.Clock qualified as Clock (HasImplementation, I, View(..))
+import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I, View(..))
+
+type T = DateClock
+
+-- | A `Date` which admits a convertion to `Time` (it is converted to UTC noon).
+newtype Unit = Unit Date deriving Eq
+
+instance HasUTCTimeConversion Unit where
+  toUTCTime (Unit d) = time d 12 00 00
+
+instance Ord Unit where
+  x <= y = toUTCTime x <= toUTCTime y
+
+instance Show Unit where
+  show (Unit d) = show d
+
+instance Clock.HasImplementation T
+-- | A clock where time is discretized into dates. Each date is mapped to UTC noon.
+template DateClock
+  with
+    u : Unit
+      -- ^ The clock's date.
+    id : Text
+      -- ^ A textual identifier.
+    provider : Party
+      -- ^ The clock's provider.
+    observers : Parties
+      -- ^ The clock's observers.
+  where
+    signatory provider
+    observer observers
+
+    key (id, provider) : (Text, Party)
+    maintainer key._2
+
+    implements Clock.I where
+      view = Clock.View with clockTime = toUTCTime this
+
+    choice ToNext : (ContractId DateClock, ContractId DateClockUpdateEvent)
+      -- ^ Moves the clock to the next date and spawns an update event.
+      controller provider
+      do
+        let
+          Unit currentDate = u
+          clock = this with u = Unit $ addDays currentDate 1
+        clockCid <- create clock
+        eventCid <- create DateClockUpdateEvent with clock; id
+        pure (clockCid, eventCid)
+
+instance HasUTCTimeConversion DateClock where
+  toUTCTime clock = toUTCTime clock.u
+
+instance Ord DateClock where
+  compare x y = compare (toInterface x : Clock.I) (toInterface y)
+
+-- | Event signalling the update of a clock. It can trigger the execution of lifecycle rules for some instruments.
+template DateClockUpdateEvent
+  with
+    clock : DateClock
+      -- ^ The updated clock data.
+    id : Text
+      -- ^ A textual identifier.
+  where
+    signatory clock.provider
+    observer clock.observers
+
+    implements Event.I where
+      view = Event.View with eventTime = toUTCTime clock

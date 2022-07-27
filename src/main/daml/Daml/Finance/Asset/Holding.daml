@@ -1,0 +1,131 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Asset.Holding where
+
+import DA.Action (foldlA)
+import DA.Assert ((===))
+import DA.Map qualified as M
+import DA.Set (delete, insert, null, singleton)
+import Daml.Finance.Interface.Asset.Account qualified as Account (R, view)
+import Daml.Finance.Interface.Asset.Factory.Holding qualified as HoldingFactory (Create(..), F, HasImplementation(..), Remove(..), View(..))
+import Daml.Finance.Interface.Asset.Fungible qualified as Fungible (HasImplementation, I, Merge(..), Split(..), SplitResult(..), View(..))
+import Daml.Finance.Interface.Asset.Holding qualified as Holding (I, View(..))
+import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (K)
+import Daml.Finance.Interface.Asset.Lockable qualified as Lockable (Acquire(..), I, Lock(..), LockType(..), Release(..), View(..))
+import Daml.Finance.Interface.Asset.Transferable qualified as Transferable (I, Transfer(..), View(..))
+import Daml.Finance.Interface.Asset.Types (AccountKey(..))
+import Daml.Finance.Interface.Asset.Util (getLocker)
+import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (I, SetObservers(..), View(..))
+import Daml.Finance.Interface.Common.Types (Observers)
+import Daml.Finance.Interface.Common.Util (fetchInterfaceByKey, flattenObservers)
+import Prelude hiding (null)
+
+type F = Factory
+type T = Holding
+
+instance Fungible.HasImplementation T
+-- | Implementation of a transferable, lockable, fungible holding.
+template Holding
+  with
+    instrument : Instrument.K
+      -- ^ The instrument of which units are held.
+    account : AccountKey
+      -- ^ The account at which the holding is held. Defines the holding's owner and custodian.
+    amount : Decimal
+      -- ^ Number of units.
+    lock : Optional Lockable.Lock
+      -- ^ An optional lock of a holding.
+    observers : Observers
+      -- ^ Observers.
+  where
+    signatory account.custodian, account.owner, getLocker this
+    observer flattenObservers observers
+
+    ensure amount > 0.0
+
+    implements Disclosure.I where
+      view = Disclosure.View with disclosureControllers = singleton $ singleton account.owner; observers
+      setObserversImpl Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
+      archiveImpl self = archive (coerceContractId self : ContractId Holding)
+
+    implements Holding.I where
+      asDisclosure = toInterface @Disclosure.I this
+      view = Holding.View with
+        instrument
+        account = AccountKey with custodian = account.custodian; owner = account.owner; id = account.id
+        amount
+
+    implements Lockable.I where
+      asHolding = toInterface @Holding.I this
+      view = Lockable.View with lock
+      acquireImpl Lockable.Acquire{newLocker; context; lockType} = do
+        newLock <- case (lock, lockType) of
+          (Some existingLock, Lockable.Reentrant) -> pure existingLock with context = context `insert` existingLock.context
+          (None, _) -> pure Lockable.Lock with locker = newLocker; context = singleton context; lockType
+          _ -> abort "Contract is already locked."
+        toInterfaceContractId <$> create this with lock = Some newLock
+      releaseImpl Lockable.Release{context} = do
+        let
+          f currentLock = do
+            let newContext = context `delete` currentLock.context
+            case (currentLock.lockType, null newContext) of
+              (Lockable.Reentrant, False) -> Some currentLock with context = newContext
+              _ -> None
+          releasedLock = lock >>= f
+        toInterfaceContractId <$> create this with lock = releasedLock
+
+    implements Transferable.I where
+      asLockable = toInterface @Lockable.I this
+      view = Transferable.View ()
+      transferImpl Transferable.Transfer{newOwnerAccount} = do
+        newAccount <- fetchInterfaceByKey @Account.R newOwnerAccount
+        let view = Account.view newAccount
+        view.owner === newOwnerAccount.owner
+        view.custodian === account.custodian
+        toInterfaceContractId <$> create this with
+          account = (this.account with owner = newOwnerAccount.owner; id = view.id); observers = M.empty
+
+    implements Fungible.I where
+      asTransferable = toInterface @Transferable.I this
+      view = Fungible.View with modifiers = singleton account.owner
+      splitImpl Fungible.Split{amounts} = do
+        let rest = amount - sum amounts
+        assertMsg "split quantities are not more than the available amount" $ rest >= 0.0
+        splitCids <- forA amounts $ \q -> toInterfaceContractId <$> create this with amount = q
+        rest <- if rest == 0.0 then pure None else Some . toInterfaceContractId <$> create this with amount = rest
+        pure $ Fungible.SplitResult with splitCids; rest
+      mergeImpl Fungible.Merge{fungibleCids} = do
+        let
+          f qty cid = do
+            Some (tokenCid, token) <- fetchFromInterface @Holding cid
+            archive tokenCid
+            instrument === token.instrument
+            pure $ qty + token.amount
+        tot <- foldlA f amount fungibleCids
+        toInterfaceContractId <$> create this with amount = tot
+
+instance HoldingFactory.HasImplementation Factory
+-- | Implementation of the corresponding Holding Factory.
+template Factory
+  with
+    provider : Party
+      -- ^ The factory's provider.
+    observers : Observers
+      -- ^ The factory's observers.
+  where
+    signatory provider
+    observer flattenObservers observers
+
+    implements HoldingFactory.F
+      where
+        asDisclosure = toInterface @Disclosure.I this
+        view = HoldingFactory.View with provider
+        createImpl HoldingFactory.Create{instrument; account; amount; observers} =
+          toInterfaceContractId <$> create Holding with instrument; account; amount; observers; lock = None
+        removeImpl HoldingFactory.Remove{actors; holdingCid} = archive $ fromInterfaceContractId @Holding holdingCid
+
+    implements Disclosure.I where
+      view = Disclosure.View with disclosureControllers = singleton $ singleton provider; observers
+      setObserversImpl Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
+      archiveImpl self = archive (coerceContractId self : ContractId Holding)

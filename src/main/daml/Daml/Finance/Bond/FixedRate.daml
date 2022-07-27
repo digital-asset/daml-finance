@@ -1,0 +1,92 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Bond.FixedRate where
+
+import DA.Set (singleton)
+import Daml.Finance.Bond.Util
+import Daml.Finance.Common.Date.Calendar
+import Daml.Finance.Common.Date.DayCount
+import Daml.Finance.Common.Date.RollConvention
+import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (HasImplementation, I, View(..), disclosureUpdateReference)
+import Daml.Finance.Interface.Asset.Types (Id(..), InstrumentKey(..))
+import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (I, SetObservers(..), View(..))
+import Daml.Finance.Interface.Common.Types (Observers)
+import Daml.Finance.Interface.Common.Util (flattenObservers)
+import Daml.Finance.Interface.Derivative.HasClaims qualified as HasClaims (I, View(..))
+import Daml.Finance.Interface.Derivative.Types (Deliverable)
+import Daml.Finance.Interface.Lifecycle.Lifecyclable qualified as Lifecyclable (I, Lifecycle(..), View(..))
+import Prelude hiding (key)
+
+type T = FixedRateBond
+
+instance Instrument.HasImplementation T
+-- | This template models a fixed rate bond.
+-- It pays a fixed coupon rate at the end of every coupon period.
+template FixedRateBond
+  with
+    depository : Party
+      -- ^ The depository of the instrument.
+    issuer : Party
+      -- ^ The issuer of the instrument.
+    id : Id
+      -- ^ An identifier of the instrument.
+    couponRate : Decimal
+      -- ^ The fixed coupon rate, per annum. For example, in case of a "3.5% p.a coupon" this should be 0.035.
+    issueDate : Date
+      -- ^ The date when the bond was issued.
+    firstCouponDate : Date
+      -- ^ The first coupon date of the bond.
+    maturityDate : Date
+      -- ^ The last coupon date (and the redemption date) of the bond.
+    holidayCalendarIds : [Text]
+      -- ^ the identifier of the holiday calendar to be used for the coupon schedule.
+    calendarDataAgency : Party
+      -- ^ The reference data provider to use for the holiday calendar.
+    dayCountConvention : DayCountConventionEnum
+      -- ^ The day count convention used to calculate day count fractions. For example: Act360.
+    businessDayConvention : BusinessDayConventionEnum
+      -- ^ An enum type to specify how a non-business day is adjusted. For example: FOLLOWING.
+    couponPeriod : PeriodEnum
+      -- ^ The coupon period. For example, in case of a 3M coupon period (a coupon every 3 months), this should be M.
+    couponPeriodMultiplier : Int
+      -- ^ The coupon period multiplier. For example, in case of a 3M coupon period (a coupon every 3 months), this should be 3.
+    cashInstrumentCid : Deliverable
+      -- ^ The cash instrument of the bond. For example, if the bond is in USD this should be a USD cash instrument.
+    observers : Observers
+      -- ^ The observers of the instrument.
+    lastEventTimestamp : Time
+      -- ^ (market) time of the last recorded lifecycle event. If no event has occurred yet, the time of creation should be used.
+  where
+    signatory depository, issuer
+    observer flattenObservers observers
+
+    let instrumentKey = InstrumentKey with depository; issuer; id
+
+    implements HasClaims.I where
+      view = HasClaims.View with acquisitionTime = dateToDateClockTime issueDate
+      getClaims = do
+        -- get the initial claims tree (as of the bond's acquisition time)
+        schedule <- createCouponSchedule firstCouponDate holidayCalendarIds businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate issuer calendarDataAgency
+        couponClaims <- createFixRateCouponClaims schedule couponRate dayCountConvention cashInstrumentCid
+        redemptionClaim <- createRedemptionClaim cashInstrumentCid maturityDate
+        pure $ mconcat [couponClaims, redemptionClaim]
+
+    implements Instrument.I where
+      asDisclosure = toInterface @Disclosure.I this
+      view = Instrument.View with depository; issuer; id
+      getKey = instrumentKey
+
+    implements Lifecyclable.I where
+      view = Lifecyclable.View with lifecycler = issuer
+      lifecycleImpl Lifecyclable.Lifecycle{ruleName; settler; eventCid; clockCid; observableCids} self =
+        case ruleName of
+          "Time" -> processClockUpdate settler eventCid clockCid self this observableCids
+          other -> abort $ "Unknown lifecycle rule " <> other
+
+    implements Disclosure.I where
+      view = Disclosure.View with disclosureControllers = singleton $ singleton issuer; observers
+      setObserversImpl Disclosure.SetObservers{newObservers} = do
+        cid <- toInterfaceContractId <$> create this with observers = newObservers
+        Instrument.disclosureUpdateReference newObservers instrumentKey cid
+      archiveImpl self = archive (coerceContractId self : ContractId FixedRateBond)

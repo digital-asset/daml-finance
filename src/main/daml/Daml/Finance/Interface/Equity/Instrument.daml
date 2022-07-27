@@ -1,0 +1,112 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Interface.Equity.Instrument where
+
+import Daml.Finance.Interface.Asset.Instrument qualified as BaseInstrument (I, Implementation, K, Q, asDisclosure, getKey, view)
+import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (I)
+import Daml.Finance.Interface.Common.Util (verify)
+import Daml.Finance.Interface.Equity.Lifecycle.CorporateAction qualified as CorporateAction (I)
+
+type I = Instrument
+type V = View
+
+-- | View for `Instrument`.
+data View = View () deriving (Eq, Ord, Show)
+
+-- | An interface for a generic equity instrument.
+interface Instrument where
+  asInstrument : BaseInstrument.I
+    -- ^ Conversion to base `Instrument` interface.
+  view : View
+    -- ^ Acquire the default interface view.
+  distributionImpl : Distribution -> BaseInstrument.K -> Update (ContractId CorporateAction.I)
+    -- ^ Implementation fo the `Distribution` choice.
+  stockSplitImpl : StockSplit -> BaseInstrument.K -> Update (ContractId CorporateAction.I)
+    -- ^ Implementation fo the `StockSplit` choice.
+  mergerImpl : Merger -> BaseInstrument.K -> Update (ContractId CorporateAction.I)
+    -- ^ Implementation fo the `Merger` choice.
+  takeoverImpl : Takeover -> BaseInstrument.K -> Update (ContractId CorporateAction.I)
+    -- ^ Implementation fo the `Takeover` choice.
+
+  nonconsuming choice GetView : View
+    -- ^ Retrieves the instrument view.
+    with
+      viewer : Party
+        -- ^ The party retrieving the view.
+    controller viewer
+    do
+      pure $ view this
+
+  nonconsuming choice Distribution : ContractId CorporateAction.I
+    -- ^ Declare a distribution to shareholders.
+    with
+      id : Text
+        -- ^ Distribution Id
+      perUnitDistribution : [BaseInstrument.Q]
+        -- ^ Payout distribution
+      effectiveDate : Date
+        -- ^ Date the distribution is to be executed.
+      newInstrument : BaseInstrument.K
+        -- ^ Instrument to be held after the distribution is executed.
+    controller (BaseInstrument.view $ asInstrument this).issuer
+    do
+      distributionImpl this arg (BaseInstrument.getKey $ asInstrument this)
+
+  nonconsuming choice StockSplit : ContractId CorporateAction.I
+    -- ^ Declare a stock split by the issuer of the stock to shareholders.
+    with
+      id : Text
+        -- ^ Stock Split Id
+      factor : Decimal
+        -- ^ Factor to apply to the total number of stock units.
+        -- A factor greater than 1 increases the number of overall units.
+        -- A factor between 0 and 1 decreases the number of overall units.
+      newInstrument : BaseInstrument.K
+        -- ^ Instrument to be held after the stock split is executed.
+      effectiveDate : Date
+        -- ^ Date the stock split occurs.
+    controller (BaseInstrument.view $ asInstrument this).issuer
+    do
+      verify (factor > 0.0) "Factor cannot be equal to or below zero."
+      stockSplitImpl this arg (BaseInstrument.getKey $ asInstrument this)
+
+  nonconsuming choice Merger : ContractId CorporateAction.I
+    -- ^ Declare a merger event between this instrument and 1 or more other companies.
+    with
+      id : Text
+        -- ^ Merger Id.
+      offerer : Party
+      -- ^ Party proposing the Merger offer.
+      mergingInstrument : BaseInstrument.K
+        -- Instrument being merged into another one.
+      emergingQuantity : BaseInstrument.Q
+      -- ^ Quantity of emerging instrument received for one merging instrument.
+      expirationDate : Date
+        -- ^ Date as which the offer expires.
+    controller offerer
+    do
+      mergerImpl this arg (BaseInstrument.getKey $ asInstrument this)
+
+  nonconsuming choice Takeover : ContractId CorporateAction.I
+    -- ^ Declare a takeover.
+    with
+      id : Text
+        -- ^ Distribution Id
+      offerer : Party
+        -- ^ Party proposing the Takeover.
+      perUnitPayout : [BaseInstrument.Q]
+        -- ^ Payout offer to shareholders per held share.
+      effectiveDate : Date
+        -- ^ Date the distribution is to be executed.
+    controller offerer
+    do
+      takeoverImpl this arg (BaseInstrument.getKey $ asInstrument this)
+
+-- | Type constraint used to require templates implementing `Instrument` to also
+-- implement `BaseInstrument.I`
+type Implementation t = (HasToInterface t I, BaseInstrument.Implementation t)
+instance HasToInterface I BaseInstrument.I where _toInterface = asInstrument
+instance HasToInterface I Disclosure.I where _toInterface = BaseInstrument.asDisclosure . asInstrument
+class (Implementation t) => HasImplementation t
+instance HasImplementation I

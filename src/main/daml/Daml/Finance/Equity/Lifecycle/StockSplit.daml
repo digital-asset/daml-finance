@@ -1,0 +1,73 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Equity.Lifecycle.StockSplit where
+
+import DA.Date (toDateUTC)
+import DA.Time (time)
+import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (K, qty)
+import Daml.Finance.Interface.Common.Types (Observers)
+import Daml.Finance.Interface.Common.Util (flattenObservers)
+import Daml.Finance.Interface.Equity.Lifecycle.CorporateAction qualified as CorporateAction (I, View(..))
+import Daml.Finance.Interface.Lifecycle.Clock qualified as Clock (view)
+import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I, View(..))
+import Daml.Finance.Interface.Lifecycle.Lifecyclable qualified as Lifecyclable (HasImplementation, I, Lifecycle(..), View(..))
+import Daml.Finance.Lifecycle.Effect (Effect(..))
+
+type T = StockSplit
+
+instance Lifecyclable.HasImplementation T
+-- | Stock split.
+template StockSplit
+  with
+    issuer : Party
+      -- ^ Issuer of the Instrument
+    currentInstrument : Instrument.K
+      -- ^ Equity impacted by the stock split
+    newInstrument : Instrument.K
+      -- ^ Equity to hold after the stock split
+    factor : Decimal
+      -- ^ Factor to increase/decrease the total stock for an instrument
+    effectiveDate : Date
+      -- ^ Date the stock split occurs
+    id : Text
+      -- ^ Id for this event
+    observers : Observers
+      -- ^ Observers
+  where
+    signatory issuer
+    observer flattenObservers observers
+
+    ensure
+      currentInstrument.id.label == newInstrument.id.label &&
+      currentInstrument.depository == newInstrument.depository &&
+      currentInstrument.issuer == newInstrument.issuer
+
+    implements CorporateAction.I where
+      asEvent = toInterface @Event.I this
+      asLifecyclable = toInterface @Lifecyclable.I this
+      view = CorporateAction.View with offerer = issuer; effectiveDate; id
+
+    implements Lifecyclable.I where
+      view = Lifecyclable.View with lifecycler = issuer
+      lifecycleImpl Lifecyclable.Lifecycle{ruleName; settler; clockCid} self = do
+        currentDate <- toDateUTC . (.clockTime) . Clock.view <$> fetch clockCid
+        if currentDate == effectiveDate
+        then do
+          effectCid <- toInterfaceContractId <$> create Effect
+            with
+              provider = issuer
+              settler
+              targetInstrument = currentInstrument
+              producedInstrument = None
+              consumed = []
+              produced = [Instrument.qty (1.0 / factor) newInstrument]
+              settlementDate = effectiveDate
+              id
+              observers
+          pure (self, [effectCid])
+        else do
+          pure (self, [])
+
+    implements Event.I where
+      view = Event.View with eventTime = time effectiveDate 08 00 00

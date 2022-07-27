@@ -1,0 +1,100 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Interface.Common.Disclosure where
+
+import DA.Map qualified as M (delete, insert, lookup)
+import DA.Optional (fromOptional)
+import DA.Set (Set, delete, empty, insert, null, member)
+import DA.Traversable qualified as T (mapA)
+import Daml.Finance.Interface.Common.Types (Observers, Parties)
+import Prelude hiding (null)
+
+type I = Disclosure
+
+-- | View for `Disclosure`.
+data View = View
+  with
+    disclosureControllers : Set Parties
+      -- ^ Disjunction choice controllers.
+    observers : Observers
+      -- ^ Observers with context.
+  deriving (Eq, Ord, Show)
+
+-- | An interface for managing the visibility of contracts for non-authorizing parties.
+interface Disclosure where
+  view : View
+    -- ^ Acquire the default interface view.
+  setObserversImpl : SetObservers -> Update (ContractId Disclosure)
+    -- ^ Implementation of the `SetObservers` choice.
+  archiveImpl : ContractId Disclosure -> Update ()
+    -- ^ Implemetation of archiving the contract.
+
+  nonconsuming choice GetView : View
+    -- ^ Retrieves the instrument view.
+    with
+      viewer : Party
+        -- ^ The party retrieving the view.
+    controller viewer
+    do
+      pure $ view this
+
+  choice SetObservers : ContractId Disclosure
+    -- ^ Set the observers for a contract.
+    with
+      disclosers : Parties
+        -- ^ Party calling this choice.
+      newObservers : Observers
+        -- ^ Observers to set for this contract. This overrides the existing observers.
+    controller disclosers
+    do
+      assertMsg "controller must be authorized to SetObservers" $ disclosers `member` (view this).disclosureControllers
+      setObserversImpl this arg
+
+  choice AddObservers : ContractId Disclosure
+    -- ^ Add a single new observer context to the existing observers.
+    with
+      disclosers : Parties
+        -- ^ Party calling this choice.
+      observersToAdd : (Text, Parties)
+        -- ^ Observer context to add to a contract.
+    controller disclosers
+    do
+      assertMsg "controller must be authorized to AddObservers" $ disclosers `member` (view this).disclosureControllers
+      let
+        elem = fromOptional empty (M.lookup observersToAdd._1 (view this).observers)
+        value = insert observersToAdd._2 elem
+        newObservers = M.insert observersToAdd._1 value ((view this).observers)
+      setObserversImpl this (SetObservers with disclosers; newObservers)
+
+  nonconsuming choice RemoveObservers : Optional (ContractId Disclosure)
+    -- ^ Remove an observer context from the existing observers.
+    -- Any party can undisclose itself. None is returned iff no update is needed.
+    with
+      observersToRemove : (Text, Parties)
+        -- ^ Observer context to remove.
+    controller observersToRemove._2
+    do
+      let observers = (view this).observers
+      fromOptional None <$> T.mapA
+        (\elem -> do
+          let
+            elem' = delete observersToRemove._2 elem
+            newObservers = (
+              if (null elem') then
+                M.delete observersToRemove._1
+              else
+                M.insert observersToRemove._1 elem')
+              observers
+          if (observers == newObservers) then
+            pure None
+          else do
+            archiveImpl this (coerceContractId self : ContractId Disclosure)
+            Some <$> setObserversImpl this (SetObservers with disclosers = observersToRemove._2; newObservers)
+       ) (M.lookup observersToRemove._1 observers)
+
+-- | Type constraint used to require templates implementing `Disclosure` to not
+-- require any other interface to be implemented.
+type Implementation t = HasToInterface t I
+class (Implementation t) => HasImplementation t
+instance HasImplementation I

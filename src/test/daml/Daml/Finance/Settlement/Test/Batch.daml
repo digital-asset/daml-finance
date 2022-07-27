@@ -1,0 +1,79 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Settlement.Test.Batch where
+
+import DA.Set (singleton)
+import Daml.Finance.Asset.Test.Util.Account qualified as Account (createAccount, createFactory, credit)
+import Daml.Finance.Asset.Test.Util.Holding qualified as Holding (createFactory, validateOwnerOfHolding)
+import Daml.Finance.Asset.Test.Util.Instrument qualified as Instrument (originate)
+import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (qty)
+import Daml.Finance.Interface.Settlement.Instructable qualified as Instructable (Instruct(..))
+import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.Settleable qualified as Settleable (Settle(..))
+import Daml.Finance.Interface.Settlement.Types (Step(..))
+import Daml.Finance.Settlement.Batch (BatchFactory(..))
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Script
+
+-- | Parties involved in the test script.
+data TestParties = TestParties
+  with
+    bank : Party
+      -- ^ Acts at custodian in the respective holdings (for both the cash and equity instrument).
+    cb : Party
+      -- ^ Depository and issuer of the cash instrument.
+    depository : Party
+      -- ^ Depository of the equity instrument.
+    issuer : Party
+      -- ^ Issuer of the equity instrument.
+
+-- | DvP via settlement chain and instructions.
+-- Bank transfers cash to Issuer in exchange for an equity instrument.
+run : Script ()
+run = script do
+  TestParties{..} <- setupParties
+
+  -- Account and holding factory
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank []
+  holdingFactoryCid <- toInterfaceContractId <$> Holding.createFactory bank []
+
+  -- Create accounts
+  [bankAccount, issuerAccount] <- mapA (Account.createAccount [] accountFactoryCid holdingFactoryCid [] bank) [bank, issuer]
+
+  -- Distribute assets
+  equityInstrument <- Instrument.originate depository issuer "AAPL" []
+  equityTransferableCid <- Account.credit [] equityInstrument 1_000.0 issuerAccount
+  cashInstrument <- Instrument.originate cb cb "USD" []
+  cashTransferableCid <- Account.credit [] cashInstrument 200_000.0 bankAccount
+
+  -- Instruct settlement
+  let
+    steps =
+      [ Step with sender = issuer; receiver = bank; quantity = (Instrument.qty 1_000.0 equityInstrument)
+      , Step with sender = bank; receiver = issuer; quantity = (Instrument.qty 200_000.0 cashInstrument)
+      ]
+  instructableCid <- submitMulti [bank] [] do createCmd BatchFactory with requestors = singleton bank
+  (containerSettleableCid, [equityInstructionCid, cashInstructionCid]) <-
+    submitMulti [bank] [] do exerciseCmd instructableCid Instructable.Instruct with settler = bank; id = "DVP"; steps
+
+  -- Allocate instructions
+  equityInstructionCid <- submitMulti [issuer] [] do exerciseCmd equityInstructionCid Instruction.Allocate with transferableCid = equityTransferableCid
+  cashInstructionCid <- submitMulti [bank] [] do exerciseCmd cashInstructionCid Instruction.Allocate with transferableCid = cashTransferableCid
+
+  -- Approve instructions
+  equityInstructionCid <- submitMulti [bank] [] do exerciseCmd equityInstructionCid Instruction.Approve with receiverAccount = bankAccount
+  cashInstructionCid <- submitMulti [issuer] [] do exerciseCmd cashInstructionCid Instruction.Approve with receiverAccount = issuerAccount
+
+  -- Settle container
+  [equityTransferableCid, cashTransferableCid] <- submitMulti [bank] [] do exerciseCmd containerSettleableCid Settleable.Settle
+
+  -- Assert state
+  Holding.validateOwnerOfHolding [(bank, equityTransferableCid), (issuer, cashTransferableCid)]
+
+  pure ()
+
+setupParties : Script TestParties
+setupParties = do
+  [cb, depository, bank, issuer] <- createParties ["CentralBank", "CSD", "Bank", "Issuer"]
+  pure TestParties with cb, depository, bank, issuer

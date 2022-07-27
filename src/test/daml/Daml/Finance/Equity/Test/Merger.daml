@@ -1,0 +1,101 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Equity.Test.Merger where
+
+import DA.Date (toDateUTC)
+import DA.Set (empty, singleton)
+import Daml.Finance.Asset.Test.Util.Account qualified as Account (createAccount, createFactory, credit)
+import Daml.Finance.Asset.Test.Util.Holding qualified as Holding (createFactory, validateOwnerOfHolding)
+import Daml.Finance.Asset.Test.Util.Instrument qualified as Instrument (submitExerciseInterfaceByKeyCmd)
+import Daml.Finance.Equity.Test.Util (originateEquity)
+import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (qty)
+import Daml.Finance.Interface.Equity.Instrument qualified as Equity (I, Merger(..))
+import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I)
+import Daml.Finance.Interface.Lifecycle.Lifecyclable qualified as Lifecyclable (I, Lifecycle(..))
+import Daml.Finance.Interface.Lifecycle.SettlementRule qualified as SettlementRule (Claim(..))
+import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.Settleable qualified as Settleable (Settle(..))
+import Daml.Finance.Lifecycle.SettlementRule (Rule(..))
+import Daml.Finance.RefData.Time.DateClock as Clock (DateClock(..), Unit(..))
+import Daml.Finance.Settlement.Batch (BatchFactory(..))
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Script
+
+-- Merger lifecycling and settlement
+run : Script ()
+run = script do
+  -- Create parties
+  [depository, bank, issuer1, issuer2, issuer3, investor, settler, provider, publicParty] <-
+    createParties ["CSD", "Bank", "Issuer1", "Issuer2", "Issuer3", "Investor", "Settler", "Provider", "PublicParty"]
+
+  -- Account and holding factory
+  let pp = [("factoryProvider", singleton $ singleton publicParty)]
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory provider pp
+  holdingFactoryCid <- toInterfaceContractId <$> Holding.createFactory provider pp
+
+  -- Create accounts
+  [bankAccount, investorAccount] <- mapA (Account.createAccount [publicParty] accountFactoryCid holdingFactoryCid [] bank) [bank, investor]
+
+  -- Distribute assets
+  let obs = [("public party", singleton $ singleton publicParty)]
+  mergingInstrument <- originateEquity depository issuer1 "ABC" "0" obs
+  investorEquityCid <- Account.credit [publicParty] mergingInstrument 2_000.0 investorAccount
+  emergingInstrument <- originateEquity depository issuer2 "XYZ" "0" obs
+  bankEquityCid <- Account.credit [publicParty] emergingInstrument 1_000.0 bankAccount
+
+  -- Create merger
+  now <- getTime
+  mergerCid <- Instrument.submitExerciseInterfaceByKeyCmd @Equity.I [bank, issuer1, issuer3] [publicParty] mergingInstrument Equity.Merger
+    with
+      id = "MERGER"
+      offerer = issuer3
+      mergingInstrument
+      emergingQuantity = Instrument.qty 0.5 emergingInstrument
+      expirationDate = toDateUTC now
+  let
+    eventCid : ContractId Event.I = coerceContractId mergerCid
+    lifecyclableCid : ContractId Lifecyclable.I = coerceContractId mergerCid
+
+  -- Create clock
+  clockCid <- toInterfaceContractId <$> submitMulti [issuer3] [] do createCmd DateClock with u = Clock.Unit $ toDateUTC now; id = "Date clock"; provider = issuer3; observers = empty
+
+  -- Lifecycle share dividend
+  (_, [effectCid]) <- submitMulti [issuer3] [] do exerciseCmd lifecyclableCid Lifecyclable.Lifecycle with ruleName = "Merger"; settler = settler; eventCid = eventCid; observableCids = []; clockCid
+
+  -- Create settlement factory
+  factoryCid <- submitMulti [investor] [] do createCmd BatchFactory with requestors = singleton investor
+
+  -- Claim effect
+  settlementRuleCid <- submitMulti [bank, investor] [] do
+    createCmd Rule
+      with
+        custodian = bank
+        owner = investor
+        claimers = singleton investor
+        settler
+        instrumentLabel = "ABC"
+        instructableCid = toInterfaceContractId factoryCid
+
+  result <- submitMulti [investor] [publicParty] do
+    exerciseCmd settlementRuleCid SettlementRule.Claim with
+      claimer = investor
+      holdingCids = [investorEquityCid]
+      effectCid
+
+  let
+    [bankEquityInstructionCid] = result.instructionCids
+
+  -- Allocate instructions
+  bankEquityInstructionCid <- submitMulti [bank] [] do exerciseCmd bankEquityInstructionCid Instruction.Allocate with transferableCid = bankEquityCid
+
+  -- Approve instructions
+  bankEquityInstructionCid <- submitMulti [investor] [] do exerciseCmd bankEquityInstructionCid Instruction.Approve with receiverAccount = investorAccount
+
+  -- Settle container
+  [investorEquityCid] <- submitMulti [settler] [] do exerciseCmd result.containerCid Settleable.Settle
+
+  -- Assert state
+  Holding.validateOwnerOfHolding [(investor, investorEquityCid)]
+
+  pure ()

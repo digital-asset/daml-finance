@@ -1,0 +1,171 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Bond.Test.Util where
+
+import DA.Map qualified as M
+import DA.Set (Set, empty, singleton)
+import Daml.Finance.Asset.Test.Util.Holding (validateOwnerOfHolding)
+import Daml.Finance.Asset.Test.Util.Instrument (createReference)
+import Daml.Finance.Asset.Test.Util.Instrument qualified as Instrument (submitExerciseInterfaceByKeyCmd)
+import Daml.Finance.Bond.FixedRate (FixedRateBond(..))
+import Daml.Finance.Bond.FloatingRate (FloatingRateBond(..))
+import Daml.Finance.Bond.InflationLinked (InflationLinkedBond(..))
+import Daml.Finance.Bond.ZeroCoupon (ZeroCouponBond(..))
+import Daml.Finance.Common.Date.Calendar
+import Daml.Finance.Common.Date.DayCount
+import Daml.Finance.Common.Date.RollConvention
+import Daml.Finance.Interface.Asset.Holding qualified as Holding (I)
+import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (GetView(..), K, I, toKey)
+import Daml.Finance.Interface.Asset.Transferable qualified as Transferable (I)
+import Daml.Finance.Interface.Asset.Types (AccountKey(..), Id(..))
+import Daml.Finance.Interface.Common.Types
+import Daml.Finance.Interface.Derivative.Types (Deliverable)
+import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (I)
+import Daml.Finance.Interface.Lifecycle.Lifecyclable qualified as Lifecyclable (I, Lifecycle(..))
+import Daml.Finance.Interface.Lifecycle.Observable qualified as Observable (I)
+import Daml.Finance.Interface.Lifecycle.SettlementRule qualified as SettlementRule (Claim(..))
+import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.Settleable qualified as Settleable (Settle(..))
+import Daml.Finance.Lifecycle.SettlementRule (Rule(..))
+import Daml.Finance.RefData.Time.DateClock (DateClock(..), DateClockUpdateEvent(..), Unit(..))
+import Daml.Finance.Settlement.Batch (BatchFactory(..))
+import Daml.Script
+import Prelude hiding (lookup)
+
+originateFixedRateBond : Party -> Party -> Text -> [(Text, Set Parties)] -> Time -> Date -> [Text] -> Party -> Date-> Date -> DayCountConventionEnum -> BusinessDayConventionEnum -> Decimal -> PeriodEnum -> Int -> (Deliverable) -> Script Instrument.K
+originateFixedRateBond depository issuer label observers lastEventTimestamp issueDate holidayCalendarIds calendarDataAgency firstCouponDate maturityDate dayCountConvention businessDayConvention couponRate couponPeriod couponPeriodMultiplier cashInstrumentCid = do
+  cid <- toInterfaceContractId @Instrument.I <$> submitMulti [depository, issuer] [] do
+    createCmd FixedRateBond with depository; issuer; id = (Id with label; version = "0"); observers = M.fromList observers; lastEventTimestamp; issueDate; holidayCalendarIds; calendarDataAgency; firstCouponDate; maturityDate; dayCountConvention; businessDayConvention; couponRate; couponPeriod; couponPeriodMultiplier; cashInstrumentCid
+  createReference cid depository issuer observers
+
+originateZeroCouponBond : Party -> Party -> Text -> [(Text, Set Parties)] -> Time -> Date -> Date -> Deliverable -> Script Instrument.K
+originateZeroCouponBond depository issuer label observers lastEventTimestamp issueDate maturityDate cashInstrumentCid = do
+  cid <- toInterfaceContractId <$> submitMulti [depository, issuer] [] do
+    createCmd ZeroCouponBond with depository; issuer; id = (Id with label; version = "0"); observers = M.fromList observers; lastEventTimestamp; issueDate; maturityDate; cashInstrumentCid
+  createReference cid depository issuer observers
+
+originateFloatingRateBond : Party -> Party -> Text -> [(Text, Set Parties)] -> Time -> Date -> [Text] -> Party -> Date -> Date -> DayCountConventionEnum -> BusinessDayConventionEnum -> Decimal -> PeriodEnum -> Int -> Deliverable -> Text -> Script Instrument.K
+originateFloatingRateBond depository issuer label observers lastEventTimestamp issueDate holidayCalendarIds calendarDataAgency firstCouponDate maturityDate dayCountConvention businessDayConvention couponRate couponPeriod couponPeriodMultiplier cashInstrumentCid referenceRateId = do
+  cid <- toInterfaceContractId <$> submitMulti [depository, issuer] [] do
+    createCmd FloatingRateBond with depository; issuer; id = (Id with label; version = "0"); observers = M.fromList observers; lastEventTimestamp; issueDate; holidayCalendarIds; calendarDataAgency; firstCouponDate; maturityDate; dayCountConvention; businessDayConvention; couponSpread=couponRate; referenceRateId; couponPeriod; couponPeriodMultiplier; cashInstrumentCid
+  createReference cid depository issuer observers
+
+originateInflationLinkedBond : Party -> Party -> Text -> [(Text, Set Parties)] -> Time -> Date -> [Text] -> Party -> Date -> Date -> DayCountConventionEnum -> BusinessDayConventionEnum -> Decimal -> PeriodEnum -> Int -> Deliverable -> Text -> Decimal -> Script Instrument.K
+originateInflationLinkedBond depository issuer label observers lastEventTimestamp issueDate holidayCalendarIds calendarDataAgency firstCouponDate maturityDate dayCountConvention businessDayConvention couponRate couponPeriod couponPeriodMultiplier cashInstrumentCid inflationIndexId inflationIndexBaseValue = do
+  cid <- toInterfaceContractId <$> submitMulti [depository, issuer] [] do
+    createCmd InflationLinkedBond with depository; issuer; id = (Id with label; version = "0"); observers = M.fromList observers; lastEventTimestamp; issueDate; holidayCalendarIds; calendarDataAgency; firstCouponDate; maturityDate; dayCountConvention; businessDayConvention; couponRate; inflationIndexId; couponPeriod; couponPeriodMultiplier; cashInstrumentCid; inflationIndexBaseValue
+  createReference cid depository issuer observers
+
+lifecycleBond : [Party] -> Date -> Instrument.K -> Party -> Party -> [ContractId Observable.I] -> Script (ContractId Lifecyclable.I, [ContractId Effect.I])
+lifecycleBond readAs today bondInstrument settler issuer observableCids = do
+  -- create clock and clock update event
+  let clock = DateClock with u = Unit today; id = show today; provider = issuer; observers = empty
+  clockCid <- toInterfaceContractId <$> submitMulti [issuer] [] do createCmd clock
+  clockEventCid <- toInterfaceContractId <$> submitMulti [issuer] [] do createCmd DateClockUpdateEvent with id = "Update to " <> show today, clock
+
+  -- Try to lifecycle bond
+  (bondLifecyclableCid2, effectCids) <- Instrument.submitExerciseInterfaceByKeyCmd @Lifecyclable.I [issuer] readAs bondInstrument
+    Lifecyclable.Lifecycle with settler; eventCid = clockEventCid; observableCids; ruleName = "Time"; clockCid
+
+  pure (bondLifecyclableCid2, effectCids)
+
+verifyNoLifecycleEffects : [Party] -> Date -> Instrument.K -> Party -> Party -> [ContractId Observable.I] -> Script ()
+verifyNoLifecycleEffects readAs today bondInstrument settler issuer observableCids = do
+  (bondLifecyclableCid2, effectCids) <- lifecycleBond readAs today bondInstrument settler issuer observableCids
+  assertMsg ("There should be no lifecycle effects on " <> show today) (null effectCids)
+
+lifecycleAndVerifyCouponEffectsAndSettlement : [Party] -> Date -> Instrument.K -> Party -> Party -> Party -> ContractId Transferable.I -> ContractId Transferable.I -> AccountKey -> AccountKey -> [(Text, Set Parties)] -> Party -> [ContractId Observable.I] ->  Script (Instrument.K, ContractId Transferable.I)
+lifecycleAndVerifyCouponEffectsAndSettlement readAs today bondInstrument settler issuer investor investorBondTransferableCid custodianCashTransferableCid custodianAccount investorAccount obs custodian observableCids = do
+  (bondLifecyclableCid, [effectCid]) <- lifecycleBond readAs today bondInstrument settler issuer observableCids
+
+  newBondInstrumentKey <- submitMulti [issuer] [] do
+    Instrument.toKey <$> exerciseCmd @Instrument.I (coerceContractId bondLifecyclableCid) Instrument.GetView with viewer = issuer
+
+  -- Create settlement factory
+  factoryCid <- submitMulti [investor] [] do createCmd BatchFactory with requestors = singleton investor
+
+  -- Claim effect
+  settlementRuleCid <- submitMulti [custodian, investor] [] do
+    createCmd Rule
+      with
+        custodian
+        owner = investor
+        claimers = singleton investor
+        settler
+        instrumentLabel = bondInstrument.id.label
+        instructableCid = toInterfaceContractId factoryCid
+
+  result <- submitMulti [investor] readAs do
+    exerciseCmd settlementRuleCid SettlementRule.Claim with
+      claimer = investor
+      holdingCids = [toInterfaceContractId @Holding.I investorBondTransferableCid]
+      effectCid
+
+  let
+    Some [investorBondHoldingCid] = result.newInstrumentHoldingCids
+    [custodianCashInstructionCid] = result.instructionCids
+
+  -- Allocate instructions
+  custodianCashInstructionCid <- submitMulti [custodian] readAs do exerciseCmd custodianCashInstructionCid Instruction.Allocate with transferableCid = custodianCashTransferableCid
+
+  -- Approve instructions
+  custodianCashInstructionCid <- submitMulti [investor] [] do
+    exerciseCmd custodianCashInstructionCid Instruction.Approve with receiverAccount = investorAccount
+
+  -- Settle container
+  [investorCashTransferableCid] <- submitMulti [settler] [] do exerciseCmd result.containerCid Settleable.Settle
+
+  -- Assert state
+  validateOwnerOfHolding [(investor, investorBondHoldingCid), (investor, toInterfaceContractId investorCashTransferableCid)]
+
+  pure (newBondInstrumentKey, coerceContractId investorBondHoldingCid)
+
+lifecycleAndVerifyRedemptionEffectsAndSettlement : [Party] -> Date -> Instrument.K -> Party -> Party -> Party -> ContractId Transferable.I -> ContractId Transferable.I -> ContractId Transferable.I -> AccountKey -> AccountKey -> [(Text, Set Parties)] -> Party -> [ContractId Observable.I] -> Script Instrument.K
+lifecycleAndVerifyRedemptionEffectsAndSettlement readAs today bondInstrument settler issuer investor investorBondTransferableCid custodianCashCouponTransferableCid custodianCashRedemptionTransferableCid custodianAccount investorAccount obs custodian observableCids = do
+  (bondLifecyclableCid, [effectCid]) <- lifecycleBond readAs today bondInstrument settler issuer observableCids
+
+  newBondInstrumentKey <- submitMulti [issuer] [] do
+    Instrument.toKey <$> exerciseCmd @Instrument.I (coerceContractId bondLifecyclableCid) Instrument.GetView with viewer = issuer
+
+  -- Create settlement factory
+  factoryCid <- submitMulti [investor] [] do createCmd BatchFactory with requestors = singleton investor
+
+  -- Claim effect
+  settlementRuleCid <- submitMulti [custodian, investor] [] do
+    createCmd Rule
+      with
+        custodian
+        owner = investor
+        claimers = singleton investor
+        settler
+        instrumentLabel = bondInstrument.id.label
+        instructableCid = toInterfaceContractId factoryCid
+
+  result <- submitMulti [investor] readAs do
+    exerciseCmd settlementRuleCid SettlementRule.Claim with
+      claimer = investor
+      holdingCids = [toInterfaceContractId @Holding.I investorBondTransferableCid]
+      effectCid
+
+  let
+    [custodianCouponInstructionCid, custodianRedemptionInstructionCid] = result.instructionCids
+
+  -- Allocate instructions
+  custodianCouponInstructionCid <- submitMulti [custodian] [] do exerciseCmd custodianCouponInstructionCid Instruction.Allocate with transferableCid = custodianCashCouponTransferableCid
+  custodianRedemptionInstructionCid <- submitMulti [custodian] [] do exerciseCmd custodianRedemptionInstructionCid Instruction.Allocate with transferableCid = custodianCashRedemptionTransferableCid
+
+  -- Approve instructions
+  custodianBondInstructionCid <- submitMulti [investor] [] do
+    exerciseCmd custodianCouponInstructionCid Instruction.Approve with receiverAccount = investorAccount
+  custodianCashInstructionCid <- submitMulti [investor] [] do
+    exerciseCmd custodianRedemptionInstructionCid Instruction.Approve with receiverAccount = investorAccount
+
+  -- Settle container
+  [investorCouponTransferableCid, investorRedemptionTransferableCid] <-
+    submitMulti [settler] [] do exerciseCmd result.containerCid Settleable.Settle
+
+  -- Assert state
+  validateOwnerOfHolding [(investor, investorCouponTransferableCid), (investor, investorRedemptionTransferableCid)]
+
+  pure newBondInstrumentKey

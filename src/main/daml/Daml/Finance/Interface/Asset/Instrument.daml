@@ -1,0 +1,127 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
+module Daml.Finance.Interface.Asset.Instrument where
+
+import Daml.Finance.Interface.Asset.Types (Id(..), InstrumentKey(..), Quantity(..))
+import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (GetView(..), I, Implementation)
+import Daml.Finance.Interface.Common.Types (Observers)
+import Daml.Finance.Interface.Common.Util (exerciseInterfaceByKeyHelper, flattenObservers)
+
+type I = Instrument
+type K = InstrumentKey
+type Q = Quantity InstrumentKey Decimal
+type R = Reference
+type V = View
+
+-- | Exercise interface by key
+exerciseInterfaceByKey : forall t2 d r. (HasExercise t2 d r) => InstrumentKey -> Party -> d -> Update r
+exerciseInterfaceByKey k actor arg = exerciseInterfaceByKeyHelper @R @t2 k (GetCid with viewer = actor) arg
+
+-- | View for `Instrument`.
+data View = View
+  with
+    issuer : Party
+      -- ^ The instrument's issuer.
+    depository : Party
+      -- ^ The instrument's depository.
+    id : Id
+      -- ^ An instrument identifier. It includes a textual label as well as a textual version.
+  deriving (Eq, Ord, Show)
+
+-- | Base interface for an instrument. This interface does not define any lifecycling logic.
+interface Instrument where
+  asDisclosure : Disclosure.I
+    -- ^ Conversion to `Disclosure` interface.
+  view : View
+    -- ^ Acquire the default interface view.
+  getKey : InstrumentKey
+    -- ^ Get the unique key for the `Instrument`.
+
+  nonconsuming choice GetView : View
+    -- ^ Retrieves the instrument view.
+    with
+      viewer : Party
+        -- ^ The party retrieving the view.
+    controller viewer
+    do
+      pure $ view this
+
+-- | Type constraint used to require templates implementing `Instrument` to also
+-- implement `Disclosure`.
+type Implementation t = (HasToInterface t I, Disclosure.Implementation t)
+instance HasToInterface I Disclosure.I where _toInterface = asDisclosure
+class (Implementation t) => HasImplementation t
+instance HasImplementation I
+
+-- | This template is used to key an Instrument contract. It allows for looking up this contract
+-- by key then acquiring the Instrument contract by fetching its contract id on this contract.
+-- As updates are made to an Instrument, this Reference contract is required to be kept in sync.
+template Reference
+  with
+    instrumentView : View
+      -- ^ The default view.
+    cid : ContractId Instrument
+      -- ^ The contract id of the instrument.
+    observers : Observers
+      -- ^ Observers.
+  where
+    signatory instrumentView.depository, instrumentView.issuer
+    observer flattenObservers observers
+
+    key toKey instrumentView : InstrumentKey
+    maintainer key.depository, key.issuer
+
+    nonconsuming choice GetCid : ContractId Instrument
+      -- ^ Get the `Instrument`'s contract id.
+      with
+        viewer : Party
+      controller viewer
+      do
+        pure cid
+
+    -- | HIDE
+    -- Only to be called from the interface implementation.
+    choice SetCid : ContractId Reference
+      with
+        newCid : ContractId Instrument
+      controller instrumentView.depository, instrumentView.issuer
+      do
+        create this with cid = newCid
+
+    -- | HIDE
+    -- Only to be called from the interface implementation.
+    choice SetObservers : ContractId Reference
+      with
+        newObservers : Observers
+      controller instrumentView.depository, instrumentView.issuer
+      do
+        create this with observers = newObservers
+
+-- | Create Reference for instrument
+createReference : Party -> ContractId Instrument -> Update (ContractId Reference)
+createReference actor cid = do
+  instrumentView <- exercise cid GetView with viewer = actor
+  disclosureView <- exercise (toInterfaceContractId @Disclosure.I cid) Disclosure.GetView with viewer = actor
+  create Reference with instrumentView; cid; observers = disclosureView.observers
+
+-- | Convert the instrument's View to its key
+toKey : View -> InstrumentKey
+toKey v = InstrumentKey with depository = v.depository; issuer = v.issuer; id = v.id
+
+-- | Wraps an amount and an instrument key into an instrument quantity.
+qty : Decimal -> InstrumentKey -> Quantity InstrumentKey Decimal
+qty amount instrument = Quantity with unit = instrument; amount
+
+-- | Scale `Quantity` by the provided factor
+scale : Decimal -> Quantity InstrumentKey Decimal -> Quantity InstrumentKey Decimal
+scale factor quantity = quantity with amount = quantity.amount * factor
+
+-- | Helper function to update the instrument reference once observers are added to the instrument.
+disclosureUpdateReference : Observers -> InstrumentKey -> ContractId Instrument -> Update (ContractId Disclosure.I)
+disclosureUpdateReference newObservers k iCid = do
+  exerciseByKey @Reference k SetCid with newCid = iCid
+  exerciseByKey @Reference k SetObservers with newObservers
+  pure $ toInterfaceContractId iCid

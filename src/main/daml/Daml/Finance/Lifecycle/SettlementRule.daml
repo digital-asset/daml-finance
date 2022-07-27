@@ -1,0 +1,92 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Lifecycle.SettlementRule where
+
+import DA.Foldable (forA_)
+import DA.Set (member)
+import Daml.Finance.Interface.Asset.Account qualified as Account (exerciseInterfaceByKey, Debit(..), Credit(..), I)
+import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (qty)
+import Daml.Finance.Interface.Asset.Util (getAccount, getAmount, getCustodian, getInstrument, getOwner)
+import Daml.Finance.Interface.Common.Types (Parties)
+import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (CalculationResult(..), Calculate(..), GetView(..))
+import Daml.Finance.Interface.Lifecycle.SettlementRule qualified as SettlementRule (Claim(..), ClaimResult(..), HasImplementation(..), I, View(..))
+import Daml.Finance.Interface.Settlement.Instructable qualified as Instructable (I, Instruct(..))
+import Daml.Finance.Interface.Settlement.Types (Step(..))
+
+type T = Rule
+
+instance SettlementRule.HasImplementation Rule
+-- | Rule contract that allows an actor to claim effects on a given instrument (across all versions).
+-- It returns settlement instructions.
+template Rule
+  with
+    custodian : Party
+      -- ^ Custodian of the holding upon which an effect can be claimed.
+    owner : Party
+      -- ^ Owner of the holding upon which an effect can be claimed.
+    claimers : Parties
+      -- ^ Parties granted the ability to claim an effect.
+    instructableCid : ContractId Instructable.I
+      -- ^ Instructable contract used to generate the `Settleable` and `Instruction`s.
+    instrumentLabel : Text
+      -- ^ The textual identifier of the target instrument.
+    settler : Party
+      -- ^ Party triggering settlement of the instructions.
+  where
+    signatory custodian, owner
+
+    implements SettlementRule.I where
+      view = SettlementRule.View()
+      claimImpl (SettlementRule.Claim with claimer; holdingCids; effectCid) = do
+
+        assertMsg "Effect can only be claimed by authorized parties." $ claimer `member` claimers
+
+        effectView <- exercise effectCid Effect.GetView with viewer = claimer
+        assertMsg "The provided effect does not target the expected instrument." $ effectView.targetInstrument.id.label == instrumentLabel
+
+        holdings <- mapA fetch holdingCids
+        forA_ holdings \h -> do
+          assertMsg "The provided holding does not reference the expected instrument." $ getInstrument h == effectView.targetInstrument
+          assertMsg "The settlement rule is missing the signature of the holding custodian" $ getCustodian h == custodian
+          assertMsg "The settlement rule is missing the signature of the holding owner" $ getOwner h == owner
+          -- The checks ^ effectively prevent the holding owner or custodian from single-handedly choosing the settlement vehicle.
+
+        -- Calculate settlement steps
+        let
+          createSteps consume quantities holding =
+            let
+              sender = if consume then getOwner holding else getCustodian holding
+              receiver = if consume then getCustodian holding else getOwner holding
+            in map (\quantity -> Step with sender; receiver; quantity) quantities
+
+          calculateSteps holding holdingCid = do
+            Effect.CalculationResult with consumed; produced <- exercise effectCid Effect.Calculate with actor = claimer; holdingCid
+            let
+              consumedSteps = createSteps True consumed holding
+              producedSteps = createSteps False produced holding
+            pure $ consumedSteps <> producedSteps
+
+        steps <- mconcat <$> sequence (zipWith calculateSteps holdings holdingCids)
+
+        -- Update holding on target instrument
+        let
+          updateInstrumentHolding (holding, holdingCid) = do
+            let
+              account = getAccount holding
+              amount = getAmount holding
+            -- Debit old instrument
+            Account.exerciseInterfaceByKey @Account.I account claimer Account.Debit with holdingCid
+            -- Credit new instrument
+            case effectView.producedInstrument of
+              Some pi ->  Some <$> Account.exerciseInterfaceByKey @Account.I account claimer Account.Credit with quantity = Instrument.qty amount pi
+              None -> pure None
+
+        newInstrumentHoldingCids <- fmap sequence . mapA updateInstrumentHolding $ zip holdings holdingCids
+
+        -- Generate settlement instructions for other instruments
+        (settleableCid, instructionCids) <- exercise instructableCid Instructable.Instruct with settler; id = effectView.id; steps
+        pure SettlementRule.ClaimResult with
+          newInstrumentHoldingCids
+          containerCid = settleableCid
+          instructionCids

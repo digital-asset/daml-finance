@@ -1,0 +1,122 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Interface.Asset.Fungible where
+
+import DA.Optional (optionalToList)
+import Daml.Finance.Interface.Asset.Holding qualified as Holding (I, asDisclosure)
+import Daml.Finance.Interface.Asset.Lockable qualified as Lockable (I, asHolding)
+import Daml.Finance.Interface.Asset.Transferable qualified as Transferable (I, Implementation, asLockable)
+import Daml.Finance.Interface.Asset.Util (getAmount, getLocker)
+import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (I)
+import Daml.Finance.Interface.Common.Types (Parties)
+import Daml.Finance.Interface.Common.Util (verify)
+
+type I = Fungible
+type V = View
+
+-- | View for `Fungible`.
+data View = View
+  with
+    modifiers : Parties
+      -- ^ Parties which have the authorization to modify a fungible asset.
+  deriving (Eq, Ord, Show)
+
+-- | Result of a call to `Split`.
+data SplitResult = SplitResult
+  with
+    splitCids : [ContractId Fungible]
+      -- ^ The contract ids for the split holdings.
+    rest : Optional (ContractId Fungible)
+      -- ^ Contract id for the holding on the remaining amount. It is `None` when the split is exact.
+  deriving (Eq, Show)
+
+-- | Interface for a fungible holding. It requires `Transferable`.
+interface Fungible where
+  -- NOTE: Make this return an Update Parties so we can fetch contracts for dynamic controllers?
+  asTransferable : Transferable.I
+    -- ^ Conversion to `Transferable` interface.
+  view : View
+    -- ^ Acquire the default interface view.
+  splitImpl : Split -> Update SplitResult
+    -- ^ Implementation of the `Split` choice.
+  mergeImpl : Merge -> Update (ContractId Fungible)
+    -- ^ Implementation of the `Merge` choice.
+
+  nonconsuming choice GetView : View
+    -- ^ Returns the account's view.
+    with
+      actor : Parties
+        -- ^ The party fetching the view.
+    controller actor
+    do
+      pure $ view this
+
+  choice Split : SplitResult
+    -- ^ Split a fungible contract into multiple contracts by amount.
+    with
+      amounts : [Decimal]
+        -- ^ The quantities to split the fungible asset by, creating a new contract per amount.
+        -- The sum of the quantities is required to be smaller or equal to the amount on the fungible contract.
+    controller (view this).modifiers, getLocker this
+    do
+      verifySplit amounts $ getAmount this
+      splitResult <- splitImpl this arg
+      newFungibles <- mapA fetch $ splitResult.splitCids ++ optionalToList splitResult.rest
+      verifyQuantityPreserving newFungibles [this]
+      pure splitResult
+
+  choice Merge : ContractId Fungible
+    -- ^ Merge multiple fungible contracts into a single fungible contract.
+    with
+      fungibleCids : [ContractId Fungible]
+        -- ^ The fungible contracts to merge which will get consumed.
+    controller (view this).modifiers, getLocker this
+    do
+      oldFungibles <- mapA fetch $ fmap (toInterfaceContractId @I) fungibleCids
+      newFungibleCid <- mergeImpl this arg
+      newFungible <- fetch newFungibleCid
+      verifyQuantityPreserving [newFungible] (this :: oldFungibles)
+      pure newFungibleCid
+
+  choice ArchiveFungible : ()
+    -- ^ Archives the fungible contract.
+    controller signatory this
+    do
+      pure ()
+
+-- | Type constraint used to require templates implementing `Fungible` to also
+-- implement `Transferable`.
+type Implementation t = (HasToInterface t I, Transferable.Implementation t)
+instance HasToInterface I Transferable.I where _toInterface = asTransferable
+instance HasToInterface I Lockable.I where _toInterface = Transferable.asLockable . asTransferable
+instance HasToInterface I Holding.I where _toInterface = Lockable.asHolding . Transferable.asLockable . asTransferable
+instance HasToInterface I Disclosure.I where _toInterface = Holding.asDisclosure . Lockable.asHolding . Transferable.asLockable . asTransferable
+class (Implementation t) => HasImplementation t
+instance HasImplementation I
+
+-- | Validates the parameters of a split, ensuring that expected split quantities are smaller or equal to the current contracts amount.
+verifySplit : forall m. CanAssert m => [Decimal] -> Decimal -> m ()
+verifySplit quantities currentQuantity =
+  let
+    splitQuantitySum = sum quantities
+  in
+    verify (splitQuantitySum <= currentQuantity)
+      $ "Fungible::verifySplit - Summed amount must not be larger than current amount. splitQuantitySum="
+      <> show splitQuantitySum
+      <> ", currentQuantity="
+      <> show currentQuantity
+
+-- | Ensures that the original amount is preserved after a merge or a split.
+verifyQuantityPreserving : forall m. CanAssert m => [Fungible] -> [Fungible] -> m ()
+verifyQuantityPreserving newFungibles previousFungibles =
+  let
+    sumAmounts fungibles = foldl (\acc f -> acc + getAmount f) 0.0 fungibles
+    newQuantityTotal = sumAmounts newFungibles
+    previousQuantityTotal = sumAmounts previousFungibles
+  in
+    verify (newQuantityTotal == previousQuantityTotal)
+      $ "Fungible::verifyQuantityPreserving - Sum of fungible amounts do not match the expected amount. newQuantityTotal="
+      <> show newQuantityTotal
+      <> ", previousQuantityTotal="
+      <> show previousQuantityTotal

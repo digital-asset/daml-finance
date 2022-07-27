@@ -1,0 +1,58 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Interface.Lifecycle.Lifecyclable where
+
+import Daml.Finance.Interface.Lifecycle.Clock qualified as Clock (I)
+import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (I)
+import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I)
+import Daml.Finance.Interface.Lifecycle.Observable (Observable)
+
+type I = Lifecyclable
+type V = View
+
+-- | View for `Lifecyclable`.
+data View = View
+  with
+    lifecycler : Party
+      -- ^ Party performing the lifecycling.
+  deriving (Eq, Ord, Show)
+
+-- | Interface implemented by instruments that admit lifecycling logic.
+interface Lifecyclable where
+  view : View
+    -- ^ Acquire the default interface view.
+  lifecycleImpl : Lifecycle -> ContractId Lifecyclable -> Update (ContractId Lifecyclable, [ContractId Effect.I])
+    -- ^ Implementation of the `Lifecycle` choice.
+
+  nonconsuming choice GetView : View
+    -- ^ Retrieves the instrument view.
+    with
+      viewer : Party
+        -- ^ The party retrieving the view.
+    controller viewer
+    do
+      pure $ view this
+
+  nonconsuming choice Lifecycle : (ContractId Lifecyclable, [ContractId Effect.I])
+    -- ^ Process an event. It returns a tuple of the lifecycled instrument (or the original instrument when the former does not exist) and the effects.
+    with
+      ruleName : Text
+        -- ^ The lifecycle rule to be processed.
+      settler : Party
+        -- ^ The party settling the effects.
+      eventCid : ContractId Event.I
+        -- ^ The event.
+      clockCid : ContractId Clock.I
+        -- ^ Current time. This is also an observable, but not a strictly 'Decimal' one.
+      observableCids : [ContractId Observable]
+        -- ^ Set of numerical time-dependent observables.
+    controller (view this).lifecycler
+    do
+      lifecycleImpl this arg self
+
+-- | Type constraint used to require templates implementing `Lifecyclable` to not
+-- require any other interface to be implemented.
+type Implementation t = HasToInterface t I
+class (Implementation t) => HasImplementation t
+instance HasImplementation I

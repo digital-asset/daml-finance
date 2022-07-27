@@ -1,0 +1,162 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Settlement.Batch
+  ( Batch(..)
+  , BatchFactory(..)
+  , BatchFactoryWithIntermediaries(..)
+  , Path(..)
+  , T
+  ) where
+
+import DA.Foldable (forA_)
+import DA.List (groupOn, head, isSuffixOf, stripSuffix, tails)
+import DA.Map qualified as M (Map, fromList, lookup)
+import DA.Optional (fromSomeNote)
+import DA.Set (empty, fromList, singleton)
+import Daml.Finance.Common.Util (mapWithIndex)
+import Daml.Finance.Interface.Asset.Account qualified as Account (exerciseInterfaceByKey)
+import Daml.Finance.Interface.Asset.Holding qualified as Holding (I)
+import Daml.Finance.Interface.Asset.Util (fetchAccount, getAccount)
+import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (I, RemoveObservers(..))
+import Daml.Finance.Interface.Common.Types (Parties)
+import Daml.Finance.Interface.Settlement.Instructable qualified as Instructable (I, Instruct(..), View(..))
+import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Execute(..))
+import Daml.Finance.Interface.Settlement.Settleable qualified as Settleable (HasImplementation, I, View(..))
+import Daml.Finance.Interface.Settlement.Types (Step(..))
+import Daml.Finance.Settlement.Instruction (Instruction(..))
+
+type T = Batch
+
+instance Settleable.HasImplementation T
+-- | Allows to atomically settle a set of settlement `Step`s.
+template Batch
+  with
+    requestors : Parties
+      -- ^ Parties requesting the settlement
+    settler : Party
+      -- ^ Party triggering the settlement
+    id : Text
+      -- ^ A textual identifier
+    stepsWithInstructionId : [(Step, Text)]
+      -- ^ The settlement `Step`s and the identifiers of the corresponding `Instruction`s
+  where
+    signatory requestors
+    observer settler
+
+    let (steps, instructionIds) = unzip stepsWithInstructionId
+
+    implements Settleable.I where
+      view = Settleable.View with settler; steps
+      settleImpl = do
+        -- collect accounts and check that sender accounts are still active
+        accountInstructionIds <- fromList . mconcat <$> forA stepsWithInstructionId
+          \(step, instructionId) -> do
+            (instructionCid, instruction) <- fetchByKey @Instruction (requestors, instructionId)
+            let
+              receiverAccount = fromSomeNote "Receiving account not set" instruction.account
+              senderTransferableCid = fromSomeNote "Holding not allocated" instruction.allocation
+              holdingCid : ContractId Holding.I = coerceContractId senderTransferableCid
+            holding <- fetch holdingCid
+            fetchAccount holding
+            pure [(receiverAccount, instructionId), (getAccount holding, instructionId)]
+        -- settle
+        let
+          settleInstruction instructionId = do
+            -- NOTE: ideally we should exerciseByKey (but currently doesn't work for interface choices).
+            -- (as a workaround we could proxy the choice in the same contract)
+            (instructionCid, instruction) <- fetchByKey @Instruction (requestors, instructionId)
+            exercise instructionCid Instruction.Execute
+        l <- mapA settleInstruction instructionIds
+        -- undisclose accounts from settler
+        forA_ accountInstructionIds \(account, id) ->
+          Account.exerciseInterfaceByKey @Disclosure.I account settler Disclosure.RemoveObservers with observersToRemove = (id, singleton settler)
+        pure l
+
+-- | Factory template that implements the `Instructable` interface and is used to create a settlement batch.
+-- A batch is made of a set of `Instruction`s, as well as a container template used to atomically settle them.
+template BatchFactory
+  with
+    requestors : Parties
+      -- ^ Party requesting the settlement
+  where
+    signatory requestors
+
+    implements Instructable.I where
+      view = Instructable.View with requestors
+      instructImpl Instructable.Instruct{settler; id; steps} = do
+        let
+          createInstruction step index = let idUsed = id <> "-" <> show index in
+            Instruction with requestors; signed = empty; settler; step; allocation = None; account = None; id = idUsed; observers = M.fromList [(idUsed, singleton $ singleton settler)]
+          instructions = mapWithIndex createInstruction steps
+          instructionIds = map (.id) instructions
+        instructionCids <- mapA (fmap toInterfaceContractId . create) instructions
+        settleableCid <- toInterfaceContractId <$> create Batch with requestors; settler; id; stepsWithInstructionId = zip steps instructionIds
+        pure (settleableCid, instructionCids)
+
+-- | Factory template that implements the `Instructable` interface and is used to create a settlement batch.
+-- A batch is made of a set of `Instruction`s, as well as a container template used to atomically settle them.
+-- For each instrument to settle as part of the batch, a hierarchy of intermediaries is specified in `paths`. This hierarchy is used to generate settlement instructions.
+template BatchFactoryWithIntermediaries
+  with
+    requestors : Parties
+      -- ^ Parties requesting the settlement.
+    paths : M.Map Text Path
+      -- ^ Hierarchical paths used to settle holding transfers. A path is specified for each instrument label.
+  where
+    signatory requestors
+
+    implements Instructable.I where
+      view = Instructable.View with requestors
+      instructImpl Instructable.Instruct{settler; id; steps} = do
+        let
+          -- Group steps by instrument. For each group, lookup corresponding paths and expand steps according to the corresponding settlement route.
+          groupedSteps = mconcat $ fromSomeNote "Could not find path or route." $ mapA (\steps -> do
+            let k = (head steps).quantity.unit.id.label
+            route <- M.lookup k paths
+            mconcat <$> mapA (unfoldStep route) steps
+            ) $ groupOn (.quantity.unit) steps
+          -- For each step, generate instructions and ids.
+          createInstruction step index = let idUsed = id <> "-" <> show index in
+            Instruction with requestors; signed = empty; settler; step; allocation = None; account = None; id = idUsed; observers = M.fromList [(idUsed, singleton $ singleton settler)]
+          instructions = mapWithIndex createInstruction groupedSteps
+          instructionIds = map (.id) instructions
+        instructionCids <- mapA (fmap toInterfaceContractId . create) instructions
+        settleableCid <- toInterfaceContractId <$> create Batch with requestors; settler; id; stepsWithInstructionId = zip groupedSteps instructionIds
+        pure (settleableCid, instructionCids)
+
+-- | Data type that describes a hierarchical account structure between two parties for holdings on an instrument.
+data Path = Path
+  with
+    senderPath : [Party]
+      -- ^ Path from the sender to the root custodian of the holding. If the sender `p` is the root custodian, it should be `[p, p]`.
+    receiverPath : [Party]
+      -- ^ Path from the receiver to the root custodian of the holding. If the receiver `p` is the root custodian, it should be `[p, p]`.
+  deriving (Eq, Show)
+
+-- | HIDE
+-- Given a sender path and a receiver path, calculate the route to transfer a holding from sender to receiver.
+-- We assume that transfers can only be done between accounts at the same custodian.
+-- Returns `None` if no such route can be found. Otherwise, a list of (sender, receiver) pairs is returned.
+getRoute : (Eq a) => [a] -> [a] -> Optional [(a,a)]
+getRoute senderPath receiverPath =
+  case filter (`isSuffixOf` receiverPath) $ tails senderPath of
+  [] -> None
+  h :: _ -> do
+    fromRoute <- stripSuffix h senderPath
+    toRoute <- reverse <$> stripSuffix h receiverPath
+    let
+      fullRoute = fromRoute <> toRoute
+    pure $ zip fullRoute (drop 1 fullRoute)
+
+-- | HIDE
+-- Given a hierarchical path, unfold a step from sender to receiver (resp. receiver to sender) onto the corresponding route.
+-- Returns `None` if no route can be found.
+unfoldStep : Path -> Step -> Optional [Step]
+unfoldStep path step | step.sender == head path.senderPath =
+  map (\(sender, receiver) -> Step with sender; receiver; quantity = step.quantity ) <$> getRoute path.senderPath path.receiverPath
+unfoldStep path step | step.sender == head path.receiverPath =
+  map (\(sender, receiver) -> Step with sender; receiver; quantity = step.quantity ) <$> getRoute path.receiverPath path.senderPath
+unfoldStep _ _ = error "One of the parties is neither the sender, nor the receiver."
+
+

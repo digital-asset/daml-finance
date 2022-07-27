@@ -1,0 +1,36 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
+module Daml.Finance.Asset.Test.Util.Instrument where
+
+import DA.List (head)
+import DA.Map qualified as M
+import DA.Set (Set)
+import Daml.Finance.Asset.Instrument (Instrument(..))
+import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (GetCid(..), GetView(..), I, K, R, Reference(..))
+import Daml.Finance.Interface.Asset.Types (Id(..))
+import Daml.Finance.Interface.Common.Types (Parties)
+import Daml.Finance.Test.Util.Common (submitExerciseIByKeyCmdHelper)
+import Daml.Script
+
+-- | Create a `Reference` for an instrument.
+-- Note: This should only be called together with an instrument creation
+createReference : ContractId Instrument.I -> Party -> Party -> [(Text, Set Parties)] -> Script Instrument.K
+createReference cid depository issuer observers = do
+  instrumentView <- submitMulti [depository, issuer] [] do exerciseCmd cid Instrument.GetView with viewer = issuer
+  let ref = Instrument.Reference with instrumentView; cid; observers = M.fromList observers
+  submitMulti [depository, issuer] [] do createCmd ref
+  pure $ key ref
+
+-- | Originate an `Instrument`.
+originate : Party -> Party -> Text -> [(Text, Set Parties)] -> Script Instrument.K
+originate depository issuer label observers = do
+  cid <- coerceContractId <$> submitMulti [depository, issuer] [] do
+    createCmd Instrument with depository; issuer; id = (Id with label; version = "0"); observers = M.fromList observers
+  createReference cid depository issuer observers
+
+-- | Utility for exercising an interface by key.
+submitExerciseInterfaceByKeyCmd : forall t2 c2 b. (HasTemplateTypeRep t2, HasToAnyTemplate t2, HasFromAnyTemplate t2, HasFromAnyChoice t2 c2 b, HasToAnyChoice t2 c2 b, HasExercise t2 c2 b) => [Party] -> [Party] -> Instrument.K -> c2 -> Script b
+submitExerciseInterfaceByKeyCmd actAs readAs k arg = submitExerciseIByKeyCmdHelper @Instrument.R @t2 actAs readAs k (Instrument.GetCid with viewer = head actAs) arg

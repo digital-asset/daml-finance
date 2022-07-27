@@ -1,0 +1,58 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Asset.Instrument where
+
+import DA.Set (singleton)
+import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (HasImplementation, I, View(..), disclosureUpdateReference)
+import Daml.Finance.Interface.Asset.Types (Id(..), InstrumentKey(..))
+import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (I, SetObservers(..), View(..))
+import Daml.Finance.Interface.Common.Types (Observers)
+import Daml.Finance.Interface.Common.Util (flattenObservers)
+
+type T = Instrument
+
+instance Instrument.HasImplementation T
+-- | Base implementation for Instrument which does not define any lifecycling logic.
+template Instrument
+  with
+    depository : Party
+      -- ^ The instrument's depository.
+    issuer : Party
+      -- ^ The instrument's issuer.
+    id : Id
+      -- ^ The intrument's identifier.
+    observers : Observers
+      -- ^ Observers.
+  where
+    signatory depository, issuer
+    observer flattenObservers observers
+
+    let instrumentKey = InstrumentKey with depository; issuer; id
+
+    implements Instrument.I where
+      asDisclosure = toInterface @Disclosure.I this
+      view = Instrument.View with depository; issuer; id
+      getKey = instrumentKey
+
+    implements Disclosure.I where
+      view = Disclosure.View with disclosureControllers = singleton $ singleton issuer; observers
+      setObserversImpl Disclosure.SetObservers{newObservers} = do
+        cid <- toInterfaceContractId <$> create this with observers = newObservers
+        Instrument.disclosureUpdateReference newObservers instrumentKey cid
+      archiveImpl self = archive (coerceContractId self : ContractId Instrument)
+
+-- | Proposal template for instrument creation.
+template Request
+  with
+    instrument : Instrument
+      -- ^ The proposed instrument.
+  where
+    signatory instrument.issuer
+    observer instrument.depository
+
+    choice Accept : ContractId Instrument
+      -- ^ Creates the proposed instrument.
+      controller instrument.depository
+      do
+        create instrument

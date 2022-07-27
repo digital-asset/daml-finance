@@ -1,0 +1,120 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Settlement.Test.BatchWithRoute where
+
+import DA.Map (fromList)
+import DA.Set (singleton)
+import Daml.Finance.Asset.Test.Util.Account qualified as Account (createAccount, createFactory, credit)
+import Daml.Finance.Asset.Test.Util.Holding qualified as Holding (createFactory, validateOwnerOfHolding)
+import Daml.Finance.Asset.Test.Util.Instrument qualified as Instrument (originate)
+import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (qty)
+import Daml.Finance.Interface.Settlement.Instructable qualified as Instructable (Instruct(..))
+import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.Settleable qualified as Settleable (Settle(..))
+import Daml.Finance.Interface.Settlement.Types (Step(..))
+import Daml.Finance.Settlement.Batch (BatchFactoryWithIntermediaries(..), Path(..))
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Script
+
+-- | Parties involved in the test script.
+data TestParties = TestParties
+  with
+    bank1 : Party
+      -- ^ Receives the equity instrument in exchange for cash.
+    bank2 : Party
+      -- ^ Custodian of the issuer's cash holdings.
+    cb : Party
+      -- ^ Depository and issuer of the cash instrument. Custodian of the cash holdings of Bank 1 and Bank 2.
+    depository : Party
+      -- ^ Depository of the equity instrument. Custodian of the equity holdings of Bank 1 and Issuer.
+    issuer : Party
+      -- ^ Issuer of the equity instrument. Receives cash in exchange for units of equity.
+
+-- | DvP via settlement chain and instructions.
+-- Bank transfers cash to Issuer in exchange for an equity instrument (detained by issuer at depository).
+--
+-- Equity (security) account structure :
+--
+--          Depository
+--            /    \
+--         Bank 1  Issuer
+
+-- Cash account structure :
+--
+--         Central Bank
+--         /        \
+--      Bank 1      Bank 2
+--                    \
+--                   Issuer
+run : Script ()
+run = script do
+  TestParties{..} <- setupParties
+
+  -- Setup security accounts
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory depository []
+  holdingFactoryCid <- toInterfaceContractId <$> Holding.createFactory depository []
+  [bank1SecurityAccount, issuerSecurityAccount] <- mapA (Account.createAccount [] accountFactoryCid holdingFactoryCid [] depository) [bank1, issuer]
+
+  -- Setup cash accounts at CB
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory cb []
+  holdingFactoryCid <- toInterfaceContractId <$> Holding.createFactory cb []
+  [bank1CashAccount, bank2CashAccount] <- mapA (Account.createAccount [] accountFactoryCid holdingFactoryCid [] cb) [bank1, bank2]
+
+  -- Setup cash accounts at Bank 2
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank2 []
+  holdingFactoryCid <- toInterfaceContractId <$> Holding.createFactory bank2 []
+  [bank2OwnCashAccount, issuerCashAccount] <- mapA (Account.createAccount [] accountFactoryCid holdingFactoryCid [] bank2) [bank2, issuer]
+
+  -- Distribute assets
+  equityInstrument <- Instrument.originate depository issuer "AAPL" []
+  equityTransferableCid <- Account.credit [] equityInstrument 1_000.0 issuerSecurityAccount
+  cashInstrument <- Instrument.originate cb cb "USD" []
+  bank1CashTransferableCid <- Account.credit [] cashInstrument 200_000.0 bank1CashAccount
+  bank2CashTransferableCid <- Account.credit [] cashInstrument 200_000.0 bank2OwnCashAccount
+
+  -- Define settlement routes from Bank 1 to Issuer and create instructable
+  let
+    routes =
+      [ ("USD" , Path with senderPath = [bank1, cb]; receiverPath = [issuer, bank2, cb])
+      , ("AAPL" , Path with senderPath = [bank1, depository]; receiverPath = [issuer, depository])
+      ]
+
+  instructableCid <- submitMulti [bank1] [] do
+    createCmd BatchFactoryWithIntermediaries
+      with
+        requestors = singleton bank1
+        paths = fromList routes
+
+  -- Instruct settlement
+  let
+    steps =
+      [ Step with sender = issuer; receiver = bank1; quantity = (Instrument.qty 1_000.0 equityInstrument)
+      , Step with sender = bank1; receiver = issuer; quantity = (Instrument.qty 200_000.0 cashInstrument)
+      ]
+  (containerSettleableCid, [equityInstructionCid, cashInstruction1Cid, cashInstruction2Cid]) <-
+    submitMulti [bank1] [] do exerciseCmd instructableCid Instructable.Instruct with settler = bank1; id = "DVP"; steps
+
+  -- Allocate instructions
+  equityInstructionCid <- submitMulti [issuer] [] do exerciseCmd equityInstructionCid Instruction.Allocate with transferableCid = equityTransferableCid
+  cashInstruction1Cid <- submitMulti [bank1] [] do exerciseCmd cashInstruction1Cid Instruction.Allocate with transferableCid = bank1CashTransferableCid
+  cashInstruction2Cid <- submitMulti [bank2] [] do exerciseCmd cashInstruction2Cid Instruction.Allocate with transferableCid = bank2CashTransferableCid
+
+  -- Approve instructions
+  equityInstructionCid <- submitMulti [bank1] [] do exerciseCmd equityInstructionCid Instruction.Approve with receiverAccount = bank1SecurityAccount
+  cashInstruction1Cid <- submitMulti [bank2] [] do exerciseCmd cashInstruction1Cid Instruction.Approve with receiverAccount = bank2CashAccount
+  cashInstruction2Cid <- submitMulti [issuer] [] do exerciseCmd cashInstruction2Cid Instruction.Approve with receiverAccount = issuerCashAccount
+
+  -- Settle container
+  [equityTransferableCid, bank2CashTransferableCid, issuerCashTransferableCid] <-
+    submitMulti [bank1] [] do exerciseCmd containerSettleableCid Settleable.Settle
+
+  -- Assert state
+  Holding.validateOwnerOfHolding [(bank1, equityTransferableCid), (bank2, bank2CashTransferableCid), (issuer, issuerCashTransferableCid)]
+
+  pure ()
+
+setupParties : Script TestParties
+setupParties = do
+  [cb, depository, bank1, bank2, issuer] <- createParties ["CentralBank", "CSD", "Bank 1", "Bank 2", "Issuer"]
+  pure TestParties with cb, depository, bank1, bank2, issuer

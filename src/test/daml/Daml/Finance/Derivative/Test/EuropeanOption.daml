@@ -1,0 +1,253 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Derivative.Test.EuropeanOption where
+
+import ContingentClaims.Claim (one, or, scale, zero)
+import ContingentClaims.Financial(european)
+import ContingentClaims.Observation (Observation(..))
+import DA.Assert ((===))
+import DA.Date (addDays,  toDateUTC)
+import DA.Map qualified as M
+import DA.Set (empty, singleton)
+import Daml.Finance.Asset.Holding qualified as Holding (T)
+import Daml.Finance.Asset.Test.Util.Account qualified as Account (createAccount, createFactory, credit)
+import Daml.Finance.Asset.Test.Util.Holding qualified as Holding (createFactory)
+import Daml.Finance.Asset.Test.Util.Instrument qualified as Instrument (originate)
+import Daml.Finance.Derivative.Election (CreateElection(..), ElectionFactory(..))
+import Daml.Finance.Derivative.Test.Util (originateDerivative, dateToDateClockTime, mapClaimToUTCTime)
+import Daml.Finance.Interface.Asset.Fungible qualified as Fungible (SplitResult(..), I, Split(..))
+import Daml.Finance.Interface.Asset.Util (getAmount, getOwner)
+import Daml.Finance.Interface.Derivative.Election qualified as Election (Apply(..), I)
+import Daml.Finance.Interface.Derivative.Types (C, Observable, Deliverable)
+import Daml.Finance.Interface.Lifecycle.SettlementRule qualified as SettlementRule (Claim(..))
+import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.Settleable qualified as Settleable (Settle(..))
+import Daml.Finance.Lifecycle.SettlementRule (Rule(..))
+import Daml.Finance.RefData.Observation (Observation(..))
+import Daml.Finance.RefData.Time.DateClock (DateClock(..), Unit(..))
+import Daml.Finance.Settlement.Batch (BatchFactory(..))
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Script
+import Prelude hiding (or)
+
+-- This script tests the election mechanism on an Instrument.Derivative using the example of a cash-settled European Call option.
+-- The owner of the option holding has the right to exercise it at maturity.
+
+-- | Parties involved in the test script.
+data TestParties = TestParties
+  with
+    bank : Party
+      -- ^ Acts as custodian in the respective holdings (both cash holdings and instrument holdings). It also acts as depository in the option instrument.
+    broker : Party
+      -- ^ Acts as issuer of the option instrument. It is also the party tasked with lifecycling the contract and processing elections.
+    centralBank : Party
+      -- ^ The Central Bank is the depository and the issuer of the cash instrument.
+    investor1 : Party
+      -- ^ Owner of the option holding. Chooses to exercise the right of the call option.
+    investor2 : Party
+      -- ^ Owner of the option holding. Chooses to not exercise the right of the call option.
+    settler : Party
+      -- ^ Triggers the settlement of fully allocated settlement instructions.
+    provider : Party
+      -- ^ Acts at provider of account and holding factory.
+    publicParty : Party
+      -- ^ The public party. Every party can readAs the public party.
+
+-- | Creates the claim for a European Call option and the corresponding elections
+bootstrapOption : Date -> Decimal -> Observable -> Deliverable -> (C, C, C)
+bootstrapOption maturity strike spot ccy =
+  let
+    exercised = scale (Observe spot - Const strike) $ one ccy
+    notExercised = zero
+    option = european maturity $ exercised `or` notExercised
+  in (mapClaimToUTCTime option, mapClaimToUTCTime exercised, mapClaimToUTCTime notExercised)
+
+run : Script ()
+run = script do
+
+  --------------
+  -- 0. SETUP --
+  --------------
+  TestParties{..} <- setupParties
+
+  -- Account and holding factory
+  let pp = [("factoryProvider", singleton $ singleton publicParty)]
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory provider pp
+  holdingFactoryCid <- toInterfaceContractId <$> Holding.createFactory provider pp
+
+  -- Create accounts
+  [bankAccount, investor1Account, investor2Account] <- mapA (Account.createAccount [publicParty] accountFactoryCid holdingFactoryCid [] bank) [bank, investor1, investor2]
+
+  -- Distribute cash
+  let obs = [("public party", singleton $ singleton publicParty)]
+  cashInstrumentCid <- Instrument.originate centralBank centralBank "USD" obs
+  bankCashTransferableCid <- Account.credit [publicParty] cashInstrumentCid 25_000.0 bankAccount
+
+  -- Create observable for the underlying fixing
+  now <- getTime
+  let
+    maturity = addDays (toDateUTC now) 1
+    observations = M.fromList [(dateToDateClockTime maturity, 200.0)]
+  observableCid <- coerceContractId <$> submitMulti [broker] [] do createCmd Observation with provider = broker; obsKey = "SPOT/AAPL" ; observations; observers = M.empty
+
+  -- Create and distribute derivative
+  let
+    equityObservable = "SPOT/AAPL"
+    (option, exercised, notExercised) = bootstrapOption maturity 150.0 equityObservable cashInstrumentCid
+  derivativeInstrument <- originateDerivative bank broker "OPTION-AAPL" now option obs now
+  investor1DerivativeTransferableCid <- Account.credit [publicParty] derivativeInstrument 1_000.0 investor1Account
+  investor2DerivativeTransferableCid <- Account.credit [publicParty] derivativeInstrument 1_000.0 investor2Account
+
+  -- Create election factory to allow holders to create elections
+  exerciseElectionFactoryCid <- submitMulti [broker] [] do
+    createCmd ElectionFactory with
+      provider = broker
+      id = "OPTION-AAPL - Exercise"
+      claim = exercised
+      observers = M.fromList obs
+      instrument = derivativeInstrument
+
+  expireElectionFactoryCid <- submitMulti [broker] [] do
+    createCmd ElectionFactory with
+      provider = broker
+      id = "OPTION-AAPL - Expire"
+      claim = notExercised
+      observers = M.fromList obs
+      instrument = derivativeInstrument
+
+  -- create clock (defines current time)
+  let clock = DateClock with u = Unit maturity; id = "Clock"; provider = broker; observers = empty
+  clockCid <- toInterfaceContractId <$> submitMulti [broker] [] do createCmd clock
+
+  -----------------------------------------
+  -- 1. ELECTION 1 : EXERCISE THE OPTION --
+  -----------------------------------------
+
+  -- One cannot exercise for more units than they own
+  submitMultiMustFail [investor1] [publicParty] do
+    exerciseCmd exerciseElectionFactoryCid CreateElection with
+      elector = investor1
+      electionTime = dateToDateClockTime maturity
+      holdingCid = investor1DerivativeTransferableCid
+      amount = 5000.0
+
+  -- Create election
+  exerciseOptionCid : ContractId Election.I <- toInterfaceContractId <$> submitMulti [investor1] [publicParty] do
+    exerciseCmd exerciseElectionFactoryCid CreateElection with
+      elector = investor1
+      electionTime = dateToDateClockTime maturity
+      holdingCid = investor1DerivativeTransferableCid
+      amount = 500.0
+
+  -- Apply election to generate new instrument version + effects
+  (_, [effectCid]) <- submitMulti [broker] [] do
+    exerciseCmd exerciseOptionCid Election.Apply
+      with
+        clockCid
+        settler
+        observableCids = [observableCid]
+
+  -- Create settlement factory
+  factoryCid <- submitMulti [investor1] [] do createCmd BatchFactory with requestors = singleton investor1
+
+  -- Claim effect
+  settlementRuleCid <- submitMulti [bank, investor1] [] do
+    createCmd Rule
+      with
+        custodian = bank
+        owner = investor1
+        claimers = singleton investor1
+        settler
+        instrumentLabel = "OPTION-AAPL"
+        instructableCid = toInterfaceContractId factoryCid
+
+  -- Cannot claim effect for a different amount than what was elected
+  submitMultiMustFail [investor1] [publicParty] do
+    exerciseCmd settlementRuleCid SettlementRule.Claim with
+      claimer = investor1
+      holdingCids = [toInterfaceContractId investor1DerivativeTransferableCid]
+      effectCid
+
+  -- Split holding in order to claim with the right amount
+  let fungibleCid : ContractId Fungible.I = coerceContractId investor1DerivativeTransferableCid
+  Fungible.SplitResult [splitCid] (Some restCid) <- submitMulti [investor1] [] do exerciseCmd (fungibleCid) Fungible.Split with amounts = [500.0]
+
+  result <- submitMulti [investor1] [publicParty] do
+    exerciseCmd settlementRuleCid SettlementRule.Claim with
+      claimer = investor1
+      holdingCids = [coerceContractId splitCid]
+      effectCid
+
+  let
+    [bankCashInstructionCid] = result.instructionCids
+
+  -- Allocate instructions
+  bankCashInstructionCid <- submitMulti [bank] [publicParty]  do exerciseCmd bankCashInstructionCid Instruction.Allocate with transferableCid = bankCashTransferableCid
+
+  -- Approve instructions
+  bankCashInstructionCid <- submitMulti [investor1] [] do exerciseCmd bankCashInstructionCid Instruction.Approve with receiverAccount = investor1Account
+
+  -- Settle container
+  [investorCashTransferableCid] <- submitMulti [settler] [] do exerciseCmd result.containerCid Settleable.Settle
+
+  -- Assert state
+  Some investorCash <- queryContractId @Holding.T investor1 $ coerceContractId investorCashTransferableCid
+  getAmount investorCash === 25_000.0
+  getOwner investorCash === investor1
+
+  -----------------------------------------
+  -- 1. ELECTION 2 : EXPIRE THE OPTION --
+  -----------------------------------------
+
+  expireOptionCid : ContractId Election.I <- toInterfaceContractId <$> submitMulti [investor2] [publicParty] do
+    exerciseCmd expireElectionFactoryCid CreateElection with
+      elector = investor2
+      electionTime = dateToDateClockTime maturity
+      holdingCid = investor2DerivativeTransferableCid
+      amount = 1000.0
+
+  (_, [effectCid]) <- submitMulti [broker] [] do
+    exerciseCmd expireOptionCid Election.Apply
+      with
+        clockCid
+        settler
+        observableCids = [observableCid]
+
+  -- Create settlement factory
+  factoryCid <- submitMulti [investor2] [] do createCmd BatchFactory with requestors = singleton investor2
+
+  settlementRuleCid <- submitMulti [bank, investor2] [] do
+    createCmd Rule
+      with
+        custodian = bank
+        owner = investor2
+        claimers = singleton investor2
+        settler
+        instrumentLabel = "OPTION-AAPL"
+        instructableCid = toInterfaceContractId factoryCid
+
+  -- Investor 1 cannot claim an effect for an election made by Investor 2
+  submitMultiMustFail [investor1] [publicParty] do
+    exerciseCmd settlementRuleCid SettlementRule.Claim with
+      claimer = investor1
+      holdingCids = [toInterfaceContractId investor1DerivativeTransferableCid]
+      effectCid
+
+  -- Claim effect
+  result <- submitMulti [investor2] [publicParty] do
+    exerciseCmd settlementRuleCid SettlementRule.Claim with
+      claimer = investor2
+      holdingCids = [toInterfaceContractId investor2DerivativeTransferableCid]
+      effectCid
+
+  -- Settle (empty) container
+  submitMulti [settler] [] do exerciseCmd result.containerCid Settleable.Settle
+
+  pure ()
+
+setupParties : Script TestParties
+setupParties = do
+  [bank, broker, centralBank, investor1, investor2, settler, provider, publicParty] <-
+    createParties ["Bank", "Broker", "Central Bank", "Investor 1", "Investor 2", "Settler", "Provider", "PublicParty"]
+  pure $ TestParties with bank; broker; centralBank; investor1; investor2; settler; provider; publicParty

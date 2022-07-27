@@ -1,0 +1,192 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Settlement.Test.Intermediated where
+
+import DA.Set (singleton)
+import Daml.Finance.Asset.Holding qualified as Holding (T)
+import Daml.Finance.Asset.Test.Util.Account qualified as Account (createAccount, createFactory, credit, submitExerciseInterfaceByKeyCmd)
+import Daml.Finance.Asset.Test.Util.Holding qualified as Holding (createFactory, validateOwnerOfHolding)
+import Daml.Finance.Asset.Test.Util.Instrument qualified as Instrument (originate)
+import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (qty)
+import Daml.Finance.Interface.Asset.Transferable qualified as Transferable (I)
+import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (AddObservers(..), I, RemoveObservers(..))
+import Daml.Finance.Interface.Settlement.Instructable qualified as Instructable (Instruct(..))
+import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..), I)
+import Daml.Finance.Interface.Settlement.Settleable qualified as Settleable (Settle(..))
+import Daml.Finance.Interface.Settlement.Types (Step(..))
+import Daml.Finance.Settlement.Batch (BatchFactory(..))
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Script
+
+data TestParties = TestParties
+  with
+    bank1 : Party
+      -- ^ Custodian of Alice's cash holdings.
+    bank2 : Party
+      -- ^ Custodian of Bob's cash holdings.
+    cb : Party
+      -- ^ The Central Bank is the depository and the issuer of the cash instrument. It also acts as custodian for the cash holdings of Bank1 and Bank2.
+    csd : Party
+      -- ^ The Central Bank is the depository of the equity instrument. It also acts as custodian for the equity holdings of Custodian1 and Custodian2.
+    custodian1 : Party
+      -- ^ Custodian of Alice's equity holdings.
+    custodian2 : Party
+      -- ^ Custodian of Bob's equity holdings.
+    issuer : Party
+      -- ^ Issuer of the equity instrument.
+    alice : Party
+      -- ^ Sends money to Bob.
+    bob : Party
+      -- ^ Sends shares to Alice.
+    agent : Party
+      -- ^ Party that requests and executes the settlement of the transaction between Alice and Bob.
+    delegatee : Party
+      -- ^ Party that is granted the right to allocate Alice's holdings on her behalf.
+    publicParty : Party
+      -- ^ The public party. Every party can readAs the public party.
+
+-- | Cross-custodial payment with delegation
+run1 : Script ()
+run1 = run True
+
+-- | Cross-custodial payment without delegation
+run2 : Script ()
+run2 = run False
+
+-- | Cross-custodial payment
+run : Bool -> Script ()
+run useDelegatee = script do
+  TestParties{..} <- setupParties
+
+  -- Account and holding factory
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory publicParty []
+  holdingFactoryCid <- toInterfaceContractId <$> Holding.createFactory publicParty []
+
+  -- Create accounts
+  let
+    createAccounts custodian = mapA (Account.createAccount [publicParty] accountFactoryCid holdingFactoryCid [] custodian)
+  -- cash
+  [bank1OwnCashAccount, aliceCashAccount] <- createAccounts bank1 [bank1, alice]
+  [bank2OwnCashAccount, bobCashAccount] <- createAccounts bank2 [bank2, bob]
+  [bank1CashAccount, bank2CashAccount] <- createAccounts cb [bank1, bank2]
+  -- asset
+  [csdOwnAccount, custodian1DepoAccount, custodian2DepoAccount] <- createAccounts csd [csd, custodian1, custodian2]
+  [custodian2OwnDepoAccount, aliceDepoAccount] <- createAccounts custodian2 [custodian2, alice]
+  [custodian1OwnDepoAccount, bobDepoAccount] <- createAccounts custodian1 [custodian1, bob]
+
+  -- Distribute
+  -- cash
+  cashInstrument <- Instrument.originate cb cb "USD" []
+  [aliceCashCid, bank1CashCid, bank2CashCid] <- mapA (Account.credit [publicParty] cashInstrument 200_000.0) [aliceCashAccount, bank1CashAccount, bank2OwnCashAccount]
+
+  -- assets
+  assetInstrument <- Instrument.originate csd issuer "SHARE" []
+  [bobAssetCid, custodian1AssetCid, custodian2AssetCid] <- mapA (Account.credit [publicParty] assetInstrument 1_250.0) [bobDepoAccount, custodian1DepoAccount, custodian2OwnDepoAccount]
+
+  -- Instruct settlement
+  {- Dvp of $ 200'000 (*) vs 1'250 shares (#). The * settles via the CB, i.e., A -> B1 -> CB -> B2 -> B,
+     and # via the CSDS, i.e., A <- C1 <- CSD -> C2 <- B.
+
+         CB
+        /  \
+       B1  B2
+      /      \
+     A        B
+      \      /
+      C2   C1
+        \ /
+        CSD
+  -}
+  let
+    cashQuantity = Instrument.qty 200_000.0 cashInstrument
+    assetQuantity = Instrument.qty 1_250.0 assetInstrument
+    steps =
+      [ -- Payment
+        Step with sender = alice; receiver = bank1; quantity = cashQuantity
+      , Step with sender = bank1; receiver = bank2; quantity = cashQuantity
+      , Step with sender = bank2; receiver = bob; quantity = cashQuantity
+        -- Delivery
+      , Step with sender = bob; receiver = custodian1; quantity = assetQuantity
+      , Step with sender = custodian1; receiver = custodian2; quantity = assetQuantity
+      , Step with sender = custodian2; receiver = alice; quantity = assetQuantity
+      ]
+  factoryCid <- submitMulti [agent] [] do createCmd BatchFactory with requestors = singleton agent
+  (containerSettleableCid, [aliceInstructionCid, bank1InstructionCid, bank2InstructionCid, bobInstructionCid, custodian1InstructionCid, custodian2InstructionCid]) <-
+    submitMulti [agent] [] do exerciseCmd factoryCid Instructable.Instruct with settler = agent; id = "CROSSPAYMENT"; steps
+
+  -- Allocate instructions
+  aliceInstructionCid <-
+    if useDelegatee then
+      do
+        -- TODO: use explicit disclosure (when it lands)
+        -- disclose
+        let observerContext = ("delegation123", singleton delegatee)
+        aliceCashCid : ContractId Transferable.I <- coerceContractId <$> submitMulti [alice] [] do exerciseCmd (coerceContractId aliceCashCid : ContractId Disclosure.I) Disclosure.AddObservers with disclosers = singleton alice; observersToAdd = observerContext
+        aliceInstructionCid : ContractId Instruction.I <- coerceContractId <$> submitMulti [alice] [] do exerciseCmd (coerceContractId aliceInstructionCid : ContractId Disclosure.I) Disclosure.AddObservers with disclosers = singleton alice; observersToAdd = observerContext
+
+        Account.submitExerciseInterfaceByKeyCmd @Disclosure.I [alice] [] aliceCashAccount Disclosure.AddObservers with disclosers = singleton alice; observersToAdd = observerContext
+
+        -- delegation
+        delegationCid <- submitMulti [alice] [] do createCmd AllocationDelegation with delegator = alice; delegatee
+        instructionCid <- submitMulti [delegatee] [] do exerciseCmd delegationCid OnBehalfAllocation with id = observerContext._1; instructionCid = aliceInstructionCid; transferableCid = aliceCashCid
+
+        -- undisclose
+        Account.submitExerciseInterfaceByKeyCmd @Disclosure.I [delegatee] [] aliceCashAccount Disclosure.RemoveObservers with observersToRemove = observerContext
+
+        pure instructionCid
+    else
+      submitMulti [alice] [] do exerciseCmd aliceInstructionCid Instruction.Allocate with transferableCid = aliceCashCid
+
+  bank1InstructionCid <- submitMulti [bank1] [] do exerciseCmd bank1InstructionCid Instruction.Allocate with transferableCid = bank1CashCid
+  bank2InstructionCid <- submitMulti [bank2] [] do exerciseCmd bank2InstructionCid Instruction.Allocate with transferableCid = bank2CashCid
+
+  bobInstructionCid <- submitMulti [bob] [] do exerciseCmd bobInstructionCid Instruction.Allocate with transferableCid = bobAssetCid
+  custodian1InstructionCid <- submitMulti [custodian1] [] do exerciseCmd custodian1InstructionCid Instruction.Allocate with transferableCid = custodian1AssetCid
+  custodian2InstructionCid <- submitMulti [custodian2] [] do exerciseCmd custodian2InstructionCid Instruction.Allocate with transferableCid = custodian2AssetCid
+
+  -- Approve instructions
+  aliceInstructionCid <- submitMulti [bank1] [] do exerciseCmd aliceInstructionCid Instruction.Approve with receiverAccount = bank1OwnCashAccount
+  bank1InstructionCid <- submitMulti [bank2] [] do exerciseCmd bank1InstructionCid Instruction.Approve with receiverAccount = bank2CashAccount
+  bank2InstructionCid <- submitMulti [bob] [] do exerciseCmd bank2InstructionCid Instruction.Approve with receiverAccount = bobCashAccount
+
+  bobInstructionCid <- submitMulti [custodian1] [] do exerciseCmd bobInstructionCid Instruction.Approve with receiverAccount = custodian1OwnDepoAccount
+  custodian1InstructionCid <- submitMulti [custodian2] [] do exerciseCmd custodian1InstructionCid Instruction.Approve with receiverAccount = custodian2DepoAccount
+  custodian2InstructionCid <- submitMulti [alice] [] do exerciseCmd custodian2InstructionCid Instruction.Approve with receiverAccount = aliceDepoAccount
+
+  -- Settle container
+  [bank1CashCid, bank2CashCid, bobCashCid, custodian1AssetCid, custodian2AssetCid, aliceAssetCid] <- submitMulti [agent] [] do exerciseCmd containerSettleableCid Settleable.Settle
+
+  -- Assert state
+  Holding.validateOwnerOfHolding [(bank1, bank1CashCid), (bank2, bank2CashCid), (bob, bobCashCid), (custodian1, custodian1AssetCid), (custodian2, custodian2AssetCid), (alice, aliceAssetCid)]
+
+  pure ()
+
+setupParties : Script TestParties
+setupParties = do
+  [cb, csd, bank1, bank2, custodian2, custodian1, issuer, alice, bob, agent, delegatee, publicParty] <-
+    createParties ["CentralBank", "CSD", "Bank1", "Bank2", "custodian2", "custodian1", "Issuer", "Alice", "Bob", "Agent", "Delegatee", "PublicParty"]
+  pure TestParties with cb; csd; bank1; bank2; custodian2; custodian1; issuer; alice; bob; agent; delegatee; publicParty
+
+-- | Grants the `delegatee` the right to allocate holdings on behalf of the `delegator`
+template AllocationDelegation
+  with
+    delegator : Party
+    delegatee : Party
+  where
+    signatory delegator
+    observer delegatee
+
+    choice OnBehalfAllocation : ContractId Instruction.I
+      with
+        transferableCid : ContractId Transferable.I
+          -- ^ The holding to allocate.
+        instructionCid : ContractId Instruction.I
+          -- ^ The instruction that needs allocation.
+        id : Text
+          -- ^ Identifier of the observation context on the holding, allowing the delegatee to undisclose themselves from a holding.
+      controller delegatee
+      do
+        Some cid : Optional (ContractId Holding.T) <- fmap coerceContractId <$> exercise (coerceContractId transferableCid : ContractId Disclosure.I) Disclosure.RemoveObservers with observersToRemove = (id, singleton delegatee)
+        holding <- fetch cid
+        exercise instructionCid Instruction.Allocate with transferableCid = coerceContractId cid

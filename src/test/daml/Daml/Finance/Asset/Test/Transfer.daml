@@ -1,0 +1,38 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Asset.Test.Transfer where
+
+import Daml.Finance.Asset.Test.Util.Account qualified as Account (createAccount, createFactory, credit)
+import Daml.Finance.Asset.Test.Util.Holding qualified as Holding (createFactory, validateOwnerOfHolding)
+import Daml.Finance.Asset.Test.Util.Instrument (originate)
+import Daml.Finance.Interface.Asset.Transferable qualified as Transferable (I, Transfer(..))
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Script
+
+-- Origination, issuance, and transfer of asset
+run : Script ()
+run = script do
+  -- Create parties
+  [custodian, issuer, investor] <- createParties ["Custodian", "Issuer", "Investor"]
+
+  -- Account and holding factory
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory custodian []
+  holdingFactoryCid <- toInterfaceContractId <$> Holding.createFactory custodian []
+
+  -- Create accounts
+  [issuerAccount, investorAccount] <- mapA (Account.createAccount [] accountFactoryCid holdingFactoryCid [] custodian) [issuer, investor]
+
+  -- Originate instrument
+  instrument <- originate custodian issuer "ABC.DE" []
+
+  -- Issue asset
+  transferableCid : ContractId Transferable.I <- coerceContractId <$> Account.credit [] instrument 1_000.0 issuerAccount
+
+  -- Transfer asset
+  transferableCid <- submitMulti [issuer, investor] [] do exerciseCmd transferableCid Transferable.Transfer with newOwnerAccount = investorAccount
+
+  -- Assert state
+  Holding.validateOwnerOfHolding [(investor, transferableCid)]
+
+  pure ()
