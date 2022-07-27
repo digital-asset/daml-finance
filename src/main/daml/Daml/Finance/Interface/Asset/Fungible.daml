@@ -3,6 +3,7 @@
 
 module Daml.Finance.Interface.Asset.Fungible where
 
+import DA.Foldable qualified as F (all)
 import DA.Optional (optionalToList)
 import Daml.Finance.Interface.Asset.Holding qualified as Holding (I, asDisclosure)
 import Daml.Finance.Interface.Asset.Lockable qualified as Lockable (I, asHolding)
@@ -63,7 +64,7 @@ interface Fungible where
       verifySplit amounts $ getAmount this
       splitResult <- splitImpl this arg
       newFungibles <- mapA fetch $ splitResult.splitCids ++ optionalToList splitResult.rest
-      verifyQuantityPreserving newFungibles [this]
+      verifyAmountPreserving newFungibles [this]
       pure splitResult
 
   choice Merge : ContractId Fungible
@@ -76,7 +77,7 @@ interface Fungible where
       oldFungibles <- mapA fetch $ fmap (toInterfaceContractId @I) fungibleCids
       newFungibleCid <- mergeImpl this arg
       newFungible <- fetch newFungibleCid
-      verifyQuantityPreserving [newFungible] (this :: oldFungibles)
+      verifyAmountPreserving [newFungible] (this :: oldFungibles)
       pure newFungibleCid
 
   choice ArchiveFungible : ()
@@ -95,28 +96,27 @@ instance HasToInterface I Disclosure.I where _toInterface = Holding.asDisclosure
 class (Implementation t) => HasImplementation t
 instance HasImplementation I
 
--- | Validates the parameters of a split, ensuring that expected split quantities are smaller or equal to the current contracts amount.
+-- | Verifies that split amounts are strictly positive and don't exceed the current amount.
 verifySplit : forall m. CanAssert m => [Decimal] -> Decimal -> m ()
-verifySplit quantities currentQuantity =
+verifySplit amounts currentAmount =
   let
-    splitQuantitySum = sum quantities
+    splitAmountSum = sum amounts
   in
-    verify (splitQuantitySum <= currentQuantity)
-      $ "Fungible::verifySplit - Summed amount must not be larger than current amount. splitQuantitySum="
-      <> show splitQuantitySum
-      <> ", currentQuantity="
-      <> show currentQuantity
+  verify (splitAmountSum <= currentAmount && F.all (> 0.0) amounts)
+    $ "Fungible::verifySplit - Amounts must be strictly positive and not exceed current amount. "
+    <> "amounts=" <> show amounts
+    <> ", splitAmountSum=" <> show splitAmountSum
+    <> ", currentAmount=" <> show currentAmount
 
--- | Ensures that the original amount is preserved after a merge or a split.
-verifyQuantityPreserving : forall m. CanAssert m => [Fungible] -> [Fungible] -> m ()
-verifyQuantityPreserving newFungibles previousFungibles =
+-- | Verifies that the original amount is preserved after a merge or a split.
+verifyAmountPreserving : forall m. CanAssert m => [Fungible] -> [Fungible] -> m ()
+verifyAmountPreserving newFungibles previousFungibles =
   let
-    sumAmounts fungibles = foldl (\acc f -> acc + getAmount f) 0.0 fungibles
-    newQuantityTotal = sumAmounts newFungibles
-    previousQuantityTotal = sumAmounts previousFungibles
+    sumAmounts fungibles = sum $ getAmount <$> fungibles
+    new = sumAmounts newFungibles
+    previous = sumAmounts previousFungibles
   in
-    verify (newQuantityTotal == previousQuantityTotal)
-      $ "Fungible::verifyQuantityPreserving - Sum of fungible amounts do not match the expected amount. newQuantityTotal="
-      <> show newQuantityTotal
-      <> ", previousQuantityTotal="
-      <> show previousQuantityTotal
+    verify (new == previous)
+      $ "Fungible::verifyAmountPreserving - Sum of fungible amounts do not match the expected amount. "
+      <> "newAmounTotal=" <> show new
+      <> ", previousAmountTotal=" <> show previous
