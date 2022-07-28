@@ -152,7 +152,7 @@ Bob requests the cash to be transferred to his account, Alice accepts the reques
 
 We now take a look at some aspects of the workflow and try to answer some questions that you might be having.
 
-If you are curious to see some more use-cases for the library, feel free to jump to the next tutorials and come back to this section at when you feel it is the right time.
+If you are curious to see some more use-cases for the library, feel free to jump to the next tutorials and come back to this section when you feel it is the right time.
 
 ### How does the `Transfer` workflow work?
 
