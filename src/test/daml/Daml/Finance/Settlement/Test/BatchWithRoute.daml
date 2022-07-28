@@ -3,10 +3,11 @@
 
 module Daml.Finance.Settlement.Test.BatchWithRoute where
 
-import DA.Map (fromList)
+import DA.Map qualified as M (empty, fromList)
 import DA.Set (singleton)
+import Daml.Finance.Asset.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Asset.Test.Util.Account qualified as Account (createAccount, createFactory, credit)
-import Daml.Finance.Asset.Test.Util.Holding qualified as Holding (createFactory, validateOwnerOfHolding)
+import Daml.Finance.Asset.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
 import Daml.Finance.Asset.Test.Util.Instrument qualified as Instrument (originate)
 import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (qty)
 import Daml.Finance.Interface.Settlement.Instructable qualified as Instructable (Instruct(..))
@@ -53,17 +54,20 @@ run = script do
 
   -- Setup security accounts
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory depository []
-  holdingFactoryCid <- toInterfaceContractId <$> Holding.createFactory depository []
+  holdingFactoryCid <- toInterfaceContractId <$> submitMulti [depository] [] do
+    createCmd Fungible.Factory with provider = depository; observers = M.empty
   [bank1SecurityAccount, issuerSecurityAccount] <- mapA (Account.createAccount [] accountFactoryCid holdingFactoryCid [] depository) [bank1, issuer]
 
   -- Setup cash accounts at CB
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory cb []
-  holdingFactoryCid <- toInterfaceContractId <$> Holding.createFactory cb []
+  holdingFactoryCid <- toInterfaceContractId <$> submitMulti [cb] [] do
+    createCmd Fungible.Factory with provider = cb; observers = M.empty
   [bank1CashAccount, bank2CashAccount] <- mapA (Account.createAccount [] accountFactoryCid holdingFactoryCid [] cb) [bank1, bank2]
 
   -- Setup cash accounts at Bank 2
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank2 []
-  holdingFactoryCid <- toInterfaceContractId <$> Holding.createFactory bank2 []
+  holdingFactoryCid <- toInterfaceContractId <$> submitMulti [bank2] [] do
+    createCmd Fungible.Factory with provider = bank2; observers = M.empty
   [bank2OwnCashAccount, issuerCashAccount] <- mapA (Account.createAccount [] accountFactoryCid holdingFactoryCid [] bank2) [bank2, issuer]
 
   -- Distribute assets
@@ -84,7 +88,7 @@ run = script do
     createCmd BatchFactoryWithIntermediaries
       with
         requestors = singleton bank1
-        paths = fromList routes
+        paths = M.fromList routes
 
   -- Instruct settlement
   let
@@ -110,7 +114,7 @@ run = script do
     submitMulti [bank1] [] do exerciseCmd containerSettleableCid Settleable.Settle
 
   -- Assert state
-  Holding.validateOwnerOfHolding [(bank1, equityTransferableCid), (bank2, bank2CashTransferableCid), (issuer, issuerCashTransferableCid)]
+  Holding.verifyOwnerOfHolding [(bank1, equityTransferableCid), (bank2, bank2CashTransferableCid), (issuer, issuerCashTransferableCid)]
 
   pure ()
 

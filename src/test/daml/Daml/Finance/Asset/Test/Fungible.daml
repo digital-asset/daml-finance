@@ -4,11 +4,10 @@
 module Daml.Finance.Asset.Test.Fungible where
 
 import DA.Action (foldlA)
-import DA.Map qualified as M
+import DA.Map qualified as M (empty)
 import DA.Set (singleton)
-import Daml.Finance.Asset.Holding qualified as Holding (T)
+import Daml.Finance.Asset.Fungible qualified as Fungible (T, Factory(..))
 import Daml.Finance.Asset.Test.Util.Account qualified as Account (credit, createAccount, createFactory)
-import Daml.Finance.Asset.Test.Util.Holding qualified as Holding (createFactory)
 import Daml.Finance.Asset.Test.Util.Instrument qualified as Instrument (originate)
 import Daml.Finance.Interface.Asset.Fungible qualified as Fungible (HasImplementation, I, Merge(..), Split(..), SplitResult(..), View(..), verifyAmountPreserving, verifySplit)
 import Daml.Finance.Interface.Asset.Holding qualified as Holding (I, View(..))
@@ -23,6 +22,7 @@ import Daml.Finance.Interface.Common.Util (flattenObservers)
 import Daml.Finance.Test.Util.Common (createParties, validateAssertionFailure)
 import Daml.Script
 
+
 data TestParties = TestParties
   with
     custodian : Party
@@ -36,7 +36,8 @@ setup = do
 
   -- Account and holding factory
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory custodian []
-  holdingFactoryCid <- toInterfaceContractId <$> Holding.createFactory custodian []
+  holdingFactoryCid <- toInterfaceContractId  <$> submitMulti [custodian] [] do
+    createCmd Fungible.Factory with provider = custodian; observers = M.empty
 
   -- Create account
   issuerAccount <- Account.createAccount [] accountFactoryCid holdingFactoryCid [] custodian issuer
@@ -54,14 +55,14 @@ run1 = do
   holdingCid <- Account.credit [] instrument 1_000.0 issuerAccount
   let fungibleCid : ContractId Fungible.I = coerceContractId holdingCid
 
-  -- Attempt to split more than the amount available on the holding fails
+  -- Attempt to split more than the amount available fails
   submitMultiMustFail [issuer, investor] [] do exerciseCmd fungibleCid Fungible.Split with amounts = [1_000.1]
   submitMultiMustFail [issuer, investor] [] do exerciseCmd fungibleCid Fungible.Split with amounts = [1_000.0, 0.1]
 
-  -- Successfully split the holding into 3 holdings
+  -- Split fungible
   Fungible.SplitResult [splitCid1, splitCid2] (Some restCid) <- submitMulti [issuer, investor] [] do exerciseCmd fungibleCid Fungible.Split with amounts = [500.0, 250.0]
 
-  -- Merge holdings
+  -- Merge fungibles
   submitMulti [issuer, investor] [] do exerciseCmd restCid Fungible.Merge with fungibleCids = [splitCid1, splitCid2]
 
   pure ()
@@ -83,26 +84,26 @@ run2 = do
   let maliciousInstrument = key ref
 
   -- Issue bad asset
-  maliciousHoldingCid <- submitMulti [custodian, issuer] [] do
-    createCmd MaliciousHolding
+  maliciousFungibleImplCid <- submitMulti [custodian, issuer] [] do
+    createCmd MaliciousFungible
       with
         instrument = maliciousInstrument
         account = AccountKey with custodian; owner = issuer; id = "Issuer@Custodian"
         amount = 1_000.0
         lock = None
         observers = M.empty
-  let badFungibleCid : ContractId Fungible.I = coerceContractId maliciousHoldingCid
+  let maliciousFungibleCid : ContractId Fungible.I = coerceContractId maliciousFungibleImplCid
 
   -- Attempt to split fails
-  submitMultiMustFail [issuer, investor] [] do exerciseCmd badFungibleCid Fungible.Split with amounts = [1_000.1]
-  submitMultiMustFail [issuer, investor] [] do exerciseCmd badFungibleCid Fungible.Split with amounts = [1_000.0, 0.1]
-  submitMultiMustFail [issuer, investor] [] do exerciseCmd badFungibleCid Fungible.Split with amounts = [1_000.0]
-  submitMultiMustFail [issuer, investor] [] do exerciseCmd badFungibleCid Fungible.Split with amounts = [900.0]
+  submitMultiMustFail [issuer, investor] [] do exerciseCmd maliciousFungibleCid Fungible.Split with amounts = [1_000.1]
+  submitMultiMustFail [issuer, investor] [] do exerciseCmd maliciousFungibleCid Fungible.Split with amounts = [1_000.0, 0.1]
+  submitMultiMustFail [issuer, investor] [] do exerciseCmd maliciousFungibleCid Fungible.Split with amounts = [1_000.0]
+  submitMultiMustFail [issuer, investor] [] do exerciseCmd maliciousFungibleCid Fungible.Split with amounts = [900.0]
 
-  -- Split holding - these quantites gets multipled by 10 which matches the total original amount
-  Fungible.SplitResult [badFungibleCid1, badFungibleCid2] None <- submitMulti [issuer, investor] [] do exerciseCmd badFungibleCid Fungible.Split with amounts = [50.0, 50.0]
+  -- Split fungible - these quantites gets multipled by 10 which matches the total original amount
+  Fungible.SplitResult [badFungibleCid1, badFungibleCid2] None <- submitMulti [issuer, investor] [] do exerciseCmd maliciousFungibleCid Fungible.Split with amounts = [50.0, 50.0]
 
-  -- Merge holdings fails as amount isn't preserved
+  -- Merge fungibles fails as amount isn't preserved
   submitMultiMustFail [issuer, investor] [] do exerciseCmd badFungibleCid1 Fungible.Merge with fungibleCids = [badFungibleCid2]
 
   pure ()
@@ -136,13 +137,13 @@ run4 = do
   holdingCid : ContractId Holding.I <- Account.credit [] instrument 1_000.0 issuerAccount
 
   -- Convert to implementation cid from the interface cid
-  let holdingImplCid = fromInterfaceContractId @Holding.T holdingCid
+  let fungibleImplCid = fromInterfaceContractId @Fungible.T holdingCid
 
-  -- Acquire holding contract from the ledger
-  Some holdingImpl <- queryContractId issuer holdingImplCid
+  -- Acquire fungible contract from the ledger
+  Some fungibleImpl <- queryContractId issuer fungibleImplCid
 
-  -- Convert the holding implementation value to the fungible interface value
-  let fungible : Fungible.I = toInterface holdingImpl
+  -- Convert the fungible implementation value to the fungible interface value
+  let fungible : Fungible.I = toInterface fungibleImpl
 
   -- Positive case - Single quantities match
   Fungible.verifyAmountPreserving [fungible] [fungible]
@@ -168,8 +169,8 @@ run4 = do
 
   pure ()
 
-instance Fungible.HasImplementation MaliciousHolding
-template MaliciousHolding
+instance Fungible.HasImplementation MaliciousFungible
+template MaliciousFungible
   with
     instrument : Instrument.K
     account : AccountKey
@@ -209,7 +210,7 @@ template MaliciousHolding
       mergeImpl Fungible.Merge{fungibleCids} = do
         let
           f qty cid = do
-            Some (tokenCid, token) <- fetchFromInterface @MaliciousHolding cid
+            Some (tokenCid, token) <- fetchFromInterface @MaliciousFungible cid
             archive tokenCid
             pure $ qty + token.amount
         tot <- foldlA f amount fungibleCids
