@@ -1,13 +1,13 @@
 # Getting started tutorial
 
-This tutorial introduces the core asset model of the library through a simple example. The purpose is to illustrate the concepts of [account](../../Glossary.md#account), [instrument](../../Glossary.md#instrument), and [holding](../../Glossary.md#holding), as well as showing how to work with Daml interfaces. ADD LINK TO INTERFACE PAGE
+This tutorial introduces the core asset model of the library through a simple example. The purpose is to illustrate the concepts of [account](../../Glossary.md#account), [instrument](../../Glossary.md#instrument), and [holding](../../Glossary.md#holding), as well as showing how to work with Daml interfaces.
 
 We are going to
 
-- create an account for `Alice` and `Bob` at the `Bank`
-- issue a cash instrument
-- credit a holding on the cash instrument to Alice's account
-- transfer the holding from Alice to Bob
+1. create an account for `Alice` and `Bob` at the `Bank`
+2. issue a cash instrument
+3. credit a holding of the cash instrument to `Alice`'s account
+4. transfer the holding from `Alice` to `Bob`
 
 ## Download and build the code for the example
 
@@ -51,7 +51,7 @@ accountFactoryCid <- toInterfaceContractId @Account.F <$> submit bank do
       observers = empty
 ```
 
-Notice how the `ContractId` is immediately cast to an interface upon creation: this is because our workflows do not have any knowledge of concrete template implementations.
+Notice how the `ContractId` is immediately converted to an interface upon creation: this is because our workflows do not have any knowledge of concrete template implementations.
 
 Similarly, we define a holding factory which is used within an account to `Credit` and `Debit` holdings.
 
@@ -91,7 +91,7 @@ aliceAccountCid <- submit bank do
 
 ### Issuing the cash instrument
 
-In order to credit Alice's account with some cash, we first need to introduce a cash `Instrument` in our model.
+In order to credit `Alice`'s account with some cash, we first need to introduce a cash `Instrument` in our model.
 
 ```Haskell
 let instrumentId = Id with label = "USD"; version = "0"
@@ -146,13 +146,13 @@ transferRequestCid <- submit bob do
 newHoldingCid <- submit alice do exerciseCmd transferRequestCid CashTransferRequest_Accept with holdingCid = aliceCashHoldingCid
 ```
 
-Bob requests the cash to be transferred to his account, Alice accepts the request.
+`Bob` requests the cash to be transferred to his account, `Alice` accepts the request.
 
 ## Further considerations
 
 We now take a look at some aspects of the workflow and try to answer some questions that you might be having.
 
-If you are curious to see some more use-cases for the library, feel free to jump to the next tutorials and come back to this section when you feel it is the right time.
+If you are curious to see more use-cases for the library, feel free to jump to the next tutorials and come back to this section when you feel it is the right time.
 
 ### How does the `Transfer` workflow work?
 
@@ -168,19 +168,19 @@ newTransferableCid <- exercise transferableCid Transferable.Transfer
 pure $ toInterfaceContractId @Holding.I newTransferableCid
 ```
 
-The first line casts the holding contract id (of type `ContractId Holding.I`) to the `Transferable` interface using `coerceContractId`.
+The first line converts the holding contract id (of type `ContractId Holding.I`) to the `Transferable` interface using `coerceContractId`.
 
 Then, the `Transfer` choice defined as part of the `Transferable.I` interface is invoked.
 
-Finally, the new holding is cast back to a `Holding.I` before it is returned. This is done using `toInterfaceContractId`.
+Finally, the new holding is converted back to a `Holding.I` before it is returned. This is done using `toInterfaceContractId`.
 
 In order to fully understand these instructions, we need to keep it mind the interface hierarchy used by our holding implementation.
 
 ![](interface_hierarchy.png)
 
-We use `coerceContractId` to cast the `Holding` to a `Transferable`. The success of this operation is not guaranteed and will result in a run-time error if the holding implementation at hand does not implement `Transferable`.
+We use `coerceContractId` to convert the `Holding` to a `Transferable`. The success of this operation is not guaranteed and will result in a run-time error if the holding implementation at hand does not implement `Transferable`.
 
-We use `toInterfaceContractId` to cast back to a `Holding`. This is because all `Transferable`s implement the `Holding` interface, so the validity of this operation is guaranteed at compile-time.
+We use `toInterfaceContractId` to convert back to a `Holding`. This is because all `Transferable`s implement the `Holding` interface, so the validity of this operation is guaranteed at compile-time.
 
 ### Why is Alice an observer on Bob's account?
 
