@@ -3,150 +3,78 @@
 
 module Daml.Finance.Asset.Test.Fungible where
 
-import DA.Action (foldlA)
 import DA.Map qualified as M (empty)
 import DA.Set (singleton)
-import Daml.Finance.Asset.Fungible qualified as Fungible (T, Factory(..))
-import Daml.Finance.Asset.Test.Util.Account qualified as Account (credit, createAccount, createFactory)
-import Daml.Finance.Asset.Test.Util.Instrument qualified as Instrument (originate)
-import Daml.Finance.Interface.Asset.Fungible qualified as Fungible (HasImplementation, I, Merge(..), Split(..), SplitResult(..), View(..), verifyAmountPreserving, verifySplit)
-import Daml.Finance.Interface.Asset.Holding qualified as Holding (I, View(..))
-import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (K, GetView(..), I, Reference(..), View(..))
-import Daml.Finance.Interface.Asset.Lockable qualified as Lockable (I, Lock, View(..))
-import Daml.Finance.Interface.Asset.Transferable qualified as Transferable (I, View(..))
-import Daml.Finance.Interface.Asset.Types (AccountKey(..), Id(..), InstrumentKey(..))
-import Daml.Finance.Interface.Asset.Util (getLocker)
-import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (I, View(..))
-import Daml.Finance.Interface.Common.Types (Observers)
-import Daml.Finance.Interface.Common.Util (flattenObservers)
-import Daml.Finance.Test.Util.Common (createParties, validateAssertionFailure)
+import Daml.Finance.Asset.Fungible qualified as Fungible (Factory(..), T)
+import Daml.Finance.Asset.Test.Common (TestInitialState(..), TestParties(..), setupInitialState, setupParties)
+import Daml.Finance.Asset.Test.Util.Account qualified as Account (submitExerciseInterfaceByKeyCmd, submitMustFailExerciseInterfaceByKeyCmd)
+import Daml.Finance.Asset.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
+import Daml.Finance.Interface.Asset.Account qualified as Account (Debit(..), I)
+import Daml.Finance.Interface.Asset.Fungible qualified as Fungible (I, Merge(..), Split(..), SplitResult(..), verifyAmountPreserving, verifySplit)
+import Daml.Finance.Interface.Asset.Lockable qualified as Lockable (Acquire(..), I, LockType(..), Release(..))
+import Daml.Finance.Interface.Asset.Transferable qualified as Transferable (I, Transfer(..))
+import Daml.Finance.Test.Util.Common (validateAssertionFailure)
 import Daml.Script
 
-
-data TestParties = TestParties
-  with
-    custodian : Party
-    issuer : Party
-    investor : Party
-
-setup : Script (TestParties, AccountKey)
-setup = do
+run : Script ()
+run = script do
   -- Create parties
-  [custodian, issuer, investor] <- createParties ["Custodian", "Issuer", "Investor"]
+  tp@TestParties{custodian; issuer; investor; locker; locker2} <- setupParties
 
-  -- Account and holding factory
-  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory custodian []
-  holdingFactoryCid <- toInterfaceContractId  <$> submitMulti [custodian] [] do
-    createCmd Fungible.Factory with provider = custodian; observers = M.empty
+  -- Initialize state with `Fungible.Factory`
+  TestInitialState {investorAccount; issuerAccount; issuerHoldingCid} <- setupInitialState tp (Fungible.Factory with provider = custodian; observers = M.empty)
 
-  -- Create account
-  issuerAccount <- Account.createAccount [] accountFactoryCid holdingFactoryCid [] custodian issuer
+  -- Lock asset
+  lockableCid <- submitMulti [issuer, locker] [] do exerciseCmd (coerceContractId issuerHoldingCid : ContractId Lockable.I) Lockable.Acquire with newLocker = singleton locker; context = "Test Lock"; lockType = Lockable.Semaphore
 
-  pure ((TestParties with custodian; issuer; investor), issuerAccount)
+  -- Cannot split
+  submitMultiMustFail [issuer, investor] [] do exerciseCmd (coerceContractId lockableCid : ContractId Fungible.I) Fungible.Split with amounts = [500.0, 250.0]
 
-run1 = do
-  -- Initial setup
-  ((TestParties with custodian; issuer; investor), issuerAccount) <- setup
+  -- Cannot transfer
+  submitMultiMustFail [issuer, investor] [] do exerciseCmd (coerceContractId lockableCid : ContractId Transferable.I) Transferable.Transfer with newOwnerAccount = investorAccount
 
-  -- Originate instrument
-  now <- getTime
-  instrument <- Instrument.originate custodian issuer "ABC.DE" [] now
+  -- Cannot debit
+  Account.submitMustFailExerciseInterfaceByKeyCmd @Account.I [custodian, issuer] [] issuerAccount (Account.Debit with holdingCid = toInterfaceContractId lockableCid)
 
-  -- Issue asset
-  holdingCid <- Account.credit [] instrument 1_000.0 issuerAccount
-  let fungibleCid : ContractId Fungible.I = coerceContractId holdingCid
+  -- Unlock asset
+  fungibleCid : ContractId Fungible.I <- coerceContractId <$> submitMulti [locker] [] do exerciseCmd lockableCid Lockable.Release with context = "Test Lock"
 
   -- Attempt to split more than the amount available fails
   submitMultiMustFail [issuer, investor] [] do exerciseCmd fungibleCid Fungible.Split with amounts = [1_000.1]
   submitMultiMustFail [issuer, investor] [] do exerciseCmd fungibleCid Fungible.Split with amounts = [1_000.0, 0.1]
 
+  -- Attempt to split negative amount fails
+  submitMultiMustFail [issuer, investor] [] do exerciseCmd fungibleCid Fungible.Split with amounts = [-20.0]
+  submitMultiMustFail [issuer, investor] [] do exerciseCmd fungibleCid Fungible.Split with amounts = [100.0, -20.0]
+
   -- Split fungible
   Fungible.SplitResult [splitCid1, splitCid2] (Some restCid) <- submitMulti [issuer, investor] [] do exerciseCmd fungibleCid Fungible.Split with amounts = [500.0, 250.0]
 
   -- Merge fungibles
-  submitMulti [issuer, investor] [] do exerciseCmd restCid Fungible.Merge with fungibleCids = [splitCid1, splitCid2]
+  fungibleCid <- submitMulti [issuer, investor] [] do exerciseCmd restCid Fungible.Merge with fungibleCids = [splitCid1, splitCid2]
+
+  -- Transfer
+  transferableCid <- submitMulti [issuer, investor] [] do exerciseCmd (coerceContractId fungibleCid : ContractId Transferable.I) Transferable.Transfer with newOwnerAccount = investorAccount
+
+  -- Assert state
+  Holding.verifyOwnerOfHolding [(investor, transferableCid)]
+
+  -- Debit asset
+  Account.submitExerciseInterfaceByKeyCmd @Account.I [custodian, investor] [] investorAccount (Account.Debit with holdingCid = toInterfaceContractId transferableCid)
 
   pure ()
 
-run2 : Script ()
-run2 = do
-  -- Initial setup
-  ((TestParties with custodian; issuer; investor), issuerAccountCid) <- setup
+testVerifyAmountPreserving : Script ()
+testVerifyAmountPreserving = do
+  -- Create parties
+  tp@TestParties{custodian; issuer; investor; locker; locker2} <- setupParties
 
-  -- Originate bad instrument
-  now <- getTime
-  let id = Id with label = "MAL.INST"; version = "0"
-  maliciousInstrumentCid <- coerceContractId <$> submitMulti [custodian, issuer] [] do
-    createCmd MaliciousInstrument with depository = custodian; issuer; id; observers = M.empty; validAsOf = now
+  -- Initialize state with `Fungible.Factory`
+  TestInitialState {investorAccount; issuerAccount; issuerHoldingCid} <- setupInitialState tp (Fungible.Factory with provider = custodian; observers = M.empty)
 
-  cid <- coerceContractId <$> submitMulti [custodian, issuer] [] do createCmd MaliciousInstrument with depository = custodian; issuer; id; observers = M.empty; validAsOf = now
-  instrumentView <- submitMulti [custodian, issuer] [] do exerciseCmd cid Instrument.GetView with viewer = issuer
-  let ref = Instrument.Reference with instrumentView; cid; observers = M.empty
-  coerceContractId <$> submitMulti [custodian, issuer] [] do createCmd ref
-  let maliciousInstrument = key ref
-
-  -- Issue bad asset
-  maliciousFungibleImplCid <- submitMulti [custodian, issuer] [] do
-    createCmd MaliciousFungible
-      with
-        instrument = maliciousInstrument
-        account = AccountKey with custodian; owner = issuer; id = "Issuer@Custodian"
-        amount = 1_000.0
-        lock = None
-        observers = M.empty
-  let maliciousFungibleCid : ContractId Fungible.I = coerceContractId maliciousFungibleImplCid
-
-  -- Attempt to split fails
-  submitMultiMustFail [issuer, investor] [] do exerciseCmd maliciousFungibleCid Fungible.Split with amounts = [1_000.1]
-  submitMultiMustFail [issuer, investor] [] do exerciseCmd maliciousFungibleCid Fungible.Split with amounts = [1_000.0, 0.1]
-  submitMultiMustFail [issuer, investor] [] do exerciseCmd maliciousFungibleCid Fungible.Split with amounts = [1_000.0]
-  submitMultiMustFail [issuer, investor] [] do exerciseCmd maliciousFungibleCid Fungible.Split with amounts = [900.0]
-
-  -- Split fungible - these quantites gets multipled by 10 which matches the total original amount
-  Fungible.SplitResult [badFungibleCid1, badFungibleCid2] None <- submitMulti [issuer, investor] [] do exerciseCmd maliciousFungibleCid Fungible.Split with amounts = [50.0, 50.0]
-
-  -- Merge fungibles fails as amount isn't preserved
-  submitMultiMustFail [issuer, investor] [] do exerciseCmd badFungibleCid1 Fungible.Merge with fungibleCids = [badFungibleCid2]
-
-  pure ()
-
-run3 : Script ()
-run3 = do
-  -- Positive case - Sum of quantites to split matches current amount
-  Fungible.verifySplit [1.0, 2.0, 3.0, 4.0, 5.0] 15.0
-
-  -- Positive case - Sum of quantites to split is less than current amount
-  Fungible.verifySplit [1.0, 2.0, 3.0] 15.0
-
-  -- Negative case - Sum of quantities to split higher than current amount
-  validateAssertionFailure (Fungible.verifySplit [1.0, 2.0, 3.0] 1.0)
-    "Fungible::verifySplit - Amounts must be strictly positive and not exceed current amount. amounts=[1.0,2.0,3.0], splitAmountSum=6.0, currentAmount=1.0"
-
-  validateAssertionFailure (Fungible.verifySplit [1.0, -2.0, 3.0] 1.0)
-    "Fungible::verifySplit - Amounts must be strictly positive and not exceed current amount. amounts=[1.0,-2.0,3.0], splitAmountSum=2.0, currentAmount=1.0"
-
-  pure ()
-
-run4 : Script ()
-run4 = do
-  -- Initial setup
-  (TestParties{..}, issuerAccount) <- setup
-
-  -- Originate instrument
-  now <- getTime
-  instrument <- Instrument.originate custodian issuer "ABC.DE" [] now
-
-  -- Issue asset
-  holdingCid : ContractId Holding.I <- Account.credit [] instrument 1_000.0 issuerAccount
-
-  -- Convert to implementation cid from the interface cid
-  let fungibleImplCid = fromInterfaceContractId @Fungible.T holdingCid
-
-  -- Acquire fungible contract from the ledger
-  Some fungibleImpl <- queryContractId issuer fungibleImplCid
-
-  -- Convert the fungible implementation value to the fungible interface value
-  let fungible : Fungible.I = toInterface fungibleImpl
+  -- Get fungible
+  Some fungibleImp <- queryContractId @Fungible.T issuer (fromInterfaceContractId issuerHoldingCid)
+  let fungible = toInterface @Fungible.I fungibleImp
 
   -- Positive case - Single quantities match
   Fungible.verifyAmountPreserving [fungible] [fungible]
@@ -172,70 +100,19 @@ run4 = do
 
   pure ()
 
-instance Fungible.HasImplementation MaliciousFungible
-template MaliciousFungible
-  with
-    instrument : Instrument.K
-    account : AccountKey
-    amount : Decimal
-    lock : Optional Lockable.Lock
-    observers : Observers
-  where
-    signatory account.custodian, account.owner, getLocker this
-    observer flattenObservers observers
+testVerifySplit : Script ()
+testVerifySplit = do
+  -- Positive case - Sum of quantites to split matches current amount
+  Fungible.verifySplit [1.0, 2.0, 3.0, 4.0, 5.0] 15.0
 
-    implements Disclosure.I where
-      view = Disclosure.View with disclosureControllers = singleton $ singleton account.owner; observers
-      setObserversImpl = undefined
-      archiveImpl = undefined
+  -- Positive case - Sum of quantites to split is less than current amount
+  Fungible.verifySplit [1.0, 2.0, 3.0] 15.0
 
-    implements Holding.I where
-      asDisclosure = toInterface @Disclosure.I this
-      view = Holding.View with instrument; account; amount
+  -- Negative case - Sum of quantities to split higher than current amount
+  validateAssertionFailure (Fungible.verifySplit [1.0, 2.0, 3.0] 1.0)
+    "Fungible::verifySplit - Amounts must be strictly positive and not exceed current amount. amounts=[1.0,2.0,3.0], splitAmountSum=6.0, currentAmount=1.0"
 
-    implements Lockable.I where
-      asHolding = toInterface @Holding.I this
-      view = Lockable.View with lock = None
-      acquireImpl = undefined
-      releaseImpl = undefined
+  validateAssertionFailure (Fungible.verifySplit [1.0, -2.0, 3.0] 1.0)
+    "Fungible::verifySplit - Amounts must be strictly positive and not exceed current amount. amounts=[1.0,-2.0,3.0], splitAmountSum=2.0, currentAmount=1.0"
 
-    implements Transferable.I where
-      asLockable = toInterface @Lockable.I this
-      view = Transferable.View ()
-      transferImpl = undefined
-
-    implements Fungible.I where
-      asTransferable = toInterface @Transferable.I this
-      view = Fungible.View with modifiers = singleton account.owner
-      splitImpl Fungible.Split{amounts}  = do
-        splitCids <- forA amounts $ \q -> toInterfaceContractId <$> create this with amount = q * 10.0
-        pure $ Fungible.SplitResult with splitCids; rest = None
-      mergeImpl Fungible.Merge{fungibleCids} = do
-        let
-          f qty cid = do
-            Some (tokenCid, token) <- fetchFromInterface @MaliciousFungible cid
-            archive tokenCid
-            pure $ qty + token.amount
-        tot <- foldlA f amount fungibleCids
-        toInterfaceContractId <$> create this with amount = tot + 100.0
-
-template MaliciousInstrument
-  with
-    depository : Party
-    issuer : Party
-    id : Id
-    observers : Observers
-    validAsOf : Time
-  where
-    signatory depository, issuer
-    observer flattenObservers observers
-
-    implements Disclosure.I where
-      view = undefined
-      setObserversImpl = undefined
-      archiveImpl = undefined
-
-    implements Instrument.I where
-      asDisclosure = toInterface @Disclosure.I this
-      view = Instrument.View with depository; issuer; id; validAsOf
-      getKey = InstrumentKey with depository; issuer; id
+  pure ()
