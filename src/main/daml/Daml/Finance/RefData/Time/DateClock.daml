@@ -8,9 +8,12 @@ module Daml.Finance.RefData.Time.DateClock
   ) where
 
 import DA.Date (addDays)
+import DA.Set (singleton)
 import DA.Time (time)
 import Daml.Finance.Interface.Common.Classes (HasUTCTimeConversion(..))
-import Daml.Finance.Interface.Common.Types (Parties)
+import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (HasImplementation, I, SetObservers(..), View(..))
+import Daml.Finance.Interface.Common.Types (Observers)
+import Daml.Finance.Interface.Common.Util (flattenObservers)
 import Daml.Finance.Interface.Lifecycle.Clock qualified as Clock (HasImplementation, I, View(..))
 import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I, View(..))
 
@@ -29,6 +32,7 @@ instance Show Unit where
   show (Unit d) = show d
 
 instance Clock.HasImplementation T
+instance Disclosure.HasImplementation T
 -- | A clock where time is discretized into dates. Each date is mapped to UTC noon.
 template DateClock
   with
@@ -38,17 +42,23 @@ template DateClock
       -- ^ A textual identifier.
     provider : Party
       -- ^ The clock's provider.
-    observers : Parties
+    observers : Observers
       -- ^ The clock's observers.
   where
     signatory provider
-    observer observers
+    observer flattenObservers observers
 
     key (id, provider) : (Text, Party)
     maintainer key._2
 
     implements Clock.I where
       view = Clock.View with clockTime = toUTCTime this
+
+    implements Disclosure.I where
+      view = Disclosure.View with disclosureControllers = singleton $ singleton provider; observers
+      setObserversImpl Disclosure.SetObservers{newObservers} =
+        toInterfaceContractId <$> create this with observers = newObservers
+      archiveImpl self = archive (coerceContractId self : ContractId DateClock)
 
     choice ToNext : (ContractId DateClock, ContractId DateClockUpdateEvent)
       -- ^ Moves the clock to the next date and spawns an update event.
@@ -76,7 +86,7 @@ template DateClockUpdateEvent
       -- ^ A textual identifier.
   where
     signatory clock.provider
-    observer clock.observers
+    observer flattenObservers clock.observers
 
     implements Event.I where
       view = Event.View with eventTime = toUTCTime clock
