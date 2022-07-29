@@ -1,15 +1,14 @@
 -- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
-module Daml.Finance.Asset.Fungible where
+module Daml.Finance.Asset.NonFungible where
 
-import DA.Action (foldlA)
 import DA.Assert ((===))
 import DA.Map qualified as M
 import DA.Set (delete, insert, null, singleton)
 import Daml.Finance.Interface.Asset.Account qualified as Account (R, view)
 import Daml.Finance.Interface.Asset.Factory.Holding qualified as HoldingFactory (Create(..), F, HasImplementation(..), Remove(..), View(..))
-import Daml.Finance.Interface.Asset.Fungible qualified as Fungible (HasImplementation, I, Merge(..), Split(..), SplitResult(..), View(..))
+import Daml.Finance.Interface.Asset.Transferable qualified as NonFungible (HasImplementation)
 import Daml.Finance.Interface.Asset.Holding qualified as Holding (I, View(..))
 import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (K)
 import Daml.Finance.Interface.Asset.Lockable qualified as Lockable (Acquire(..), I, Lock(..), LockType(..), Release(..), View(..))
@@ -22,13 +21,13 @@ import Daml.Finance.Interface.Common.Util (fetchInterfaceByKey, flattenObservers
 import Prelude hiding (null)
 
 type F = Factory
-type T = Fungible
+type T = NonFungible
 
-instance Fungible.HasImplementation T
--- | Implementation of a fungible holding.
--- `Fungible` implements the interface `Fungible.I` (which requires `Transferable.I`, `Lockable.I`,
+instance NonFungible.HasImplementation T
+-- | Implementation of a non-fungible holding.
+-- `NonFungible` implements the interface `Transferable.I` (which requires `Lockable.I`,
 -- `Holding.I`, and `Disclosure.I` to be implemented as well).
-template Fungible
+template NonFungible
   with
     instrument : Instrument.K
       -- ^ The instrument of which units are held.
@@ -49,7 +48,7 @@ template Fungible
     implements Disclosure.I where
       view = Disclosure.View with disclosureControllers = singleton $ singleton account.owner; observers
       setObserversImpl Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
-      archiveImpl self = archive $ fromInterfaceContractId @Fungible self
+      archiveImpl self = archive $ fromInterfaceContractId @NonFungible self
 
     implements Holding.I where
       asDisclosure = toInterface @Disclosure.I this
@@ -88,25 +87,6 @@ template Fungible
         toInterfaceContractId <$> create this with
           account = (this.account with owner = newOwnerAccount.owner; id = view.id); observers = M.empty
 
-    implements Fungible.I where
-      asTransferable = toInterface @Transferable.I this
-      view = Fungible.View with modifiers = singleton account.owner
-      splitImpl Fungible.Split{amounts} = do
-        let rest = amount - sum amounts
-        assertMsg "split quantities are not more than the available amount" $ rest >= 0.0
-        splitCids <- forA amounts $ \q -> toInterfaceContractId <$> create this with amount = q
-        rest <- if rest == 0.0 then pure None else Some . toInterfaceContractId <$> create this with amount = rest
-        pure $ Fungible.SplitResult with splitCids; rest
-      mergeImpl Fungible.Merge{fungibleCids} = do
-        let
-          f qty cid = do
-            Some (fungibleCid, fungible) <- fetchFromInterface @Fungible cid
-            archive fungibleCid
-            instrument === fungible.instrument
-            pure $ qty + fungible.amount
-        tot <- foldlA f amount fungibleCids
-        toInterfaceContractId <$> create this with amount = tot
-
 instance HoldingFactory.HasImplementation Factory
 -- | Implementation of the corresponding Holding Factory.
 template Factory
@@ -124,10 +104,10 @@ template Factory
         asDisclosure = toInterface @Disclosure.I this
         view = HoldingFactory.View with provider
         createImpl HoldingFactory.Create{instrument; account; amount; observers} =
-          toInterfaceContractId <$> create Fungible with instrument; account; amount; observers; lock = None
-        removeImpl HoldingFactory.Remove{actors; holdingCid} = archive $ fromInterfaceContractId @Fungible holdingCid
+          toInterfaceContractId <$> create NonFungible with instrument; account; amount; observers; lock = None
+        removeImpl HoldingFactory.Remove{actors; holdingCid} = archive $ fromInterfaceContractId @NonFungible holdingCid
 
     implements Disclosure.I where
       view = Disclosure.View with disclosureControllers = singleton $ singleton provider; observers
       setObserversImpl Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
-      archiveImpl self = archive (coerceContractId self : ContractId Fungible)
+      archiveImpl self = archive (coerceContractId self : ContractId NonFungible)
