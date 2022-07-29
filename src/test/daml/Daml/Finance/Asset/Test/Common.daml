@@ -1,0 +1,66 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Asset.Test.Common where
+
+import DA.Map qualified as M (Map, empty)
+import Daml.Finance.Asset.Test.Util.Account qualified as Account (createAccount, credit, createFactory, credit)
+import Daml.Finance.Asset.Test.Util.Instrument (originate)
+import Daml.Finance.Interface.Asset.Factory.Holding qualified as Holding (F)
+import Daml.Finance.Interface.Asset.Holding qualified as Holding (I)
+import Daml.Finance.Interface.Asset.Types
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Script
+
+-- Parties involved in the test script
+data TestParties = TestParties
+  with
+    custodian : Party
+      -- ^ Acts as custodian of holdings. It also acts as depository of the instrument.
+    issuer : Party
+      -- ^ Acts as the issuer of the instrument. Is also the initial owner of the holding.
+    investor : Party
+      -- ^ Owner of the holding.
+    locker : Party
+      -- ^ Locker of the holding.
+    locker2 : Party
+      -- ^ Additional locker of the holding.
+
+data TestInitialState = TestInitialState
+  with
+    investorAccount : AccountKey
+      -- ^ Investor account at the custodian.
+    issuerAccount : AccountKey
+      -- ^ Issuer account at the custodian.
+    instrument : InstrumentKey
+      -- ^ Key of the instrument.
+    issuerHoldingCid : ContractId Holding.I
+      -- ^ Initial holding of the issuer.
+
+setupParties : Script TestParties
+setupParties = do
+  -- Create parties
+  [custodian, issuer, investor, locker, locker2] <- createParties ["Custodian", "Issuer", "Investor", "Locker", "locker2"]
+  pure TestParties{..}
+
+setupInitialState : (HasToInterface a Holding.F, HasSignatory a, HasObserver a, HasEnsure a, HasAgreement a, HasCreate a, HasFetch a, HasArchive a, HasTemplateTypeRep a, HasToAnyTemplate a, HasFromAnyTemplate a, DA.Internal.Record.HasField "observers" a (M.Map k v), DA.Internal.Record.HasField "provider" a Party) => TestParties -> a -> Script TestInitialState
+setupInitialState (tp : TestParties) (factory : a) = do
+  let TestParties{..} = tp
+
+  -- Account and holding factory
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory custodian []
+
+  holdingFactoryCid <- toInterfaceContractId <$> submitMulti [custodian] [] do
+    createCmd factory with provider = custodian; observers = M.empty
+
+  -- Create account
+  [issuerAccount, investorAccount] <- mapA (Account.createAccount [] accountFactoryCid holdingFactoryCid [] custodian) [issuer, investor]
+
+  -- Originate instrument
+  now <- getTime
+  instrument <- originate custodian issuer "ABC.DE" [] now
+
+  -- Credit asset
+  issuerHoldingCid : ContractId Holding.I <- coerceContractId <$> Account.credit [] instrument 1_000.0 issuerAccount
+
+  pure TestInitialState{..}
