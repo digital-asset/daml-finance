@@ -27,3 +27,12 @@ headers-check:
 .PHONY: headers-update
 headers-update:
 	./scripts/dade-copyright-headers.py update
+
+DAML_SRC:=$(shell find src/main/daml -name '*.daml')
+
+.PHONY: doc
+doc: $(DAML_SRC)
+	daml damlc docs --format html \
+    --exclude-instances=HasField,HasImplementation,HasMethod,HasFromInterface,HasToInterface \
+    --drop-orphan-instances \
+    --output .docs $(DAML_SRC)
