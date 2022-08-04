@@ -1,3 +1,6 @@
+# Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 # Script assumes that (unformatted) html doc has been generated in the docs/ directory, and has not been comitted to git.
 
 # The following will force exit if any command on a line fails. This is to avoid accidently comitting if things go wrong

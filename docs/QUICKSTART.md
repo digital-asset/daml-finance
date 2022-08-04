@@ -103,7 +103,7 @@ Another use for this is expressing time as an ordinal values, representing e.g. 
 
 ## The Asset Parameter
 
-`a`, as we already explained, is the type used to represent assets in our program. Keeping this generic means the library can be used with any asset representation. For example, you could use that in [lib-finance](https://github.com/digital-asset/lib-finance), but are not forced to do so.
+`a`, as we already explained, is the type used to represent assets in our program. Keeping this generic means the library can be used with any asset representation. For example, you could use one of the instrument implementations in [Daml Finance](https://github.com/digital-asset/daml-finance), but are not forced to do so.
 
 ## The Observation Parameter
 
