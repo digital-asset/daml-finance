@@ -77,21 +77,24 @@ template Batch
 -- A batch is made of a set of `Instruction`s, as well as a container template used to atomically settle them.
 template BatchFactory
   with
-    requestors : Parties
-      -- ^ Party requesting the settlement
+    provider : Party
+      -- ^ Party providing the facility to create settlement instructions.
+    observers : Parties
+      -- ^ Observers.
   where
-    signatory requestors
+    signatory provider
+    observer observers
 
     implements Instructable.I where
-      view = Instructable.View with requestors
-      instructImpl Instructable.Instruct{settler; id; steps} = do
+      view = Instructable.View with provider; observers
+      instructImpl Instructable.Instruct{instructors; settler; id; steps} = do
         let
           createInstruction step index = let idUsed = id <> "-" <> show index in
-            Instruction with requestors; signed = empty; settler; step; allocation = None; account = None; id = idUsed; observers = M.fromList [(idUsed, singleton $ singleton settler)]
+            Instruction with requestors = instructors; signed = empty; settler; step; allocation = None; account = None; id = idUsed; observers = M.fromList [(idUsed, singleton $ singleton settler)]
           instructions = mapWithIndex createInstruction steps
           instructionIds = map (.id) instructions
         instructionCids <- mapA (fmap toInterfaceContractId . create) instructions
-        settleableCid <- toInterfaceContractId <$> create Batch with requestors; settler; id; stepsWithInstructionId = zip steps instructionIds
+        settleableCid <- toInterfaceContractId <$> create Batch with requestors = instructors; settler; id; stepsWithInstructionId = zip steps instructionIds
         pure (settleableCid, instructionCids)
 
 -- | Factory template that implements the `Instructable` interface and is used to create a settlement batch.
@@ -99,16 +102,19 @@ template BatchFactory
 -- For each instrument to settle as part of the batch, a hierarchy of intermediaries is specified in `paths`. This hierarchy is used to generate settlement instructions.
 template BatchFactoryWithIntermediaries
   with
-    requestors : Parties
-      -- ^ Parties requesting the settlement.
+    provider : Party
+      -- ^ Party providing the facility to create settlement instructions.
+    observers : Parties
+      -- ^ Observers.
     paths : M.Map Text Path
       -- ^ Hierarchical paths used to settle holding transfers. A path is specified for each instrument label.
   where
-    signatory requestors
+    signatory provider
+    observer observers
 
     implements Instructable.I where
-      view = Instructable.View with requestors
-      instructImpl Instructable.Instruct{settler; id; steps} = do
+      view = Instructable.View with provider; observers
+      instructImpl Instructable.Instruct{instructors; settler; id; steps} = do
         let
           -- Group steps by instrument. For each group, lookup corresponding paths and expand steps according to the corresponding settlement route.
           groupedSteps = mconcat $ fromSomeNote "Could not find path or route." $ mapA (\steps -> do
@@ -118,11 +124,11 @@ template BatchFactoryWithIntermediaries
             ) $ groupOn (.quantity.unit) steps
           -- For each step, generate instructions and ids.
           createInstruction step index = let idUsed = id <> "-" <> show index in
-            Instruction with requestors; signed = empty; settler; step; allocation = None; account = None; id = idUsed; observers = M.fromList [(idUsed, singleton $ singleton settler)]
+            Instruction with requestors = instructors; signed = empty; settler; step; allocation = None; account = None; id = idUsed; observers = M.fromList [(idUsed, singleton $ singleton settler)]
           instructions = mapWithIndex createInstruction groupedSteps
           instructionIds = map (.id) instructions
         instructionCids <- mapA (fmap toInterfaceContractId . create) instructions
-        settleableCid <- toInterfaceContractId <$> create Batch with requestors; settler; id; stepsWithInstructionId = zip groupedSteps instructionIds
+        settleableCid <- toInterfaceContractId <$> create Batch with requestors = instructors; settler; id; stepsWithInstructionId = zip groupedSteps instructionIds
         pure (settleableCid, instructionCids)
 
 -- | Data type that describes a hierarchical account structure between two parties for holdings on an instrument.
