@@ -36,3 +36,8 @@ doc: $(DAML_SRC)
     --exclude-instances=HasField,HasImplementation,HasMethod,HasFromInterface,HasToInterface \
     --drop-orphan-instances \
     --output .docs $(DAML_SRC)
+
+.PHONY: docjson
+docjson: $(DAML_SRC)
+	daml damlc docs --output=.docs/daml-finance.json --package-name=daml-finance --format Json \
+    $(DAML_SRC)
