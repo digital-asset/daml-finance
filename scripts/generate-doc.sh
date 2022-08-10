@@ -7,9 +7,9 @@
 
 set -eu
 
-# The anchor file is the `daml-base-anchors.json` file shipped with the SDK.
+# The anchors file is the `daml-base-anchors.json` file shipped with the SDK.
 # It can also be found in ../daml/bazel-bin/compiler/damlc/daml-base-anchors.json after successfully building the daml repo
-anchor_file=$1
+anchors_file=$1
 
 echo "Generating documentation in json format."
 make docjson
@@ -24,7 +24,7 @@ daml damlc docs \
   --template=.docs/base-rst-template.rst \
   --index-template=.docs/base-rst-index-template.rst \
   --base-url=https://docs.daml.com/daml/daml-finance \
-  --input-anchor=${anchor_file} \
+  --input-anchor=${anchors_file} \
   .docs/daml-finance.json
   # --hoogle-template= \
   # --output-hoogle= \
