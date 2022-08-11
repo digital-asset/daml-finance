@@ -5,13 +5,12 @@ module Daml.Finance.Asset.Fungible where
 
 import DA.Action (foldlA)
 import DA.Assert ((===))
-import DA.Map qualified as M
 import DA.Set (delete, insert, null, singleton)
-import Daml.Finance.Interface.Asset.Account qualified as Account (R, view)
+import Daml.Finance.Interface.Asset.Account qualified as Account (Credit(..), I, R, exerciseInterfaceByKey, view)
 import Daml.Finance.Interface.Asset.Factory.Holding qualified as HoldingFactory (Create(..), F, HasImplementation(..), Remove(..), View(..))
 import Daml.Finance.Interface.Asset.Fungible qualified as Fungible (HasImplementation, I, Merge(..), Split(..), SplitResult(..), View(..))
 import Daml.Finance.Interface.Asset.Holding qualified as Holding (I, View(..))
-import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (K)
+import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (K, qty)
 import Daml.Finance.Interface.Asset.Lockable qualified as Lockable (Acquire(..), I, Lock(..), LockType(..), Release(..), View(..))
 import Daml.Finance.Interface.Asset.Transferable qualified as Transferable (I, Transfer(..), View(..))
 import Daml.Finance.Interface.Asset.Types (AccountKey(..))
@@ -81,12 +80,19 @@ template Fungible
       asLockable = toInterface @Lockable.I this
       view = Transferable.View ()
       transferImpl Transferable.Transfer{newOwnerAccount} = do
+        -- Account sanity checks
         newAccount <- fetchInterfaceByKey @Account.R newOwnerAccount
         let view = Account.view newAccount
         view.owner === newOwnerAccount.owner
         view.custodian === account.custodian
-        toInterfaceContractId <$> create this with
-          account = (this.account with owner = newOwnerAccount.owner; id = view.id); observers = M.empty
+        -- Create new holding via Credit
+        newHoldingCid <- coerceContractId <$> Account.exerciseInterfaceByKey @Account.I newOwnerAccount newOwnerAccount.owner Account.Credit
+          with
+            quantity = Instrument.qty amount instrument
+        -- Holding sanity checks. This prevents a holding from changing type during a `Transfer` (from e.g., `NonFungible` to `Fungible`)
+        newHolding <- fetch newHoldingCid
+        assertMsg "Sent holding type does not correspond to receiving account holding type" $ interfaceTypeRep newHolding == templateTypeRep @Fungible
+        pure newHoldingCid
 
     implements Fungible.I where
       asTransferable = toInterface @Transferable.I this

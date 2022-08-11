@@ -3,7 +3,7 @@
 
 module Daml.Finance.Settlement.Test.BatchWithRoute where
 
-import DA.Map qualified as M (empty, fromList)
+import DA.Map qualified as M (fromList)
 import DA.Set (empty, singleton)
 import Daml.Finance.Asset.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Asset.Test.Util.Account qualified as Account (createAccount, createFactory, credit)
@@ -31,6 +31,8 @@ data TestParties = TestParties
       -- ^ Depository of the equity instrument. Custodian of the equity holdings of Bank 1 and Issuer.
     issuer : Party
       -- ^ Issuer of the equity instrument. Receives cash in exchange for units of equity.
+    publicParty : Party
+      -- ^ The public party. Every party can readAs the public party.
 
 -- | DvP via settlement chain and instructions.
 -- Bank transfers cash to Issuer in exchange for an equity instrument (detained by issuer at depository).
@@ -53,21 +55,22 @@ run = script do
   TestParties{..} <- setupParties
 
   -- Setup security accounts
+  let pp = [("PublicParty", singleton $ singleton publicParty)]
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory depository []
   holdingFactoryCid <- toInterfaceContractId <$> submitMulti [depository] [] do
-    createCmd Fungible.Factory with provider = depository; observers = M.empty
+    createCmd Fungible.Factory with provider = depository; observers = M.fromList pp
   [bank1SecurityAccount, issuerSecurityAccount] <- mapA (Account.createAccount [] accountFactoryCid holdingFactoryCid [] depository) [bank1, issuer]
 
   -- Setup cash accounts at CB
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory cb []
   holdingFactoryCid <- toInterfaceContractId <$> submitMulti [cb] [] do
-    createCmd Fungible.Factory with provider = cb; observers = M.empty
+    createCmd Fungible.Factory with provider = cb; observers = M.fromList pp
   [bank1CashAccount, bank2CashAccount] <- mapA (Account.createAccount [] accountFactoryCid holdingFactoryCid [] cb) [bank1, bank2]
 
   -- Setup cash accounts at Bank 2
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank2 []
   holdingFactoryCid <- toInterfaceContractId <$> submitMulti [bank2] [] do
-    createCmd Fungible.Factory with provider = bank2; observers = M.empty
+    createCmd Fungible.Factory with provider = bank2; observers = M.fromList pp
   [bank2OwnCashAccount, issuerCashAccount] <- mapA (Account.createAccount [] accountFactoryCid holdingFactoryCid [] bank2) [bank2, issuer]
 
   -- Distribute assets
@@ -113,7 +116,7 @@ run = script do
 
   -- Settle container
   [equityTransferableCid, bank2CashTransferableCid, issuerCashTransferableCid] <-
-    submitMulti [bank1] [] do exerciseCmd containerSettleableCid Settleable.Settle
+    submitMulti [bank1] [publicParty] do exerciseCmd containerSettleableCid Settleable.Settle
 
   -- Assert state
   Holding.verifyOwnerOfHolding [(bank1, equityTransferableCid), (bank2, bank2CashTransferableCid), (issuer, issuerCashTransferableCid)]
@@ -122,5 +125,5 @@ run = script do
 
 setupParties : Script TestParties
 setupParties = do
-  [cb, depository, bank1, bank2, issuer] <- createParties ["CentralBank", "CSD", "Bank 1", "Bank 2", "Issuer"]
-  pure TestParties with cb, depository, bank1, bank2, issuer
+  [cb, depository, bank1, bank2, issuer, publicParty] <- createParties ["CentralBank", "CSD", "Bank 1", "Bank 2", "Issuer", "PublicParty"]
+  pure TestParties with cb, depository, bank1, bank2, issuer, publicParty

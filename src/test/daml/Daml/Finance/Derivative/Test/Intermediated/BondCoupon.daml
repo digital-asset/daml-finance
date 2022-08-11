@@ -11,7 +11,7 @@ import DA.Foldable qualified as F (forA_)
 import DA.Map qualified as M (empty, fromList)
 import DA.Set (empty, fromList, singleton)
 import Daml.Finance.Asset.Fungible qualified as Fungible (Factory(..))
-import Daml.Finance.Asset.Test.Util.Account qualified as Account (createAccount, createFactory, credit)
+import Daml.Finance.Asset.Test.Util.Account qualified as Account (createAccount, createFactory, credit, submitExerciseInterfaceByKeyCmd)
 import Daml.Finance.Asset.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
 import Daml.Finance.Asset.Test.Util.Instrument qualified as BaseInstrument (originate, submitExerciseInterfaceByKeyCmd)
 import Daml.Finance.Derivative.Test.Util (originateDerivative, mapClaimToUTCTime)
@@ -20,6 +20,7 @@ import Daml.Finance.Interface.Asset.Holding qualified as Holding (I)
 import Daml.Finance.Interface.Asset.Instrument qualified as BaseInstrument (GetCid(..), R)
 import Daml.Finance.Interface.Asset.Transferable qualified as Transferable (I, Transfer(..))
 import Daml.Finance.Interface.Asset.Util (getAmount, getInstrument, getOwner)
+import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (I, AddObservers(..))
 import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (SetProvider(..), GetView(..), I)
 import Daml.Finance.Interface.Lifecycle.Lifecyclable qualified as Lifecyclable (I, Lifecycle(..))
 import Daml.Finance.Interface.Lifecycle.SettlementRule qualified as SettlementRule (Claim(..))
@@ -74,36 +75,35 @@ data TestParties = TestParties
       -- ^ Owner of the bond holding.
     settler : Party
       -- ^ Triggers the settlement of fully allocated settlement instructions.
-    provider : Party
-      -- ^ Acts as provider of account and holding factory.
     publicParty : Party
       -- ^ The public party. Every party can readAs the public party.
 
--- Penultimate coupon payment on a bond showing creation of new instrument version
+-- | Setup a set of accounts.
+setupAccounts : Party -> Party -> [Party] -> Script [Account.K]
+setupAccounts custodian publicParty owners = do
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory custodian []
+  holdingFactoryCid <- toInterfaceContractId <$> submit custodian do
+    createCmd Fungible.Factory with provider= custodian; observers = M.fromList [("PublicParty", singleton $ singleton publicParty)]
+  forA owners $ Account.createAccount [] accountFactoryCid holdingFactoryCid [] custodian
+
+-- | Penultimate coupon payment on a bond showing creation of new instrument version.
 run : Script ()
 run = script do
   TestParties{..} <- setupParties
 
-  -- Account and holding factory
-  let pp = [("factoryProvider", singleton $ singleton publicParty)]
-  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory provider pp
-  holdingFactoryCid <- toInterfaceContractId <$> submitMulti [provider] [] do
-    createCmd Fungible.Factory with provider; observers = M.fromList pp
-
   -- Setup security accounts
-  [csdOwnSecurityAccount, investorSecurityAccount] <- mapA (Account.createAccount [publicParty] accountFactoryCid holdingFactoryCid [] csd) [csd, investor]
-  csdAccountAtIssuer <- Account.createAccount [publicParty] accountFactoryCid holdingFactoryCid [] issuer csd
+  [csdOwnSecurityAccount, investorSecurityAccount] <- setupAccounts csd publicParty [csd, investor]
+  [csdAccountAtIssuer] <- setupAccounts issuer publicParty [csd]
 
   -- Setup cash accounts at central bank
-  [issuerCashAccount, bankCashAccount] <- mapA (Account.createAccount [publicParty] accountFactoryCid holdingFactoryCid [] centralBank) [issuer, bank]
-  csdCashAccount <- Account.createAccount [publicParty] accountFactoryCid holdingFactoryCid [("Issuer", singleton $ singleton issuer)] centralBank csd
+  [issuerCashAccount, bankCashAccount, csdCashAccount] <- setupAccounts centralBank publicParty [issuer, bank, csd]
 
   -- Setup Issuer's cash account at Bank
-  [investorCashAccount, bankOwnCashAccount] <- mapA (Account.createAccount [publicParty] accountFactoryCid holdingFactoryCid [] bank) [investor, bank]
+  [investorCashAccount, bankOwnCashAccount] <- setupAccounts bank publicParty [investor, bank]
 
   -- Distribute central-bank cash
   now <- getTime
-  let obs = [("public party", singleton $ singleton publicParty)]
+  let obs = [("PublicParty", singleton $ singleton publicParty)]
   cashInstrument <- BaseInstrument.originate centralBank centralBank "USD" obs now
   issuerCashTransferableCid <- Account.credit [publicParty] cashInstrument 20_000.0 issuerCashAccount
 
@@ -132,6 +132,10 @@ run = script do
   (derivativeLifecyclableCid2, [effectCid]) <- BaseInstrument.submitExerciseInterfaceByKeyCmd @Lifecyclable.I [issuer] [] derivativeInstrument Lifecyclable.Lifecycle with settler; eventCid = clockEventCid; observableCids = []; ruleName = "Time"; clockCid
 
   -- setup settlement contract between issuer and CSD
+  -- Setup settlement contract between issuer and CSD
+  -- In order for the workflow to be successful, we need to disclose the CSD's cash account to the Issuer.
+  Account.submitExerciseInterfaceByKeyCmd @Disclosure.I [csd] [] csdCashAccount Disclosure.AddObservers with disclosers = singleton csd; observersToAdd = ("Issuer", singleton issuer)
+
   settle1Cid <- submitMulti [csd, issuer] [] do
     createCmd EffectSettlementService
       with
@@ -197,7 +201,7 @@ run = script do
     exerciseCmd bankCashInstructionCid Instruction.Approve with receiverAccount = investorCashAccount
 
   -- Settle container
-  [bankCashTransferableCid, investorCashTransferableCid] <- submitMulti [settler] [] do exerciseCmd result.containerCid Settleable.Settle
+  [bankCashTransferableCid, investorCashTransferableCid] <- submitMulti [settler] [publicParty] do exerciseCmd result.containerCid Settleable.Settle
 
   -- Assert state
   Holding.verifyOwnerOfHolding
@@ -210,8 +214,8 @@ run = script do
 
 setupParties : Script TestParties
 setupParties = do
-  [bank, centralBank, csd, issuer, investor, settler, provider, publicParty] <- createParties ["Bank", "CentralBank", "CSD", "Issuer", "Investor", "Settler", "Provider", "PublicParty"]
-  pure $ TestParties with bank; centralBank; csd; issuer; investor; settler; provider; publicParty
+  [bank, centralBank, csd, issuer, investor, settler, publicParty] <- createParties ["Bank", "CentralBank", "CSD", "Issuer", "Investor", "Settler", "PublicParty"]
+  pure $ TestParties with bank; centralBank; csd; issuer; investor; settler; publicParty
 
 -- | Service template that allows to claim an effect and settle the corresponding transactions atomically.
 template EffectSettlementService
