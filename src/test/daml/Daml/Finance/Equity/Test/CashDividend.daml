@@ -29,24 +29,23 @@ import Daml.Script
 run : Script ()
 run = script do
   -- Create parties
-  [cb, depository, bank, issuer, investor, settler, provider, publicParty] <-
-    createParties ["CentralBank", "CSD", "Bank", "Issuer", "Investor", "Settler", "Provider", "PublicParty"]
+  [cb, depository, bank, issuer, investor, settler, publicParty] <-
+    createParties ["CentralBank", "CSD", "Bank", "Issuer", "Investor", "Settler", "PublicParty"]
 
   -- Account and holding factory
-  let pp = [("factoryProvider", singleton $ singleton publicParty)]
-  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory provider pp
-  holdingFactoryCid <- toInterfaceContractId <$> submitMulti [provider] [] do
-    createCmd Fungible.Factory with provider; observers = M.fromList pp
+  let pp = [("PublicParty", singleton $ singleton publicParty)]
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank pp
+  holdingFactoryCid <- toInterfaceContractId <$> submit bank do
+    createCmd Fungible.Factory with provider = bank; observers = M.fromList pp
 
   -- Create accounts
   [bankAccount, investorAccount] <- mapA (Account.createAccount [publicParty] accountFactoryCid holdingFactoryCid [] bank) [bank, investor]
 
   -- Distribute assets
   now <- getTime
-  let obs = [("public party", singleton $ singleton publicParty)]
-  equityInstrument <- originateEquity depository issuer "AAPL" "0" obs now
+  equityInstrument <- originateEquity depository issuer "AAPL" "0" pp now
   investorEquityTransferableCid <- Account.credit [publicParty] equityInstrument 1_000.0 investorAccount
-  cashInstrument <- originate cb issuer "USD" obs now
+  cashInstrument <- originate cb issuer "USD" pp now
   bankCashTransferableCid <- Account.credit [publicParty] cashInstrument 2_000.0 bankAccount
 
   -- Originate new equity version
@@ -100,7 +99,7 @@ run = script do
   bankCashInstructionCid <- submitMulti [investor] [] do exerciseCmd bankCashInstructionCid Instruction.Approve with receiverAccount = investorAccount
 
   -- Settle container
-  [investorCashTransferableCid] <- submitMulti [settler] [] do exerciseCmd result.containerCid Settleable.Settle
+  [investorCashTransferableCid] <- submitMulti [settler] [publicParty] do exerciseCmd result.containerCid Settleable.Settle
 
   -- Assert state
   Holding.verifyOwnerOfHolding [(investor, investorEquityTransferableCid), (investor, coerceContractId investorCashTransferableCid)]
