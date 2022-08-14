@@ -5,11 +5,12 @@ module Daml.Finance.Bond.FixedRate where
 
 import DA.Set (singleton)
 import Daml.Finance.Bond.Util
-import Daml.Finance.Common.Date.Calendar
-import Daml.Finance.Common.Date.DayCount
-import Daml.Finance.Common.Date.RollConvention
-import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (HasImplementation, I, K, View(..), disclosureUpdateReference)
+import Daml.Finance.Common.Date.Calendar (BusinessDayConventionEnum)
+import Daml.Finance.Common.Date.DayCount (DayCountConventionEnum)
+import Daml.Finance.Common.Date.RollConvention (PeriodEnum)
+import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (GetCid(..), HasImplementation, I, K, R, View(..), createReference, disclosureUpdateReference)
 import Daml.Finance.Interface.Asset.Types (Id(..), InstrumentKey(..))
+import Daml.Finance.Interface.Bond.FixedRate qualified as FixedRate (Create(..), Factory, HasImplementation, Remove(..), View(..))
 import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (I, SetObservers(..), View(..))
 import Daml.Finance.Interface.Common.Types (Observers)
 import Daml.Finance.Interface.Common.Util (flattenObservers)
@@ -17,13 +18,13 @@ import Daml.Finance.Interface.Derivative.HasClaims qualified as HasClaims (I, Vi
 import Daml.Finance.Interface.Lifecycle.Lifecyclable qualified as Lifecyclable (I, Lifecycle(..), View(..))
 import Prelude hiding (key)
 
-type T = FixedRateBond
+type T = Instrument
 
 instance Instrument.HasImplementation T
 
 -- | This template models a fixed rate bond.
 -- It pays a fixed coupon rate at the end of every coupon period.
-template FixedRateBond
+template Instrument
   with
     depository : Party
       -- ^ The depository of the instrument.
@@ -89,4 +90,51 @@ template FixedRateBond
       setObserversImpl Disclosure.SetObservers{newObservers} = do
         cid <- toInterfaceContractId <$> create this with observers = newObservers
         Instrument.disclosureUpdateReference newObservers instrumentKey cid
-      archiveImpl self = archive (coerceContractId self : ContractId FixedRateBond)
+      archiveImpl self = archive (coerceContractId self : ContractId Instrument)
+
+instance FixedRate.HasImplementation Factory
+-- | Factory template for instrument creation.
+template Factory
+  with
+    provider : Party
+      -- ^ The factory's provider.
+    observers : Observers
+      -- ^ The factory's observers.
+  where
+    signatory provider
+    observer flattenObservers observers
+
+    implements FixedRate.Factory where
+      asDisclosure = toInterface @Disclosure.I this
+      view = FixedRate.View with provider
+      createImpl FixedRate.Create{instrument; couponRate; issueDate; firstCouponDate; maturityDate; holidayCalendarIds; calendarDataProvider; dayCountConvention; businessDayConvention; couponPeriod; couponPeriodMultiplier; currency; lastEventTimestamp; observers} = do
+        cid <- toInterfaceContractId <$> create Instrument
+          with
+            depository = instrument.depository
+            issuer = instrument.issuer
+            id = instrument.id
+            couponRate
+            issueDate
+            firstCouponDate
+            maturityDate
+            holidayCalendarIds
+            calendarDataProvider
+            dayCountConvention
+            businessDayConvention
+            couponPeriod
+            couponPeriodMultiplier
+            currency
+            lastEventTimestamp
+            observers
+        Instrument.createReference instrument.depository cid
+        pure cid
+      removeImpl FixedRate.Remove{instrument}  = do
+        (refCid, ref) <- fetchByKey @Instrument.R instrument
+        instrumentCid <- exercise refCid Instrument.GetCid with viewer = instrument.depository
+        archive $ fromInterfaceContractId @Instrument instrumentCid
+        archive refCid
+
+    implements Disclosure.I where
+      view = Disclosure.View with disclosureControllers = singleton $ singleton provider; observers
+      setObserversImpl Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
+      archiveImpl self = archive (coerceContractId self : ContractId Instrument)

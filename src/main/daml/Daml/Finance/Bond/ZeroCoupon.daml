@@ -5,8 +5,9 @@ module Daml.Finance.Bond.ZeroCoupon where
 
 import DA.Set (singleton)
 import Daml.Finance.Bond.Util
-import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (HasImplementation, I, K, View(..), disclosureUpdateReference)
+import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (GetCid(..), HasImplementation, I, K, R, View(..), createReference, disclosureUpdateReference)
 import Daml.Finance.Interface.Asset.Types (Id(..), InstrumentKey(..))
+import Daml.Finance.Interface.Bond.ZeroCoupon qualified as ZeroCoupon (Create(..), Factory, HasImplementation, Remove(..), View(..))
 import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (I, SetObservers(..), View(..))
 import Daml.Finance.Interface.Common.Types (Observers)
 import Daml.Finance.Interface.Common.Util (flattenObservers)
@@ -14,12 +15,12 @@ import Daml.Finance.Interface.Derivative.HasClaims qualified as HasClaims (I, Vi
 import Daml.Finance.Interface.Lifecycle.Lifecyclable qualified as Lifecyclable (I, Lifecycle(..), View(..))
 import Prelude hiding (key)
 
-type T = ZeroCouponBond
+type T = Instrument
 
 instance Instrument.HasImplementation T
 -- | This template models a zero coupon bond.
 -- It does not pay any coupons, only the redemption amount at maturity.
-template ZeroCouponBond
+template Instrument
   with
     depository : Party
       -- ^ The depository of the instrument.
@@ -68,4 +69,35 @@ template ZeroCouponBond
       setObserversImpl Disclosure.SetObservers{newObservers} = do
         cid <- toInterfaceContractId <$> create this with observers = newObservers
         Instrument.disclosureUpdateReference newObservers instrumentKey cid
-      archiveImpl self = archive (coerceContractId self : ContractId ZeroCouponBond)
+      archiveImpl self = archive (coerceContractId self : ContractId Instrument)
+
+
+instance ZeroCoupon.HasImplementation Factory
+-- | Factory template for instrument creation.
+template Factory
+  with
+    provider : Party
+      -- ^ The factory's provider.
+    observers : Observers
+      -- ^ The factory's observers.
+  where
+    signatory provider
+    observer flattenObservers observers
+
+    implements ZeroCoupon.Factory where
+      asDisclosure = toInterface @Disclosure.I this
+      view = ZeroCoupon.View with provider
+      createImpl ZeroCoupon.Create{instrument; issueDate; maturityDate; currency; lastEventTimestamp; observers} = do
+        cid <- toInterfaceContractId <$> create Instrument with depository = instrument.depository; issuer = instrument.issuer; id = instrument.id; issueDate; maturityDate; currency; lastEventTimestamp; observers
+        Instrument.createReference instrument.depository cid
+        pure cid
+      removeImpl ZeroCoupon.Remove{instrument}  = do
+        (refCid, ref) <- fetchByKey @Instrument.R instrument
+        instrumentCid <- exercise refCid Instrument.GetCid with viewer = instrument.depository
+        archive $ fromInterfaceContractId @Instrument instrumentCid
+        archive refCid
+
+    implements Disclosure.I where
+      view = Disclosure.View with disclosureControllers = singleton $ singleton provider; observers
+      setObserversImpl Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
+      archiveImpl self = archive (coerceContractId self : ContractId Instrument)

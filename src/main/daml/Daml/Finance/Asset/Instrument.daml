@@ -4,7 +4,8 @@
 module Daml.Finance.Asset.Instrument where
 
 import DA.Set (singleton)
-import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (HasImplementation, I, View(..), disclosureUpdateReference)
+import Daml.Finance.Interface.Asset.Factory.Instrument qualified as InstrumentFactory (Create(..), F, HasImplementation, Remove(..), View(..))
+import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (GetCid(..), HasImplementation, I, R, View(..), createReference, disclosureUpdateReference)
 import Daml.Finance.Interface.Asset.Types (Id(..), InstrumentKey(..))
 import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (I, SetObservers(..), View(..))
 import Daml.Finance.Interface.Common.Types (Observers)
@@ -44,17 +45,32 @@ template Instrument
         Instrument.disclosureUpdateReference newObservers instrumentKey cid
       archiveImpl self = archive (coerceContractId self : ContractId Instrument)
 
--- | Proposal template for instrument creation.
-template Request
+instance InstrumentFactory.HasImplementation Factory
+-- | Factory template for instrument creation.
+template Factory
   with
-    instrument : Instrument
-      -- ^ The proposed instrument.
+    provider : Party
+      -- ^ The factory's provider.
+    observers : Observers
+      -- ^ The factory's observers.
   where
-    signatory instrument.issuer
-    observer instrument.depository
+    signatory provider
+    observer flattenObservers observers
 
-    choice Accept : ContractId Instrument
-      -- ^ Creates the proposed instrument.
-      controller instrument.depository
-      do
-        create instrument
+    implements InstrumentFactory.F where
+      asDisclosure = toInterface @Disclosure.I this
+      view = InstrumentFactory.View with provider
+      createImpl InstrumentFactory.Create{instrument; validAsOf; observers} = do
+        cid <- toInterfaceContractId <$> create Instrument with depository = instrument.depository; issuer = instrument.issuer; id = instrument.id; validAsOf; observers
+        Instrument.createReference instrument.depository cid
+        pure cid
+      removeImpl InstrumentFactory.Remove{instrument}  = do
+        (refCid, ref) <- fetchByKey @Instrument.R instrument
+        instrumentCid <- exercise refCid Instrument.GetCid with viewer = instrument.depository
+        archive $ fromInterfaceContractId @Instrument instrumentCid
+        archive refCid
+
+    implements Disclosure.I where
+      view = Disclosure.View with disclosureControllers = singleton $ singleton provider; observers
+      setObserversImpl Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
+      archiveImpl self = archive (coerceContractId self : ContractId Instrument)
