@@ -1,0 +1,86 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Interface.Bond.FloatingRate where
+
+import Daml.Finance.Common.Date.Calendar (BusinessDayConventionEnum)
+import Daml.Finance.Common.Date.DayCount (DayCountConventionEnum)
+import Daml.Finance.Common.Date.RollConvention (PeriodEnum)
+import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (I, K)
+import Daml.Finance.Interface.Asset.Types (InstrumentKey(..))
+import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (I, Implementation)
+import Daml.Finance.Interface.Common.Types (Observers)
+
+-- | Type synonym for `Factory`.
+type F = Factory
+
+-- | View of `Factory`.
+data View = View
+  with
+    provider : Party
+      -- ^ The provider of the `Factory`.
+  deriving (Eq, Ord, Show)
+
+-- | Interface that allows implementing templates to create instruments.
+interface Factory where
+  asDisclosure : Disclosure.I
+    -- ^ Conversion to `Disclosure` interface.
+  view : View
+    -- ^ Acquire the default interface view.
+  createImpl : Create -> Update (ContractId Instrument.I)
+    -- ^ Implementation of `Create` choice.
+  removeImpl : Remove -> Update ()
+    -- ^ Implementation of `Remove` choice.
+
+  nonconsuming choice Create : ContractId Instrument.I
+    -- ^ Create a new account.
+    with
+      instrument : InstrumentKey
+        -- ^ The instrument's key.
+      referenceRateId : Text
+        -- ^ The floating rate reference ID. For example, in case of "3M Euribor + 0.5%" this should a valid reference to the "3M Euribor" reference rate.
+      couponSpread : Decimal
+        -- ^ The floating rate coupon spread. For example, in case of "3M Euribor + 0.5%" this should be 0.005.
+      issueDate : Date
+        -- ^ The date when the bond was issued.
+      firstCouponDate : Date
+        -- ^ The first coupon date of the bond.
+      maturityDate : Date
+        -- ^ The last coupon date (and the redemption date) of the bond.
+      holidayCalendarIds : [Text]
+        -- ^ the identifier of the holiday calendar to be used for the coupon schedule.
+      calendarDataProvider : Party
+        -- ^ The reference data provider to use for the holiday calendar.
+      dayCountConvention : DayCountConventionEnum
+        -- ^ The day count convention used to calculate day count fractions. For example: Act360.
+      businessDayConvention : BusinessDayConventionEnum
+        -- ^ An enum type to specify how a non-business day is adjusted. For example: FOLLOWING.
+      couponPeriod : PeriodEnum
+        -- ^ The coupon period. For example, in case of a 3M coupon period (a coupon every 3 months), this should be M.
+      couponPeriodMultiplier : Int
+        -- ^ The coupon period multiplier. For example, in case of a 3M coupon period (a coupon every 3 months), this should be 3.
+      currency : Instrument.K
+        -- ^ The currency of the bond. For example, if the bond pays in USD this should be a USD cash instrument.
+      lastEventTimestamp : Time
+        -- ^ (Market) time of the last recorded lifecycle event. If no event has occurred yet, the time of creation should be used.
+      observers : Observers
+        -- ^ The instrument's observers.
+    controller instrument.depository, instrument.issuer
+    do
+      createImpl this arg
+
+  nonconsuming choice Remove : ()
+    -- ^ Archive an account.
+    with
+      instrument : InstrumentKey
+        -- ^ The account's key.
+    controller instrument.depository, instrument.issuer
+      do
+        removeImpl this arg
+
+-- | Type constraint used to require templates implementing `Factory` to also
+-- implement `Disclosure`.
+type Implementation t = (HasToInterface t Factory, Disclosure.Implementation t)
+instance HasToInterface Factory Disclosure.I where _toInterface = asDisclosure
+class (Implementation t) => HasImplementation t
+instance HasImplementation Factory
