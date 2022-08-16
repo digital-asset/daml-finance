@@ -3,10 +3,10 @@
 
 module Daml.Finance.Interface.Equity.Instrument where
 
-import Daml.Finance.Interface.Asset.Instrument qualified as BaseInstrument (I, Implementation, K, Q, asDisclosure, getKey, view)
+import Daml.Finance.Interface.Asset.Instrument qualified as BaseInstrument (I, Implementation, K, Q, asDisclosure, view)
 import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (I)
 import Daml.Finance.Interface.Common.Util (verify)
-import Daml.Finance.Interface.Equity.Lifecycle.CorporateAction qualified as CorporateAction (I)
+import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I)
 
 type I = Instrument
 type V = View
@@ -20,12 +20,12 @@ interface Instrument where
     -- ^ Conversion to base `Instrument` interface.
   view : View
     -- ^ Acquire the default interface view.
-  distributionImpl : Distribution -> BaseInstrument.K -> Update (ContractId CorporateAction.I)
-    -- ^ Implementation fo the `Distribution` choice.
-  stockSplitImpl : StockSplit -> BaseInstrument.K -> Update (ContractId CorporateAction.I)
-    -- ^ Implementation fo the `StockSplit` choice.
-  replacementImpl : Replacement -> BaseInstrument.K -> Update (ContractId CorporateAction.I)
-    -- ^ Implementation fo the `Replacement` choice.
+  declareDividendImpl : DeclareDividend -> Update (ContractId Event.I)
+    -- ^ Implementation fo the `DeclareDividend` choice.
+  declareStockSplitImpl : DeclareStockSplit -> Update (ContractId Event.I)
+    -- ^ Implementation fo the `DeclareStockSplit` choice.
+  declareReplacementImpl : DeclareReplacement -> Update (ContractId Event.I)
+    -- ^ Implementation fo the `DeclareReplacement` choice.
 
   nonconsuming choice GetView : View
     -- ^ Retrieves the instrument view.
@@ -36,56 +36,53 @@ interface Instrument where
     do
       pure $ view this
 
-  nonconsuming choice Distribution : ContractId CorporateAction.I
-    -- ^ Declare a distribution to shareholders.
+  nonconsuming choice DeclareDividend : ContractId Event.I
+    -- ^ Declare a dividend distribution to shareholders.
     with
       id : Text
-        -- ^ Distribution Id
-      perUnitDistribution : [BaseInstrument.Q]
-        -- ^ Payout distribution
+        -- ^ Event identifier of the dividend distribution.
       effectiveDate : Date
-        -- ^ Date the distribution is to be executed.
+        -- ^ Date at which the dividend is distributed.
       newInstrument : BaseInstrument.K
-        -- ^ Instrument to be held after the distribution is executed.
+        -- ^ Instrument held after the dividend distribution (ie. "ex-dividend" stock).
+      perUnitDistribution : [BaseInstrument.Q]
+        -- ^ Distributed quantities per unit held.
     controller (BaseInstrument.view $ asInstrument this).issuer
     do
-      distributionImpl this arg (BaseInstrument.getKey $ asInstrument this)
+      declareDividendImpl this arg
 
-  nonconsuming choice StockSplit : ContractId CorporateAction.I
-    -- ^ Declare a stock split by the issuer of the stock to shareholders.
+  nonconsuming choice DeclareStockSplit : ContractId Event.I
+    -- ^ Declare a stock split.
     with
       id : Text
-        -- ^ Stock Split Id
-      factor : Decimal
-        -- ^ Factor to apply to the total number of stock units.
-        -- A factor greater than 1 increases the number of overall units.
-        -- A factor between 0 and 1 decreases the number of overall units.
+        -- ^ Event identifier of the stock split.
+      effectiveDate : Date
+        -- ^ Date at which the stock split is effective.
       newInstrument : BaseInstrument.K
         -- ^ Instrument to be held after the stock split is executed.
-      effectiveDate : Date
-        -- ^ Date the stock split occurs.
+      adjustmentFactor : Decimal
+        -- ^ Adjustment factor for the stock split.
+        -- A factor of between 0 and 1 represents a classic stock split (eg. 2-for-1 or two new for one old).
+        -- A factor above 1 represents a reverse stock split (eg. 1-for-2 or one new for two old).
     controller (BaseInstrument.view $ asInstrument this).issuer
     do
-      verify (factor > 0.0) "Factor cannot be equal to or below zero."
-      stockSplitImpl this arg (BaseInstrument.getKey $ asInstrument this)
+      verify (adjustmentFactor > 0.0) "Factor cannot be equal to or below zero."
+      declareStockSplitImpl this arg
 
-  nonconsuming choice Replacement : ContractId CorporateAction.I
+  nonconsuming choice DeclareReplacement : ContractId Event.I
     -- ^ Declare a replacement event, where units of the instrument are replaced by a basket of other instruments.
     with
       id : Text
         -- ^ Distribution Id.
-      offerer : Party
-        -- ^ Party proposing the Replacement.
-      perUnitPayout : [BaseInstrument.Q]
-        -- ^ Payout offered to shareholders per held share.
       effectiveDate : Date
         -- ^ Date the replacement is to be executed.
-    controller offerer
+      perUnitReplacement : [BaseInstrument.Q]
+        -- ^ Payout offered to shareholders per held share.
+    controller (BaseInstrument.view $ asInstrument this).issuer
     do
-      replacementImpl this arg (BaseInstrument.getKey $ asInstrument this)
+      declareReplacementImpl this arg
 
--- | Type constraint used to require templates implementing `Instrument` to also
--- implement `BaseInstrument.I`
+-- | Type constraint used to require templates implementing `Instrument` to also implement `BaseInstrument.I`.
 type Implementation t = (HasToInterface t I, BaseInstrument.Implementation t)
 instance HasToInterface I BaseInstrument.I where _toInterface = asInstrument
 instance HasToInterface I Disclosure.I where _toInterface = BaseInstrument.asDisclosure . asInstrument

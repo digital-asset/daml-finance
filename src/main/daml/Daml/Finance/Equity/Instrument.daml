@@ -4,19 +4,19 @@
 module Daml.Finance.Equity.Instrument where
 
 import DA.Set (singleton)
-import Daml.Finance.Equity.Lifecycle.Distribution qualified as Lifecycle (Distribution(..))
-import Daml.Finance.Equity.Lifecycle.StockSplit qualified as Lifecycle (StockSplit(..))
-import Daml.Finance.Equity.Lifecycle.Replacement qualified as Lifecycle (Replacement(..))
-import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (I, View(..), disclosureUpdateReference)
+import Daml.Finance.Lifecycle.Event.Distribution qualified as Distribution (Event(..))
+import Daml.Finance.Lifecycle.Event.Replacement qualified as Replacement (Event(..))
+import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (I, View(..), disclosureUpdateReference, qty)
 import Daml.Finance.Interface.Asset.Types (Id, InstrumentKey(..))
 import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (I, SetObservers(..), View(..))
 import Daml.Finance.Interface.Common.Types (Observers)
 import Daml.Finance.Interface.Common.Util (flattenObservers)
-import Daml.Finance.Interface.Equity.Instrument qualified as Equity (Distribution(..), HasImplementation, I, StockSplit(..), Replacement(..), View(..))
+import Daml.Finance.Interface.Equity.Instrument qualified as Equity (DeclareDividend(..), DeclareReplacement(..), DeclareStockSplit(..), HasImplementation, I, View(..))
 
 type T = Instrument
 
 instance Equity.HasImplementation T
+
 -- | An Instrument representing a common stock.
 template Instrument
   with
@@ -44,15 +44,13 @@ template Instrument
     implements Equity.I where
       asInstrument = toInterface @Instrument.I this
       view = Equity.View ()
-      distributionImpl Equity.Distribution{id; perUnitDistribution; effectiveDate; newInstrument} key =
-        coerceContractId <$>
-          create Lifecycle.Distribution with issuer; effectiveDate; perUnitDistribution; currentInstrument = key; newInstrument; id; observers
-      stockSplitImpl Equity.StockSplit{id; factor; newInstrument; effectiveDate} key =
-        coerceContractId <$>
-          create Lifecycle.StockSplit with issuer; currentInstrument = key; factor; newInstrument; effectiveDate; id; observers
-      replacementImpl Equity.Replacement{id; offerer; perUnitPayout; effectiveDate} key =
-        coerceContractId <$>
-          create Lifecycle.Replacement with offerer; executionDate = effectiveDate; targetInstrument = key; offeredAssets = perUnitPayout; id; observers
+      declareDividendImpl Equity.DeclareDividend{id; effectiveDate; newInstrument; perUnitDistribution} = do
+        toInterfaceContractId <$> create Distribution.Event with provider = issuer; id; effectiveDate; targetInstrument = instrumentKey; newInstrument; perUnitDistribution; observers
+      declareStockSplitImpl Equity.DeclareStockSplit{id; adjustmentFactor; newInstrument; effectiveDate} =
+        -- NOTE: Doesn't handle conversion of fractional shares into cash
+        toInterfaceContractId <$> create Replacement.Event with provider = issuer; id; effectiveDate; targetInstrument = instrumentKey; perUnitReplacement = [Instrument.qty (1.0 / adjustmentFactor) newInstrument]; observers
+      declareReplacementImpl Equity.DeclareReplacement{id; effectiveDate; perUnitReplacement} =
+        toInterfaceContractId <$> create Replacement.Event with provider = issuer; id; effectiveDate; targetInstrument = instrumentKey; perUnitReplacement; observers
 
     implements Disclosure.I where
       view = Disclosure.View with disclosureControllers = singleton $ singleton issuer; observers

@@ -1,0 +1,48 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Lifecycle.Rule.Distribution where
+
+import DA.Date (toDateUTC)
+import Daml.Finance.Interface.Common.Types (Observers)
+import Daml.Finance.Interface.Common.Util (flattenObservers)
+import Daml.Finance.Interface.Lifecycle.Clock qualified as Clock (GetView(..))
+import Daml.Finance.Interface.Lifecycle.Lifecyclable qualified as Lifecyclable (HasImplementation, I, Lifecycle(..), View(..))
+import Daml.Finance.Lifecycle.Effect (Effect(..))
+import Daml.Finance.Lifecycle.Event.Distribution qualified as Distribution (Event)
+
+type T = Rule
+instance Lifecyclable.HasImplementation Rule
+
+-- | Distribution of units of an instrument for each unit of a target instrument (e.g., share or cash dividends).
+template Rule
+  with
+    provider : Party
+      -- ^ Provider of the distribution rule.
+    observers : Observers
+      -- ^ Observers of the distributin rule.
+  where
+    signatory provider
+    observer flattenObservers observers
+
+    implements Lifecyclable.I where
+      view = Lifecyclable.View with lifecycler = provider
+      lifecycleImpl Lifecyclable.Lifecycle{settler; eventCid; clockCid} self = do
+        distribution <- fetch $ fromInterfaceContractId @Distribution.Event eventCid
+        clockTime <- toDateUTC . (.clockTime) <$> exercise clockCid Clock.GetView with viewer = provider
+        if clockTime >= distribution.effectiveDate
+        then do
+          effectCid <- toInterfaceContractId <$> create Effect
+            with
+              provider
+              settler
+              targetInstrument = distribution.targetInstrument
+              producedInstrument = Some distribution.newInstrument
+              consumed = []
+              produced = distribution.perUnitDistribution
+              settlementDate = distribution.effectiveDate
+              id = distribution.id
+              observers
+          pure (self, [effectCid])
+        else do
+          pure (self, [])
