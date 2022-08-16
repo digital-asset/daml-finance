@@ -6,7 +6,7 @@ module Daml.Finance.Interface.Asset.Lockable where
 import DA.Assert ((===))
 import DA.Optional (fromSomeNote, whenSome)
 import DA.Set (Set, fromList, intersection, notMember)
-import Daml.Finance.Interface.Asset.Holding qualified as Holding (I, Implementation, asDisclosure, view)
+import Daml.Finance.Interface.Asset.Holding qualified as Holding (I, Implementation, asDisclosure)
 import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (I)
 import Daml.Finance.Interface.Common.Types (Parties)
 import Daml.Finance.Interface.Common.Util (verify)
@@ -52,10 +52,10 @@ instance HasToInterface I Disclosure.I where _toInterface = Holding.asDisclosure
 
 -- | An interface respresenting contracts which can restrict a contract by a set of specifed parties
 interface Lockable where
+  viewtype View
+    -- ^ Default interface view.
   asHolding : Holding.I
     -- ^ Conversion to `Holding` interface.
-  view : View
-    -- ^ Acquire the default interface view.
   acquireImpl : Acquire -> Update (ContractId Lockable)
     -- ^ Implementation of the `Acquire` choice.
   releaseImpl : Release -> Update (ContractId Lockable)
@@ -68,7 +68,7 @@ interface Lockable where
         -- ^ The party retrieving the view.
     controller viewer
     do
-      pure $ view this
+      pure $ _view this
 
   choice Acquire : ContractId Lockable
     -- ^ Lock a contract.
@@ -79,12 +79,12 @@ interface Lockable where
         -- ^ Reason for acquiring a lock.
       lockType : LockType
         -- ^ Type of lock to acquire
-    controller (Holding.view $ asHolding this).account.owner, newLocker
+    controller (_view $ asHolding this).account.owner, newLocker
     do
       validateRequest this arg
       lockableCid <- acquireImpl this arg
       lockable <- fetch lockableCid
-      let lock = fromSomeNote "Contract has not been locked." (view lockable).lock
+      let lock = fromSomeNote "Contract has not been locked." (_view lockable).lock
       lock.locker === newLocker
       fromList (signatory lockable) `intersection` newLocker === newLocker
       pure lockableCid
@@ -93,7 +93,7 @@ interface Lockable where
     -- ^ Unlock a locked contract.
     with
       context : Text
-    controller case (view this).lock of None -> mempty; Some lock -> lock.locker
+    controller case (_view this).lock of None -> mempty; Some lock -> lock.locker
     do
       releaseImpl this arg
 
@@ -101,7 +101,7 @@ interface Lockable where
 -- Validate a new acquire request.
 validateRequest : Lockable -> Acquire -> Update (Optional Lock)
 validateRequest this (Acquire with newLocker; context; lockType) = do
-  let lock = (view this).lock
+  let lock = (_view this).lock
   whenSome lock \lock -> do
     lock.locker === newLocker
     lock.lockType === lockType
