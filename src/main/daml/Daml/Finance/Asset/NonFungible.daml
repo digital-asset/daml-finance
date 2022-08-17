@@ -5,7 +5,7 @@ module Daml.Finance.Asset.NonFungible where
 
 import DA.Assert ((===))
 import DA.Set (delete, insert, null, singleton)
-import Daml.Finance.Interface.Asset.Account qualified as Account (Credit(..), I, R, exerciseInterfaceByKey, view)
+import Daml.Finance.Interface.Asset.Account qualified as Account (Credit(..), I, R, exerciseInterfaceByKey)
 import Daml.Finance.Interface.Asset.Factory.Holding qualified as HoldingFactory (Create(..), F, HasImplementation(..), Remove(..), View(..))
 import Daml.Finance.Interface.Asset.Transferable qualified as NonFungible (HasImplementation)
 import Daml.Finance.Interface.Asset.Holding qualified as Holding (I, View(..))
@@ -46,8 +46,8 @@ template NonFungible
 
     implements Disclosure.I where
       view = Disclosure.View with disclosureControllers = singleton $ singleton account.owner; observers
-      setObserversImpl Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
-      archiveImpl self = archive $ fromInterfaceContractId @NonFungible self
+      setObservers Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
+      archive' self = archive $ fromInterfaceContractId @NonFungible self
 
     implements Holding.I where
       asDisclosure = toInterface @Disclosure.I this
@@ -59,13 +59,13 @@ template NonFungible
     implements Lockable.I where
       asHolding = toInterface @Holding.I this
       view = Lockable.View with lock
-      acquireImpl Lockable.Acquire{newLocker; context; lockType} = do
+      acquire Lockable.Acquire{newLocker; context; lockType} = do
         newLock <- case (lock, lockType) of
           (Some existingLock, Lockable.Reentrant) -> pure existingLock with context = context `insert` existingLock.context
           (None, _) -> pure Lockable.Lock with locker = newLocker; context = singleton context; lockType
           _ -> abort "Contract is already locked."
         toInterfaceContractId <$> create this with lock = Some newLock
-      releaseImpl Lockable.Release{context} = do
+      release Lockable.Release{context} = do
         let
           f currentLock = do
             let newContext = context `delete` currentLock.context
@@ -78,12 +78,12 @@ template NonFungible
     implements Transferable.I where
       asLockable = toInterface @Lockable.I this
       view = Transferable.View ()
-      transferImpl Transferable.Transfer{newOwnerAccount} = do
+      transfer Transferable.Transfer{newOwnerAccount} = do
         -- Account sanity checks
         newAccount <- fetchInterfaceByKey @Account.R newOwnerAccount
-        let view = Account.view newAccount
-        view.owner === newOwnerAccount.owner
-        view.custodian === account.custodian
+        let v = _view newAccount
+        v.owner === newOwnerAccount.owner
+        v.custodian === account.custodian
         -- Create new holding via Credit
         newHoldingCid <- coerceContractId <$> Account.exerciseInterfaceByKey @Account.I newOwnerAccount newOwnerAccount.owner Account.Credit
           with
@@ -109,11 +109,11 @@ template Factory
       where
         asDisclosure = toInterface @Disclosure.I this
         view = HoldingFactory.View with provider
-        createImpl HoldingFactory.Create{instrument; account; amount; observers} =
+        create' HoldingFactory.Create{instrument; account; amount; observers} =
           toInterfaceContractId <$> create NonFungible with instrument; account; amount; observers; lock = None
-        removeImpl HoldingFactory.Remove{actors; holdingCid} = archive $ fromInterfaceContractId @NonFungible holdingCid
+        remove HoldingFactory.Remove{actors; holdingCid} = archive $ fromInterfaceContractId @NonFungible holdingCid
 
     implements Disclosure.I where
       view = Disclosure.View with disclosureControllers = singleton $ singleton provider; observers
-      setObserversImpl Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
-      archiveImpl self = archive (coerceContractId self : ContractId NonFungible)
+      setObservers Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
+      archive' self = archive (coerceContractId self : ContractId NonFungible)
