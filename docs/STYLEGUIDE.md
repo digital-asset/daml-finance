@@ -90,11 +90,11 @@ This style guide details the formatting and styling of Daml and client-side code
     deriving (Eq, Ord, Show)
   ```
 
-- Add a `viewtype` definition to the interface:
+- Add a `viewtype` definition to the interface with the `View` type:
 
   ```haskell
   interface Account where
-    view : View
+    viewtype View
     ...
   ```
 
