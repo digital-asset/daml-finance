@@ -3,18 +3,26 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to Daml Finance's documentation!
-========================================
+Daml Finance Documentation
+##########################
+
+.. toctree::
+   :titlesonly:
+   :maxdepth: 2
+   :hidden:
+
+   self
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Contents
 
+   Introduction <intro>
+   Code documentation <daml-finance-rst/index>
 
+.. Indices and tables
+.. ==================
 
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+.. * :ref:`genindex`
+.. * :ref:`modindex`
+.. * :ref:`search`
