@@ -24,6 +24,12 @@ Daml Finance Documentation
    architecture
    core-concepts
    getting-started/getting-started
+   getting-started/settlement
+   getting-started/lifecycling
+   tutorial/bond-extension
+   tutorial/derivative-extension
+   tutorial/contingent-claims-instrument
+   tutorial/contingent-claims-on-vs-off-ledger
    glossary
    Code documentation <daml-finance-rst/index>
 
