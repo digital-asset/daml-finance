@@ -4,7 +4,7 @@
 Daml Finance
 ############
 
-Daml Finance is currently an :doc:`Early Access Feature in Alpha status </support/status-definitions>`.
+Daml Finance is currently an `Early Access Feature in Alpha status <https://docs.daml.com/support/status-definitions.html>`_.
 
 Introduction
 ************
