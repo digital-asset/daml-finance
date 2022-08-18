@@ -13,9 +13,10 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-# import os
-# import sys
-# sys.path.insert(0, os.path.abspath('.'))
+import os
+import sys
+
+sys.path.insert(0, os.path.abspath('../static'))
 
 
 # -- Project information -----------------------------------------------------
@@ -23,7 +24,6 @@
 project = u'Daml Finance'
 copyright = u'Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved. Any unauthorized use, duplication or distribution is strictly prohibited. "Digital Asset" and "Daml" are Registered in the U.S. Patent and Trademark Office.'
 author = u'Digital Asset'
-
 
 # -- General configuration ---------------------------------------------------
 
@@ -49,6 +49,11 @@ source_suffix = '.rst'
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = []
 
+# The name of the Pygments (syntax highlighting) style to use.
+pygments_style = 'sphinx'
+
+# If true, `todo` and `todoList` produce output, else they produce nothing.
+todo_include_todos = False
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -63,12 +68,31 @@ html_theme_path = ['../theme']
 # documentation.
 html_theme_options = {
     'collapse_navigation': False,
-    'index_page_boxes': True,
+    'index_page_boxes': False,
     'pdf_download': False
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = []
 
+# Don't show "powered by sphinx"
+html_show_sphinx = False
+
+html_show_copyright = True
+
+# Don't display the link to the sources
+html_show_sourcelink = False
+
+# Don't display the link for scaled images
+html_scaled_image_link = False
+
+# Import the Daml lexer
+
+
+def setup(sphinx):
+    from pygments_daml_lexer import DamlLexer
+    sphinx.add_lexer("daml", DamlLexer)
+    from typescript import TypeScriptLexer
+    sphinx.add_lexer("tsx", TypeScriptLexer)

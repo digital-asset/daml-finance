@@ -21,6 +21,10 @@ Daml Finance Documentation
    :caption: Contents
 
    Introduction <intro>
+   architecture
+   core-concepts
+   getting-started/getting-started
+   glossary
    Code documentation <daml-finance-rst/index>
 
 .. Indices and tables
