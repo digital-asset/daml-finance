@@ -1,3 +1,6 @@
+.. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+.. SPDX-License-Identifier: Apache-2.0
+
 Glossary
 ########
 
@@ -100,3 +103,4 @@ Lifecycling
 The evolution of `Instruments <#instrument>`__ over their lifetime.
 
 Lifecycling can deal with intrinsic events, like contractual cash flows, as well as extrinsic events like corporate actions or elections.
+

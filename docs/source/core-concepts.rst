@@ -1,3 +1,6 @@
+.. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+.. SPDX-License-Identifier: Apache-2.0
+
 Core Concepts
 #############
 
@@ -175,3 +178,4 @@ Lifecycling is the evolution of instruments over their lifetime.
 EXPLAIN THE CONCEPT OF AN INSTRUMENT VERSION
 
 It is important to understand that these are two different instruments.
+

@@ -1,3 +1,6 @@
+.. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+.. SPDX-License-Identifier: Apache-2.0
+
 Getting started 1 : Transfer
 ############################
 
@@ -297,3 +300,4 @@ Modify the original code, such that
 
 In order to do that, you can leverage the fact that ``Account`` implements the ``Disclosure`` interface (which is defined in ``Daml.Finance.Interface.Common``).
 This interface exposes the ``AddObservers`` and ``RemoveObservers`` choices, which can be used to disclose / undisclose Bob's account contract to Alice.
+

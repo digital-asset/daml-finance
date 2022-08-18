@@ -1,3 +1,6 @@
+.. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+.. SPDX-License-Identifier: Apache-2.0
+
 Getting started 3 : Lifecycling
 ###############################
 
@@ -125,3 +128,4 @@ This is the result of the settlement:
   - The investor receives cash for the coupon.
   - The investor receives a new version of the bond instrument, which excludes today's coupon (it only contains future coupons and the redemption amount).
   - The issuer receives the original version of the bond instrument, which can be archived.
+
