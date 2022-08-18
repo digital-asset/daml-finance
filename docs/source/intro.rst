@@ -4,19 +4,6 @@
 Daml Finance
 ############
 
-.. toctree::
-   :hidden:
-
-   architecture
-   core-concepts
-   glossary
-   getting-started/getting-started
-   getting-started/settlement
-   getting-started/lifecycling
-   tutorial/bond-extension
-   tutorial/derivative-extension
-   tutorial/contingent-claims-instrument
-
 Daml Finance is currently an :doc:`Early Access Feature in Alpha status </support/status-definitions>`.
 
 Introduction
