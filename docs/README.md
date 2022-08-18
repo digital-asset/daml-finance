@@ -4,17 +4,23 @@ Theme is copied from Daml Docs theme.
 
 ## Pre-requisites
 
-1. Install `pyenv` for Python version management with `brew install pyenv`.
+1. Open a terminal window.
 
-2. Install `pipx` with `brew install pipenv`. This should install the `pipenv` binary for virtual environments management.
+2. Install `pyenv` for Python version management with `brew install pyenv`.
 
-3. From this folder, `pipenv install` to create a virtual environment and download the packages.
+3. Install `pipx` with `brew install pipenv`. This should install the `pipenv` binary for virtual environments management.
+
+4. Navigate to the `docs` folder.
+
+5. Run `pipenv install` to create a virtual environment and download the required packages.
 
 ## Building the docs
 
-1. `pipenv shell` to enter the virtual environment.
+1. Navigate to the `docs` folder.
 
-2. `make html` to trigger the Sphinx build.
+2. `pipenv shell` to enter the virtual environment.
+
+3. `make html` to trigger the Sphinx build.
 
 ## Viewing the docs locally
 
