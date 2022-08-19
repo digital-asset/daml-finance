@@ -14,24 +14,24 @@ Interfaces
 **interface** `Holding <type-daml-finance-interface-asset-holding-holding-42619_>`_
 
   Base interface for a holding\.
-
+  
   + **Choice GetView**
-
+    
     Retrieve the holding view\.
-
+    
     .. list-table::
        :widths: 15 10 30
        :header-rows: 1
-
+    
        * - Field
          - Type
          - Description
        * - viewer
          - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party retrieving the view\.
-
-  + **Method asDisclosure \:**\ :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
-
+  
+  + **Method asDisclosure \:** :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
+    
     Conversion to ``Disclosure`` interface\.
 
 Typeclasses
@@ -42,7 +42,7 @@ Typeclasses
 **class** `Implementation <type-daml-finance-interface-asset-holding-implementation-34045_>`_ t \=\> `HasImplementation <class-daml-finance-interface-asset-holding-hasimplementation-98201_>`_ t **where**
 
   **instance** `HasImplementation <class-daml-finance-interface-asset-holding-hasimplementation-98201_>`_ :ref:`T <type-daml-finance-asset-nontransferable-t-66900>`
-
+  
   **instance** `HasImplementation <class-daml-finance-interface-asset-holding-hasimplementation-98201_>`_ `I <type-daml-finance-interface-asset-holding-i-4221_>`_
 
 Data Types
@@ -52,58 +52,58 @@ Data Types
 
 **type** `I <type-daml-finance-interface-asset-holding-i-4221_>`_
   \= `Holding <type-daml-finance-interface-asset-holding-holding-42619_>`_
-
+  
   Type synonym for ``Holding``\.
-
+  
   **instance** `HasImplementation <class-daml-finance-interface-asset-holding-hasimplementation-98201_>`_ `I <type-daml-finance-interface-asset-holding-i-4221_>`_
-
+  
   **instance** HasMethod :ref:`Account <type-daml-finance-interface-asset-account-account-19971>` \"credit\" (Credit \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-asset-holding-i-4221_>`_))
-
+  
   **instance** HasMethod :ref:`Factory <type-daml-finance-interface-asset-factory-holding-factory-96220>` \"create'\" (Create \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-asset-holding-i-4221_>`_))
-
+  
   **instance** HasMethod :ref:`Lockable <type-daml-finance-interface-asset-lockable-lockable-65857>` \"asHolding\" `I <type-daml-finance-interface-asset-holding-i-4221_>`_
-
+  
   **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Fungible <type-daml-finance-asset-fungible-fungible-62518>` `I <type-daml-finance-interface-asset-holding-i-4221_>`_
-
+  
   **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`NonFungible <type-daml-finance-asset-nonfungible-nonfungible-15366>` `I <type-daml-finance-interface-asset-holding-i-4221_>`_
-
+  
   **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`NonTransferable <type-daml-finance-asset-nontransferable-nontransferable-14506>` `I <type-daml-finance-interface-asset-holding-i-4221_>`_
-
+  
   **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Fungible <type-daml-finance-asset-fungible-fungible-62518>` `I <type-daml-finance-interface-asset-holding-i-4221_>`_
-
+  
   **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`NonFungible <type-daml-finance-asset-nonfungible-nonfungible-15366>` `I <type-daml-finance-interface-asset-holding-i-4221_>`_
-
+  
   **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`NonTransferable <type-daml-finance-asset-nontransferable-nontransferable-14506>` `I <type-daml-finance-interface-asset-holding-i-4221_>`_
-
+  
   **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`I <type-daml-finance-interface-asset-fungible-i-30537>` `I <type-daml-finance-interface-asset-holding-i-4221_>`_
-
+  
   **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ `I <type-daml-finance-interface-asset-holding-i-4221_>`_ :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
-
+  
   **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`I <type-daml-finance-interface-asset-lockable-i-23182>` `I <type-daml-finance-interface-asset-holding-i-4221_>`_
-
+  
   **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`I <type-daml-finance-interface-asset-transferable-i-10374>` `I <type-daml-finance-interface-asset-holding-i-4221_>`_
-
+  
   **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t :ref:`Account <type-daml-finance-interface-asset-account-account-19971>`) \=\> `HasExercise <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercise-70422>`_ t Credit (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-asset-holding-i-4221_>`_)
-
+  
   **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t :ref:`Factory <type-daml-finance-interface-asset-factory-holding-factory-96220>`) \=\> `HasExercise <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercise-70422>`_ t Create (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-asset-holding-i-4221_>`_)
-
+  
   **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t :ref:`Account <type-daml-finance-interface-asset-account-account-19971>`) \=\> `HasExerciseGuarded <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexerciseguarded-97843>`_ t Credit (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-asset-holding-i-4221_>`_)
-
+  
   **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t :ref:`Factory <type-daml-finance-interface-asset-factory-holding-factory-96220>`) \=\> `HasExerciseGuarded <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexerciseguarded-97843>`_ t Create (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-asset-holding-i-4221_>`_)
-
+  
   **instance** `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t :ref:`Account <type-daml-finance-interface-asset-account-account-19971>` \=\> `HasFromAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasfromanychoice-81184>`_ t Credit (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-asset-holding-i-4221_>`_)
-
+  
   **instance** `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t :ref:`Factory <type-daml-finance-interface-asset-factory-holding-factory-96220>` \=\> `HasFromAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasfromanychoice-81184>`_ t Create (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-asset-holding-i-4221_>`_)
-
+  
   **instance** `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t :ref:`Account <type-daml-finance-interface-asset-account-account-19971>` \=\> `HasToAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastoanychoice-82571>`_ t Credit (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-asset-holding-i-4221_>`_)
-
+  
   **instance** `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t :ref:`Factory <type-daml-finance-interface-asset-factory-holding-factory-96220>` \=\> `HasToAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastoanychoice-82571>`_ t Create (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-asset-holding-i-4221_>`_)
 
 .. _type-daml-finance-interface-asset-holding-implementation-34045:
 
 **type** `Implementation <type-daml-finance-interface-asset-holding-implementation-34045_>`_ t
   \= (`HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ t `I <type-daml-finance-interface-asset-holding-i-4221_>`_, :ref:`Implementation <type-daml-finance-interface-common-disclosure-implementation-6532>` t)
-
+  
   Type constraint used to require templates implementing ``Holding`` to also
   implement ``Disclosure``\.
 
@@ -111,7 +111,7 @@ Data Types
 
 **type** `V <type-daml-finance-interface-asset-holding-v-6554_>`_
   \= `View <type-daml-finance-interface-asset-holding-view-23126_>`_
-
+  
   Type synonym for ``View``\.
 
 .. _type-daml-finance-interface-asset-holding-view-23126:
@@ -119,15 +119,15 @@ Data Types
 **data** `View <type-daml-finance-interface-asset-holding-view-23126_>`_
 
   View for ``Holding``\.
-
+  
   .. _constr-daml-finance-interface-asset-holding-view-5689:
-
+  
   `View <constr-daml-finance-interface-asset-holding-view-5689_>`_
-
+  
     .. list-table::
        :widths: 15 10 30
        :header-rows: 1
-
+    
        * - Field
          - Type
          - Description
@@ -140,21 +140,21 @@ Data Types
        * - amount
          - `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
          - Size of the holding\.
-
+  
   **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-asset-holding-view-23126_>`_
-
+  
   **instance** `Ord <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ `View <type-daml-finance-interface-asset-holding-view-23126_>`_
-
+  
   **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-asset-holding-view-23126_>`_
-
-  **instance** HasInterfaceView `Holding <type-daml-finance-interface-asset-holding-holding-42619_>`_ `View <type-daml-finance-interface-asset-holding-view-23126_>`_
-
+  
+  **instance** `HasInterfaceView <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfaceview-4492>`_ `Holding <type-daml-finance-interface-asset-holding-holding-42619_>`_ `View <type-daml-finance-interface-asset-holding-view-23126_>`_
+  
   **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Holding <type-daml-finance-interface-asset-holding-holding-42619_>`_) \=\> `HasExercise <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercise-70422>`_ t GetView `View <type-daml-finance-interface-asset-holding-view-23126_>`_
-
+  
   **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Holding <type-daml-finance-interface-asset-holding-holding-42619_>`_) \=\> `HasExerciseGuarded <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexerciseguarded-97843>`_ t GetView `View <type-daml-finance-interface-asset-holding-view-23126_>`_
-
+  
   **instance** `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Holding <type-daml-finance-interface-asset-holding-holding-42619_>`_ \=\> `HasFromAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasfromanychoice-81184>`_ t GetView `View <type-daml-finance-interface-asset-holding-view-23126_>`_
-
+  
   **instance** `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Holding <type-daml-finance-interface-asset-holding-holding-42619_>`_ \=\> `HasToAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastoanychoice-82571>`_ t GetView `View <type-daml-finance-interface-asset-holding-view-23126_>`_
 
 Functions

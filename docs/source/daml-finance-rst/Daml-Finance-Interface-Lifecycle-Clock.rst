@@ -96,7 +96,7 @@ Data Types
   
   **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-lifecycle-clock-view-77253_>`_
   
-  **instance** HasInterfaceView `Clock <type-daml-finance-interface-lifecycle-clock-clock-52275_>`_ `View <type-daml-finance-interface-lifecycle-clock-view-77253_>`_
+  **instance** `HasInterfaceView <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfaceview-4492>`_ `Clock <type-daml-finance-interface-lifecycle-clock-clock-52275_>`_ `View <type-daml-finance-interface-lifecycle-clock-view-77253_>`_
   
   **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Clock <type-daml-finance-interface-lifecycle-clock-clock-52275_>`_) \=\> `HasExercise <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercise-70422>`_ t GetView `View <type-daml-finance-interface-lifecycle-clock-view-77253_>`_
   

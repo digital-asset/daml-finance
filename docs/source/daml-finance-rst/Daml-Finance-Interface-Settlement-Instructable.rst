@@ -14,28 +14,28 @@ Interfaces
 **interface** `Instructable <type-daml-finance-interface-settlement-instructable-instructable-17877_>`_
 
   An interface used to generate settlement instructions\.
-
+  
   + **Choice GetView**
-
+    
     Retrieves the instrument view\.
-
+    
     .. list-table::
        :widths: 15 10 30
        :header-rows: 1
-
+    
        * - Field
          - Type
          - Description
        * - viewer
          - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party retrieving the view\.
-
+  
   + **Choice Instruct**
-
+    
     .. list-table::
        :widths: 15 10 30
        :header-rows: 1
-
+    
        * - Field
          - Type
          - Description
@@ -51,9 +51,9 @@ Interfaces
        * - steps
          - \[:ref:`Step <type-daml-finance-interface-settlement-types-step-78661>`\]
          - Settlement steps to instruct\.
-
-  + **Method instruct \:**\ Instruct \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-settleable-i-95514>`, \[`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-instruction-i-90342>`\])
-
+  
+  + **Method instruct \:** Instruct \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-settleable-i-95514>`, \[`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-instruction-i-90342>`\])
+    
     Implementation of the ``Instruct`` choice\.
 
 Typeclasses
@@ -72,22 +72,22 @@ Data Types
 
 **type** `I <type-daml-finance-interface-settlement-instructable-i-97939_>`_
   \= `Instructable <type-daml-finance-interface-settlement-instructable-instructable-17877_>`_
-
+  
   **instance** `HasImplementation <class-daml-finance-interface-settlement-instructable-hasimplementation-2363_>`_ `I <type-daml-finance-interface-settlement-instructable-i-97939_>`_
-
+  
   **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`BatchFactory <type-daml-finance-settlement-batch-batchfactory-22649>` `I <type-daml-finance-interface-settlement-instructable-i-97939_>`_
-
+  
   **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`BatchFactoryWithIntermediaries <type-daml-finance-settlement-batch-batchfactorywithintermediaries-69374>` `I <type-daml-finance-interface-settlement-instructable-i-97939_>`_
-
+  
   **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`BatchFactory <type-daml-finance-settlement-batch-batchfactory-22649>` `I <type-daml-finance-interface-settlement-instructable-i-97939_>`_
-
+  
   **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`BatchFactoryWithIntermediaries <type-daml-finance-settlement-batch-batchfactorywithintermediaries-69374>` `I <type-daml-finance-interface-settlement-instructable-i-97939_>`_
 
 .. _type-daml-finance-interface-settlement-instructable-implementation-9535:
 
 **type** `Implementation <type-daml-finance-interface-settlement-instructable-implementation-9535_>`_ t
   \= `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ t `I <type-daml-finance-interface-settlement-instructable-i-97939_>`_
-
+  
   Type constraint used to require templates implementing ``Instructable`` to not
   require any other interface to be implemented\.
 
@@ -101,15 +101,15 @@ Data Types
 **data** `View <type-daml-finance-interface-settlement-instructable-view-99600_>`_
 
   View for ``Instructable``\.
-
+  
   .. _constr-daml-finance-interface-settlement-instructable-view-50019:
-
+  
   `View <constr-daml-finance-interface-settlement-instructable-view-50019_>`_
-
+  
     .. list-table::
        :widths: 15 10 30
        :header-rows: 1
-
+    
        * - Field
          - Type
          - Description
@@ -119,21 +119,21 @@ Data Types
        * - observers
          - :ref:`Parties <type-daml-finance-interface-common-types-parties-45858>`
          - Observers\.
-
+  
   **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-settlement-instructable-view-99600_>`_
-
+  
   **instance** `Ord <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ `View <type-daml-finance-interface-settlement-instructable-view-99600_>`_
-
+  
   **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-settlement-instructable-view-99600_>`_
-
-  **instance** HasInterfaceView `Instructable <type-daml-finance-interface-settlement-instructable-instructable-17877_>`_ `View <type-daml-finance-interface-settlement-instructable-view-99600_>`_
-
+  
+  **instance** `HasInterfaceView <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfaceview-4492>`_ `Instructable <type-daml-finance-interface-settlement-instructable-instructable-17877_>`_ `View <type-daml-finance-interface-settlement-instructable-view-99600_>`_
+  
   **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Instructable <type-daml-finance-interface-settlement-instructable-instructable-17877_>`_) \=\> `HasExercise <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercise-70422>`_ t GetView `View <type-daml-finance-interface-settlement-instructable-view-99600_>`_
-
+  
   **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Instructable <type-daml-finance-interface-settlement-instructable-instructable-17877_>`_) \=\> `HasExerciseGuarded <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexerciseguarded-97843>`_ t GetView `View <type-daml-finance-interface-settlement-instructable-view-99600_>`_
-
+  
   **instance** `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Instructable <type-daml-finance-interface-settlement-instructable-instructable-17877_>`_ \=\> `HasFromAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasfromanychoice-81184>`_ t GetView `View <type-daml-finance-interface-settlement-instructable-view-99600_>`_
-
+  
   **instance** `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Instructable <type-daml-finance-interface-settlement-instructable-instructable-17877_>`_ \=\> `HasToAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastoanychoice-82571>`_ t GetView `View <type-daml-finance-interface-settlement-instructable-view-99600_>`_
 
 Functions
