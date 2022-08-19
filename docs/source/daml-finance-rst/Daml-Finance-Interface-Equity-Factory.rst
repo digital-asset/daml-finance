@@ -70,9 +70,6 @@ Typeclasses
 
 **class** `Implementation <type-daml-finance-interface-equity-factory-implementation-29362_>`_ t \=\> `HasImplementation <class-daml-finance-interface-equity-factory-hasimplementation-69542_>`_ t **where**
 
-  **instance** `HasImplementation <class-daml-finance-interface-equity-factory-hasimplementation-69542_>`_ :ref:`Factory <type-daml-finance-equity-factory-factory-66762>`
-  
-  **instance** `HasImplementation <class-daml-finance-interface-equity-factory-hasimplementation-69542_>`_ `Factory <type-daml-finance-interface-equity-factory-factory-50265_>`_
 
 Data Types
 ----------
@@ -83,10 +80,6 @@ Data Types
   \= `Factory <type-daml-finance-interface-equity-factory-factory-50265_>`_
   
   Type synonym for ``Factory``\.
-  
-  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Factory <type-daml-finance-equity-factory-factory-66762>` `F <type-daml-finance-interface-equity-factory-f-7879_>`_
-  
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Factory <type-daml-finance-equity-factory-factory-66762>` `F <type-daml-finance-interface-equity-factory-f-7879_>`_
 
 .. _type-daml-finance-interface-equity-factory-implementation-29362:
 
@@ -120,8 +113,6 @@ Data Types
   **instance** `Ord <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ `View <type-daml-finance-interface-equity-factory-view-89005_>`_
   
   **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-equity-factory-view-89005_>`_
-  
-  **instance** `HasInterfaceView <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfaceview-4492>`_ `Factory <type-daml-finance-interface-equity-factory-factory-50265_>`_ `View <type-daml-finance-interface-equity-factory-view-89005_>`_
 
 Functions
 ---------

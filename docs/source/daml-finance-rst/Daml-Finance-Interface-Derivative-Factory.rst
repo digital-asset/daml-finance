@@ -76,9 +76,6 @@ Typeclasses
 
 **class** `Implementation <type-daml-finance-interface-derivative-factory-implementation-37504_>`_ t \=\> `HasImplementation <class-daml-finance-interface-derivative-factory-hasimplementation-48356_>`_ t **where**
 
-  **instance** `HasImplementation <class-daml-finance-interface-derivative-factory-hasimplementation-48356_>`_ :ref:`Factory <type-daml-finance-derivative-factory-factory-26064>`
-  
-  **instance** `HasImplementation <class-daml-finance-interface-derivative-factory-hasimplementation-48356_>`_ `Factory <type-daml-finance-interface-derivative-factory-factory-17847_>`_
 
 Data Types
 ----------
@@ -89,10 +86,6 @@ Data Types
   \= `Factory <type-daml-finance-interface-derivative-factory-factory-17847_>`_
   
   Type synonym for ``Factory``\.
-  
-  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Factory <type-daml-finance-derivative-factory-factory-26064>` `F <type-daml-finance-interface-derivative-factory-f-50653_>`_
-  
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Factory <type-daml-finance-derivative-factory-factory-26064>` `F <type-daml-finance-interface-derivative-factory-f-50653_>`_
 
 .. _type-daml-finance-interface-derivative-factory-implementation-37504:
 
@@ -126,8 +119,6 @@ Data Types
   **instance** `Ord <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ `View <type-daml-finance-interface-derivative-factory-view-40435_>`_
   
   **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-derivative-factory-view-40435_>`_
-  
-  **instance** `HasInterfaceView <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfaceview-4492>`_ `Factory <type-daml-finance-interface-derivative-factory-factory-17847_>`_ `View <type-daml-finance-interface-derivative-factory-view-40435_>`_
 
 Functions
 ---------

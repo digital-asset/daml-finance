@@ -93,5 +93,3 @@ Data Types
 
 **type** `T <type-daml-finance-bond-zerocoupon-t-92363_>`_
   \= `Instrument <type-daml-finance-bond-zerocoupon-instrument-49917_>`_
-  
-  **instance** :ref:`HasImplementation <class-daml-finance-interface-asset-instrument-hasimplementation-51108>` `T <type-daml-finance-bond-zerocoupon-t-92363_>`_

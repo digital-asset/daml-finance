@@ -72,5 +72,3 @@ Data Types
 
 **type** `T <type-daml-finance-lifecycle-electioneffect-t-5245_>`_
   \= `ElectionEffect <type-daml-finance-lifecycle-electioneffect-electioneffect-28146_>`_
-  
-  **instance** :ref:`HasImplementation <class-daml-finance-interface-lifecycle-effect-hasimplementation-26488>` `T <type-daml-finance-lifecycle-electioneffect-t-5245_>`_

@@ -117,5 +117,3 @@ Data Types
 
 **type** `T <type-daml-finance-bond-fixedrate-t-6870_>`_
   \= `Instrument <type-daml-finance-bond-fixedrate-instrument-1982_>`_
-  
-  **instance** :ref:`HasImplementation <class-daml-finance-interface-asset-instrument-hasimplementation-51108>` `T <type-daml-finance-bond-fixedrate-t-6870_>`_

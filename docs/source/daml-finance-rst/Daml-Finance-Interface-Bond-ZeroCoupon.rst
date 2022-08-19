@@ -79,9 +79,6 @@ Typeclasses
 
 **class** `Implementation <type-daml-finance-interface-bond-zerocoupon-implementation-72979_>`_ t \=\> `HasImplementation <class-daml-finance-interface-bond-zerocoupon-hasimplementation-17175_>`_ t **where**
 
-  **instance** `HasImplementation <class-daml-finance-interface-bond-zerocoupon-hasimplementation-17175_>`_ :ref:`Factory <type-daml-finance-bond-zerocoupon-factory-71815>`
-  
-  **instance** `HasImplementation <class-daml-finance-interface-bond-zerocoupon-hasimplementation-17175_>`_ `Factory <type-daml-finance-interface-bond-zerocoupon-factory-77382_>`_
 
 Data Types
 ----------
@@ -127,8 +124,6 @@ Data Types
   **instance** `Ord <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ `View <type-daml-finance-interface-bond-zerocoupon-view-57884_>`_
   
   **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-bond-zerocoupon-view-57884_>`_
-  
-  **instance** `HasInterfaceView <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfaceview-4492>`_ `Factory <type-daml-finance-interface-bond-zerocoupon-factory-77382_>`_ `View <type-daml-finance-interface-bond-zerocoupon-view-57884_>`_
 
 Functions
 ---------

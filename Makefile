@@ -46,7 +46,7 @@ doc: doc-json
 		--output=.docs/daml-finance-rst \
 		--input-format=json \
 		--format=Rst \
-		--exclude-instances=HasField \
+		--exclude-instances=HasField,HasImplementation,HasFromInterface,HasToInterface,HasInterfaceView,HasExercise,HasExerciseGuarded,HasFromAnyChoice,HasToAnyChoice \
 		--drop-orphan-instances \
 		--template=.docs/base-rst-template.rst \
 		--index-template=.docs/base-rst-index-template.rst \

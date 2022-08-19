@@ -103,9 +103,6 @@ Typeclasses
 
 **class** `Implementation <type-daml-finance-interface-bond-fixedrate-implementation-65682_>`_ t \=\> `HasImplementation <class-daml-finance-interface-bond-fixedrate-hasimplementation-51730_>`_ t **where**
 
-  **instance** `HasImplementation <class-daml-finance-interface-bond-fixedrate-hasimplementation-51730_>`_ :ref:`Factory <type-daml-finance-bond-fixedrate-factory-54926>`
-  
-  **instance** `HasImplementation <class-daml-finance-interface-bond-fixedrate-hasimplementation-51730_>`_ `Factory <type-daml-finance-interface-bond-fixedrate-factory-94553_>`_
 
 Data Types
 ----------
@@ -151,8 +148,6 @@ Data Types
   **instance** `Ord <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ `View <type-daml-finance-interface-bond-fixedrate-view-62733_>`_
   
   **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-bond-fixedrate-view-62733_>`_
-  
-  **instance** `HasInterfaceView <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfaceview-4492>`_ `Factory <type-daml-finance-interface-bond-fixedrate-factory-94553_>`_ `View <type-daml-finance-interface-bond-fixedrate-view-62733_>`_
 
 Functions
 ---------

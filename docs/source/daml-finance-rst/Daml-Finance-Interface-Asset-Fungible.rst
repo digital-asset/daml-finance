@@ -84,9 +84,6 @@ Typeclasses
 
 **class** `Implementation <type-daml-finance-interface-asset-fungible-implementation-98809_>`_ t \=\> `HasImplementation <class-daml-finance-interface-asset-fungible-hasimplementation-63563_>`_ t **where**
 
-  **instance** `HasImplementation <class-daml-finance-interface-asset-fungible-hasimplementation-63563_>`_ :ref:`T <type-daml-finance-asset-fungible-t-66251>`
-  
-  **instance** `HasImplementation <class-daml-finance-interface-asset-fungible-hasimplementation-63563_>`_ `I <type-daml-finance-interface-asset-fungible-i-30537_>`_
 
 Data Types
 ----------
@@ -97,20 +94,6 @@ Data Types
   \= `Fungible <type-daml-finance-interface-asset-fungible-fungible-9379_>`_
   
   Type synonym for ``Fungible``\.
-  
-  **instance** `HasImplementation <class-daml-finance-interface-asset-fungible-hasimplementation-63563_>`_ `I <type-daml-finance-interface-asset-fungible-i-30537_>`_
-  
-  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Fungible <type-daml-finance-asset-fungible-fungible-62518>` `I <type-daml-finance-interface-asset-fungible-i-30537_>`_
-  
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Fungible <type-daml-finance-asset-fungible-fungible-62518>` `I <type-daml-finance-interface-asset-fungible-i-30537_>`_
-  
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ `I <type-daml-finance-interface-asset-fungible-i-30537_>`_ :ref:`I <type-daml-finance-interface-asset-holding-i-4221>`
-  
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ `I <type-daml-finance-interface-asset-fungible-i-30537_>`_ :ref:`I <type-daml-finance-interface-asset-lockable-i-23182>`
-  
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ `I <type-daml-finance-interface-asset-fungible-i-30537_>`_ :ref:`I <type-daml-finance-interface-asset-transferable-i-10374>`
-  
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ `I <type-daml-finance-interface-asset-fungible-i-30537_>`_ :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
 
 .. _type-daml-finance-interface-asset-fungible-implementation-98809:
 
@@ -149,14 +132,6 @@ Data Types
   **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `SplitResult <type-daml-finance-interface-asset-fungible-splitresult-97557_>`_
   
   **instance** HasMethod `Fungible <type-daml-finance-interface-asset-fungible-fungible-9379_>`_ \"split\" (Split \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `SplitResult <type-daml-finance-interface-asset-fungible-splitresult-97557_>`_)
-  
-  **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Fungible <type-daml-finance-interface-asset-fungible-fungible-9379_>`_) \=\> `HasExercise <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercise-70422>`_ t Split `SplitResult <type-daml-finance-interface-asset-fungible-splitresult-97557_>`_
-  
-  **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Fungible <type-daml-finance-interface-asset-fungible-fungible-9379_>`_) \=\> `HasExerciseGuarded <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexerciseguarded-97843>`_ t Split `SplitResult <type-daml-finance-interface-asset-fungible-splitresult-97557_>`_
-  
-  **instance** `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Fungible <type-daml-finance-interface-asset-fungible-fungible-9379_>`_ \=\> `HasFromAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasfromanychoice-81184>`_ t Split `SplitResult <type-daml-finance-interface-asset-fungible-splitresult-97557_>`_
-  
-  **instance** `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Fungible <type-daml-finance-interface-asset-fungible-fungible-9379_>`_ \=\> `HasToAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastoanychoice-82571>`_ t Split `SplitResult <type-daml-finance-interface-asset-fungible-splitresult-97557_>`_
 
 .. _type-daml-finance-interface-asset-fungible-v-6670:
 
@@ -191,16 +166,6 @@ Data Types
   **instance** `Ord <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ `View <type-daml-finance-interface-asset-fungible-view-83962_>`_
   
   **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-asset-fungible-view-83962_>`_
-  
-  **instance** `HasInterfaceView <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfaceview-4492>`_ `Fungible <type-daml-finance-interface-asset-fungible-fungible-9379_>`_ `View <type-daml-finance-interface-asset-fungible-view-83962_>`_
-  
-  **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Fungible <type-daml-finance-interface-asset-fungible-fungible-9379_>`_) \=\> `HasExercise <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercise-70422>`_ t GetView `View <type-daml-finance-interface-asset-fungible-view-83962_>`_
-  
-  **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Fungible <type-daml-finance-interface-asset-fungible-fungible-9379_>`_) \=\> `HasExerciseGuarded <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexerciseguarded-97843>`_ t GetView `View <type-daml-finance-interface-asset-fungible-view-83962_>`_
-  
-  **instance** `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Fungible <type-daml-finance-interface-asset-fungible-fungible-9379_>`_ \=\> `HasFromAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasfromanychoice-81184>`_ t GetView `View <type-daml-finance-interface-asset-fungible-view-83962_>`_
-  
-  **instance** `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Fungible <type-daml-finance-interface-asset-fungible-fungible-9379_>`_ \=\> `HasToAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastoanychoice-82571>`_ t GetView `View <type-daml-finance-interface-asset-fungible-view-83962_>`_
 
 Functions
 ---------

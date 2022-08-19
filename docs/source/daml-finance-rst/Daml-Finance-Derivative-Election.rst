@@ -126,5 +126,3 @@ Data Types
 
 **type** `T <type-daml-finance-derivative-election-t-54254_>`_
   \= `Election <type-daml-finance-derivative-election-election-47518_>`_
-  
-  **instance** :ref:`HasImplementation <class-daml-finance-interface-derivative-election-hasimplementation-75558>` `T <type-daml-finance-derivative-election-t-54254_>`_

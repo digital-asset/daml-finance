@@ -54,5 +54,3 @@ Data Types
 
 **type** `T <type-daml-finance-equity-instrument-t-33420_>`_
   \= `Instrument <type-daml-finance-equity-instrument-instrument-7660_>`_
-  
-  **instance** :ref:`HasImplementation <class-daml-finance-interface-equity-instrument-hasimplementation-6684>` `T <type-daml-finance-equity-instrument-t-33420_>`_

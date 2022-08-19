@@ -85,7 +85,6 @@ Typeclasses
 
 **class** `Implementation <type-daml-finance-interface-asset-lockable-implementation-3140_>`_ t \=\> `HasImplementation <class-daml-finance-interface-asset-lockable-hasimplementation-62224_>`_ t **where**
 
-  **instance** `HasImplementation <class-daml-finance-interface-asset-lockable-hasimplementation-62224_>`_ `I <type-daml-finance-interface-asset-lockable-i-23182_>`_
 
 Data Types
 ----------
@@ -97,29 +96,7 @@ Data Types
   
   Type synonym for ``Lockable``\.
   
-  **instance** `HasImplementation <class-daml-finance-interface-asset-lockable-hasimplementation-62224_>`_ `I <type-daml-finance-interface-asset-lockable-i-23182_>`_
-  
   **instance** HasMethod :ref:`Transferable <type-daml-finance-interface-asset-transferable-transferable-34689>` \"asLockable\" `I <type-daml-finance-interface-asset-lockable-i-23182_>`_
-  
-  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Fungible <type-daml-finance-asset-fungible-fungible-62518>` `I <type-daml-finance-interface-asset-lockable-i-23182_>`_
-  
-  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`NonFungible <type-daml-finance-asset-nonfungible-nonfungible-15366>` `I <type-daml-finance-interface-asset-lockable-i-23182_>`_
-  
-  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`NonTransferable <type-daml-finance-asset-nontransferable-nontransferable-14506>` `I <type-daml-finance-interface-asset-lockable-i-23182_>`_
-  
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Fungible <type-daml-finance-asset-fungible-fungible-62518>` `I <type-daml-finance-interface-asset-lockable-i-23182_>`_
-  
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`NonFungible <type-daml-finance-asset-nonfungible-nonfungible-15366>` `I <type-daml-finance-interface-asset-lockable-i-23182_>`_
-  
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`NonTransferable <type-daml-finance-asset-nontransferable-nontransferable-14506>` `I <type-daml-finance-interface-asset-lockable-i-23182_>`_
-  
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`I <type-daml-finance-interface-asset-fungible-i-30537>` `I <type-daml-finance-interface-asset-lockable-i-23182_>`_
-  
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ `I <type-daml-finance-interface-asset-lockable-i-23182_>`_ :ref:`I <type-daml-finance-interface-asset-holding-i-4221>`
-  
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ `I <type-daml-finance-interface-asset-lockable-i-23182_>`_ :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
-  
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`I <type-daml-finance-interface-asset-transferable-i-10374>` `I <type-daml-finance-interface-asset-lockable-i-23182_>`_
 
 .. _type-daml-finance-interface-asset-lockable-implementation-3140:
 
@@ -212,16 +189,6 @@ Data Types
   **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-asset-lockable-view-19295_>`_
   
   **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-asset-lockable-view-19295_>`_
-  
-  **instance** `HasInterfaceView <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfaceview-4492>`_ `Lockable <type-daml-finance-interface-asset-lockable-lockable-65857_>`_ `View <type-daml-finance-interface-asset-lockable-view-19295_>`_
-  
-  **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Lockable <type-daml-finance-interface-asset-lockable-lockable-65857_>`_) \=\> `HasExercise <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercise-70422>`_ t GetView `View <type-daml-finance-interface-asset-lockable-view-19295_>`_
-  
-  **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Lockable <type-daml-finance-interface-asset-lockable-lockable-65857_>`_) \=\> `HasExerciseGuarded <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexerciseguarded-97843>`_ t GetView `View <type-daml-finance-interface-asset-lockable-view-19295_>`_
-  
-  **instance** `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Lockable <type-daml-finance-interface-asset-lockable-lockable-65857_>`_ \=\> `HasFromAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasfromanychoice-81184>`_ t GetView `View <type-daml-finance-interface-asset-lockable-view-19295_>`_
-  
-  **instance** `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Lockable <type-daml-finance-interface-asset-lockable-lockable-65857_>`_ \=\> `HasToAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastoanychoice-82571>`_ t GetView `View <type-daml-finance-interface-asset-lockable-view-19295_>`_
 
 Functions
 ---------

@@ -127,5 +127,3 @@ Data Types
 
 **type** `T <type-daml-finance-bond-inflationlinked-t-96325_>`_
   \= `Instrument <type-daml-finance-bond-inflationlinked-instrument-28311_>`_
-  
-  **instance** :ref:`HasImplementation <class-daml-finance-interface-asset-instrument-hasimplementation-51108>` `T <type-daml-finance-bond-inflationlinked-t-96325_>`_

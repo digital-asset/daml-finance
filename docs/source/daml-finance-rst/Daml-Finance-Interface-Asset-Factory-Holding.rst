@@ -76,13 +76,6 @@ Typeclasses
 
 **class** `Implementation <type-daml-finance-interface-asset-factory-holding-implementation-63361_>`_ t \=\> `HasImplementation <class-daml-finance-interface-asset-factory-holding-hasimplementation-73045_>`_ t **where**
 
-  **instance** `HasImplementation <class-daml-finance-interface-asset-factory-holding-hasimplementation-73045_>`_ :ref:`Factory <type-daml-finance-asset-fungible-factory-36455>`
-  
-  **instance** `HasImplementation <class-daml-finance-interface-asset-factory-holding-hasimplementation-73045_>`_ :ref:`Factory <type-daml-finance-asset-nonfungible-factory-66887>`
-  
-  **instance** `HasImplementation <class-daml-finance-interface-asset-factory-holding-hasimplementation-73045_>`_ :ref:`Factory <type-daml-finance-asset-nontransferable-factory-91184>`
-  
-  **instance** `HasImplementation <class-daml-finance-interface-asset-factory-holding-hasimplementation-73045_>`_ `F <type-daml-finance-interface-asset-factory-holding-f-78374_>`_
 
 Data Types
 ----------
@@ -93,22 +86,6 @@ Data Types
   \= `Factory <type-daml-finance-interface-asset-factory-holding-factory-96220_>`_
   
   Type synonym for ``Factory``\.
-  
-  **instance** `HasImplementation <class-daml-finance-interface-asset-factory-holding-hasimplementation-73045_>`_ `F <type-daml-finance-interface-asset-factory-holding-f-78374_>`_
-  
-  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Factory <type-daml-finance-asset-fungible-factory-36455>` `F <type-daml-finance-interface-asset-factory-holding-f-78374_>`_
-  
-  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Factory <type-daml-finance-asset-nonfungible-factory-66887>` `F <type-daml-finance-interface-asset-factory-holding-f-78374_>`_
-  
-  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Factory <type-daml-finance-asset-nontransferable-factory-91184>` `F <type-daml-finance-interface-asset-factory-holding-f-78374_>`_
-  
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Factory <type-daml-finance-asset-fungible-factory-36455>` `F <type-daml-finance-interface-asset-factory-holding-f-78374_>`_
-  
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Factory <type-daml-finance-asset-nonfungible-factory-66887>` `F <type-daml-finance-interface-asset-factory-holding-f-78374_>`_
-  
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Factory <type-daml-finance-asset-nontransferable-factory-91184>` `F <type-daml-finance-interface-asset-factory-holding-f-78374_>`_
-  
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ `F <type-daml-finance-interface-asset-factory-holding-f-78374_>`_ :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
 
 .. _type-daml-finance-interface-asset-factory-holding-implementation-63361:
 
@@ -142,8 +119,6 @@ Data Types
   **instance** `Ord <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ `View <type-daml-finance-interface-asset-factory-holding-view-92610_>`_
   
   **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-asset-factory-holding-view-92610_>`_
-  
-  **instance** `HasInterfaceView <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfaceview-4492>`_ `Factory <type-daml-finance-interface-asset-factory-holding-factory-96220_>`_ `View <type-daml-finance-interface-asset-factory-holding-view-92610_>`_
 
 Functions
 ---------

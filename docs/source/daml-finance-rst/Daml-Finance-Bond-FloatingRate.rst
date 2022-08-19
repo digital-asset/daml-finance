@@ -122,5 +122,3 @@ Data Types
 
 **type** `T <type-daml-finance-bond-floatingrate-t-55081_>`_
   \= `Instrument <type-daml-finance-bond-floatingrate-instrument-41475_>`_
-  
-  **instance** :ref:`HasImplementation <class-daml-finance-interface-asset-instrument-hasimplementation-51108>` `T <type-daml-finance-bond-floatingrate-t-55081_>`_

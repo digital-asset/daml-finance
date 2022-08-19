@@ -109,9 +109,6 @@ Typeclasses
 
 **class** `Implementation <type-daml-finance-interface-bond-inflationlinked-implementation-7499_>`_ t \=\> `HasImplementation <class-daml-finance-interface-bond-inflationlinked-hasimplementation-3445_>`_ t **where**
 
-  **instance** `HasImplementation <class-daml-finance-interface-bond-inflationlinked-hasimplementation-3445_>`_ :ref:`Factory <type-daml-finance-bond-inflationlinked-factory-12125>`
-  
-  **instance** `HasImplementation <class-daml-finance-interface-bond-inflationlinked-hasimplementation-3445_>`_ `Factory <type-daml-finance-interface-bond-inflationlinked-factory-99998_>`_
 
 Data Types
 ----------
@@ -157,8 +154,6 @@ Data Types
   **instance** `Ord <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ `View <type-daml-finance-interface-bond-inflationlinked-view-49812_>`_
   
   **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-bond-inflationlinked-view-49812_>`_
-  
-  **instance** `HasInterfaceView <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfaceview-4492>`_ `Factory <type-daml-finance-interface-bond-inflationlinked-factory-99998_>`_ `View <type-daml-finance-interface-bond-inflationlinked-view-49812_>`_
 
 Functions
 ---------

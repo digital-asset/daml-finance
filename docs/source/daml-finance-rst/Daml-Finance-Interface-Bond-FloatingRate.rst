@@ -106,9 +106,6 @@ Typeclasses
 
 **class** `Implementation <type-daml-finance-interface-bond-floatingrate-implementation-45853_>`_ t \=\> `HasImplementation <class-daml-finance-interface-bond-floatingrate-hasimplementation-64293_>`_ t **where**
 
-  **instance** `HasImplementation <class-daml-finance-interface-bond-floatingrate-hasimplementation-64293_>`_ :ref:`Factory <type-daml-finance-bond-floatingrate-factory-2361>`
-  
-  **instance** `HasImplementation <class-daml-finance-interface-bond-floatingrate-hasimplementation-64293_>`_ `Factory <type-daml-finance-interface-bond-floatingrate-factory-88424_>`_
 
 Data Types
 ----------
@@ -154,8 +151,6 @@ Data Types
   **instance** `Ord <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ `View <type-daml-finance-interface-bond-floatingrate-view-34838_>`_
   
   **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-bond-floatingrate-view-34838_>`_
-  
-  **instance** `HasInterfaceView <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfaceview-4492>`_ `Factory <type-daml-finance-interface-bond-floatingrate-factory-88424_>`_ `View <type-daml-finance-interface-bond-floatingrate-view-34838_>`_
 
 Functions
 ---------

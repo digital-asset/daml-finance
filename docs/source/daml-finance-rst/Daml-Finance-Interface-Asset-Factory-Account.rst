@@ -70,9 +70,6 @@ Typeclasses
 
 **class** `Implementation <type-daml-finance-interface-asset-factory-account-implementation-47641_>`_ t \=\> `HasImplementation <class-daml-finance-interface-asset-factory-account-hasimplementation-22577_>`_ t **where**
 
-  **instance** `HasImplementation <class-daml-finance-interface-asset-factory-account-hasimplementation-22577_>`_ :ref:`Factory <type-daml-finance-asset-account-factory-10857>`
-  
-  **instance** `HasImplementation <class-daml-finance-interface-asset-factory-account-hasimplementation-22577_>`_ `F <type-daml-finance-interface-asset-factory-account-f-54942_>`_
 
 Data Types
 ----------
@@ -83,14 +80,6 @@ Data Types
   \= `Factory <type-daml-finance-interface-asset-factory-account-factory-23412_>`_
   
   Type synonym for ``Factory``\.
-  
-  **instance** `HasImplementation <class-daml-finance-interface-asset-factory-account-hasimplementation-22577_>`_ `F <type-daml-finance-interface-asset-factory-account-f-54942_>`_
-  
-  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Factory <type-daml-finance-asset-account-factory-10857>` `F <type-daml-finance-interface-asset-factory-account-f-54942_>`_
-  
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Factory <type-daml-finance-asset-account-factory-10857>` `F <type-daml-finance-interface-asset-factory-account-f-54942_>`_
-  
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ `F <type-daml-finance-interface-asset-factory-account-f-54942_>`_ :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
 
 .. _type-daml-finance-interface-asset-factory-account-implementation-47641:
 
@@ -124,8 +113,6 @@ Data Types
   **instance** `Ord <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ `View <type-daml-finance-interface-asset-factory-account-view-96890_>`_
   
   **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-asset-factory-account-view-96890_>`_
-  
-  **instance** `HasInterfaceView <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfaceview-4492>`_ `Factory <type-daml-finance-interface-asset-factory-account-factory-23412_>`_ `View <type-daml-finance-interface-asset-factory-account-view-96890_>`_
 
 Functions
 ---------

@@ -70,9 +70,6 @@ Typeclasses
 
 **class** `Implementation <type-daml-finance-interface-asset-factory-instrument-implementation-86332_>`_ t \=\> `HasImplementation <class-daml-finance-interface-asset-factory-instrument-hasimplementation-41720_>`_ t **where**
 
-  **instance** `HasImplementation <class-daml-finance-interface-asset-factory-instrument-hasimplementation-41720_>`_ :ref:`Factory <type-daml-finance-asset-instrument-factory-1836>`
-  
-  **instance** `HasImplementation <class-daml-finance-interface-asset-factory-instrument-hasimplementation-41720_>`_ `Factory <type-daml-finance-interface-asset-factory-instrument-factory-88339_>`_
 
 Data Types
 ----------
@@ -83,10 +80,6 @@ Data Types
   \= `Factory <type-daml-finance-interface-asset-factory-instrument-factory-88339_>`_
   
   Type synonym for ``Factory``\.
-  
-  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Factory <type-daml-finance-asset-instrument-factory-1836>` `F <type-daml-finance-interface-asset-factory-instrument-f-87857_>`_
-  
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Factory <type-daml-finance-asset-instrument-factory-1836>` `F <type-daml-finance-interface-asset-factory-instrument-f-87857_>`_
 
 .. _type-daml-finance-interface-asset-factory-instrument-implementation-86332:
 
@@ -120,8 +113,6 @@ Data Types
   **instance** `Ord <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ `View <type-daml-finance-interface-asset-factory-instrument-view-16567_>`_
   
   **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-asset-factory-instrument-view-16567_>`_
-  
-  **instance** `HasInterfaceView <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfaceview-4492>`_ `Factory <type-daml-finance-interface-asset-factory-instrument-factory-88339_>`_ `View <type-daml-finance-interface-asset-factory-instrument-view-16567_>`_
 
 Functions
 ---------

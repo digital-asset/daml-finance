@@ -88,5 +88,3 @@ Data Types
 
 **type** `T <type-daml-finance-asset-nontransferable-t-66900_>`_
   \= `NonTransferable <type-daml-finance-asset-nontransferable-nontransferable-14506_>`_
-  
-  **instance** :ref:`HasImplementation <class-daml-finance-interface-asset-holding-hasimplementation-98201>` `T <type-daml-finance-asset-nontransferable-t-66900_>`_

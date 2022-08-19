@@ -120,9 +120,6 @@ Typeclasses
 
 **class** `Implementation <type-daml-finance-interface-derivative-election-implementation-12148_>`_ t \=\> `HasImplementation <class-daml-finance-interface-derivative-election-hasimplementation-75558_>`_ t **where**
 
-  **instance** `HasImplementation <class-daml-finance-interface-derivative-election-hasimplementation-75558_>`_ :ref:`T <type-daml-finance-derivative-election-t-54254>`
-  
-  **instance** `HasImplementation <class-daml-finance-interface-derivative-election-hasimplementation-75558_>`_ `I <type-daml-finance-interface-derivative-election-i-77182_>`_
 
 .. _class-daml-finance-interface-derivative-election-exercisablehasimplementation-7032:
 
@@ -169,29 +166,11 @@ Data Types
   **instance** `Ord <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ `ExercisableView <type-daml-finance-interface-derivative-election-exercisableview-24463_>`_
   
   **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `ExercisableView <type-daml-finance-interface-derivative-election-exercisableview-24463_>`_
-  
-  **instance** `HasInterfaceView <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfaceview-4492>`_ `Exercisable <type-daml-finance-interface-derivative-election-exercisable-60012_>`_ `ExercisableView <type-daml-finance-interface-derivative-election-exercisableview-24463_>`_
-  
-  **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Exercisable <type-daml-finance-interface-derivative-election-exercisable-60012_>`_) \=\> `HasExercise <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercise-70422>`_ t Exercisable\_GetView `ExercisableView <type-daml-finance-interface-derivative-election-exercisableview-24463_>`_
-  
-  **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Exercisable <type-daml-finance-interface-derivative-election-exercisable-60012_>`_) \=\> `HasExerciseGuarded <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexerciseguarded-97843>`_ t Exercisable\_GetView `ExercisableView <type-daml-finance-interface-derivative-election-exercisableview-24463_>`_
-  
-  **instance** `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Exercisable <type-daml-finance-interface-derivative-election-exercisable-60012_>`_ \=\> `HasFromAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasfromanychoice-81184>`_ t Exercisable\_GetView `ExercisableView <type-daml-finance-interface-derivative-election-exercisableview-24463_>`_
-  
-  **instance** `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Exercisable <type-daml-finance-interface-derivative-election-exercisable-60012_>`_ \=\> `HasToAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastoanychoice-82571>`_ t Exercisable\_GetView `ExercisableView <type-daml-finance-interface-derivative-election-exercisableview-24463_>`_
 
 .. _type-daml-finance-interface-derivative-election-i-77182:
 
 **type** `I <type-daml-finance-interface-derivative-election-i-77182_>`_
   \= `Election <type-daml-finance-interface-derivative-election-election-60525_>`_
-  
-  **instance** `HasImplementation <class-daml-finance-interface-derivative-election-hasimplementation-75558_>`_ `I <type-daml-finance-interface-derivative-election-i-77182_>`_
-  
-  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Election <type-daml-finance-derivative-election-election-47518>` `I <type-daml-finance-interface-derivative-election-i-77182_>`_
-  
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Election <type-daml-finance-derivative-election-election-47518>` `I <type-daml-finance-interface-derivative-election-i-77182_>`_
-  
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ `I <type-daml-finance-interface-derivative-election-i-77182_>`_ :ref:`I <type-daml-finance-interface-lifecycle-event-i-17082>`
 
 .. _type-daml-finance-interface-derivative-election-implementation-12148:
 
@@ -247,16 +226,6 @@ Data Types
        * - instrument
          - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
          - the instrument to which the election applies
-  
-  **instance** `HasInterfaceView <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfaceview-4492>`_ `Election <type-daml-finance-interface-derivative-election-election-60525_>`_ `View <type-daml-finance-interface-derivative-election-view-34831_>`_
-  
-  **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Election <type-daml-finance-interface-derivative-election-election-60525_>`_) \=\> `HasExercise <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercise-70422>`_ t GetView `View <type-daml-finance-interface-derivative-election-view-34831_>`_
-  
-  **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Election <type-daml-finance-interface-derivative-election-election-60525_>`_) \=\> `HasExerciseGuarded <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexerciseguarded-97843>`_ t GetView `View <type-daml-finance-interface-derivative-election-view-34831_>`_
-  
-  **instance** `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Election <type-daml-finance-interface-derivative-election-election-60525_>`_ \=\> `HasFromAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasfromanychoice-81184>`_ t GetView `View <type-daml-finance-interface-derivative-election-view-34831_>`_
-  
-  **instance** `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Election <type-daml-finance-interface-derivative-election-election-60525_>`_ \=\> `HasToAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastoanychoice-82571>`_ t GetView `View <type-daml-finance-interface-derivative-election-view-34831_>`_
 
 Functions
 ---------
