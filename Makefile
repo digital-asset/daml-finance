@@ -30,14 +30,28 @@ headers-update:
 
 DAML_SRC:=$(shell find src/main/daml -name '*.daml')
 
-.PHONY: doc
-doc: $(DAML_SRC)
-	daml damlc docs --format html \
-    --exclude-instances=HasField,HasImplementation,HasMethod,HasFromInterface,HasToInterface \
-    --drop-orphan-instances \
-    --output .docs $(DAML_SRC)
-
-.PHONY: docjson
-docjson: $(DAML_SRC)
-	daml damlc docs --output=.docs/daml-finance.json --package-name=daml-finance --format Json \
+.PHONY: doc-json
+doc-json: $(DAML_SRC)
+	daml damlc docs \
+		--output=.docs/daml-finance.json \
+		--package-name=daml-finance \
+		--format Json \
     $(DAML_SRC)
+
+SDK_VERSION:=$(shell yq e '.sdk-version' daml.yaml)
+
+.PHONY: doc
+doc: doc-json
+	daml damlc docs \
+		--output=.docs/daml-finance-rst \
+		--input-format=json \
+		--format=Rst \
+		--exclude-instances=HasField \
+		--drop-orphan-instances \
+		--template=.docs/base-rst-template.rst \
+		--index-template=.docs/base-rst-index-template.rst \
+		--base-url=https://docs.daml.com/daml/daml-finance \
+		--input-anchor=${HOME}/.daml/sdk/${SDK_VERSION}/damlc/resources/daml-base-anchors.json \
+		.docs/daml-finance.json
+
+
