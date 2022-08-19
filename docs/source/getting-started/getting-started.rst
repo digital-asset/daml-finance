@@ -45,6 +45,8 @@ You can then run
 
 to open the code editor and inspect the code.
 
+.. _structure-of-code-dependencies:
+
 Structure of the code, dependencies
 ***********************************
 

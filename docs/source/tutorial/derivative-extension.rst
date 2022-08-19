@@ -17,23 +17,17 @@ Consider a fixed rate bond which pays a 4% p.a. coupon with a 6M coupon period.
 Assume there are two coupons remaining until maturity: one today and one in 180 days.
 This could be modeled in the following way using ``Contingent Claims``:
 
-.. code:: daml
-
-  -- Create and distribute bond
-  let
-    today = toDateUTC now
-    expiry = addDays today 180
-    claims = mapClaimToUTCTime $ mconcat
-      [ when (TimeGte $ today) $ scale (Const 0.02) $ one cashInstrument
-      , when (TimeGte $ expiry) $ scale (Const 0.02) $ one cashInstrument
-      , when (TimeGte $ expiry) $ scale (Const 1.0) $ one cashInstrument
-      ]
+.. literalinclude:: ../../../src/test/daml/Daml/Finance/Derivative/Test/Intermediated/BondCoupon.daml
+  :language: daml
+  :start-after: -- CREATE_CC_INSTRUMENT_VARIABLES_BEGIN
+  :end-before: -- CREATE_CC_INSTRUMENT_VARIABLES_END
 
 Now that we have specified the economic terms we can create a derivative instrument:
 
-.. code:: daml
-
-  derivativeInstrument <- originateDerivative csd issuer "BOND" now claims obs now
+.. literalinclude:: ../../../src/test/daml/Daml/Finance/Derivative/Test/Intermediated/BondCoupon.daml
+  :language: daml
+  :start-after: -- CREATE_CC_INSTRUMENT_BEGIN
+  :end-before: -- CREATE_CC_INSTRUMENT_END
 
 This will create an instrument containing the ``Contingent Claims`` tree on the ledger.
 

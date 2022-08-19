@@ -4,6 +4,18 @@
 Tutorials : How to use the Bond extension package
 #################################################
 
+How to use the Bond extension in your app
+*****************************************
+
+As explained in the :ref:`Getting Started <structure-of-code-dependencies>` section
+and on the :doc:`Architecture <../architecture>` page,
+your app should only depend on the interface layer of Daml Finance.
+For bonds this means that you should only include the bond interface package:
+``Daml.Finance.Interface.Bond``.
+
+Your initialization scripts are an exception to this, since they are only run once when your app is initialized.
+These would create the factories needed. Your app can then create bonds through these factory interfaces.
+
 How to create a bond instrument
 *******************************
 
@@ -18,22 +30,31 @@ Fixed rate bonds pay a constant coupon each coupon period. The coupon is quoted 
 For example, a bond could have a 2% p.a. coupon and a 6M coupon period. That would mean
 a 1% coupon is paid twice a year.
 
-Here is an example of a bond paying a 1.1% p.a. coupon with a 12M coupon period:
+As an example we will create a bond instrument paying a 1.1% p.a. coupon with a 12M coupon period.
+This example is taken from ``src/test/daml/Daml/Finance/Bond/Test/FixedRate.daml``,
+where all the details are available.
 
-.. code:: daml
+We start by defining the terms:
 
-  let
-    issueDate = date 2019 Jan 16
-    firstCouponDate = date 2019 May 15
-    maturityDate = date 2020 May 15
-    couponRate = 0.011
-    couponPeriod = M
-    couponPeriodMultiplier = 12
-    redemptionAmount = 1_000_000.0
-  bondInstrument <- originateFixedRateBond custodian issuer "BOND" obs now issueDate holidayCalendarIds calendarDataProvider firstCouponDate maturityDate dayCountConvention businessDayConvention couponRate couponPeriod couponPeriodMultiplier cashInstrumentCid
-  investorBondTransferableCid <- Account.credit [publicParty] bondInstrument redemptionAmount investorAccount
+.. literalinclude:: ../../../src/test/daml/Daml/Finance/Bond/Test/FixedRate.daml
+  :language: daml
+  :start-after: -- CREATE_FIXED_RATE_BOND_VARIABLES_BEGIN
+  :end-before: -- CREATE_FIXED_RATE_BOND_VARIABLES_END
 
+The :ref:`day count convention <type-daml-finance-common-date-daycount-daycountconventionenum-57741>` is used to determine how many days (i.e. what fraction of a full year)
+each coupon period has. This will determine the exact coupon amount each period.
 
+The :ref:`business day convention <type-daml-finance-common-date-calendar-businessdayconventionenum-67582>` determines how a coupon date is adjusted if it
+falls on a non-business day.
+
+Now that we have defined the terms we can create the bond instrument:
+
+.. literalinclude:: ../../../src/test/daml/Daml/Finance/Bond/Test/Util.daml
+  :language: daml
+  :start-after: -- CREATE_FIXED_RATE_BOND_INSTRUMENT_BEGIN
+  :end-before: -- CREATE_FIXED_RATE_BOND_INSTRUMENT_END
+
+Once the instrument is created, you can book a holding on it using ``Account.credit``.
 
 Floating rate
 =============
@@ -43,19 +64,17 @@ There is also a rate spread, which is paid in addition to the reference rate.
 
 Here is an example of a bond paying Euribor 3M + 1.1% p.a. with a 3M coupon period:
 
-.. code:: daml
+.. literalinclude:: ../../../src/test/daml/Daml/Finance/Bond/Test/FloatingRate.daml
+  :language: daml
+  :start-after: -- CREATE_FLOATING_RATE_BOND_VARIABLES_BEGIN
+  :end-before: -- CREATE_FLOATING_RATE_BOND_VARIABLES_END
 
-  let
-    issueDate = date 2019 Jan 16
-    firstCouponDate = date 2019 May 15
-    maturityDate = date 2020 May 15
-    referenceRateId = "EUR/EURIBOR/3M"
-    couponRate = 0.011
-    couponPeriod = M
-    couponPeriodMultiplier = 3
-    redemptionAmount = 1_000_000.0
-  bondInstrument <- originateFloatingRateBond custodian issuer "BOND" obs now issueDate holidayCalendarId calendarDataProvider firstCouponDate maturityDate dayCountConvention businessDayConvention couponRate couponPeriod couponPeriodMultiplier cashInstrumentCid referenceRateId
-  investorBondTransferableCid <- Account.credit [publicParty] bondInstrument redemptionAmount investorAccount
+Here is how we create the floating rate bond instrument:
+
+.. literalinclude:: ../../../src/test/daml/Daml/Finance/Bond/Test/Util.daml
+  :language: daml
+  :start-after: -- CREATE_FLOATING_RATE_BOND_INSTRUMENT_BEGIN
+  :end-before: -- CREATE_FLOATING_RATE_BOND_INSTRUMENT_END
 
 The reference rate is observed once at the beginning of each coupon period and used for
 the coupon payment at the end of that period.
@@ -69,19 +88,17 @@ for example the Consumer Price Index (CPI) in the U.S.
 
 Here is an example of a bond paying 1.1% p.a. (on a CPI adjusted principal) with a 3M coupon period:
 
-.. code:: daml
+.. literalinclude:: ../../../src/test/daml/Daml/Finance/Bond/Test/InflationLinked.daml
+  :language: daml
+  :start-after: -- CREATE_INFLATION_LINKED_BOND_VARIABLES_BEGIN
+  :end-before: -- CREATE_INFLATION_LINKED_BOND_VARIABLES_END
 
-  let
-    issueDate = date 2019 Jan 16
-    firstCouponDate = date 2019 May 15
-    maturityDate = date 2020 May 15
-    inflationIndexId = "CPI"
-    couponRate = 0.011
-    couponPeriod = M
-    couponPeriodMultiplier = 3
-    redemptionAmount = 1_000_000.0
-  bondInstrument <- originateInflationLinkedBond custodian issuer "BOND" obs now issueDate holidayCalendarId calendarDataProvider firstCouponDate maturityDate dayCountConvention businessDayConvention couponRate couponPeriod couponPeriodMultiplier cashInstrumentCid inflationIndexId inflationIndexBaseValue
-  investorBondTransferableCid <- Account.credit [publicParty] bondInstrument redemptionAmount investorAccount
+Then, we create the inflation linked bond instrument:
+
+.. literalinclude:: ../../../src/test/daml/Daml/Finance/Bond/Test/Util.daml
+  :language: daml
+  :start-after: -- CREATE_INFLATION_LINKED_BOND_INSTRUMENT_BEGIN
+  :end-before: -- CREATE_INFLATION_LINKED_BOND_INSTRUMENT_END
 
 At maturity, the greater of the adjusted principal and the original principal is redeemed.
 For clarity, this only applies to the redemption amount. The coupons are always calculated based on the adjusted principal.
@@ -96,15 +113,18 @@ It only pays the redemption amount at maturity.
 
 Here is an example of a zero coupon bond:
 
-.. code:: daml
+.. literalinclude:: ../../../src/test/daml/Daml/Finance/Bond/Test/ZeroCoupon.daml
+  :language: daml
+  :start-after: -- CREATE_ZERO_COUPON_BOND_VARIABLES_BEGIN
+  :end-before: -- CREATE_ZERO_COUPON_BOND_VARIABLES_END
 
-  let
-    issueDate = date 2019 Jan 16
-    maturityDate = date 2020 May 15
-    redemptionAmount = 1_000_000.0
+Finally, we create the zero coupon bond instrument:
 
-  bondInstrument <- originateZeroCouponBond custodian issuer "BOND" obs now issueDate maturityDate cashInstrumentCid
-  investorBondTransferableCid <- Account.credit [publicParty] bondInstrument redemptionAmount investorAccount
+.. literalinclude:: ../../../src/test/daml/Daml/Finance/Bond/Test/Util.daml
+  :language: daml
+  :start-after: -- CREATE_ZERO_COUPON_BOND_INSTRUMENT_BEGIN
+  :end-before: -- CREATE_ZERO_COUPON_BOND_INSTRUMENT_END
+
 
 
 How to trade and transfer a bond

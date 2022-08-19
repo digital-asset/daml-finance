@@ -29,7 +29,7 @@ Daml Finance Documentation
    tutorial/bond-extension
    tutorial/derivative-extension
    tutorial/contingent-claims-instrument
-   tutorial/contingent-claims-on-vs-off-ledger
+   tutorial/contingent-claims-on-ledger-vs-on-the-fly
    glossary
    Code documentation <daml-finance-rst/index>
 
