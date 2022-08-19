@@ -79,5 +79,3 @@ Data Types
 
 **type** `T <type-daml-finance-asset-instrument-t-94008_>`_
   \= `Instrument <type-daml-finance-asset-instrument-instrument-84320_>`_
-  
-  **instance** :ref:`HasImplementation <class-daml-finance-interface-asset-instrument-hasimplementation-51108>` `T <type-daml-finance-asset-instrument-t-94008_>`_

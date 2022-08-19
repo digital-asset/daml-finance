@@ -66,6 +66,4 @@ Data Types
 **type** `T <type-daml-finance-derivative-instrument-t-62954_>`_
   \= `Instrument <type-daml-finance-derivative-instrument-instrument-92650_>`_
   
-  **instance** :ref:`HasImplementation <class-daml-finance-interface-asset-instrument-hasimplementation-51108>` `T <type-daml-finance-derivative-instrument-t-62954_>`_
-  
   **instance** :ref:`ExercisableHasImplementation <class-daml-finance-interface-derivative-election-exercisablehasimplementation-7032>` `T <type-daml-finance-derivative-instrument-t-62954_>`_

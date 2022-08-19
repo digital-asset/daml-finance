@@ -92,5 +92,3 @@ Data Types
 
 **type** `T <type-daml-finance-asset-fungible-t-66251_>`_
   \= `Fungible <type-daml-finance-asset-fungible-fungible-62518_>`_
-  
-  **instance** :ref:`HasImplementation <class-daml-finance-interface-asset-fungible-hasimplementation-63563>` `T <type-daml-finance-asset-fungible-t-66251_>`_

@@ -62,5 +62,3 @@ Data Types
 
 **type** `T <type-daml-finance-lifecycle-effect-t-84092_>`_
   \= `Effect <type-daml-finance-lifecycle-effect-effect-18432_>`_
-  
-  **instance** :ref:`HasImplementation <class-daml-finance-interface-lifecycle-effect-hasimplementation-26488>` `T <type-daml-finance-lifecycle-effect-t-84092_>`_

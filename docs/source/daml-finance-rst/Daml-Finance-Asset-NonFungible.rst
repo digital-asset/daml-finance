@@ -90,5 +90,3 @@ Data Types
 
 **type** `T <type-daml-finance-asset-nonfungible-t-43787_>`_
   \= `NonFungible <type-daml-finance-asset-nonfungible-nonfungible-15366_>`_
-  
-  **instance** :ref:`HasImplementation <class-daml-finance-interface-asset-transferable-hasimplementation-59736>` `T <type-daml-finance-asset-nonfungible-t-43787_>`_

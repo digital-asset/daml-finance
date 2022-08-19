@@ -125,5 +125,3 @@ Data Types
 
 **type** `T <type-daml-finance-settlement-batch-t-36750_>`_
   \= `Batch <type-daml-finance-settlement-batch-batch-59698_>`_
-  
-  **instance** :ref:`HasImplementation <class-daml-finance-interface-settlement-settleable-hasimplementation-37118>` `T <type-daml-finance-settlement-batch-t-36750_>`_
