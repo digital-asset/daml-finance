@@ -24,6 +24,6 @@ Theme is copied from Daml Docs theme.
 
 ## Viewing the docs locally
 
-1. `cd build/html`
+1. `cd build`
 
 2. `python -m http.server 8000 --bind 127.0.0.1`
