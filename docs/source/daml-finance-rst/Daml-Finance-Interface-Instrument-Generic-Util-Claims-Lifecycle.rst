@@ -40,7 +40,7 @@ Functions
 .. _function-daml-finance-interface-instrument-generic-util-claims-lifecycle-splitpending-45812:
 
 `splitPending <function-daml-finance-interface-instrument-generic-util-claims-lifecycle-splitpending-45812_>`_
-  \: \[:ref:`Pending <type-daml-finance-interface-instrument-generic-types-pending-91971>`\] \-\> (\[:ref:`Q <type-daml-finance-interface-asset-instrument-q-31714>`\], \[:ref:`Q <type-daml-finance-interface-asset-instrument-q-31714>`\])
+  \: \[:ref:`Pending <type-daml-finance-interface-instrument-generic-types-pending-91971>`\] \-\> (\[:ref:`Q <type-daml-finance-interface-instrument-base-instrument-q-31714>`\], \[:ref:`Q <type-daml-finance-interface-instrument-base-instrument-q-31714>`\])
 
   Map pending settlements into corresponding instrument quantities and split them into consumed and produced\.
   Pending items with an amount of ``0.0`` are discarded\.

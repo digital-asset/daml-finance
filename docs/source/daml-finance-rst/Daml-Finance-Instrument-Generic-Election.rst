@@ -35,7 +35,7 @@ Templates
        - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
        - A textual identifier\.
      * - instrument
-       - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+       - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-75164>`
        - The instrument to which the election applies\.
      * - amount
        - `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
@@ -89,7 +89,7 @@ Templates
        - :ref:`Observers <type-daml-finance-interface-common-types-observers-20361>`
        - observers of the contract
      * - instrument
-       - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+       - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-75164>`
        - key of the instrument to which the election applies
 
   + **Choice Archive**

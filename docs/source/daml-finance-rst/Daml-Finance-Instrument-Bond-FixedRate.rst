@@ -61,7 +61,7 @@ Templates
        - An identifier of the instrument\.
      * - couponRate
        - `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
-       - The fixed coupon rate, per annum\. For example, in case of a \"3\.5% p\.a coupon\" this should be 0\.035\.
+       - The fixed coupon rate, per annum\. For example, in case of a \"3\.5% p\.a\. coupon\" this should be 0\.035\.
      * - issueDate
        - `Date <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
        - The date when the bond was issued\.
@@ -90,7 +90,7 @@ Templates
        - `Int <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
        - The coupon period multiplier\. For example, in case of a 3M coupon period (a coupon every 3 months), this should be 3\.
      * - currency
-       - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+       - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-75164>`
        - The currency of the bond\. For example, if the bond pays in USD this should be a USD cash instrument\.
      * - observers
        - :ref:`Observers <type-daml-finance-interface-common-types-observers-20361>`
@@ -102,7 +102,7 @@ Templates
   + **Choice Archive**
 
 
-  + **implements** :ref:`I <type-daml-finance-interface-asset-instrument-i-66474>`
+  + **implements** :ref:`I <type-daml-finance-interface-instrument-base-instrument-i-66474>`
 
   + **implements** :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
 
@@ -118,4 +118,4 @@ Data Types
 **type** `T <type-daml-finance-instrument-bond-fixedrate-t-6870_>`_
   \= `Instrument <type-daml-finance-instrument-bond-fixedrate-instrument-1982_>`_
 
-  **instance** :ref:`HasImplementation <class-daml-finance-interface-asset-instrument-hasimplementation-51108>` `T <type-daml-finance-instrument-bond-fixedrate-t-6870_>`_
+  **instance** :ref:`HasImplementation <class-daml-finance-interface-instrument-base-instrument-hasimplementation-51108>` `T <type-daml-finance-instrument-bond-fixedrate-t-6870_>`_

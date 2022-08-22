@@ -105,10 +105,10 @@ Data Types
          - Type
          - Description
        * - consumed
-         - \[:ref:`Q <type-daml-finance-interface-asset-instrument-q-31714>`\]
+         - \[:ref:`Q <type-daml-finance-interface-instrument-base-instrument-q-31714>`\]
          - Consumed quantities\.
        * - produced
-         - \[:ref:`Q <type-daml-finance-interface-asset-instrument-q-31714>`\]
+         - \[:ref:`Q <type-daml-finance-interface-instrument-base-instrument-q-31714>`\]
          - Produced quantities\.
 
   **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `CalculationResult <type-daml-finance-interface-lifecycle-effect-calculationresult-55343_>`_
@@ -202,10 +202,10 @@ Data Types
          - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party providing the claim processing\.
        * - targetInstrument
-         - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+         - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-75164>`
          - A holding on this instrument is required to claim the effect\.
        * - producedInstrument
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-75164>`
          - The new version of the target instrument, when it exists\.
        * - id
          - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_

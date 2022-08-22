@@ -41,7 +41,7 @@ Templates
   + **Choice Archive**
 
 
-  + **implements** :ref:`I <type-daml-finance-interface-asset-instrument-i-66474>`
+  + **implements** :ref:`I <type-daml-finance-interface-instrument-base-instrument-i-66474>`
 
   + **implements** :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
 

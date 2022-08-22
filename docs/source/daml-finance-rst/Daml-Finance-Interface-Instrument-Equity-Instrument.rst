@@ -33,10 +33,10 @@ Interfaces
          - `Date <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
          - Date at which the dividend is distributed\.
        * - newInstrument
-         - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+         - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-75164>`
          - Instrument held after the dividend distribution (ie\. \"ex\-dividend\" stock)\.
        * - perUnitDistribution
-         - \[:ref:`Q <type-daml-finance-interface-asset-instrument-q-31714>`\]
+         - \[:ref:`Q <type-daml-finance-interface-instrument-base-instrument-q-31714>`\]
          - Distributed quantities per unit held\.
 
   + **Choice DeclareReplacement**
@@ -57,7 +57,7 @@ Interfaces
          - `Date <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
          - Date the replacement is to be executed\.
        * - perUnitReplacement
-         - \[:ref:`Q <type-daml-finance-interface-asset-instrument-q-31714>`\]
+         - \[:ref:`Q <type-daml-finance-interface-instrument-base-instrument-q-31714>`\]
          - Payout offered to shareholders per held share\.
 
   + **Choice DeclareStockSplit**
@@ -78,7 +78,7 @@ Interfaces
          - `Date <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
          - Date at which the stock split is effective\.
        * - newInstrument
-         - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+         - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-75164>`
          - Instrument to be held after the stock split is executed\.
        * - adjustmentFactor
          - `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
@@ -99,7 +99,7 @@ Interfaces
          - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party retrieving the view\.
 
-  + **Method asInstrument \:**\ :ref:`I <type-daml-finance-interface-asset-instrument-i-66474>`
+  + **Method asInstrument \:**\ :ref:`I <type-daml-finance-interface-instrument-base-instrument-i-66474>`
 
     Conversion to base ``Instrument`` interface\.
 
@@ -140,14 +140,14 @@ Data Types
 
   **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Instrument <type-daml-finance-instrument-equity-instrument-instrument-7660>` `I <type-daml-finance-interface-instrument-equity-instrument-i-54484_>`_
 
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ `I <type-daml-finance-interface-instrument-equity-instrument-i-54484_>`_ :ref:`I <type-daml-finance-interface-asset-instrument-i-66474>`
+  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ `I <type-daml-finance-interface-instrument-equity-instrument-i-54484_>`_ :ref:`I <type-daml-finance-interface-instrument-base-instrument-i-66474>`
 
   **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ `I <type-daml-finance-interface-instrument-equity-instrument-i-54484_>`_ :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
 
 .. _type-daml-finance-interface-instrument-equity-instrument-implementation-58678:
 
 **type** `Implementation <type-daml-finance-interface-instrument-equity-instrument-implementation-58678_>`_ t
-  \= (`HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ t `I <type-daml-finance-interface-instrument-equity-instrument-i-54484_>`_, :ref:`Implementation <type-daml-finance-interface-asset-instrument-implementation-94080>` t)
+  \= (`HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ t `I <type-daml-finance-interface-instrument-equity-instrument-i-54484_>`_, :ref:`Implementation <type-daml-finance-interface-instrument-base-instrument-implementation-94080>` t)
 
   Type constraint used to require templates implementing ``Instrument`` to also implement ``BaseInstrument.I``\.
 
@@ -189,7 +189,7 @@ Functions
 .. _function-daml-finance-interface-instrument-equity-instrument-asinstrument-42337:
 
 `asInstrument <function-daml-finance-interface-instrument-equity-instrument-asinstrument-42337_>`_
-  \: `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Instrument <type-daml-finance-interface-instrument-equity-instrument-instrument-81959_>`_ \=\> t \-\> :ref:`I <type-daml-finance-interface-asset-instrument-i-66474>`
+  \: `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Instrument <type-daml-finance-interface-instrument-equity-instrument-instrument-81959_>`_ \=\> t \-\> :ref:`I <type-daml-finance-interface-instrument-base-instrument-i-66474>`
 
 .. _function-daml-finance-interface-instrument-equity-instrument-declaredividend-32016:
 

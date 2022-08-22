@@ -31,13 +31,13 @@ Interfaces
          - The instrument's key\.
        * - inflationIndexId
          - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
-         - The inflation index reference ID\. For example, in case of \"0\.5% p\.a coupon, CPI adjusted principal\" this should a valid reference to the \"CPI\" index\.
+         - The inflation index reference ID\. For example, in case of \"0\.5% p\.a\. coupon, CPI adjusted principal\" this should a valid reference to the \"CPI\" index\.
        * - inflationIndexBaseValue
          - `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
          - The value of the inflation index on the first reference date of this bond (called \"dated date\" on US TIPS)\. This is used as the base value for the principal adjustment\.
        * - couponRate
          - `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
-         - The fixed coupon rate, per annum\. For example, in case of a \"0\.5% p\.a coupon, CPI adjusted principal\" this should be 0\.005\.
+         - The fixed coupon rate, per annum\. For example, in case of a \"0\.5% p\.a\. coupon, CPI adjusted principal\" this should be 0\.005\.
        * - issueDate
          - `Date <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
          - The date when the bond was issued\.
@@ -66,7 +66,7 @@ Interfaces
          - `Int <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
          - The coupon period multiplier\. For example, in case of a 3M coupon period (a coupon every 3 months), this should be 3\.
        * - currency
-         - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+         - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-75164>`
          - The currency of the bond\. For example, if the bond pays in USD this should be a USD cash instrument\.
        * - lastEventTimestamp
          - `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
@@ -94,7 +94,7 @@ Interfaces
 
     Conversion to ``Disclosure`` interface\.
 
-  + **Method create' \:**\ Create \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-asset-instrument-i-66474>`)
+  + **Method create' \:**\ Create \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-instrument-base-instrument-i-66474>`)
 
     Implementation of ``Create`` choice\.
 
@@ -171,7 +171,7 @@ Functions
 .. _function-daml-finance-interface-instrument-bond-inflationlinked-createtick-5607:
 
 `create' <function-daml-finance-interface-instrument-bond-inflationlinked-createtick-5607_>`_
-  \: `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Factory <type-daml-finance-interface-instrument-bond-inflationlinked-factory-99998_>`_ \=\> t \-\> Create \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-asset-instrument-i-66474>`)
+  \: `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Factory <type-daml-finance-interface-instrument-bond-inflationlinked-factory-99998_>`_ \=\> t \-\> Create \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-instrument-base-instrument-i-66474>`)
 
 .. _function-daml-finance-interface-instrument-bond-inflationlinked-remove-83245:
 

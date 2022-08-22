@@ -26,10 +26,10 @@ Templates
        - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
        - Issuer of the Instrument
      * - currentInstrument
-       - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+       - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-75164>`
        - Equity impacted by the stock split
      * - newInstrument
-       - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+       - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-75164>`
        - Equity to hold after the stock split
      * - factor
        - `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_

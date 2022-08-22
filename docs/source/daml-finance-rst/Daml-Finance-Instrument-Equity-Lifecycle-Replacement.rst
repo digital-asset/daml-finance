@@ -29,10 +29,10 @@ Templates
        - `Date <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
        - The replacement's execution date\.
      * - targetInstrument
-       - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+       - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-75164>`
        - The instrument whose units are consumed by the merger\.
      * - offeredAssets
-       - \[:ref:`Q <type-daml-finance-interface-asset-instrument-q-31714>`\]
+       - \[:ref:`Q <type-daml-finance-interface-instrument-base-instrument-q-31714>`\]
        - The instruments whose units are delivered and corresponding amounts\.
      * - id
        - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_

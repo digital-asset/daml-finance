@@ -14,7 +14,7 @@ Here is a complete list of modules in the financial library:
 
    Daml.Finance.Asset.Account <Daml-Finance-Asset-Account>
    Daml.Finance.Asset.Fungible <Daml-Finance-Asset-Fungible>
-   Daml.Finance.Asset.Instrument <Daml-Finance-Asset-Instrument>
+   Daml.Finance.Instrument.Base.Instrument <Daml-Finance-Instrument-Base-Instrument>
    Daml.Finance.Asset.NonFungible <Daml-Finance-Asset-NonFungible>
    Daml.Finance.Asset.NonTransferable <Daml-Finance-Asset-NonTransferable>
    Daml.Finance.Instrument.Bond.FixedRate <Daml-Finance-Instrument-Bond-FixedRate>
@@ -35,10 +35,10 @@ Here is a complete list of modules in the financial library:
    Daml.Finance.Interface.Asset.Account <Daml-Finance-Interface-Asset-Account>
    Daml.Finance.Interface.Asset.Factory.Account <Daml-Finance-Interface-Asset-Factory-Account>
    Daml.Finance.Interface.Asset.Factory.Holding <Daml-Finance-Interface-Asset-Factory-Holding>
-   Daml.Finance.Interface.Asset.Factory.Instrument <Daml-Finance-Interface-Asset-Factory-Instrument>
+   Daml.Finance.Interface.Instrument.Base.Factory <Daml-Finance-Interface-Instrument-Base-Factory>
    Daml.Finance.Interface.Asset.Fungible <Daml-Finance-Interface-Asset-Fungible>
    Daml.Finance.Interface.Asset.Holding <Daml-Finance-Interface-Asset-Holding>
-   Daml.Finance.Interface.Asset.Instrument <Daml-Finance-Interface-Asset-Instrument>
+   Daml.Finance.Interface.Instrument.Base.Instrument <Daml-Finance-Interface-Instrument-Base-Instrument>
    Daml.Finance.Interface.Asset.Lockable <Daml-Finance-Interface-Asset-Lockable>
    Daml.Finance.Interface.Asset.Transferable <Daml-Finance-Interface-Asset-Transferable>
    Daml.Finance.Interface.Asset.Types <Daml-Finance-Interface-Asset-Types>

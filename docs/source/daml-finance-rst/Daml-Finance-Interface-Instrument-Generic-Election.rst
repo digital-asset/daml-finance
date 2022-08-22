@@ -245,7 +245,7 @@ Data Types
          - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - party that is authorized to process the election and generate the new instrument version \+ effects
        * - instrument
-         - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+         - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-75164>`
          - the instrument to which the election applies
 
   **instance** HasInterfaceView `Election <type-daml-finance-interface-instrument-generic-election-election-60525_>`_ `View <type-daml-finance-interface-instrument-generic-election-view-34831_>`_

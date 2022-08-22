@@ -95,7 +95,7 @@ Templates
        - `Int <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
        - The coupon period multiplier\. For example, in case of a 3M coupon period (a coupon every 3 months), this should be 3\.
      * - currency
-       - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+       - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-75164>`
        - The currency of the bond\. For example, if the bond pays in USD this should be a USD cash instrument\.
      * - observers
        - :ref:`Observers <type-daml-finance-interface-common-types-observers-20361>`
@@ -107,7 +107,7 @@ Templates
   + **Choice Archive**
 
 
-  + **implements** :ref:`I <type-daml-finance-interface-asset-instrument-i-66474>`
+  + **implements** :ref:`I <type-daml-finance-interface-instrument-base-instrument-i-66474>`
 
   + **implements** :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
 
@@ -123,4 +123,4 @@ Data Types
 **type** `T <type-daml-finance-instrument-bond-floatingrate-t-55081_>`_
   \= `Instrument <type-daml-finance-instrument-bond-floatingrate-instrument-41475_>`_
 
-  **instance** :ref:`HasImplementation <class-daml-finance-interface-asset-instrument-hasimplementation-51108>` `T <type-daml-finance-instrument-bond-floatingrate-t-55081_>`_
+  **instance** :ref:`HasImplementation <class-daml-finance-interface-instrument-base-instrument-hasimplementation-51108>` `T <type-daml-finance-instrument-bond-floatingrate-t-55081_>`_

@@ -14,11 +14,11 @@ Templates
 **template** `Factory <type-daml-finance-asset-nontransferable-factory-91184_>`_
 
   Implementation of the corresponding Holding Factory\.
-  
+
   .. list-table::
      :widths: 15 10 30
      :header-rows: 1
-  
+
      * - Field
        - Type
        - Description
@@ -28,12 +28,12 @@ Templates
      * - observers
        - :ref:`Observers <type-daml-finance-interface-common-types-observers-20361>`
        - The factory's observers\.
-  
+
   + **Choice Archive**
-    
+
 
   + **implements** :ref:`F <type-daml-finance-interface-asset-factory-holding-f-78374>`
-  
+
   + **implements** :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
 
 .. _type-daml-finance-asset-nontransferable-nontransferable-14506:
@@ -43,16 +43,16 @@ Templates
   Implementation of a non\-transferable holding\.
   ``NonTransferable`` implements the interface ``Lockable.I`` (which requires ``Holding.I``, and
   ``Disclosure.I`` to be implemented as well)\.
-  
+
   .. list-table::
      :widths: 15 10 30
      :header-rows: 1
-  
+
      * - Field
        - Type
        - Description
      * - instrument
-       - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+       - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-75164>`
        - The instrument of which units are held\.
      * - account
        - :ref:`AccountKey <type-daml-finance-interface-asset-types-accountkey-21197>`
@@ -66,14 +66,14 @@ Templates
      * - observers
        - :ref:`Observers <type-daml-finance-interface-common-types-observers-20361>`
        - Observers\.
-  
+
   + **Choice Archive**
-    
+
 
   + **implements** :ref:`I <type-daml-finance-interface-asset-holding-i-4221>`
-  
+
   + **implements** :ref:`I <type-daml-finance-interface-asset-lockable-i-23182>`
-  
+
   + **implements** :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
 
 Data Types
@@ -88,5 +88,5 @@ Data Types
 
 **type** `T <type-daml-finance-asset-nontransferable-t-66900_>`_
   \= `NonTransferable <type-daml-finance-asset-nontransferable-nontransferable-14506_>`_
-  
+
   **instance** :ref:`HasImplementation <class-daml-finance-interface-asset-holding-hasimplementation-98201>` `T <type-daml-finance-asset-nontransferable-t-66900_>`_

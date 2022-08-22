@@ -29,7 +29,7 @@ Interfaces
          - Type
          - Description
        * - quantity
-         - :ref:`Q <type-daml-finance-interface-asset-instrument-q-31714>`
+         - :ref:`Q <type-daml-finance-interface-instrument-base-instrument-q-31714>`
          - The target ``Instrument`` and corresponding amount\.
 
   + **Choice Debit**

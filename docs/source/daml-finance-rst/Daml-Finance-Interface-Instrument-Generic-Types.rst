@@ -19,7 +19,7 @@ Data Types
 .. _type-daml-finance-interface-instrument-generic-types-deliverable-67765:
 
 **type** `Deliverable <type-daml-finance-interface-instrument-generic-types-deliverable-67765_>`_
-  \= :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+  \= :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-75164>`
 
   Type used to reference assets in the claim tree\.
 

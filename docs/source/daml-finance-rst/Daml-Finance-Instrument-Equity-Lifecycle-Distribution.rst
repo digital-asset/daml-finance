@@ -29,13 +29,13 @@ Templates
        - `Date <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
        - The effective date of the distribution\.
      * - perUnitDistribution
-       - \[:ref:`Q <type-daml-finance-interface-asset-instrument-q-31714>`\]
+       - \[:ref:`Q <type-daml-finance-interface-instrument-base-instrument-q-31714>`\]
        - Distributed items\.
      * - currentInstrument
-       - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+       - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-75164>`
        - Target instrument before the distribution takes place\.
      * - newInstrument
-       - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+       - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-75164>`
        - Target instrument after the distribution has taken place\.
      * - id
        - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_

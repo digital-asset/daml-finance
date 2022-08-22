@@ -63,7 +63,7 @@ Interfaces
          - `Int <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
          - The coupon period multiplier\. For example, in case of a 3M coupon period (a coupon every 3 months), this should be 3\.
        * - currency
-         - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+         - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-75164>`
          - The currency of the bond\. For example, if the bond pays in USD this should be a USD cash instrument\.
        * - lastEventTimestamp
          - `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
@@ -91,7 +91,7 @@ Interfaces
 
     Conversion to ``Disclosure`` interface\.
 
-  + **Method create' \:**\ Create \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-asset-instrument-i-66474>`)
+  + **Method create' \:**\ Create \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-instrument-base-instrument-i-66474>`)
 
     Implementation of ``Create`` choice\.
 
@@ -168,7 +168,7 @@ Functions
 .. _function-daml-finance-interface-instrument-bond-floatingrate-createtick-693:
 
 `create' <function-daml-finance-interface-instrument-bond-floatingrate-createtick-693_>`_
-  \: `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Factory <type-daml-finance-interface-instrument-bond-floatingrate-factory-88424_>`_ \=\> t \-\> Create \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-asset-instrument-i-66474>`)
+  \: `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Factory <type-daml-finance-interface-instrument-bond-floatingrate-factory-88424_>`_ \=\> t \-\> Create \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-instrument-base-instrument-i-66474>`)
 
 .. _function-daml-finance-interface-instrument-bond-floatingrate-remove-1423:
 

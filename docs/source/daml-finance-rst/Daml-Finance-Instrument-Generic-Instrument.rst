@@ -48,7 +48,7 @@ Templates
   + **Choice Archive**
 
 
-  + **implements** :ref:`I <type-daml-finance-interface-asset-instrument-i-66474>`
+  + **implements** :ref:`I <type-daml-finance-interface-instrument-base-instrument-i-66474>`
 
   + **implements** :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
 
@@ -66,6 +66,6 @@ Data Types
 **type** `T <type-daml-finance-instrument-generic-instrument-t-62954_>`_
   \= `Instrument <type-daml-finance-instrument-generic-instrument-instrument-92650_>`_
 
-  **instance** :ref:`HasImplementation <class-daml-finance-interface-asset-instrument-hasimplementation-51108>` `T <type-daml-finance-instrument-generic-instrument-t-62954_>`_
+  **instance** :ref:`HasImplementation <class-daml-finance-interface-instrument-base-instrument-hasimplementation-51108>` `T <type-daml-finance-instrument-generic-instrument-t-62954_>`_
 
   **instance** :ref:`ExercisableHasImplementation <class-daml-finance-interface-instrument-generic-election-exercisablehasimplementation-7032>` `T <type-daml-finance-instrument-generic-instrument-t-62954_>`_
