@@ -1,7 +1,7 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-Getting started 3 : Lifecycling
+Getting started : Lifecycling
 ###############################
 
 This tutorial describes the :ref:`lifecycle <lifecycling>` flow between two counterparties.
@@ -12,28 +12,41 @@ We will use a bond instrument to illustrate the different steps:
 #. Lifecycling the bond instrument
 #. Settling the instructions
 
+Download the code for the tutorial
+**********************************
+
+The code of this tutorial resides in the `Daml Finance <https://github.com/digital-asset/daml-finance>`_ repo.
+You can install it locally by following :doc:`these instructions <install-daml-finance>`.
+
+In particular, the file ``src/test/daml/Daml/Finance/Bond/Test/FixedRate.daml`` is the starting point
+of this tutorial.
+It also refers to some utility functions in ``src/test/daml/Daml/Finance/Bond/Test/Util.daml``.
+
 Creating a fixed-rate bond instrument
-=====================================
+*************************************
 
-We start by defining a fixed rate bond, which pays a 1.1% coupon every year. We also credit the account of an investor:
+We start by defining a fixed rate bond, which pays a 1.1% coupon every year.
 
-.. code:: daml
+.. literalinclude:: ../../../src/test/daml/Daml/Finance/Bond/Test/FixedRate.daml
+  :language: daml
+  :start-after: -- CREATE_FIXED_RATE_BOND_VARIABLES_BEGIN
+  :end-before: -- CREATE_FIXED_RATE_BOND_VARIABLES_END
 
-  let
-    issueDate = date 2019 Jan 16
-    firstCouponDate = date 2019 May 15
-    maturityDate = date 2020 May 15
-    couponRate = 0.011
-    couponPeriod = M
-    couponPeriodMultiplier = 12
-    redemptionAmount = 1_000_000.0
-  bondInstrument <- originateFixedRateBond custodian issuer "BOND" obs now issueDate holidayCalendarIds calendarDataProvider firstCouponDate maturityDate dayCountConvention businessDayConvention couponRate couponPeriod couponPeriodMultiplier cashInstrumentCid
-  investorBondTransferableCid <- Account.credit [publicParty] bondInstrument redemptionAmount investorAccount
+.. literalinclude:: ../../../src/test/daml/Daml/Finance/Bond/Test/Util.daml
+  :language: daml
+  :start-after: -- CREATE_FIXED_RATE_BOND_INSTRUMENT_BEGIN
+  :end-before: -- CREATE_FIXED_RATE_BOND_INSTRUMENT_END
 
+We also credit the account of an investor:
+
+.. literalinclude:: ../../../src/test/daml/Daml/Finance/Bond/Test/FixedRate.daml
+  :language: daml
+  :start-after: -- CREDIT_ACCOUNT_FIXED_RATE_BOND_BEGIN
+  :end-before: -- CREDIT_ACCOUNT_FIXED_RATE_BOND_END
 
 
 Defining the clock for time-based events
-========================================
+****************************************
 
 Since the bond pays a coupon on a yearly basis, we talk about a time-based event.
 The requirement to pay the coupon is governed by actual time.
@@ -43,27 +56,24 @@ regarding when to process events.
 
 We define a clock contract to control the passage of time:
 
-.. code:: daml
-
-  -- create clock and clock update event
-  let clock = DateClock with u = Unit today; id = show today; provider = issuer; observers = empty
-  clockCid <- toInterfaceContractId <$> submitMulti [issuer] [] do createCmd clock
-  clockEventCid <- toInterfaceContractId <$> submitMulti [issuer] [] do createCmd DateClockUpdateEvent with id = "Update to " <> show today, clock
+.. literalinclude:: ../../../src/test/daml/Daml/Finance/Bond/Test/Util.daml
+  :language: daml
+  :start-after: -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_BEGIN
+  :end-before: -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_END
 
 
 Lifecycling the bond instrument
-===============================
+*******************************
 
 We use the ``Lifecyclable`` interface, which is defined in ``Daml.Finance.Interface.Lifecycle.Lifecyclable``.
 
 The issuer of the bond is responsible for initiating the coupon payment,
 by calling ``Lifecycle`` on the coupon date:
 
-.. code:: daml
-
-  -- Try to lifecycle bond
-  (bondLifecyclableCid2, effectCids) <- Instrument.submitExerciseInterfaceByKeyCmd @Lifecyclable.I [issuer] readAs bondInstrument
-    Lifecyclable.Lifecycle with settler; eventCid = clockEventCid; observableCids; ruleName = "Time"; clockCid
+.. literalinclude:: ../../../src/test/daml/Daml/Finance/Bond/Test/Util.daml
+  :language: daml
+  :start-after: -- LIFECYCLE_BOND_BEGIN
+  :end-before: -- LIFECYCLE_BOND_END
 
 This internally uses the ``Event`` interface, which is defined in ``Daml.Finance.Interface.Lifecycle.Event``. In our case, the event
 is a clock event, since the coupon is defined by the passage of time.
@@ -75,54 +85,29 @@ The ``Effect`` interface is defined in ``Daml.Finance.Interface.Lifecycle.Effect
 
 
 Settling the instructions
-=========================
+*************************
 
 In order to process the effect(s) of the lifecycling (in this case: pay the coupon), we need to create settlement instructions.
 We start by creating a settlement factory:
 
-.. code:: daml
-
-  -- Create settlement factory
-  factoryCid <- submitMulti [investor] [] do createCmd BatchFactory with requestors = singleton investor
+.. literalinclude:: ../../../src/test/daml/Daml/Finance/Bond/Test/Util.daml
+  :language: daml
+  :start-after: -- CREATE_SETTLEMENT_FACTORY_BOND_BEGIN
+  :end-before: -- CREATE_SETTLEMENT_FACTORY_BOND_END
 
 The investor then claims the effect:
 
-.. code:: daml
-
-  -- Claim effect
-  settlementRuleCid <- submitMulti [custodian, investor] [] do
-    createCmd Rule
-      with
-        custodian
-        owner = investor
-        claimers = singleton investor
-        settler
-        instrumentLabel = bondInstrument.id.label
-        instructableCid = toInterfaceContractId factoryCid
-
-  result <- submitMulti [investor] readAs do
-    exerciseCmd settlementRuleCid SettlementRule.Claim with
-      claimer = investor
-      holdingCids = [toInterfaceContractId @Holding.I investorBondTransferableCid]
-      effectCid
+.. literalinclude:: ../../../src/test/daml/Daml/Finance/Bond/Test/Util.daml
+  :language: daml
+  :start-after: -- CLAIM_EFFECT_BOND_BEGIN
+  :end-before: -- CLAIM_EFFECT_BOND_END
 
 Finally, the settlement instructions are allocated, approved and then settled.
 
-.. code:: daml
-
-  let
-    Some [investorBondHoldingCid] = result.newInstrumentHoldingCids
-    [custodianCashInstructionCid] = result.instructionCids
-
-  -- Allocate instructions
-  custodianCashInstructionCid <- submitMulti [custodian] readAs do exerciseCmd custodianCashInstructionCid Instruction.Allocate with transferableCid = custodianCashTransferableCid
-
-  -- Approve instructions
-  custodianCashInstructionCid <- submitMulti [investor] [] do
-    exerciseCmd custodianCashInstructionCid Instruction.Approve with receiverAccount = investorAccount
-
-  -- Settle container
-  [investorCashTransferableCid] <- submitMulti [settler] [] do exerciseCmd result.containerCid Settleable.Settle
+.. literalinclude:: ../../../src/test/daml/Daml/Finance/Bond/Test/Util.daml
+  :language: daml
+  :start-after: -- ALLOCATE_APPROVE_SETTLE_INSTRUCTIONS_BOND_BEGIN
+  :end-before: -- ALLOCATE_APPROVE_SETTLE_INSTRUCTIONS_BOND_END
 
 This is the result of the settlement:
   - The investor receives cash for the coupon.
