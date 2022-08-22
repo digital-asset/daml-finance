@@ -77,7 +77,7 @@ The library provides a set of **extension packages** modelling
 instruments across a variety of asset classes, and the corresponding
 lifecycle events.
 
-For instance, the ``Daml.Finance.Bond`` package defines commonly-used
+For instance, the ``Daml.Finance.Instrument.Bond`` package defines commonly-used
 fixed income instruments, such as a floating-rate bond.
 
 These models do not have the ambition to fully cover a customer

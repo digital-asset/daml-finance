@@ -44,23 +44,23 @@ Data Types
 
   **instance** HasImplementation `I <type-daml-finance-interface-generic-hasclaims-i-90893_>`_
 
-  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Instrument <type-daml-finance-bond-fixedrate-instrument-1982>` `I <type-daml-finance-interface-generic-hasclaims-i-90893_>`_
+  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Instrument <type-daml-finance-instrument-bond-fixedrate-instrument-1982>` `I <type-daml-finance-interface-generic-hasclaims-i-90893_>`_
 
-  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Instrument <type-daml-finance-bond-floatingrate-instrument-41475>` `I <type-daml-finance-interface-generic-hasclaims-i-90893_>`_
+  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Instrument <type-daml-finance-instrument-bond-floatingrate-instrument-41475>` `I <type-daml-finance-interface-generic-hasclaims-i-90893_>`_
 
-  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Instrument <type-daml-finance-bond-inflationlinked-instrument-28311>` `I <type-daml-finance-interface-generic-hasclaims-i-90893_>`_
+  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Instrument <type-daml-finance-instrument-bond-inflationlinked-instrument-28311>` `I <type-daml-finance-interface-generic-hasclaims-i-90893_>`_
 
-  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Instrument <type-daml-finance-bond-zerocoupon-instrument-49917>` `I <type-daml-finance-interface-generic-hasclaims-i-90893_>`_
+  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Instrument <type-daml-finance-instrument-bond-zerocoupon-instrument-49917>` `I <type-daml-finance-interface-generic-hasclaims-i-90893_>`_
 
   **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Instrument <type-daml-finance-generic-instrument-instrument-92650>` `I <type-daml-finance-interface-generic-hasclaims-i-90893_>`_
 
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Instrument <type-daml-finance-bond-fixedrate-instrument-1982>` `I <type-daml-finance-interface-generic-hasclaims-i-90893_>`_
+  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Instrument <type-daml-finance-instrument-bond-fixedrate-instrument-1982>` `I <type-daml-finance-interface-generic-hasclaims-i-90893_>`_
 
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Instrument <type-daml-finance-bond-floatingrate-instrument-41475>` `I <type-daml-finance-interface-generic-hasclaims-i-90893_>`_
+  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Instrument <type-daml-finance-instrument-bond-floatingrate-instrument-41475>` `I <type-daml-finance-interface-generic-hasclaims-i-90893_>`_
 
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Instrument <type-daml-finance-bond-inflationlinked-instrument-28311>` `I <type-daml-finance-interface-generic-hasclaims-i-90893_>`_
+  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Instrument <type-daml-finance-instrument-bond-inflationlinked-instrument-28311>` `I <type-daml-finance-interface-generic-hasclaims-i-90893_>`_
 
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Instrument <type-daml-finance-bond-zerocoupon-instrument-49917>` `I <type-daml-finance-interface-generic-hasclaims-i-90893_>`_
+  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Instrument <type-daml-finance-instrument-bond-zerocoupon-instrument-49917>` `I <type-daml-finance-interface-generic-hasclaims-i-90893_>`_
 
   **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Instrument <type-daml-finance-generic-instrument-instrument-92650>` `I <type-daml-finance-interface-generic-hasclaims-i-90893_>`_
 

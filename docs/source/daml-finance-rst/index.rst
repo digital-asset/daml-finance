@@ -17,11 +17,11 @@ Here is a complete list of modules in the financial library:
    Daml.Finance.Asset.Instrument <Daml-Finance-Asset-Instrument>
    Daml.Finance.Asset.NonFungible <Daml-Finance-Asset-NonFungible>
    Daml.Finance.Asset.NonTransferable <Daml-Finance-Asset-NonTransferable>
-   Daml.Finance.Bond.FixedRate <Daml-Finance-Bond-FixedRate>
-   Daml.Finance.Bond.FloatingRate <Daml-Finance-Bond-FloatingRate>
-   Daml.Finance.Bond.InflationLinked <Daml-Finance-Bond-InflationLinked>
-   Daml.Finance.Bond.Util <Daml-Finance-Bond-Util>
-   Daml.Finance.Bond.ZeroCoupon <Daml-Finance-Bond-ZeroCoupon>
+   Daml.Finance.Instrument.Bond.FixedRate <Daml-Finance-Instrument-Bond-FixedRate>
+   Daml.Finance.Instrument.Bond.FloatingRate <Daml-Finance-Instrument-Bond-FloatingRate>
+   Daml.Finance.Instrument.Bond.InflationLinked <Daml-Finance-Instrument-Bond-InflationLinked>
+   Daml.Finance.Instrument.Bond.Util <Daml-Finance-Instrument-Bond-Util>
+   Daml.Finance.Instrument.Bond.ZeroCoupon <Daml-Finance-Instrument-Bond-ZeroCoupon>
    Daml.Finance.Common.Date.Calendar <Daml-Finance-Common-Date-Calendar>
    Daml.Finance.Common.Date.DayCount <Daml-Finance-Common-Date-DayCount>
    Daml.Finance.Common.Date.RollConvention <Daml-Finance-Common-Date-RollConvention>
@@ -43,10 +43,10 @@ Here is a complete list of modules in the financial library:
    Daml.Finance.Interface.Asset.Transferable <Daml-Finance-Interface-Asset-Transferable>
    Daml.Finance.Interface.Asset.Types <Daml-Finance-Interface-Asset-Types>
    Daml.Finance.Interface.Asset.Util <Daml-Finance-Interface-Asset-Util>
-   Daml.Finance.Interface.Bond.FixedRate <Daml-Finance-Interface-Bond-FixedRate>
-   Daml.Finance.Interface.Bond.FloatingRate <Daml-Finance-Interface-Bond-FloatingRate>
-   Daml.Finance.Interface.Bond.InflationLinked <Daml-Finance-Interface-Bond-InflationLinked>
-   Daml.Finance.Interface.Bond.ZeroCoupon <Daml-Finance-Interface-Bond-ZeroCoupon>
+   Daml.Finance.Interface.Instrument.Bond.FixedRate <Daml-Finance-Interface-Instrument-Bond-FixedRate>
+   Daml.Finance.Interface.Instrument.Bond.FloatingRate <Daml-Finance-Interface-Instrument-Bond-FloatingRate>
+   Daml.Finance.Interface.Instrument.Bond.InflationLinked <Daml-Finance-Interface-Instrument-Bond-InflationLinked>
+   Daml.Finance.Interface.Instrument.Bond.ZeroCoupon <Daml-Finance-Interface-Instrument-Bond-ZeroCoupon>
    Daml.Finance.Interface.Common.Classes <Daml-Finance-Interface-Common-Classes>
    Daml.Finance.Interface.Common.Disclosure <Daml-Finance-Interface-Common-Disclosure>
    Daml.Finance.Interface.Common.Types <Daml-Finance-Interface-Common-Types>

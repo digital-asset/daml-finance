@@ -1,0 +1,175 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Bond.InflationLinked where
+
+import ContingentClaims.Claim (Inequality(..), (<=), cond, one, scale, when)
+import ContingentClaims.Observation (Observation(..))
+import DA.Set (singleton)
+import Daml.Finance.Instrument.Bond.Util
+import Daml.Finance.Common.Date.Calendar (BusinessDayConventionEnum)
+import Daml.Finance.Common.Date.DayCount (DayCountConventionEnum, calcDcf)
+import Daml.Finance.Common.Date.RollConvention (PeriodEnum)
+import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (GetCid(..), HasImplementation, I, K, R, View(..), createReference, disclosureUpdateReference)
+import Daml.Finance.Interface.Asset.Types (Id(..), InstrumentKey(..))
+import Daml.Finance.Interface.Instrument.Bond.InflationLinked qualified as InflationLinked (Create(..), Factory, HasImplementation, Remove(..), View(..))
+import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (I, SetObservers(..), View(..))
+import Daml.Finance.Interface.Common.Types (Observers)
+import Daml.Finance.Interface.Common.Util (flattenObservers)
+import Daml.Finance.Interface.Generic.HasClaims qualified as HasClaims (I, View(..))
+import Daml.Finance.Interface.Lifecycle.Lifecyclable qualified as Lifecyclable (I, Lifecycle(..), View(..))
+import Prelude hiding ((<=), key, or)
+
+type T = Instrument
+
+instance Instrument.HasImplementation T
+
+-- | This template models an inflation linked bond.
+-- It pays a fixed coupon rate at the end of every coupon period.
+-- This is calculated based on a principal that is adjusted according to an inflation index, for example the Consumer Price Index (CPI) in the U.S.
+-- For example: 0.5% p.a coupon, CPI adjusted principal:
+-- At maturity, the greater of the adjusted principal and the original principal is redeemed.
+-- For clarity, this only applies to the redemption amount. The coupons are always calculated based on the adjusted principal.
+template Instrument
+  with
+    depository : Party
+      -- ^ The depository of the instrument.
+    issuer : Party
+      -- ^ The issuer of the instrument.
+    id : Id
+      -- ^ An identifier of the instrument.
+    inflationIndexId : Text
+      -- ^ The inflation index reference ID. For example, in case of "0.5% p.a coupon, CPI adjusted principal" this should a valid reference to the "CPI" index.
+    inflationIndexBaseValue : Decimal
+      -- ^ The value of the inflation index on the first reference date of this bond (called "dated date" on US TIPS). This is used as the base value for the principal adjustment.
+    couponRate : Decimal
+      -- ^ The fixed coupon rate, per annum. For example, in case of a "0.5% p.a coupon, CPI adjusted principal" this should be 0.005.
+    issueDate : Date
+      -- ^ The date when the bond was issued.
+    firstCouponDate : Date
+      -- ^ The first coupon date of the bond.
+    maturityDate : Date
+      -- ^ The last coupon date (and the redemption date) of the bond.
+    holidayCalendarIds : [Text]
+      -- ^ the identifier of the holiday calendar to be used for the coupon schedule.
+    calendarDataProvider : Party
+      -- ^ The reference data provider to use for the holiday calendar.
+    dayCountConvention : DayCountConventionEnum
+      -- ^ The day count convention used to calculate day count fractions. For example: Act360.
+    businessDayConvention : BusinessDayConventionEnum
+      -- ^ An enum type to specify how a non-business day is adjusted. For example: FOLLOWING.
+    couponPeriod : PeriodEnum
+      -- ^ The coupon period. For example, in case of a 3M coupon period (a coupon every 3 months), this should be M.
+    couponPeriodMultiplier : Int
+      -- ^ The coupon period multiplier. For example, in case of a 3M coupon period (a coupon every 3 months), this should be 3.
+    currency : Instrument.K
+      -- ^ The currency of the bond. For example, if the bond pays in USD this should be a USD cash instrument.
+    observers : Observers
+      -- ^ The observers of the instrument.
+    lastEventTimestamp : Time
+      -- ^ (market) time of the last recorded lifecycle event. If no event has occurred yet, the time of creation should be used.
+  where
+    signatory depository, issuer
+    observer flattenObservers observers
+
+    let instrumentKey = InstrumentKey with depository; issuer; id
+
+    implements HasClaims.I where
+      view = HasClaims.View
+        with
+          acquisitionTime = dateToDateClockTime issueDate
+      getClaims = do
+        -- get the initial claims tree (as of the bond's acquisition time)
+        schedule <- createCouponSchedule firstCouponDate holidayCalendarIds businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate issuer calendarDataProvider
+
+        let
+          -- calculate the current inflation factor (how inflation has developed from the first reference date until now)
+          inflationFactor = Observe inflationIndexId / Const inflationIndexBaseValue
+
+          -- calculate the fixed rate coupons (based on an inflation adjusted principal)
+          couponClaims = map (\p ->
+            when (TimeGte $ p.adjustedEndDate) $ scale ((Const couponRate) * inflationFactor * (Const (calcDcf dayCountConvention p.adjustedStartDate p.adjustedEndDate))) $ one currency) schedule
+
+          -- check whether there has been deflation or inflation during the lifetime of the bond
+          deflation = Observe inflationIndexId <= Const inflationIndexBaseValue
+
+          -- in case of deflation: return the original principal
+          deflationClaim = one currency
+
+          -- in case of inflation: return the inflation adjusted principal
+          inflationClaim = scale inflationFactor (one currency)
+
+          -- add the redemption claim
+          redemptionClaim = when (TimeGte $ maturityDate) $ cond deflation deflationClaim inflationClaim
+
+        couponClaimsTagged <- prepareAndTagClaims couponClaims "Coupon"
+        redemptionClaimTagged <- prepareAndTagClaims [redemptionClaim] "Redemption"
+        pure $ mconcat [couponClaimsTagged, redemptionClaimTagged]
+
+    implements Instrument.I where
+      asDisclosure = toInterface @Disclosure.I this
+      view = Instrument.View with depository; issuer; id; validAsOf = lastEventTimestamp
+      getKey = instrumentKey
+
+    implements Lifecyclable.I where
+      view = Lifecyclable.View with lifecycler = issuer
+      lifecycle Lifecyclable.Lifecycle{ruleName; settler; eventCid; clockCid; observableCids} self =
+        case ruleName of
+          "Time" -> processClockUpdate settler eventCid clockCid self this observableCids
+          other -> abort $ "Unknown lifecycle rule " <> other
+
+    implements Disclosure.I where
+      view = Disclosure.View with disclosureControllers = singleton $ singleton issuer; observers
+      setObservers Disclosure.SetObservers{newObservers} = do
+        cid <- toInterfaceContractId <$> create this with observers = newObservers
+        Instrument.disclosureUpdateReference newObservers instrumentKey cid
+      archive' self = archive (coerceContractId self : ContractId Instrument)
+
+instance InflationLinked.HasImplementation Factory
+-- | Factory template for instrument creation.
+template Factory
+  with
+    provider : Party
+      -- ^ The factory's provider.
+    observers : Observers
+      -- ^ The factory's observers.
+  where
+    signatory provider
+    observer flattenObservers observers
+
+    implements InflationLinked.Factory where
+      asDisclosure = toInterface @Disclosure.I this
+      view = InflationLinked.View with provider
+      create' InflationLinked.Create{instrument; inflationIndexId; inflationIndexBaseValue; couponRate; issueDate; firstCouponDate; maturityDate; holidayCalendarIds; calendarDataProvider; dayCountConvention; businessDayConvention; couponPeriod; couponPeriodMultiplier; currency; lastEventTimestamp; observers} = do
+        cid <- toInterfaceContractId <$> create Instrument
+          with
+            depository = instrument.depository
+            issuer = instrument.issuer
+            id = instrument.id
+            inflationIndexId
+            inflationIndexBaseValue
+            couponRate
+            issueDate
+            firstCouponDate
+            maturityDate
+            holidayCalendarIds
+            calendarDataProvider
+            dayCountConvention
+            businessDayConvention
+            couponPeriod
+            couponPeriodMultiplier
+            currency
+            lastEventTimestamp
+            observers
+        Instrument.createReference instrument.depository cid
+        pure cid
+      remove InflationLinked.Remove{instrument}  = do
+        (refCid, ref) <- fetchByKey @Instrument.R instrument
+        instrumentCid <- exercise refCid Instrument.GetCid with viewer = instrument.depository
+        archive $ fromInterfaceContractId @Instrument instrumentCid
+        archive refCid
+
+    implements Disclosure.I where
+      view = Disclosure.View with disclosureControllers = singleton $ singleton provider; observers
+      setObservers Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
+      archive' self = archive (coerceContractId self : ContractId Instrument)

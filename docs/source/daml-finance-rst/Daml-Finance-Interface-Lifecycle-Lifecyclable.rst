@@ -88,13 +88,13 @@ Data Types
 
   **instance** HasMethod :ref:`Exercisable <type-daml-finance-interface-generic-election-exercisable-60012>` \"asLifecyclable\" `I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924_>`_
 
-  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Instrument <type-daml-finance-bond-fixedrate-instrument-1982>` `I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924_>`_
+  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Instrument <type-daml-finance-instrument-bond-fixedrate-instrument-1982>` `I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924_>`_
 
-  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Instrument <type-daml-finance-bond-floatingrate-instrument-41475>` `I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924_>`_
+  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Instrument <type-daml-finance-instrument-bond-floatingrate-instrument-41475>` `I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924_>`_
 
-  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Instrument <type-daml-finance-bond-inflationlinked-instrument-28311>` `I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924_>`_
+  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Instrument <type-daml-finance-instrument-bond-inflationlinked-instrument-28311>` `I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924_>`_
 
-  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Instrument <type-daml-finance-bond-zerocoupon-instrument-49917>` `I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924_>`_
+  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Instrument <type-daml-finance-instrument-bond-zerocoupon-instrument-49917>` `I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924_>`_
 
   **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Instrument <type-daml-finance-generic-instrument-instrument-92650>` `I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924_>`_
 
@@ -102,13 +102,13 @@ Data Types
 
   **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Rule <type-daml-finance-lifecycle-rule-replacement-rule-7648>` `I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924_>`_
 
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Instrument <type-daml-finance-bond-fixedrate-instrument-1982>` `I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924_>`_
+  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Instrument <type-daml-finance-instrument-bond-fixedrate-instrument-1982>` `I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924_>`_
 
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Instrument <type-daml-finance-bond-floatingrate-instrument-41475>` `I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924_>`_
+  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Instrument <type-daml-finance-instrument-bond-floatingrate-instrument-41475>` `I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924_>`_
 
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Instrument <type-daml-finance-bond-inflationlinked-instrument-28311>` `I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924_>`_
+  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Instrument <type-daml-finance-instrument-bond-inflationlinked-instrument-28311>` `I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924_>`_
 
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Instrument <type-daml-finance-bond-zerocoupon-instrument-49917>` `I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924_>`_
+  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Instrument <type-daml-finance-instrument-bond-zerocoupon-instrument-49917>` `I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924_>`_
 
   **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Instrument <type-daml-finance-generic-instrument-instrument-92650>` `I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924_>`_
 
