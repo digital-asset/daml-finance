@@ -7,6 +7,6 @@ daml test --project-root ../package/test/daml/Daml.Finance.Asset.Test
 daml test --project-root ../package/test/daml/Daml.Finance.Bond.Test
 daml test --project-root ../package/test/daml/Daml.Finance.Common.Test
 daml test --project-root ../package/test/daml/Daml.Finance.Generic.Test
-daml test --project-root ../package/test/daml/Daml.Finance.Equity.Test
+daml test --project-root ../package/test/daml/Daml.Finance.Instrument.Equity.Test
 daml test --project-root ../package/test/daml/Daml.Finance.Settlement.Test
 daml test --project-root ../package/test/daml/Daml.Finance.RefData.Test

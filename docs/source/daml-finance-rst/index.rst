@@ -30,8 +30,8 @@ Here is a complete list of modules in the financial library:
    Daml.Finance.Generic.Election <Daml-Finance-Generic-Election>
    Daml.Finance.Generic.Factory <Daml-Finance-Generic-Factory>
    Daml.Finance.Generic.Instrument <Daml-Finance-Generic-Instrument>
-   Daml.Finance.Equity.Factory <Daml-Finance-Equity-Factory>
-   Daml.Finance.Equity.Instrument <Daml-Finance-Equity-Instrument>
+   Daml.Finance.Instrument.Equity.Factory <Daml-Finance-Instrument-Equity-Factory>
+   Daml.Finance.Instrument.Equity.Instrument <Daml-Finance-Instrument-Equity-Instrument>
    Daml.Finance.Interface.Asset.Account <Daml-Finance-Interface-Asset-Account>
    Daml.Finance.Interface.Asset.Factory.Account <Daml-Finance-Interface-Asset-Factory-Account>
    Daml.Finance.Interface.Asset.Factory.Holding <Daml-Finance-Interface-Asset-Factory-Holding>
@@ -57,8 +57,8 @@ Here is a complete list of modules in the financial library:
    Daml.Finance.Interface.Generic.Types <Daml-Finance-Interface-Generic-Types>
    Daml.Finance.Interface.Generic.Util.Claims <Daml-Finance-Interface-Generic-Util-Claims>
    Daml.Finance.Interface.Generic.Util.Claims.Lifecycle <Daml-Finance-Interface-Generic-Util-Claims-Lifecycle>
-   Daml.Finance.Interface.Equity.Factory <Daml-Finance-Interface-Equity-Factory>
-   Daml.Finance.Interface.Equity.Instrument <Daml-Finance-Interface-Equity-Instrument>
+   Daml.Finance.Interface.Instrument.Equity.Factory <Daml-Finance-Interface-Instrument-Equity-Factory>
+   Daml.Finance.Interface.Instrument.Equity.Instrument <Daml-Finance-Interface-Instrument-Equity-Instrument>
    Daml.Finance.Interface.Lifecycle.Clock <Daml-Finance-Interface-Lifecycle-Clock>
    Daml.Finance.Interface.Lifecycle.Effect <Daml-Finance-Interface-Lifecycle-Effect>
    Daml.Finance.Interface.Lifecycle.Event <Daml-Finance-Interface-Lifecycle-Event>
@@ -81,4 +81,3 @@ Here is a complete list of modules in the financial library:
    Daml.Finance.RefData.Time.DateClock <Daml-Finance-RefData-Time-DateClock>
    Daml.Finance.Settlement.Batch <Daml-Finance-Settlement-Batch>
    Daml.Finance.Settlement.Instruction <Daml-Finance-Settlement-Instruction>
-
