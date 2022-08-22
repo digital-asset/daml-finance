@@ -37,3 +37,9 @@ It is useful to do the two parts above in two separate terminal windows. That wa
 Unfortunately, if you rename an .rst file seems `make html` does not pick this up.
 It will still build the document structure using old file names / content.
 In order to solve this, first run `make clean` and then `make html` again.
+
+## If you change menu names / structure
+
+The same goes for changes to the documentation menu in index.rst. If you change the
+structure (e.g. introducing sub-sections) or rename a heading (e.g. Tutorial -> Tutorials)
+`make html` does not pick this up. First run `make clean` and then `make html` again.

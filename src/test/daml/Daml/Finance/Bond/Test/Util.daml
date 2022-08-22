@@ -67,14 +67,18 @@ originateInflationLinkedBond depository issuer label observers lastEventTimestam
 
 lifecycleBond : [Party] -> Date -> Instrument.K -> Party -> Party -> [ContractId Observable.I] -> Script (ContractId Lifecyclable.I, [ContractId Effect.I])
 lifecycleBond readAs today bondInstrument settler issuer observableCids = do
+  -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_BEGIN
   -- create clock and clock update event
   let clock = DateClock with u = Unit today; id = show today; provider = issuer; observers = M.empty
   clockCid <- toInterfaceContractId <$> submitMulti [issuer] [] do createCmd clock
   clockEventCid <- toInterfaceContractId <$> submitMulti [issuer] [] do createCmd DateClockUpdateEvent with id = "Update to " <> show today, clock
+  -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_END
 
+  -- LIFECYCLE_BOND_BEGIN
   -- Try to lifecycle bond
   (bondLifecyclableCid2, effectCids) <- Instrument.submitExerciseInterfaceByKeyCmd @Lifecyclable.I [issuer] readAs bondInstrument
     Lifecyclable.Lifecycle with settler; eventCid = clockEventCid; observableCids; ruleName = "Time"; clockCid
+  -- LIFECYCLE_BOND_END
 
   pure (bondLifecyclableCid2, effectCids)
 
@@ -90,9 +94,12 @@ lifecycleAndVerifyCouponEffectsAndSettlement readAs today bondInstrument settler
   newBondInstrumentKey <- submitMulti [issuer] [] do
     Instrument.toKey <$> exerciseCmd @Instrument.I (coerceContractId bondLifecyclableCid) Instrument.GetView with viewer = issuer
 
+  -- CREATE_SETTLEMENT_FACTORY_BOND_BEGIN
   -- Create settlement factory
   factoryCid <- submitMulti [investor] [] do createCmd BatchFactory with provider = investor; observers = empty
+  -- CREATE_SETTLEMENT_FACTORY_BOND_END
 
+  -- CLAIM_EFFECT_BOND_BEGIN
   -- Claim effect
   settlementRuleCid <- submitMulti [custodian, investor] [] do
     createCmd Rule
@@ -108,7 +115,9 @@ lifecycleAndVerifyCouponEffectsAndSettlement readAs today bondInstrument settler
       claimer = investor
       holdingCids = [toInterfaceContractId @Holding.I investorBondTransferableCid]
       effectCid
+  -- CLAIM_EFFECT_BOND_END
 
+  -- ALLOCATE_APPROVE_SETTLE_INSTRUCTIONS_BOND_BEGIN
   let
     Some [investorBondHoldingCid] = result.newInstrumentHoldingCids
     [custodianCashInstructionCid] = result.instructionCids
@@ -122,6 +131,7 @@ lifecycleAndVerifyCouponEffectsAndSettlement readAs today bondInstrument settler
 
   -- Settle container
   [investorCashTransferableCid] <- submitMulti [settler] readAs do exerciseCmd result.containerCid Settleable.Settle
+  -- ALLOCATE_APPROVE_SETTLE_INSTRUCTIONS_BOND_END
 
   -- Assert state
   verifyOwnerOfHolding [(investor, investorBondHoldingCid), (investor, toInterfaceContractId investorCashTransferableCid)]

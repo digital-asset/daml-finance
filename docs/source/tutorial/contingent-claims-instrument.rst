@@ -1,14 +1,24 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-Tutorials : How to implement a Contingent Claims-based instrument
-#################################################################
+Tutorial : How to implement a Contingent Claims-based instrument
+################################################################
 
 In this chapter we will look at how to create a strongly typed instrument, which leverages
 the ``Contingent Claims`` library.
 As an example, we will see how the fixed rate bond instrument is implemented in Daml Finance.
 The goal is that you will learn how to implement your own instrument template, if you need an
 instrument type that is not already implemented in Daml Fincance.
+
+Download the code for the tutorial
+==================================
+
+The code of this tutorial resides in the `Daml Finance <https://github.com/digital-asset/daml-finance>`_ repo.
+You can install it locally by following :doc:`these instructions <../getting-started/install-daml-finance>`.
+
+In particular, the file ``src/test/daml/Daml/Finance/Bond/Test/FixedRate.daml`` is the starting point
+of this tutorial.
+It also refers to some utility functions in ``src/test/daml/Daml/Finance/Bond/Test/Util.daml``.
 
 Template definition
 ===================

@@ -1,8 +1,17 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-Tutorials : How to use the Derivative extension to model generic instruments
-############################################################################
+Tutorial : How to use the Derivative extension to model generic instruments
+###########################################################################
+
+Download the code for the tutorial
+**********************************
+
+The code of this tutorial resides in the `Daml Finance <https://github.com/digital-asset/daml-finance>`_ repo.
+You can install it locally by following :doc:`these instructions <../getting-started/install-daml-finance>`.
+
+In particular, the file ``src/test/daml/Daml/Finance/Derivative/Test/Intermediated/BondCoupon.daml`` is the starting point
+of this tutorial.
 
 How to create a generic instrument
 **********************************
