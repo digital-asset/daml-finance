@@ -11,7 +11,7 @@ DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Common daml build
 DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Asset daml build
 DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Settlement daml build
 DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Lifecycle daml build
-DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Derivative daml build
+DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Generic daml build
 DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Equity daml build
 DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Bond daml build
 
@@ -20,7 +20,7 @@ DAML_PROJECT=../package/main/daml/Daml.Finance.Asset daml build
 DAML_PROJECT=../package/main/daml/Daml.Finance.Settlement daml build
 DAML_PROJECT=../package/main/daml/Daml.Finance.Lifecycle daml build
 DAML_PROJECT=../package/main/daml/Daml.Finance.RefData daml build
-DAML_PROJECT=../package/main/daml/Daml.Finance.Derivative daml build
+DAML_PROJECT=../package/main/daml/Daml.Finance.Generic daml build
 DAML_PROJECT=../package/main/daml/Daml.Finance.Equity daml build
 DAML_PROJECT=../package/main/daml/Daml.Finance.Bond daml build
 
@@ -36,7 +36,7 @@ DAML_PROJECT=../package/test/daml/Daml.Finance.Test.Util daml build
 DAML_PROJECT=../package/test/daml/Daml.Finance.Common.Test daml build
 DAML_PROJECT=../package/test/daml/Daml.Finance.Asset.Test daml build
 DAML_PROJECT=../package/test/daml/Daml.Finance.Settlement.Test daml build
-DAML_PROJECT=../package/test/daml/Daml.Finance.Derivative.Test daml build
+DAML_PROJECT=../package/test/daml/Daml.Finance.Generic.Test daml build
 DAML_PROJECT=../package/test/daml/Daml.Finance.Equity.Test daml build
 DAML_PROJECT=../package/test/daml/Daml.Finance.Bond.Test daml build
 DAML_PROJECT=../package/test/daml/Daml.Finance.RefData.Test daml build

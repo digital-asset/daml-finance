@@ -14,22 +14,22 @@ Interfaces
 **interface** `Event <type-daml-finance-interface-lifecycle-event-event-2931_>`_
 
   A lifecycle event\. These events are ordered based on the corresponding event time\.
-  
+
   + **Choice GetView**
-    
+
     Retrieves the instrument view\.
-    
+
     .. list-table::
        :widths: 15 10 30
        :header-rows: 1
-    
+
        * - Field
          - Type
          - Description
        * - viewer
          - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party retrieving the view\.
-  
+
 
 Typeclasses
 -----------
@@ -39,9 +39,9 @@ Typeclasses
 **class** `Implementation <type-daml-finance-interface-lifecycle-event-implementation-22192_>`_ t \=\> `HasImplementation <class-daml-finance-interface-lifecycle-event-hasimplementation-79426_>`_ t **where**
 
   **instance** `HasImplementation <class-daml-finance-interface-lifecycle-event-hasimplementation-79426_>`_ `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
-  
+
   **instance** `HasImplementation <class-daml-finance-interface-lifecycle-event-hasimplementation-79426_>`_ :ref:`Event <type-daml-finance-lifecycle-event-distribution-event-46459>`
-  
+
   **instance** `HasImplementation <class-daml-finance-interface-lifecycle-event-hasimplementation-79426_>`_ :ref:`Event <type-daml-finance-lifecycle-event-replacement-event-16120>`
 
 Data Types
@@ -51,64 +51,64 @@ Data Types
 
 **type** `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
   \= `Event <type-daml-finance-interface-lifecycle-event-event-2931_>`_
-  
+
   **instance** `HasImplementation <class-daml-finance-interface-lifecycle-event-hasimplementation-79426_>`_ `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
-  
-  **instance** HasMethod :ref:`Election <type-daml-finance-interface-derivative-election-election-60525>` \"asEvent\" `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
-  
+
+  **instance** HasMethod :ref:`Election <type-daml-finance-interface-generic-election-election-60525>` \"asEvent\" `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
+
   **instance** HasMethod :ref:`Instrument <type-daml-finance-interface-equity-instrument-instrument-81959>` \"declareDividend\" (DeclareDividend \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_))
-  
+
   **instance** HasMethod :ref:`Instrument <type-daml-finance-interface-equity-instrument-instrument-81959>` \"declareReplacement\" (DeclareReplacement \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_))
-  
+
   **instance** HasMethod :ref:`Instrument <type-daml-finance-interface-equity-instrument-instrument-81959>` \"declareStockSplit\" (DeclareStockSplit \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_))
-  
-  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Election <type-daml-finance-derivative-election-election-47518>` `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
-  
+
+  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Election <type-daml-finance-generic-election-election-47518>` `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
+
   **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Event <type-daml-finance-lifecycle-event-distribution-event-46459>` `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
-  
+
   **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Event <type-daml-finance-lifecycle-event-replacement-event-16120>` `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
-  
+
   **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`DateClockUpdateEvent <type-daml-finance-refdata-time-dateclock-dateclockupdateevent-11763>` `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
-  
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Election <type-daml-finance-derivative-election-election-47518>` `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
-  
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`I <type-daml-finance-interface-derivative-election-i-77182>` `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
-  
+
+  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Election <type-daml-finance-generic-election-election-47518>` `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
+
+  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`I <type-daml-finance-interface-generic-election-i-77182>` `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
+
   **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Event <type-daml-finance-lifecycle-event-distribution-event-46459>` `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
-  
+
   **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Event <type-daml-finance-lifecycle-event-replacement-event-16120>` `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
-  
+
   **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`DateClockUpdateEvent <type-daml-finance-refdata-time-dateclock-dateclockupdateevent-11763>` `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
-  
+
   **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t :ref:`Instrument <type-daml-finance-interface-equity-instrument-instrument-81959>`) \=\> `HasExercise <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercise-70422>`_ t DeclareDividend (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_)
-  
+
   **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t :ref:`Instrument <type-daml-finance-interface-equity-instrument-instrument-81959>`) \=\> `HasExercise <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercise-70422>`_ t DeclareReplacement (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_)
-  
+
   **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t :ref:`Instrument <type-daml-finance-interface-equity-instrument-instrument-81959>`) \=\> `HasExercise <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercise-70422>`_ t DeclareStockSplit (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_)
-  
+
   **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t :ref:`Instrument <type-daml-finance-interface-equity-instrument-instrument-81959>`) \=\> `HasExerciseGuarded <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexerciseguarded-97843>`_ t DeclareDividend (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_)
-  
+
   **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t :ref:`Instrument <type-daml-finance-interface-equity-instrument-instrument-81959>`) \=\> `HasExerciseGuarded <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexerciseguarded-97843>`_ t DeclareReplacement (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_)
-  
+
   **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t :ref:`Instrument <type-daml-finance-interface-equity-instrument-instrument-81959>`) \=\> `HasExerciseGuarded <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexerciseguarded-97843>`_ t DeclareStockSplit (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_)
-  
+
   **instance** `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t :ref:`Instrument <type-daml-finance-interface-equity-instrument-instrument-81959>` \=\> `HasFromAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasfromanychoice-81184>`_ t DeclareDividend (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_)
-  
+
   **instance** `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t :ref:`Instrument <type-daml-finance-interface-equity-instrument-instrument-81959>` \=\> `HasFromAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasfromanychoice-81184>`_ t DeclareReplacement (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_)
-  
+
   **instance** `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t :ref:`Instrument <type-daml-finance-interface-equity-instrument-instrument-81959>` \=\> `HasFromAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasfromanychoice-81184>`_ t DeclareStockSplit (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_)
-  
+
   **instance** `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t :ref:`Instrument <type-daml-finance-interface-equity-instrument-instrument-81959>` \=\> `HasToAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastoanychoice-82571>`_ t DeclareDividend (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_)
-  
+
   **instance** `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t :ref:`Instrument <type-daml-finance-interface-equity-instrument-instrument-81959>` \=\> `HasToAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastoanychoice-82571>`_ t DeclareReplacement (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_)
-  
+
   **instance** `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t :ref:`Instrument <type-daml-finance-interface-equity-instrument-instrument-81959>` \=\> `HasToAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastoanychoice-82571>`_ t DeclareStockSplit (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_)
 
 .. _type-daml-finance-interface-lifecycle-event-implementation-22192:
 
 **type** `Implementation <type-daml-finance-interface-lifecycle-event-implementation-22192_>`_ t
   \= `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ t `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
-  
+
   Type constraint used to require templates implementing ``Event`` to not
   require any other interface to be implemented\.
 
@@ -122,36 +122,36 @@ Data Types
 **data** `View <type-daml-finance-interface-lifecycle-event-view-20515_>`_
 
   View for ``Event``\.
-  
+
   .. _constr-daml-finance-interface-lifecycle-event-view-84160:
-  
+
   `View <constr-daml-finance-interface-lifecycle-event-view-84160_>`_
-  
+
     .. list-table::
        :widths: 15 10 30
        :header-rows: 1
-    
+
        * - Field
          - Type
          - Description
        * - eventTime
          - `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
          - The time of the event\. This allows ordering of events\.
-  
+
   **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-lifecycle-event-view-20515_>`_
-  
+
   **instance** `Ord <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ `View <type-daml-finance-interface-lifecycle-event-view-20515_>`_
-  
+
   **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-lifecycle-event-view-20515_>`_
-  
+
   **instance** HasInterfaceView `Event <type-daml-finance-interface-lifecycle-event-event-2931_>`_ `View <type-daml-finance-interface-lifecycle-event-view-20515_>`_
-  
+
   **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Event <type-daml-finance-interface-lifecycle-event-event-2931_>`_) \=\> `HasExercise <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercise-70422>`_ t GetView `View <type-daml-finance-interface-lifecycle-event-view-20515_>`_
-  
+
   **instance** (HasIsInterfaceType t, `HasTemplateTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastemplatetyperep-24134>`_ t, `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Event <type-daml-finance-interface-lifecycle-event-event-2931_>`_) \=\> `HasExerciseGuarded <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexerciseguarded-97843>`_ t GetView `View <type-daml-finance-interface-lifecycle-event-view-20515_>`_
-  
+
   **instance** `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Event <type-daml-finance-interface-lifecycle-event-event-2931_>`_ \=\> `HasFromAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasfromanychoice-81184>`_ t GetView `View <type-daml-finance-interface-lifecycle-event-view-20515_>`_
-  
+
   **instance** `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Event <type-daml-finance-interface-lifecycle-event-event-2931_>`_ \=\> `HasToAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastoanychoice-82571>`_ t GetView `View <type-daml-finance-interface-lifecycle-event-view-20515_>`_
 
 Functions
@@ -161,5 +161,5 @@ Functions
 
 `getEventTime <function-daml-finance-interface-lifecycle-event-geteventtime-83763_>`_
   \: `Event <type-daml-finance-interface-lifecycle-event-event-2931_>`_ \-\> `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
-  
+
   Given an event, retrieves the event time\.

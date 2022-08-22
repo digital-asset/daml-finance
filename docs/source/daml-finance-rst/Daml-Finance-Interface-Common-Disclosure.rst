@@ -133,7 +133,7 @@ Data Types
 
   **instance** HasMethod :ref:`Factory <type-daml-finance-interface-bond-zerocoupon-factory-77382>` \"asDisclosure\" `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
 
-  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-derivative-factory-factory-17847>` \"asDisclosure\" `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
+  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-generic-factory-factory-17847>` \"asDisclosure\" `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
 
   **instance** HasMethod :ref:`Factory <type-daml-finance-interface-equity-factory-factory-50265>` \"asDisclosure\" `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
 
@@ -175,11 +175,11 @@ Data Types
 
   **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Instrument <type-daml-finance-bond-zerocoupon-instrument-49917>` `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
 
-  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Election <type-daml-finance-derivative-election-election-47518>` `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
+  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Election <type-daml-finance-generic-election-election-47518>` `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
 
-  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Factory <type-daml-finance-derivative-factory-factory-26064>` `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
+  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Factory <type-daml-finance-generic-factory-factory-26064>` `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
 
-  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Instrument <type-daml-finance-derivative-instrument-instrument-92650>` `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
+  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Instrument <type-daml-finance-generic-instrument-instrument-92650>` `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
 
   **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Factory <type-daml-finance-equity-factory-factory-66762>` `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
 
@@ -229,11 +229,11 @@ Data Types
 
   **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Instrument <type-daml-finance-bond-zerocoupon-instrument-49917>` `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
 
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Election <type-daml-finance-derivative-election-election-47518>` `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
+  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Election <type-daml-finance-generic-election-election-47518>` `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
 
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Factory <type-daml-finance-derivative-factory-factory-26064>` `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
+  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Factory <type-daml-finance-generic-factory-factory-26064>` `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
 
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Instrument <type-daml-finance-derivative-instrument-instrument-92650>` `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
+  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Instrument <type-daml-finance-generic-instrument-instrument-92650>` `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
 
   **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Factory <type-daml-finance-equity-factory-factory-66762>` `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
 
@@ -265,7 +265,7 @@ Data Types
 
   **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Factory <type-daml-finance-interface-bond-zerocoupon-factory-77382>` `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
 
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Factory <type-daml-finance-interface-derivative-factory-factory-17847>` `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
+  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Factory <type-daml-finance-interface-generic-factory-factory-17847>` `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
 
   **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Factory <type-daml-finance-interface-equity-factory-factory-50265>` `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
 

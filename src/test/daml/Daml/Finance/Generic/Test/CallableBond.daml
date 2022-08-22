@@ -1,0 +1,183 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Generic.Test.CallableBond where
+
+import ContingentClaims.Claim (and, at, give, one, or, scale, when)
+import ContingentClaims.Observation (Observation(..))
+import DA.Assert ((===))
+import DA.Date as D (Month(..), date)
+import DA.Map qualified as M (empty, fromList)
+import DA.Set (empty, singleton)
+import DA.Time (time)
+import Daml.Finance.Asset.Fungible qualified as Fungible (Factory(..), T)
+import Daml.Finance.Asset.Test.Util.Account qualified as Account (createAccount, createFactory, credit)
+import Daml.Finance.Asset.Test.Util.Instrument qualified as Instrument (originate)
+import Daml.Finance.Generic.Election (CreateElection(..), ElectionFactory(..))
+import Daml.Finance.Generic.Test.Util (originateGeneric, dateToDateClockTime, mapClaimToUTCTime)
+import Daml.Finance.Interface.Asset.Util (getAmount, getOwner)
+import Daml.Finance.Interface.Generic.Election qualified as Election (Apply(..), I)
+import Daml.Finance.Interface.Generic.Types (C, Deliverable)
+import Daml.Finance.Interface.Lifecycle.SettlementRule qualified as SettlementRule (Claim(..))
+import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.Settleable qualified as Settleable (Settle(..))
+import Daml.Finance.Lifecycle.Rule.Settlement (Rule(..))
+import Daml.Finance.RefData.Time.DateClock (DateClock(..), Unit(..))
+import Daml.Finance.Settlement.Batch (BatchFactory(..))
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Script
+import Prelude hiding (and, or)
+
+-- This script tests the election mechanism on an Instrument.Generic using the example of a callable bond.
+-- The custodian of the callable bond holding has the right to call back the bond and repay the principal to the owner before maturity.
+
+-- | Parties involved in the test script.
+data TestParties = TestParties
+  with
+    bank : Party
+      -- ^ Acts as custodian in the respective holdings (both cash holdings and instrument holdings). It also acts as depository in the bond instrument. It has the right to call back the bond before maturity.
+    issuer : Party
+      -- ^ Acts as issuer of the bond instrument. It is also the party tasked with lifecycling the contract and processing elections.
+    centralBank : Party
+      -- ^ The Central Bank is the depository and the issuer of the cash instrument.
+    investor : Party
+      -- ^ Owner of the bond holding. Chooses to exercise the right of the call bond.
+    settler : Party
+      -- ^ Triggers the settlement of fully allocated settlement instructions.
+    publicParty : Party
+      -- ^ The public party. Every party can readAs the public party.
+
+-- | Creates the claim for a callable bond and the corresponding elections
+bootstrapBond : Date -> Date -> Decimal -> Decimal -> Deliverable -> (C, C, C)
+bootstrapBond intermediateDate maturity couponAmount principal ccy =
+  let
+    coupon = scale (Const couponAmount) $ one ccy
+    called = give $ scale (Const principal) $ one ccy
+    notCalled = when (at maturity) $ scale (Const principal) $ one ccy
+    callableBond = when (at intermediateDate) $ and coupon $ give $ or called notCalled
+  in (mapClaimToUTCTime callableBond, mapClaimToUTCTime called, mapClaimToUTCTime notCalled)
+
+run : Script ()
+run = script do
+
+  --------------
+  -- 0. SETUP --
+  --------------
+  TestParties{..} <- setupParties
+
+  -- Account and holding factory
+  let pp = [("PublicParty", singleton $ singleton publicParty)]
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank pp
+  holdingFactoryCid <- toInterfaceContractId <$> submit bank do
+    createCmd Fungible.Factory with provider = bank; observers = M.fromList pp
+
+  -- Create accounts
+  [bankAccount, investorAccount] <- mapA (Account.createAccount [publicParty] accountFactoryCid holdingFactoryCid [] bank) [bank, investor]
+
+  -- Distribute cash
+  now <- getTime
+  let obs = [("public party", singleton $ singleton publicParty)]
+  cashInstrumentCid <- Instrument.originate centralBank centralBank "USD" obs now
+  bankCashTransferableCouponCid <- Account.credit [publicParty] cashInstrumentCid 1_000.0 bankAccount
+  bankCashTransferablePrincipalCid <- Account.credit [publicParty] cashInstrumentCid 100_000.0 bankAccount
+
+  -- Create and distribute a generic derivative
+  let
+    acquisitionTime = time (D.date 2022 Jul 01) 00 00 0
+    intermediateDate = D.date 2022 Jul 07
+    maturityDate = D.date 2023 Jul 07
+    couponAmount = 1_000.0
+    principalAmount = 100_000.0
+    (bond, called, _) = bootstrapBond intermediateDate maturityDate couponAmount principalAmount cashInstrumentCid
+  genericInstrument <- originateGeneric bank issuer "BOND" acquisitionTime bond obs now
+  investorGenericTransferableCid <- Account.credit [publicParty] genericInstrument 1.0 investorAccount
+
+  -- Create election factory to allow custodian to create elections
+  callElectionFactoryCid <- submitMulti [issuer] [] do
+    createCmd ElectionFactory with
+      provider = issuer
+      id = "Bond - Call"
+      claim = called
+      observers = M.fromList obs
+      instrument = genericInstrument
+
+  -- create clock (defines current time) and set it at the intermediate date
+  let clock = DateClock with u = Unit intermediateDate; id = "Clock"; provider = issuer; observers = M.empty
+  clockCid <- toInterfaceContractId <$> submitMulti [issuer] [] do createCmd clock
+
+  ---------------------------------
+  -- 2. ELECTION : CALL THE BOND --
+  ---------------------------------
+
+  -- One cannot exercise for more units than they own
+  submitMultiMustFail [bank] [publicParty] do
+    exerciseCmd callElectionFactoryCid CreateElection with
+      elector = bank
+      electionTime = dateToDateClockTime intermediateDate
+      holdingCid = investorGenericTransferableCid
+      amount = 5000.0
+
+  -- Create election
+  callBondCid : ContractId Election.I <- toInterfaceContractId <$> submitMulti [bank] [publicParty] do
+    exerciseCmd callElectionFactoryCid CreateElection with
+      elector = bank
+      electionTime = dateToDateClockTime intermediateDate
+      holdingCid = fromInterfaceContractId investorGenericTransferableCid
+      amount = 1.0
+
+  -- Apply election to generate new instrument version + effects
+  (_, [effectCid]) <- submitMulti [issuer] [] do
+    exerciseCmd callBondCid Election.Apply
+      with
+        clockCid
+        settler
+        observableCids = []
+
+  -- Create settlement factory
+  factoryCid <- submitMulti [bank] [] do createCmd BatchFactory with provider = bank; observers = empty
+
+  settlementRuleCid <- submitMulti [bank, investor] [] do
+    createCmd Rule
+      with
+        custodian = bank
+        owner = investor
+        claimers = singleton bank
+        settler
+        instructableCid = toInterfaceContractId factoryCid
+
+  -- Claim effect
+  result <- submitMulti [bank] [publicParty] do
+    exerciseCmd settlementRuleCid SettlementRule.Claim with
+      claimer = bank
+      holdingCids = [investorGenericTransferableCid]
+      effectCid
+
+  let
+    [bankCashInstructionCouponCid, bankCashInstructionPrincipalCid] = result.instructionCids
+
+  -- Allocate instructions
+  bankCashInstructionCouponCid <- submitMulti [bank] []  do exerciseCmd bankCashInstructionCouponCid Instruction.Allocate with transferableCid = bankCashTransferableCouponCid
+  bankCashInstructionPrincipalCid <- submitMulti [bank] []  do exerciseCmd bankCashInstructionPrincipalCid Instruction.Allocate with transferableCid = bankCashTransferablePrincipalCid
+
+  -- Approve instructions
+  bankCashInstructionCouponCid <- submitMulti [investor] [] do exerciseCmd bankCashInstructionCouponCid Instruction.Approve with receiverAccount = investorAccount
+  bankCashInstructionPrincipalCid <- submitMulti [investor] [] do exerciseCmd bankCashInstructionPrincipalCid Instruction.Approve with receiverAccount = investorAccount
+
+  -- Settle container
+  [investorCashTransferableCouponCid, investorCashTransferablePrincipalCid] <- submitMulti [settler] [publicParty] do exerciseCmd result.containerCid Settleable.Settle
+
+  -- Assert state
+  Some investorCoupon <- queryContractId @Fungible.T investor $ coerceContractId investorCashTransferableCouponCid
+  Some investorPrincipal <- queryContractId @Fungible.T investor $ coerceContractId investorCashTransferablePrincipalCid
+  getAmount investorCoupon === 1_000.0
+  getOwner investorCoupon === investor
+  getAmount investorPrincipal === 100_000.0
+  getOwner investorPrincipal === investor
+
+  pure ()
+
+setupParties : Script TestParties
+setupParties = do
+  [bank, issuer, centralBank, investor, settler, publicParty] <-
+    createParties ["Bank", "issuer", "Central Bank", "Investor", "Settler", "PublicParty"]
+  pure $ TestParties with bank; issuer; centralBank; investor; settler; publicParty

@@ -1,0 +1,127 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Generic.Test.ForwardPhysical where
+
+import ContingentClaims.Claim (Inequality(..), and, give, one, scale, when)
+import ContingentClaims.Observation (Observation(..))
+import DA.Date (addDays, toDateUTC)
+import DA.Map qualified as M (empty, fromList)
+import DA.Set (empty, singleton)
+import Daml.Finance.Asset.Fungible qualified as Fungible (Factory(..))
+import Daml.Finance.Asset.Test.Util.Account qualified as Account (createAccount, createFactory, credit)
+import Daml.Finance.Asset.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
+import Daml.Finance.Asset.Test.Util.Instrument qualified as Instrument (originate, submitExerciseInterfaceByKeyCmd)
+import Daml.Finance.Generic.Test.Util (originateGeneric, dateToDateClockTime)
+import Daml.Finance.Interface.Lifecycle.Lifecyclable qualified as Lifecyclable (I, Lifecycle(..))
+import Daml.Finance.Interface.Lifecycle.SettlementRule qualified as SettlementRule (Claim(..))
+import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.Settleable qualified as Settleable (Settle(..))
+import Daml.Finance.Lifecycle.Rule.Settlement (Rule(..))
+import Daml.Finance.RefData.Time.DateClock (DateClock(..), DateClockUpdateEvent(..), Unit(..))
+import Daml.Finance.Settlement.Batch (BatchFactory(..))
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Script
+import Prelude hiding (and)
+
+-- | Parties involved in the test script.
+data TestParties = TestParties
+  with
+    bank : Party
+      -- ^ Acts as custodian in the respective holdings (both cash holdings and instrument holdings). It also acts as depository in the forward instrument and the equity instrument.
+    broker : Party
+      -- ^ Acts as issuer of the forward contract. It is also the party tasked with lifecycling of the contract.
+    centralBank : Party
+      -- ^ The Central Bank is the depository and the issuer of the cash instrument.
+    equityIssuer : Party
+      -- ^ Acts as issuer of the underlying equity contract.
+    investor : Party
+      -- ^ Owner of the equity forward holding.
+    settler : Party
+      -- ^ Triggers the settlement of fully allocated settlement instructions.
+    publicParty : Party
+      -- ^ The public party. Every party can readAs the public party.
+
+-- Physically-settled forward trade lifecycling and settlement (no observations)
+run : Script ()
+run = script do
+  TestParties{..} <- setupParties
+
+  -- Account and holding factory
+  let pp = [("PublicParty", singleton $ singleton publicParty)]
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank pp
+  holdingFactoryCid <- toInterfaceContractId <$> submit bank do
+    createCmd Fungible.Factory with provider = bank; observers = M.fromList pp
+
+  -- Create accounts
+  [bankOwnAccount, investorAccount] <- mapA (Account.createAccount [publicParty] accountFactoryCid holdingFactoryCid [] bank) [bank, investor]
+
+  -- Distribute assets
+  now <- getTime
+  let obs = [("public party", singleton $ singleton publicParty)]
+  equityInstrument <- Instrument.originate bank equityIssuer "AAPL" obs now
+  bankEquityTransferableCid <- Account.credit [publicParty] equityInstrument 1_000.0 bankOwnAccount
+  cashInstrument <- Instrument.originate centralBank centralBank "USD" obs now
+  investorCashTransferableCid <- Account.credit [publicParty] cashInstrument 200_000.0 investorAccount
+
+  -- Create and distribute a generic derivative
+  let
+    maturity = addDays (toDateUTC now) 1
+    cashInstrumentDeliverable = one cashInstrument
+    equityInstrumentDeliverable = one equityInstrument
+    claims = when (TimeGte $ dateToDateClockTime maturity) $ and equityInstrumentDeliverable $ scale (Const 200.0) $ give cashInstrumentDeliverable
+  genericInstrument <- originateGeneric bank broker "FWD-AAPL" now claims [("public party", singleton $ singleton publicParty)] now
+  investorGenericTransferableCid <- Account.credit [publicParty] genericInstrument 1_000.0 investorAccount
+
+  -- create clock and clock update event
+  let clock = DateClock with u = Unit maturity; id = "Clock"; provider = broker; observers = M.empty
+  clockCid <- toInterfaceContractId <$> submitMulti [broker] [] do createCmd clock
+  clockEventCid <- toInterfaceContractId <$> submitMulti [broker] [] do createCmd DateClockUpdateEvent with id = "Update to " <> show maturity, clock
+
+  -- Lifecycle a generic derivative
+  (_, [effectCid]) <- Instrument.submitExerciseInterfaceByKeyCmd @Lifecyclable.I [broker] [] genericInstrument Lifecyclable.Lifecycle with settler; eventCid = clockEventCid; observableCids = []; ruleName = "Time"; clockCid
+
+  -- Create settlement factory
+  factoryCid <- submitMulti [investor] [] do createCmd BatchFactory with provider = investor; observers = empty
+
+  -- Claim effect
+  settlementRuleCid <- submitMulti [bank, investor] [] do
+    createCmd Rule
+      with
+        custodian = bank
+        owner = investor
+        claimers = singleton investor
+        settler
+        instructableCid = toInterfaceContractId factoryCid
+
+  result <- submitMulti [investor] [publicParty] do
+    exerciseCmd settlementRuleCid SettlementRule.Claim with
+      claimer = investor
+      holdingCids = [coerceContractId investorGenericTransferableCid]
+      effectCid
+
+  let
+    [investorCashInstructionCid, bankEquityInstructionCid] = result.instructionCids
+
+  -- Allocate instructions
+  bankEquityInstructionCid <- submitMulti [bank] [] do exerciseCmd bankEquityInstructionCid Instruction.Allocate with transferableCid = bankEquityTransferableCid
+  investorCashInstructionCid <- submitMulti [investor] [] do exerciseCmd investorCashInstructionCid Instruction.Allocate with transferableCid = investorCashTransferableCid
+
+  -- Approve instructions
+  investorCashInstructionCid <- submitMulti [bank] [] do exerciseCmd investorCashInstructionCid Instruction.Approve with receiverAccount = bankOwnAccount
+  bankEquityInstructionCid <- submitMulti [investor] [] do exerciseCmd bankEquityInstructionCid Instruction.Approve with receiverAccount = investorAccount
+
+  -- Settle container
+  [bankCashTransferableCid, investorEquityTransferableCid] <-
+    submitMulti [settler] [publicParty] do exerciseCmd result.containerCid Settleable.Settle
+
+  -- Assert state
+  Holding.verifyOwnerOfHolding [(bank, bankCashTransferableCid), (investor, investorEquityTransferableCid)]
+
+  pure ()
+
+setupParties : Script TestParties
+setupParties = do
+  [bank, broker, centralBank, equityIssuer, investor, settler, publicParty] <-
+    createParties ["Bank", "Broker", "Central Bank", "Equity Issuer", "Investor", "Settler", "PublicParty"]
+  pure $ TestParties with bank; broker; centralBank; equityIssuer; investor; settler; publicParty

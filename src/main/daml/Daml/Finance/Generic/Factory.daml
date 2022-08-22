@@ -1,0 +1,44 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Generic.Factory where
+
+import Daml.Finance.Generic.Instrument (Instrument(..))
+import Daml.Finance.Interface.Generic.Factory qualified as GenericFactory (Create(..), F, HasImplementation, Remove(..), View(..))
+import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (GetCid(..), R, createReference)
+import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (I, SetObservers(..), View(..))
+import Daml.Finance.Interface.Common.Types (Observers)
+import Daml.Finance.Interface.Common.Util (flattenObservers)
+import DA.Set (singleton)
+
+type F = Factory
+
+instance GenericFactory.HasImplementation Factory
+-- | Factory template for instrument creation.
+template Factory
+  with
+    provider : Party
+      -- ^ The factory's provider.
+    observers : Observers
+      -- ^ The factory's observers.
+  where
+    signatory provider
+    observer flattenObservers observers
+
+    implements GenericFactory.F where
+      asDisclosure = toInterface @Disclosure.I this
+      view = GenericFactory.View with provider
+      create' GenericFactory.Create{instrument; claims, acquisitionTime, lastEventTimestamp; observers} = do
+        cid <- toInterfaceContractId <$> create Instrument with depository = instrument.depository; issuer = instrument.issuer; id = instrument.id; claims; acquisitionTime; lastEventTimestamp; observers
+        Instrument.createReference instrument.depository cid
+        pure cid
+      remove GenericFactory.Remove{instrument}  = do
+        (refCid, ref) <- fetchByKey @Instrument.R instrument
+        instrumentCid <- exercise refCid Instrument.GetCid with viewer = instrument.depository
+        archive $ fromInterfaceContractId @Instrument instrumentCid
+        archive refCid
+
+    implements Disclosure.I where
+      view = Disclosure.View with disclosureControllers = singleton $ singleton provider; observers
+      setObservers Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
+      archive' self = archive (coerceContractId self : ContractId Instrument)

@@ -11,7 +11,7 @@ Here is a complete list of modules in the financial library:
 .. toctree::
    :maxdepth: 3
    :titlesonly:
-   
+
    Daml.Finance.Asset.Account <Daml-Finance-Asset-Account>
    Daml.Finance.Asset.Fungible <Daml-Finance-Asset-Fungible>
    Daml.Finance.Asset.Instrument <Daml-Finance-Asset-Instrument>
@@ -27,9 +27,9 @@ Here is a complete list of modules in the financial library:
    Daml.Finance.Common.Date.RollConvention <Daml-Finance-Common-Date-RollConvention>
    Daml.Finance.Common.Date.Schedule <Daml-Finance-Common-Date-Schedule>
    Daml.Finance.Common.Util <Daml-Finance-Common-Util>
-   Daml.Finance.Derivative.Election <Daml-Finance-Derivative-Election>
-   Daml.Finance.Derivative.Factory <Daml-Finance-Derivative-Factory>
-   Daml.Finance.Derivative.Instrument <Daml-Finance-Derivative-Instrument>
+   Daml.Finance.Generic.Election <Daml-Finance-Generic-Election>
+   Daml.Finance.Generic.Factory <Daml-Finance-Generic-Factory>
+   Daml.Finance.Generic.Instrument <Daml-Finance-Generic-Instrument>
    Daml.Finance.Equity.Factory <Daml-Finance-Equity-Factory>
    Daml.Finance.Equity.Instrument <Daml-Finance-Equity-Instrument>
    Daml.Finance.Interface.Asset.Account <Daml-Finance-Interface-Asset-Account>
@@ -51,12 +51,12 @@ Here is a complete list of modules in the financial library:
    Daml.Finance.Interface.Common.Disclosure <Daml-Finance-Interface-Common-Disclosure>
    Daml.Finance.Interface.Common.Types <Daml-Finance-Interface-Common-Types>
    Daml.Finance.Interface.Common.Util <Daml-Finance-Interface-Common-Util>
-   Daml.Finance.Interface.Derivative.Election <Daml-Finance-Interface-Derivative-Election>
-   Daml.Finance.Interface.Derivative.Factory <Daml-Finance-Interface-Derivative-Factory>
-   Daml.Finance.Interface.Derivative.HasClaims <Daml-Finance-Interface-Derivative-HasClaims>
-   Daml.Finance.Interface.Derivative.Types <Daml-Finance-Interface-Derivative-Types>
-   Daml.Finance.Interface.Derivative.Util.Claims <Daml-Finance-Interface-Derivative-Util-Claims>
-   Daml.Finance.Interface.Derivative.Util.Claims.Lifecycle <Daml-Finance-Interface-Derivative-Util-Claims-Lifecycle>
+   Daml.Finance.Interface.Generic.Election <Daml-Finance-Interface-Generic-Election>
+   Daml.Finance.Interface.Generic.Factory <Daml-Finance-Interface-Generic-Factory>
+   Daml.Finance.Interface.Generic.HasClaims <Daml-Finance-Interface-Generic-HasClaims>
+   Daml.Finance.Interface.Generic.Types <Daml-Finance-Interface-Generic-Types>
+   Daml.Finance.Interface.Generic.Util.Claims <Daml-Finance-Interface-Generic-Util-Claims>
+   Daml.Finance.Interface.Generic.Util.Claims.Lifecycle <Daml-Finance-Interface-Generic-Util-Claims-Lifecycle>
    Daml.Finance.Interface.Equity.Factory <Daml-Finance-Interface-Equity-Factory>
    Daml.Finance.Interface.Equity.Instrument <Daml-Finance-Interface-Equity-Instrument>
    Daml.Finance.Interface.Lifecycle.Clock <Daml-Finance-Interface-Lifecycle-Clock>

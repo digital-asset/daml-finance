@@ -14,11 +14,11 @@ Templates
 **template** `Factory <type-daml-finance-bond-floatingrate-factory-2361_>`_
 
   Factory template for instrument creation\.
-  
+
   .. list-table::
      :widths: 15 10 30
      :header-rows: 1
-  
+
      * - Field
        - Type
        - Description
@@ -28,12 +28,12 @@ Templates
      * - observers
        - :ref:`Observers <type-daml-finance-interface-common-types-observers-20361>`
        - The factory's observers\.
-  
+
   + **Choice Archive**
-    
+
 
   + **implements** :ref:`Factory <type-daml-finance-interface-bond-floatingrate-factory-88424>`
-  
+
   + **implements** :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
 
 .. _type-daml-finance-bond-floatingrate-instrument-41475:
@@ -44,11 +44,11 @@ Templates
   It pays a floating coupon rate at the end of every coupon period\.
   This consists of a reference rate (observed at the beginning of the coupon period) plus a coupon spread\.
   For example\: 3M Euribor \+ 0\.5%\.
-  
+
   .. list-table::
      :widths: 15 10 30
      :header-rows: 1
-  
+
      * - Field
        - Type
        - Description
@@ -103,16 +103,16 @@ Templates
      * - lastEventTimestamp
        - `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
        - (market) time of the last recorded lifecycle event\. If no event has occurred yet, the time of creation should be used\.
-  
+
   + **Choice Archive**
-    
+
 
   + **implements** :ref:`I <type-daml-finance-interface-asset-instrument-i-66474>`
-  
+
   + **implements** :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
-  
-  + **implements** :ref:`I <type-daml-finance-interface-derivative-hasclaims-i-90893>`
-  
+
+  + **implements** :ref:`I <type-daml-finance-interface-generic-hasclaims-i-90893>`
+
   + **implements** :ref:`I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924>`
 
 Data Types
@@ -122,5 +122,5 @@ Data Types
 
 **type** `T <type-daml-finance-bond-floatingrate-t-55081_>`_
   \= `Instrument <type-daml-finance-bond-floatingrate-instrument-41475_>`_
-  
+
   **instance** :ref:`HasImplementation <class-daml-finance-interface-asset-instrument-hasimplementation-51108>` `T <type-daml-finance-bond-floatingrate-t-55081_>`_
