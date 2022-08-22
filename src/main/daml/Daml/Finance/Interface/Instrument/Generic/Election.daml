@@ -1,0 +1,135 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Interface.Instrument.Generic.Election where
+
+import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (K, exerciseInterfaceByKey)
+import Daml.Finance.Interface.Common.Types (Observers)
+import Daml.Finance.Interface.Instrument.Generic.Types (C)
+import Daml.Finance.Interface.Lifecycle.Clock qualified as Clock (I)
+import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (I)
+import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I, Implementation, getEventTime)
+import Daml.Finance.Interface.Lifecycle.Lifecyclable qualified as Lifecyclable (I, Implementation)
+import Daml.Finance.Interface.Lifecycle.Observable qualified as Observable (I)
+
+type I = Election
+type V = View
+
+-- | View for `Election`.
+data View = View
+  with
+    claim : C
+      -- ^ The claim representation of the election (i.e., the elected sub-tree).
+    elector : Party
+      -- ^ parties on behalf of which the election is made
+    counterparty : Party
+      -- ^ faces the `elector` in the `Holding`
+    electorIsOwner : Bool
+      -- ^ `True` if election is on behalf of the owner of the holding, `False` otherwise
+    observers : Observers
+      -- ^ observers of the election
+    amount : Decimal
+      -- ^ number of instrument units to which the election applies
+    provider : Party
+      -- ^ party that is authorized to process the election and generate the new instrument version + effects
+    instrument : Instrument.K
+      -- ^ the instrument to which the election applies
+
+-- | Interface implemented by templates that represents a (claim-based) election.
+interface Election where
+  viewtype View
+
+  asEvent : Event.I
+    -- ^ Conversion to `Event` interface.
+  archive' : ContractId Election -> Update ()
+    -- ^ Implementation of archiving the contract.
+
+  nonconsuming choice GetView : View
+    -- ^ Retrieves the instrument view.
+    with
+      viewer : Party
+        -- ^ The party retrieving the view.
+    controller viewer
+    do
+      pure $ _view this
+
+  nonconsuming choice Apply : (ContractId Lifecyclable.I, [ContractId Effect.I])
+    -- ^ applies the election to the instrument, returning the new instrument as well
+    -- as the corresponding effects. The election is archived as part of this choice.
+    with
+      clockCid : ContractId Clock.I
+        -- ^ current time.
+      observableCids : [ContractId Observable.I]
+        -- ^ set of observables
+      settler : Party
+        -- ^ parties responsible for settling effects
+    controller (_view this).provider
+    do
+      let v = _view this
+      (newInstrumentCid, effects) <- Instrument.exerciseInterfaceByKey @Exercisable v.instrument v.provider ApplyElection
+        with
+          clockCid
+          observableCids
+          settler
+          electionCid = toInterfaceContractId self
+      archive' this self -- this is needed as we can't write postconsuming choices on interfaces
+      pure (newInstrumentCid, effects)
+
+-- | Type constraint used to require templates implementing `Exercisable` to also
+-- implement `Event`.
+type Implementation t = (HasToInterface t I, Event.Implementation t)
+instance HasToInterface I Event.I where _toInterface = asEvent
+class (Implementation t) => HasImplementation t
+instance HasImplementation I
+
+-- | Retrieves the election's time.
+getElectionTime : Election -> Time
+getElectionTime = Event.getEventTime . asEvent
+
+-- | View for `Exercisable`.
+data ExercisableView = ExercisableView
+  with
+    lifecycler : Party
+      -- ^ Party processing the election.
+  deriving (Eq, Ord, Show)
+
+-- | Interface implemented by instruments that admit (claim-based) elections.
+interface Exercisable where
+  viewtype ExercisableView
+
+  asLifecyclable : Lifecyclable.I
+    -- ^ Conversion to `Lifecyclable` interface.
+  applyElection : ApplyElection -> ContractId Exercisable -> Update (ContractId Lifecyclable.I, [ContractId Effect.I])
+    -- ^ Implementation of the `ApplyElection` choice.
+
+  nonconsuming choice Exercisable_GetView : ExercisableView
+    -- ^ Retrieves the instrument view.
+    with
+      viewer : Party
+        -- ^ The party retrieving the view.
+    controller viewer
+    do
+      pure $ _view this
+
+  nonconsuming choice ApplyElection : (ContractId Lifecyclable.I, [ContractId Effect.I])
+    -- ^ Applies an election to the instrument.
+    with
+      clockCid : ContractId Clock.I
+        -- ^ Current time. This is also an observable, but not a strictly 'Decimal' one.
+      electionCid : ContractId Election
+        -- ^ The election.
+      observableCids : [ContractId Observable.I]
+        -- ^ Set of observables.
+      settler : Party
+        -- ^ The party settling the transaction.
+    controller (_view this).lifecycler
+    do
+      (instrument, effects) <- applyElection this arg self
+      pure (coerceContractId instrument, effects)
+
+-- | Type constraint used to require templates implementing `Exercisable` to also
+-- implement `Lifecyclable`.
+type ExercisableImplementation t = (HasToInterface t Exercisable, Lifecyclable.Implementation t)
+instance HasToInterface Exercisable Lifecyclable.I where _toInterface = asLifecyclable
+class (ExercisableImplementation t) => ExercisableHasImplementation t
+instance ExercisableHasImplementation Exercisable

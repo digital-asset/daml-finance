@@ -1,0 +1,109 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Interface.Instrument.Generic.Util.Claims.Lifecycle
+  ( electionEvent
+  , lifecycle
+  , lifecycleClaims
+  , splitPending
+  , timeEvent
+ ) where
+
+import ContingentClaims.Lifecycle qualified as CC (exercise, lifecycle)
+import DA.Either (partitionEithers)
+import DA.List (sort)
+import DA.Map as M (fromList, lookup)
+import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (Q, qty)
+import Daml.Finance.Interface.Instrument.Generic.HasClaims qualified as HasClaims (I, getAcquisitionTime, getClaims)
+import Daml.Finance.Interface.Instrument.Generic.Types (C, Observable, Pending(..), TaggedClaim(..))
+import Daml.Finance.Interface.Lifecycle.Observable qualified as Observable (I, observe)
+import Prelude hiding (exercise)
+
+-- | HIDE
+-- A lifecycle event in the context of a claim. This is either a time-based event or an election.
+data Event = Event
+  with
+    t : Time
+      -- ^ Time of the event.
+    election : Optional (Bool, C)
+      -- ^ When this is an election, a flag indicating which party makes the election (`True` if bearer, `False` if counterparty) and the elected sub-tree.
+  deriving (Eq)
+
+instance Ord Event where
+  x <= y = x.t <= y.t
+
+-- | Constructor for a time event.
+timeEvent : Time -> Event
+timeEvent t = Event with t; election = None
+
+-- | Constructor for an election event.
+electionEvent : Time -> Bool -> C -> Event
+electionEvent t isBearer c = Event with t; election = Some (isBearer, c)
+
+-- | HIDE
+-- Process a single lifecycle event (time or election) for a single claim. An election is always an `exercise` followed by a `lifecycle`.
+applyEvent : (Observable -> Time -> Update Decimal) -> Time -> Event -> TaggedClaim -> Update (TaggedClaim, [Pending])
+applyEvent observe acquisitionTime e (TaggedClaim with claim; tag) = do
+  -- Exercise
+  electedClaim <- case e.election of
+    None -> pure claim
+    Some election -> CC.exercise observe election claim acquisitionTime e.t
+  -- Lifecycle
+  result <- CC.lifecycle observe electedClaim acquisitionTime e.t
+  let
+    remaining = TaggedClaim with tag; claim = result.remaining
+    pending = map (\p -> Pending with tag; t = p.t; instrument = p.asset; amount = p.amount ) result.pending
+  pure (remaining, pending)
+
+-- | HIDE
+-- Process events for a single claim. The events are processed in order.
+applyEvents : (Observable -> Time -> Update Decimal) -> Time -> [Event] -> TaggedClaim -> Update (TaggedClaim, [Pending])
+applyEvents observe acquisitionTime es claim =
+  let folder accM event = do
+      (claim, pending) <- accM
+      fmap (<> pending) <$> applyEvent observe acquisitionTime event claim
+  in foldl folder (pure (claim,[])) $ sort es
+
+-- | Lifecycle a set of claims at specified events.
+lifecycleClaims : [ContractId Observable.I]          -- ^ The set of observables.
+               -> Time                               -- ^ The input claims' acquisition time.
+               -> [TaggedClaim]                      -- ^ The input claims.
+               -> [Event]                            -- ^ Lifecycle events.
+               -> Update ([TaggedClaim], [Pending])  -- ^ The remaining claims and pending payments.
+lifecycleClaims observableCids acquisitionTime claims events = do
+  observe <- collectObservables observableCids
+  fmap mconcat . unzip <$> mapA (applyEvents observe acquisitionTime events) claims
+
+-- | Lifecycle a claim instrument at specified events.
+lifecycle : [ContractId Observable.I]          -- ^ The set of observables.
+         -> HasClaims.I                        -- ^ The input instrument.
+         -> [Event]                            -- ^ Lifecycle events.
+         -> Update ([TaggedClaim], [Pending])  -- ^ The remaining claims and pending payments.
+lifecycle observableCids instrument events = do
+  let
+    acquisitionTime = HasClaims.getAcquisitionTime instrument
+  claims <- HasClaims.getClaims instrument
+  lifecycleClaims observableCids acquisitionTime claims events
+
+-- | HIDE
+-- Fetches all `Observable` contracts and stores them in a `Map` keyed by their `obsKey`. It then returns a function that can be used to query them.
+-- The controller must be authorized to fetch the `Observable` contracts.
+collectObservables : [ContractId Observable.I] -> Update (Observable -> Time -> Update Decimal)
+collectObservables observableCids = do
+  os <- M.fromList <$> forA observableCids \cid -> do
+    observation <- fetch cid
+    pure ((_view observation).obsKey, observation)
+  pure \key t -> case M.lookup key os of
+    Some o -> Observable.observe o t
+    None -> do abort $ "Missing observable" <> show key <> " at time " <> show t
+
+-- | Map pending settlements into corresponding instrument quantities and split them into consumed and produced.
+-- Pending items with an amount of `0.0` are discarded.
+splitPending : [Pending] -> ([Instrument.Q],[Instrument.Q])
+splitPending =
+  partitionEithers . foldr f []
+    where
+      f p acc | p.amount < 0.0 = Left (Instrument.qty (- 1.0 * p.amount) p.instrument) :: acc
+      f p acc | p.amount > 0.0 = Right (Instrument.qty p.amount p.instrument) :: acc
+      f _ acc = acc
+

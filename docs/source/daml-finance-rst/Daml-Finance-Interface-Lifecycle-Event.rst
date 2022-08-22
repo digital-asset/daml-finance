@@ -54,7 +54,7 @@ Data Types
 
   **instance** `HasImplementation <class-daml-finance-interface-lifecycle-event-hasimplementation-79426_>`_ `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
 
-  **instance** HasMethod :ref:`Election <type-daml-finance-interface-generic-election-election-60525>` \"asEvent\" `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
+  **instance** HasMethod :ref:`Election <type-daml-finance-interface-instrument-generic-election-election-60525>` \"asEvent\" `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
 
   **instance** HasMethod :ref:`Instrument <type-daml-finance-interface-instrument-equity-instrument-instrument-81959>` \"declareDividend\" (DeclareDividend \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_))
 
@@ -62,7 +62,7 @@ Data Types
 
   **instance** HasMethod :ref:`Instrument <type-daml-finance-interface-instrument-equity-instrument-instrument-81959>` \"declareStockSplit\" (DeclareStockSplit \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_))
 
-  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Election <type-daml-finance-generic-election-election-47518>` `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
+  **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Election <type-daml-finance-instrument-generic-election-election-47518>` `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
 
   **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`Event <type-daml-finance-lifecycle-event-distribution-event-46459>` `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
 
@@ -70,9 +70,9 @@ Data Types
 
   **instance** `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ :ref:`DateClockUpdateEvent <type-daml-finance-refdata-time-dateclock-dateclockupdateevent-11763>` `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
 
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Election <type-daml-finance-generic-election-election-47518>` `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
+  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Election <type-daml-finance-instrument-generic-election-election-47518>` `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
 
-  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`I <type-daml-finance-interface-generic-election-i-77182>` `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
+  **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`I <type-daml-finance-interface-instrument-generic-election-i-77182>` `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
 
   **instance** `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ :ref:`Event <type-daml-finance-lifecycle-event-distribution-event-46459>` `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
 

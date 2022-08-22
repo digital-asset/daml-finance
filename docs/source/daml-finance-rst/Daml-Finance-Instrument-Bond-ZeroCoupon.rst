@@ -82,7 +82,7 @@ Templates
 
   + **implements** :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
 
-  + **implements** :ref:`I <type-daml-finance-interface-generic-hasclaims-i-90893>`
+  + **implements** :ref:`I <type-daml-finance-interface-instrument-generic-hasclaims-i-90893>`
 
   + **implements** :ref:`I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924>`
 

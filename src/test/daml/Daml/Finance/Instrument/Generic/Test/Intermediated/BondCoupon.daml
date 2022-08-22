@@ -1,0 +1,320 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Generic.Test.Intermediated.BondCoupon where
+
+import ContingentClaims.Claim (Inequality(..), one, scale, when)
+import ContingentClaims.Observation (Observation(..))
+import DA.Assert ((===))
+import DA.Date (addDays, toDateUTC)
+import DA.Foldable qualified as F (forA_)
+import DA.Map qualified as M (empty, fromList)
+import DA.Set (empty, fromList, singleton)
+import Daml.Finance.Asset.Fungible qualified as Fungible (Factory(..))
+import Daml.Finance.Asset.Test.Util.Account qualified as Account (createAccount, createFactory, credit, submitExerciseInterfaceByKeyCmd)
+import Daml.Finance.Asset.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
+import Daml.Finance.Asset.Test.Util.Instrument qualified as BaseInstrument (originate, submitExerciseInterfaceByKeyCmd)
+import Daml.Finance.Instrument.Generic.Test.Util (originateGeneric, mapClaimToUTCTime)
+import Daml.Finance.Interface.Asset.Account qualified as Account (K)
+import Daml.Finance.Interface.Asset.Holding qualified as Holding (I)
+import Daml.Finance.Interface.Asset.Instrument qualified as BaseInstrument (GetCid(..), R)
+import Daml.Finance.Interface.Asset.Transferable qualified as Transferable (I, Transfer(..))
+import Daml.Finance.Interface.Asset.Util (getAmount, getInstrument, getOwner)
+import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (I, AddObservers(..))
+import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (SetProvider(..), GetView(..), I)
+import Daml.Finance.Interface.Lifecycle.Lifecyclable qualified as Lifecyclable (I, Lifecycle(..))
+import Daml.Finance.Interface.Lifecycle.SettlementRule qualified as SettlementRule (Claim(..))
+import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.Settleable qualified as Settleable (Settle(..))
+import Daml.Finance.Interface.Settlement.Types (Step)
+import Daml.Finance.Lifecycle.Rule.Settlement qualified as Settlement (Rule(..))
+import Daml.Finance.RefData.Time.DateClock (DateClock(..), DateClockUpdateEvent(..), Unit(..))
+import Daml.Finance.Settlement.Batch (BatchFactory(..), BatchFactoryWithIntermediaries(..), Path(..))
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Script
+
+{-
+  This script distributes a bond to investors and showcases how the bond can be lifecycled to trigger (and settle) a coupon payment.
+
+  Bond (security) account structure :
+
+          Issuer
+           |
+          CSD
+           |
+          Investor
+
+  Cash account structure :
+
+          Central Bank
+          /     |     \
+       CSD   Issuer  Bank
+                        \
+                      Investor
+
+  The lifecycling and settlement happen in three steps:
+    - issuer lifecycles the instrument
+    - effects are settled between issuer and CSD
+    - effects are settled between CSD and investor(s)
+
+  The last step involves moving cash through an account hierarchy.
+-}
+
+-- | Parties involved in the test script.
+data TestParties = TestParties
+  with
+    bank : Party
+      -- ^ The Bank acts as custodian of the investor's cash holdings.
+    centralBank : Party
+      -- ^ The Central Bank is the depository and the issuer of the cash instrument. It also acts as root custodian of the cash holdings.
+    csd : Party
+      -- ^ Acts as root custodian of the instrument holdings. It also acts as depository in the bond instrument.
+    issuer : Party
+      -- ^ Acts as issuer of the bond instrument. It is also the party tasked with lifecycling of the bond.
+    investor : Party
+      -- ^ Owner of the bond holding.
+    settler : Party
+      -- ^ Triggers the settlement of fully allocated settlement instructions.
+    publicParty : Party
+      -- ^ The public party. Every party can readAs the public party.
+
+-- | Setup a set of accounts.
+setupAccounts : Party -> Party -> [Party] -> Script [Account.K]
+setupAccounts custodian publicParty owners = do
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory custodian []
+  holdingFactoryCid <- toInterfaceContractId <$> submit custodian do
+    createCmd Fungible.Factory with provider= custodian; observers = M.fromList [("PublicParty", singleton $ singleton publicParty)]
+  forA owners $ Account.createAccount [] accountFactoryCid holdingFactoryCid [] custodian
+
+-- | Penultimate coupon payment on a bond showing creation of new instrument version.
+run : Script ()
+run = script do
+  TestParties{..} <- setupParties
+
+  -- Setup security accounts
+  [csdOwnSecurityAccount, investorSecurityAccount] <- setupAccounts csd publicParty [csd, investor]
+  [csdAccountAtIssuer] <- setupAccounts issuer publicParty [csd]
+
+  -- Setup cash accounts at central bank
+  [issuerCashAccount, bankCashAccount, csdCashAccount] <- setupAccounts centralBank publicParty [issuer, bank, csd]
+
+  -- Setup Issuer's cash account at Bank
+  [investorCashAccount, bankOwnCashAccount] <- setupAccounts bank publicParty [investor, bank]
+
+  -- Distribute central-bank cash
+  now <- getTime
+  let obs = [("PublicParty", singleton $ singleton publicParty)]
+  cashInstrument <- BaseInstrument.originate centralBank centralBank "USD" obs now
+  issuerCashTransferableCid <- Account.credit [publicParty] cashInstrument 20_000.0 issuerCashAccount
+
+  -- Create and distribute bond
+  let
+    today = toDateUTC now
+    expiry = addDays today 180
+    claims = mapClaimToUTCTime $ mconcat
+      [ when (TimeGte $ today) $ scale (Const 0.02) $ one cashInstrument
+      , when (TimeGte $ expiry) $ scale (Const 0.02) $ one cashInstrument
+      , when (TimeGte $ expiry) $ scale (Const 1.0) $ one cashInstrument
+      ]
+
+  genericInstrument <- originateGeneric csd issuer "BOND" now claims obs now
+  csdGenericTransferableCid <- Account.credit [publicParty] genericInstrument 1_000_000.0 csdAccountAtIssuer
+  investorGenericTransferableCid <- Account.credit [publicParty] genericInstrument 1_000_000.0 investorSecurityAccount
+
+  genericLifecyclableCid <- submitMulti [issuer] [] $ exerciseByKeyCmd @BaseInstrument.R genericInstrument BaseInstrument.GetCid with viewer = issuer
+
+  -- create clock and clock update event
+  let clock = DateClock with u = Unit today; id = "Clock"; provider = issuer; observers = M.empty
+  clockCid <- toInterfaceContractId <$> submitMulti [issuer] [] do createCmd clock
+  clockEventCid <- toInterfaceContractId <$> submitMulti [issuer] [] do createCmd DateClockUpdateEvent with clock; id = "Update to " <> show today
+
+  -- Lifecycle bond
+  (genericLifecyclableCid2, [effectCid]) <- BaseInstrument.submitExerciseInterfaceByKeyCmd @Lifecyclable.I [issuer] [] genericInstrument Lifecyclable.Lifecycle with settler; eventCid = clockEventCid; observableCids = []; ruleName = "Time"; clockCid
+
+  -- setup settlement contract between issuer and CSD
+  -- Setup settlement contract between issuer and CSD
+  -- In order for the workflow to be successful, we need to disclose the CSD's cash account to the Issuer.
+  Account.submitExerciseInterfaceByKeyCmd @Disclosure.I [csd] [] csdCashAccount Disclosure.AddObservers with disclosers = singleton csd; observersToAdd = ("Issuer", singleton issuer)
+
+  settle1Cid <- submitMulti [csd, issuer] [] do
+    createCmd EffectSettlementService
+      with
+        csd
+        issuer
+        instrumentLabel = "BOND"
+        securitiesAccount = csdAccountAtIssuer
+        issuerCashAccount
+        csdCashAccount
+
+  -- CSD claims and settles effect against issuer
+  (effectCid, _, [cashHolding]) <- submitMulti [issuer] [publicParty] do
+    exerciseCmd settle1Cid ClaimAndSettle
+      with
+        instrumentHoldingCid = csdGenericTransferableCid
+        cashHoldingsCid = [issuerCashTransferableCid]
+        effectCid
+
+  -- investor claims effect against CSD
+
+  -- Define settlement routes from CSD to Investor and create batch factory
+  let
+    routes =
+      [ ( "USD" , Path with senderPath = [csd, centralBank]; receiverPath = [investor, bank, centralBank])
+      ]
+
+  factoryCid <- submit csd do
+    createCmd BatchFactoryWithIntermediaries
+      with
+        provider = csd
+        paths = M.fromList routes
+        observers = fromList [investor]
+
+  settlementRuleCid <- submitMulti [csd, investor] [] do
+    createCmd Settlement.Rule
+      with
+        custodian = csd
+        owner = investor
+        claimers = singleton investor
+        settler
+        instructableCid = toInterfaceContractId factoryCid
+
+  result <- submitMulti [investor] [publicParty] do
+    exerciseCmd settlementRuleCid SettlementRule.Claim with
+      claimer = investor
+      holdingCids = [investorGenericTransferableCid]
+      effectCid
+
+  let
+    Some [investorGenericTransferableCid] = result.newInstrumentHoldingCids
+    [csdCashInstructionCid, bankCashInstructionCid] = result.instructionCids
+
+  -- Allocate instructions
+  csdCashInstructionCid <- submitMulti [csd] [] do exerciseCmd csdCashInstructionCid Instruction.Allocate with transferableCid = cashHolding
+  bankOwnCashTransferableCid <- Account.credit [publicParty] cashInstrument 20_000.0 bankOwnCashAccount
+  bankCashInstructionCid <- submitMulti [bank] [] do exerciseCmd bankCashInstructionCid Instruction.Allocate with transferableCid = bankOwnCashTransferableCid
+
+  -- Approve instructions
+  csdCashInstructionCid <- submitMulti [bank] [] do
+    exerciseCmd csdCashInstructionCid Instruction.Approve with receiverAccount = bankCashAccount
+  bankCashInstructionCid <- submitMulti [investor] [] do
+    exerciseCmd bankCashInstructionCid Instruction.Approve with receiverAccount = investorCashAccount
+
+  -- Settle container
+  [bankCashTransferableCid, investorCashTransferableCid] <- submitMulti [settler] [publicParty] do exerciseCmd result.containerCid Settleable.Settle
+
+  -- Assert state
+  Holding.verifyOwnerOfHolding
+    [ (investor, investorGenericTransferableCid)
+    , (bank, coerceContractId bankCashTransferableCid)
+    , (investor, coerceContractId investorCashTransferableCid)
+    ]
+
+  pure ()
+
+setupParties : Script TestParties
+setupParties = do
+  [bank, centralBank, csd, issuer, investor, settler, publicParty] <- createParties ["Bank", "CentralBank", "CSD", "Issuer", "Investor", "Settler", "PublicParty"]
+  pure $ TestParties with bank; centralBank; csd; issuer; investor; settler; publicParty
+
+-- | Service template that allows to claim an effect and settle the corresponding transactions atomically.
+template EffectSettlementService
+  with
+    csd : Party
+      -- ^ Owner of the instrument holding. Acts as depository of the instrument.
+    issuer : Party
+      -- ^ Counterparty of the instrument holding. Issuer of the instrument.
+    instrumentLabel : Text
+      -- ^ Defines the instrument to which the contract is applicable.
+    securitiesAccount : Account.K
+      -- ^ Security account of CSD @ issuer.
+    issuerCashAccount : Account.K
+      -- ^ Cash account of Issuer @ Central Bank.
+    csdCashAccount : Account.K
+      -- ^ Cash account of CSD @ Central Bank. Needs to be disclosed to the Issuer (ideally as part of the creation of this contract).
+  where
+    signatory csd, issuer
+
+    ensure
+      securitiesAccount.custodian == issuer &&
+      securitiesAccount.owner == csd &&
+      issuerCashAccount.custodian == csdCashAccount.custodian &&
+      issuerCashAccount.owner == issuer &&
+      csdCashAccount.owner == csd
+
+    nonconsuming choice ClaimAndSettle : (ContractId Effect.I, Optional [ContractId Holding.I], [ContractId Transferable.I])
+      with
+        instrumentHoldingCid : ContractId Holding.I
+          -- ^ Holding of CSD @ issuer for the old instrument.
+        cashHoldingsCid : [ContractId Transferable.I]
+          -- ^ Cash holdings of issuer @ central bank, used to settle the effect's consequences.
+        effectCid : ContractId Effect.I
+          -- ^ Effect to claim.
+      controller issuer
+      do
+        effectView <- exercise effectCid Effect.GetView with viewer = issuer
+
+        -- 0. sanity checks
+        let
+          oldInstrument = effectView.targetInstrument
+          newInstrument = effectView.producedInstrument
+
+        oldInstrument.depository === csd
+        oldInstrument.issuer === issuer
+        oldInstrument.id.label === instrumentLabel
+
+        F.forA_ newInstrument $ (=== csd) . (.depository)
+        F.forA_ newInstrument $ (=== issuer) . (.issuer)
+        F.forA_ newInstrument $ (=== instrumentLabel) . (.id.label)
+
+        -- fetch instrument fungible
+        fungible <- fetch instrumentHoldingCid
+        assertMsg "wrong fungible" $ getInstrument fungible == oldInstrument
+
+        -- fetch other holdings
+        holdings <- forA cashHoldingsCid \hCid -> do
+          h <- fetch $ coerceContractId hCid
+          pure (hCid, h)
+
+        -- 1. csd claims effect against issuer
+        factoryCid <- create BatchFactory with provider = csd; observers = empty
+
+        settlementRuleCid <- create Settlement.Rule
+          with
+            custodian = issuer
+            owner = csd
+            claimers = singleton csd
+            settler = csd
+            instructableCid = toInterfaceContractId factoryCid
+
+        result <- exercise settlementRuleCid SettlementRule.Claim with
+          claimer = csd
+          holdingCids = [toInterfaceContractId instrumentHoldingCid]
+          effectCid
+
+        archive factoryCid
+        archive settlementRuleCid
+
+        -- TODO : use settlement instruction instead of direct transfer, or at least make sure it gets archived
+
+        steps <- fmap ((.step) . _view) <$> mapA fetch result.instructionCids
+
+        newHoldingsCid <- fmap toInterfaceContractId .  mconcat <$> forA steps \s -> case find (match s . Prelude.snd) holdings of
+          Some (hCid, h) -> do
+            let transferableCid = coerceContractId hCid
+            newHCid <- exercise hCid Transferable.Transfer with newOwnerAccount = csdCashAccount
+            pure [newHCid]
+            -- TODO fix so that it works for effects going in the other direction
+          None -> abort ""
+
+        -- 2. create effect to be used by investors
+        newEffectCid <- exercise effectCid Effect.SetProvider with newProvider = csd
+
+        pure (newEffectCid, result.newInstrumentHoldingCids, newHoldingsCid)
+
+-- | HIDE
+-- Matches a holding to a settlement step.
+match : Step -> Holding.I -> Bool
+match s h =
+  getOwner h == s.sender &&
+  getAmount h == s.quantity.amount &&
+  getInstrument h == s.quantity.unit
