@@ -129,26 +129,6 @@ Data Types
   **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `InstrumentKey <type-daml-finance-interface-common-types-instrumentkey-87168_>`_
   
   **instance** HasMethod :ref:`Instrument <type-daml-finance-interface-instrument-base-instrument-instrument-22935>` \"getKey\" `InstrumentKey <type-daml-finance-interface-common-types-instrumentkey-87168_>`_
-  
-  **instance** `HasExerciseByKey <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercisebykey-36549>`_ Reference `InstrumentKey <type-daml-finance-interface-common-types-instrumentkey-87168_>`_ GetCid (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`Instrument <type-daml-finance-interface-instrument-base-instrument-instrument-22935>`)
-  
-  **instance** `HasExerciseByKey <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercisebykey-36549>`_ Reference `InstrumentKey <type-daml-finance-interface-common-types-instrumentkey-87168_>`_ SetCid (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ Reference)
-  
-  **instance** `HasExerciseByKey <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercisebykey-36549>`_ Reference `InstrumentKey <type-daml-finance-interface-common-types-instrumentkey-87168_>`_ SetObservers (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ Reference)
-  
-  **instance** `HasExerciseByKey <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercisebykey-36549>`_ Reference `InstrumentKey <type-daml-finance-interface-common-types-instrumentkey-87168_>`_ `Archive <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-template-archive-15178>`_ ()
-  
-  **instance** `HasFetchByKey <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasfetchbykey-54638>`_ Reference `InstrumentKey <type-daml-finance-interface-common-types-instrumentkey-87168_>`_
-  
-  **instance** `HasFromAnyContractKey <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasfromanycontractkey-95587>`_ Reference `InstrumentKey <type-daml-finance-interface-common-types-instrumentkey-87168_>`_
-  
-  **instance** `HasKey <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-haskey-87616>`_ Reference `InstrumentKey <type-daml-finance-interface-common-types-instrumentkey-87168_>`_
-  
-  **instance** `HasLookupByKey <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-haslookupbykey-92299>`_ Reference `InstrumentKey <type-daml-finance-interface-common-types-instrumentkey-87168_>`_
-  
-  **instance** `HasMaintainer <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasmaintainer-28932>`_ Reference `InstrumentKey <type-daml-finance-interface-common-types-instrumentkey-87168_>`_
-  
-  **instance** `HasToAnyContractKey <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastoanycontractkey-35010>`_ Reference `InstrumentKey <type-daml-finance-interface-common-types-instrumentkey-87168_>`_
 
 .. _type-daml-finance-interface-common-types-observers-20361:
 
