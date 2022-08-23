@@ -114,23 +114,23 @@ Data Types
   
   **instance** HasMethod :ref:`Factory <type-daml-finance-interface-asset-factory-holding-factory-96220>` \"asDisclosure\" `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
   
-  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-asset-factory-instrument-factory-88339>` \"asDisclosure\" `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
-  
   **instance** HasMethod :ref:`Holding <type-daml-finance-interface-asset-holding-holding-42619>` \"asDisclosure\" `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
   
-  **instance** HasMethod :ref:`Instrument <type-daml-finance-interface-asset-instrument-instrument-30765>` \"asDisclosure\" `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
+  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-instrument-base-factory-factory-67517>` \"asDisclosure\" `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
   
-  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-bond-fixedrate-factory-94553>` \"asDisclosure\" `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
+  **instance** HasMethod :ref:`Instrument <type-daml-finance-interface-instrument-base-instrument-instrument-22935>` \"asDisclosure\" `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
   
-  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-bond-floatingrate-factory-88424>` \"asDisclosure\" `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
+  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-instrument-bond-fixedrate-factory-27717>` \"asDisclosure\" `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
   
-  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-bond-inflationlinked-factory-99998>` \"asDisclosure\" `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
+  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-instrument-bond-floatingrate-factory-71700>` \"asDisclosure\" `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
   
-  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-bond-zerocoupon-factory-77382>` \"asDisclosure\" `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
+  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-instrument-bond-inflationlinked-factory-67758>` \"asDisclosure\" `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
   
-  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-derivative-factory-factory-17847>` \"asDisclosure\" `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
+  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-instrument-bond-zerocoupon-factory-76014>` \"asDisclosure\" `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
   
-  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-equity-factory-factory-50265>` \"asDisclosure\" `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
+  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-instrument-equity-factory-factory-60517>` \"asDisclosure\" `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
+  
+  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-instrument-generic-factory-factory-64962>` \"asDisclosure\" `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
   
   **instance** HasMethod :ref:`Instruction <type-daml-finance-interface-settlement-instruction-instruction-30569>` \"asDisclosure\" `I <type-daml-finance-interface-common-disclosure-i-70158_>`_
 

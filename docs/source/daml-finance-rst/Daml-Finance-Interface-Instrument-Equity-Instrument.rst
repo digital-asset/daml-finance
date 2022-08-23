@@ -1,17 +1,17 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-.. _module-daml-finance-interface-equity-instrument-89032:
+.. _module-daml-finance-interface-instrument-equity-instrument-13224:
 
-Module Daml.Finance.Interface.Equity.Instrument
-===============================================
+Module Daml.Finance.Interface.Instrument.Equity.Instrument
+==========================================================
 
 Interfaces
 ----------
 
-.. _type-daml-finance-interface-equity-instrument-instrument-81959:
+.. _type-daml-finance-interface-instrument-equity-instrument-instrument-99859:
 
-**interface** `Instrument <type-daml-finance-interface-equity-instrument-instrument-81959_>`_
+**interface** `Instrument <type-daml-finance-interface-instrument-equity-instrument-instrument-99859_>`_
 
   An interface for a generic equity instrument\.
   
@@ -33,10 +33,10 @@ Interfaces
          - `Date <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
          - Date at which the dividend is distributed\.
        * - newInstrument
-         - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+         - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-58546>`
          - Instrument held after the dividend distribution (ie\. \"ex\-dividend\" stock)\.
        * - perUnitDistribution
-         - \[:ref:`Q <type-daml-finance-interface-asset-instrument-q-31714>`\]
+         - \[:ref:`Q <type-daml-finance-interface-instrument-base-instrument-q-62956>`\]
          - Distributed quantities per unit held\.
   
   + **Choice DeclareReplacement**
@@ -57,7 +57,7 @@ Interfaces
          - `Date <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
          - Date the replacement is to be executed\.
        * - perUnitReplacement
-         - \[:ref:`Q <type-daml-finance-interface-asset-instrument-q-31714>`\]
+         - \[:ref:`Q <type-daml-finance-interface-instrument-base-instrument-q-62956>`\]
          - Payout offered to shareholders per held share\.
   
   + **Choice DeclareStockSplit**
@@ -78,7 +78,7 @@ Interfaces
          - `Date <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
          - Date at which the stock split is effective\.
        * - newInstrument
-         - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+         - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-58546>`
          - Instrument to be held after the stock split is executed\.
        * - adjustmentFactor
          - `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
@@ -99,7 +99,7 @@ Interfaces
          - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party retrieving the view\.
   
-  + **Method asInstrument \:** :ref:`I <type-daml-finance-interface-asset-instrument-i-66474>`
+  + **Method asInstrument \:** :ref:`I <type-daml-finance-interface-instrument-base-instrument-i-67236>`
     
     Conversion to base ``Instrument`` interface\.
   
@@ -118,67 +118,67 @@ Interfaces
 Typeclasses
 -----------
 
-.. _class-daml-finance-interface-equity-instrument-hasimplementation-6684:
+.. _class-daml-finance-interface-instrument-equity-instrument-hasimplementation-48374:
 
-**class** `Implementation <type-daml-finance-interface-equity-instrument-implementation-58678_>`_ t \=\> `HasImplementation <class-daml-finance-interface-equity-instrument-hasimplementation-6684_>`_ t **where**
+**class** `Implementation <type-daml-finance-interface-instrument-equity-instrument-implementation-8194_>`_ t \=\> `HasImplementation <class-daml-finance-interface-instrument-equity-instrument-hasimplementation-48374_>`_ t **where**
 
 
 Data Types
 ----------
 
-.. _type-daml-finance-interface-equity-instrument-i-54484:
+.. _type-daml-finance-interface-instrument-equity-instrument-i-74160:
 
-**type** `I <type-daml-finance-interface-equity-instrument-i-54484_>`_
-  \= `Instrument <type-daml-finance-interface-equity-instrument-instrument-81959_>`_
+**type** `I <type-daml-finance-interface-instrument-equity-instrument-i-74160_>`_
+  \= `Instrument <type-daml-finance-interface-instrument-equity-instrument-instrument-99859_>`_
 
-.. _type-daml-finance-interface-equity-instrument-implementation-58678:
+.. _type-daml-finance-interface-instrument-equity-instrument-implementation-8194:
 
-**type** `Implementation <type-daml-finance-interface-equity-instrument-implementation-58678_>`_ t
-  \= (`HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ t `I <type-daml-finance-interface-equity-instrument-i-54484_>`_, :ref:`Implementation <type-daml-finance-interface-asset-instrument-implementation-94080>` t)
+**type** `Implementation <type-daml-finance-interface-instrument-equity-instrument-implementation-8194_>`_ t
+  \= (`HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ t `I <type-daml-finance-interface-instrument-equity-instrument-i-74160_>`_, :ref:`Implementation <type-daml-finance-interface-instrument-base-instrument-implementation-67110>` t)
   
   Type constraint used to require templates implementing ``Instrument`` to also implement ``BaseInstrument.I``\.
 
-.. _type-daml-finance-interface-equity-instrument-v-65251:
+.. _type-daml-finance-interface-instrument-equity-instrument-v-19687:
 
-**type** `V <type-daml-finance-interface-equity-instrument-v-65251_>`_
-  \= `View <type-daml-finance-interface-equity-instrument-view-2217_>`_
+**type** `V <type-daml-finance-interface-instrument-equity-instrument-v-19687_>`_
+  \= `View <type-daml-finance-interface-instrument-equity-instrument-view-54781_>`_
 
-.. _type-daml-finance-interface-equity-instrument-view-2217:
+.. _type-daml-finance-interface-instrument-equity-instrument-view-54781:
 
-**data** `View <type-daml-finance-interface-equity-instrument-view-2217_>`_
+**data** `View <type-daml-finance-interface-instrument-equity-instrument-view-54781_>`_
 
   View for ``Instrument``\.
   
-  .. _constr-daml-finance-interface-equity-instrument-view-85550:
+  .. _constr-daml-finance-interface-instrument-equity-instrument-view-37680:
   
-  `View <constr-daml-finance-interface-equity-instrument-view-85550_>`_ ()
+  `View <constr-daml-finance-interface-instrument-equity-instrument-view-37680_>`_ ()
   
   
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-equity-instrument-view-2217_>`_
+  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-instrument-equity-instrument-view-54781_>`_
   
-  **instance** `Ord <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ `View <type-daml-finance-interface-equity-instrument-view-2217_>`_
+  **instance** `Ord <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ `View <type-daml-finance-interface-instrument-equity-instrument-view-54781_>`_
   
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-equity-instrument-view-2217_>`_
+  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-instrument-equity-instrument-view-54781_>`_
 
 Functions
 ---------
 
-.. _function-daml-finance-interface-equity-instrument-asinstrument-42337:
+.. _function-daml-finance-interface-instrument-equity-instrument-asinstrument-86269:
 
-`asInstrument <function-daml-finance-interface-equity-instrument-asinstrument-42337_>`_
-  \: `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Instrument <type-daml-finance-interface-equity-instrument-instrument-81959_>`_ \=\> t \-\> :ref:`I <type-daml-finance-interface-asset-instrument-i-66474>`
+`asInstrument <function-daml-finance-interface-instrument-equity-instrument-asinstrument-86269_>`_
+  \: `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Instrument <type-daml-finance-interface-instrument-equity-instrument-instrument-99859_>`_ \=\> t \-\> :ref:`I <type-daml-finance-interface-instrument-base-instrument-i-67236>`
 
-.. _function-daml-finance-interface-equity-instrument-declaredividend-32016:
+.. _function-daml-finance-interface-instrument-equity-instrument-declaredividend-19644:
 
-`declareDividend <function-daml-finance-interface-equity-instrument-declaredividend-32016_>`_
-  \: `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Instrument <type-daml-finance-interface-equity-instrument-instrument-81959_>`_ \=\> t \-\> DeclareDividend \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-event-i-17082>`)
+`declareDividend <function-daml-finance-interface-instrument-equity-instrument-declaredividend-19644_>`_
+  \: `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Instrument <type-daml-finance-interface-instrument-equity-instrument-instrument-99859_>`_ \=\> t \-\> DeclareDividend \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-event-i-17082>`)
 
-.. _function-daml-finance-interface-equity-instrument-declarestocksplit-88777:
+.. _function-daml-finance-interface-instrument-equity-instrument-declarestocksplit-95101:
 
-`declareStockSplit <function-daml-finance-interface-equity-instrument-declarestocksplit-88777_>`_
-  \: `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Instrument <type-daml-finance-interface-equity-instrument-instrument-81959_>`_ \=\> t \-\> DeclareStockSplit \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-event-i-17082>`)
+`declareStockSplit <function-daml-finance-interface-instrument-equity-instrument-declarestocksplit-95101_>`_
+  \: `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Instrument <type-daml-finance-interface-instrument-equity-instrument-instrument-99859_>`_ \=\> t \-\> DeclareStockSplit \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-event-i-17082>`)
 
-.. _function-daml-finance-interface-equity-instrument-declarereplacement-72030:
+.. _function-daml-finance-interface-instrument-equity-instrument-declarereplacement-33010:
 
-`declareReplacement <function-daml-finance-interface-equity-instrument-declarereplacement-72030_>`_
-  \: `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Instrument <type-daml-finance-interface-equity-instrument-instrument-81959_>`_ \=\> t \-\> DeclareReplacement \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-event-i-17082>`)
+`declareReplacement <function-daml-finance-interface-instrument-equity-instrument-declarereplacement-33010_>`_
+  \: `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Instrument <type-daml-finance-interface-instrument-equity-instrument-instrument-99859_>`_ \=\> t \-\> DeclareReplacement \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-event-i-17082>`)

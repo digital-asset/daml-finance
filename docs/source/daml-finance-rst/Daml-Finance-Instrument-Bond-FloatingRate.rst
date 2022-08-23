@@ -1,17 +1,17 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-.. _module-daml-finance-bond-floatingrate-93564:
+.. _module-daml-finance-instrument-bond-floatingrate-31782:
 
-Module Daml.Finance.Bond.FloatingRate
-=====================================
+Module Daml.Finance.Instrument.Bond.FloatingRate
+================================================
 
 Templates
 ---------
 
-.. _type-daml-finance-bond-floatingrate-factory-2361:
+.. _type-daml-finance-instrument-bond-floatingrate-factory-88783:
 
-**template** `Factory <type-daml-finance-bond-floatingrate-factory-2361_>`_
+**template** `Factory <type-daml-finance-instrument-bond-floatingrate-factory-88783_>`_
 
   Factory template for instrument creation\.
   
@@ -32,18 +32,19 @@ Templates
   + **Choice Archive**
     
 
-  + **implements** :ref:`Factory <type-daml-finance-interface-bond-floatingrate-factory-88424>`
-  
   + **implements** :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
+  
+  + **implements** :ref:`Factory <type-daml-finance-interface-instrument-bond-floatingrate-factory-71700>`
 
-.. _type-daml-finance-bond-floatingrate-instrument-41475:
+.. _type-daml-finance-instrument-bond-floatingrate-instrument-33157:
 
-**template** `Instrument <type-daml-finance-bond-floatingrate-instrument-41475_>`_
+**template** `Instrument <type-daml-finance-instrument-bond-floatingrate-instrument-33157_>`_
 
   This template models a floating rate bond\.
   It pays a floating coupon rate at the end of every coupon period\.
   This consists of a reference rate (observed at the beginning of the coupon period) plus a coupon spread\.
   For example\: 3M Euribor \+ 0\.5%\.
+  FLOATING\_RATE\_BOND\_TEMPLATE\_UNTIL\_REFRATE\_BEGIN
   
   .. list-table::
      :widths: 15 10 30
@@ -59,11 +60,11 @@ Templates
        - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
        - The issuer of the instrument\.
      * - id
-       - :ref:`Id <type-daml-finance-interface-asset-types-id-89116>`
+       - :ref:`Id <type-daml-finance-interface-common-types-id-88316>`
        - An identifier of the instrument\.
      * - referenceRateId
        - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
-       - The floating rate reference ID\. For example, in case of \"3M Euribor \+ 0\.5%\" this should a valid reference to the \"3M Euribor\" reference rate\.
+       - The floating rate reference ID\. For example, in case of \"3M Euribor \+ 0\.5%\" this should a valid reference to the \"3M Euribor\" reference rate\. FLOATING\_RATE\_BOND\_TEMPLATE\_UNTIL\_REFRATE\_END
      * - couponSpread
        - `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
        - The floating rate coupon spread\. For example, in case of \"3M Euribor \+ 0\.5%\" this should be 0\.005\.
@@ -95,7 +96,7 @@ Templates
        - `Int <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
        - The coupon period multiplier\. For example, in case of a 3M coupon period (a coupon every 3 months), this should be 3\.
      * - currency
-       - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+       - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-58546>`
        - The currency of the bond\. For example, if the bond pays in USD this should be a USD cash instrument\.
      * - observers
        - :ref:`Observers <type-daml-finance-interface-common-types-observers-20361>`
@@ -107,18 +108,18 @@ Templates
   + **Choice Archive**
     
 
-  + **implements** :ref:`I <type-daml-finance-interface-asset-instrument-i-66474>`
-  
   + **implements** :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
   
-  + **implements** :ref:`I <type-daml-finance-interface-derivative-hasclaims-i-90893>`
+  + **implements** :ref:`I <type-daml-finance-interface-instrument-base-instrument-i-67236>`
+  
+  + **implements** :ref:`I <type-daml-finance-interface-instrument-generic-hasclaims-i-36868>`
   
   + **implements** :ref:`I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924>`
 
 Data Types
 ----------
 
-.. _type-daml-finance-bond-floatingrate-t-55081:
+.. _type-daml-finance-instrument-bond-floatingrate-t-6995:
 
-**type** `T <type-daml-finance-bond-floatingrate-t-55081_>`_
-  \= `Instrument <type-daml-finance-bond-floatingrate-instrument-41475_>`_
+**type** `T <type-daml-finance-instrument-bond-floatingrate-t-6995_>`_
+  \= `Instrument <type-daml-finance-instrument-bond-floatingrate-instrument-33157_>`_

@@ -1,24 +1,24 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-.. _module-daml-finance-instrument-equity-factory-381:
+.. _module-daml-finance-instrument-equity-factory-96899:
 
 Module Daml.Finance.Instrument.Equity.Factory
-==================================
+=============================================
 
 Templates
 ---------
 
-.. _type-daml-finance-instrument-equity-factory-factory-66762:
+.. _type-daml-finance-instrument-equity-factory-factory-80960:
 
-**template** `Factory <type-daml-finance-instrument-equity-factory-factory-66762_>`_
+**template** `Factory <type-daml-finance-instrument-equity-factory-factory-80960_>`_
 
   Factory template for instrument creation\.
-
+  
   .. list-table::
      :widths: 15 10 30
      :header-rows: 1
-
+  
      * - Field
        - Type
        - Description
@@ -28,18 +28,18 @@ Templates
      * - observers
        - :ref:`Observers <type-daml-finance-interface-common-types-observers-20361>`
        - The factory's observers\.
-
+  
   + **Choice Archive**
-
+    
 
   + **implements** :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
-
-  + **implements** :ref:`F <type-daml-finance-interface-instrument-equity-factory-f-7879>`
+  
+  + **implements** :ref:`F <type-daml-finance-interface-instrument-equity-factory-f-57323>`
 
 Data Types
 ----------
 
-.. _type-daml-finance-instrument-equity-factory-f-31836:
+.. _type-daml-finance-instrument-equity-factory-f-32194:
 
-**type** `F <type-daml-finance-instrument-equity-factory-f-31836_>`_
-  \= `Factory <type-daml-finance-instrument-equity-factory-factory-66762_>`_
+**type** `F <type-daml-finance-instrument-equity-factory-f-32194_>`_
+  \= `Factory <type-daml-finance-instrument-equity-factory-factory-80960_>`_

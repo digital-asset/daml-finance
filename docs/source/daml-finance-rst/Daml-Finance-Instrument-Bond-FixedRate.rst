@@ -1,17 +1,17 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-.. _module-daml-finance-bond-fixedrate-54845:
+.. _module-daml-finance-instrument-bond-fixedrate-44039:
 
-Module Daml.Finance.Bond.FixedRate
-==================================
+Module Daml.Finance.Instrument.Bond.FixedRate
+=============================================
 
 Templates
 ---------
 
-.. _type-daml-finance-bond-fixedrate-factory-54926:
+.. _type-daml-finance-instrument-bond-fixedrate-factory-93264:
 
-**template** `Factory <type-daml-finance-bond-fixedrate-factory-54926_>`_
+**template** `Factory <type-daml-finance-instrument-bond-fixedrate-factory-93264_>`_
 
   Factory template for instrument creation\.
   
@@ -32,13 +32,13 @@ Templates
   + **Choice Archive**
     
 
-  + **implements** :ref:`Factory <type-daml-finance-interface-bond-fixedrate-factory-94553>`
-  
   + **implements** :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
+  
+  + **implements** :ref:`Factory <type-daml-finance-interface-instrument-bond-fixedrate-factory-27717>`
 
-.. _type-daml-finance-bond-fixedrate-instrument-1982:
+.. _type-daml-finance-instrument-bond-fixedrate-instrument-788:
 
-**template** `Instrument <type-daml-finance-bond-fixedrate-instrument-1982_>`_
+**template** `Instrument <type-daml-finance-instrument-bond-fixedrate-instrument-788_>`_
 
   This template models a fixed rate bond\.
   It pays a fixed coupon rate at the end of every coupon period\.
@@ -57,7 +57,7 @@ Templates
        - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
        - The issuer of the instrument\.
      * - id
-       - :ref:`Id <type-daml-finance-interface-asset-types-id-89116>`
+       - :ref:`Id <type-daml-finance-interface-common-types-id-88316>`
        - An identifier of the instrument\.
      * - couponRate
        - `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
@@ -90,30 +90,30 @@ Templates
        - `Int <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
        - The coupon period multiplier\. For example, in case of a 3M coupon period (a coupon every 3 months), this should be 3\.
      * - currency
-       - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+       - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-58546>`
        - The currency of the bond\. For example, if the bond pays in USD this should be a USD cash instrument\.
      * - observers
        - :ref:`Observers <type-daml-finance-interface-common-types-observers-20361>`
        - The observers of the instrument\.
      * - lastEventTimestamp
        - `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
-       - (market) time of the last recorded lifecycle event\. If no event has occurred yet, the time of creation should be used\.
+       - (market) time of the last recorded lifecycle event\. If no event has occurred yet, the time of creation should be used\. FIXED\_RATE\_BOND\_TEMPLATE\_END
   
   + **Choice Archive**
     
 
-  + **implements** :ref:`I <type-daml-finance-interface-asset-instrument-i-66474>`
-  
   + **implements** :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
   
-  + **implements** :ref:`I <type-daml-finance-interface-derivative-hasclaims-i-90893>`
+  + **implements** :ref:`I <type-daml-finance-interface-instrument-base-instrument-i-67236>`
+  
+  + **implements** :ref:`I <type-daml-finance-interface-instrument-generic-hasclaims-i-36868>`
   
   + **implements** :ref:`I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924>`
 
 Data Types
 ----------
 
-.. _type-daml-finance-bond-fixedrate-t-6870:
+.. _type-daml-finance-instrument-bond-fixedrate-t-14932:
 
-**type** `T <type-daml-finance-bond-fixedrate-t-6870_>`_
-  \= `Instrument <type-daml-finance-bond-fixedrate-instrument-1982_>`_
+**type** `T <type-daml-finance-instrument-bond-fixedrate-t-14932_>`_
+  \= `Instrument <type-daml-finance-instrument-bond-fixedrate-instrument-788_>`_

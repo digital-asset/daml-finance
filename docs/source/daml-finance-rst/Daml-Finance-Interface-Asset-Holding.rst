@@ -91,10 +91,10 @@ Data Types
          - Type
          - Description
        * - instrument
-         - :ref:`InstrumentKey <type-daml-finance-interface-asset-types-instrumentkey-68480>`
+         - :ref:`InstrumentKey <type-daml-finance-interface-common-types-instrumentkey-87168>`
          - Instrument being held\.
        * - account
-         - :ref:`AccountKey <type-daml-finance-interface-asset-types-accountkey-21197>`
+         - :ref:`AccountKey <type-daml-finance-interface-common-types-accountkey-81709>`
          - Key of the account holding the assets\.
        * - amount
          - `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_

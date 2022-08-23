@@ -1,17 +1,17 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-.. _module-daml-finance-asset-instrument-60659:
+.. _module-daml-finance-instrument-base-instrument-53549:
 
-Module Daml.Finance.Asset.Instrument
-====================================
+Module Daml.Finance.Instrument.Base.Instrument
+==============================================
 
 Templates
 ---------
 
-.. _type-daml-finance-asset-instrument-factory-1836:
+.. _type-daml-finance-instrument-base-instrument-factory-67142:
 
-**template** `Factory <type-daml-finance-asset-instrument-factory-1836_>`_
+**template** `Factory <type-daml-finance-instrument-base-instrument-factory-67142_>`_
 
   Factory template for instrument creation\.
   
@@ -32,13 +32,13 @@ Templates
   + **Choice Archive**
     
 
-  + **implements** :ref:`F <type-daml-finance-interface-asset-factory-instrument-f-87857>`
-  
   + **implements** :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
+  
+  + **implements** :ref:`F <type-daml-finance-interface-instrument-base-factory-f-82819>`
 
-.. _type-daml-finance-asset-instrument-instrument-84320:
+.. _type-daml-finance-instrument-base-instrument-instrument-9526:
 
-**template** `Instrument <type-daml-finance-asset-instrument-instrument-84320_>`_
+**template** `Instrument <type-daml-finance-instrument-base-instrument-instrument-9526_>`_
 
   Base implementation for Instrument which does not define any lifecycling logic\.
   
@@ -56,7 +56,7 @@ Templates
        - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
        - The instrument's issuer\.
      * - id
-       - :ref:`Id <type-daml-finance-interface-asset-types-id-89116>`
+       - :ref:`Id <type-daml-finance-interface-common-types-id-88316>`
        - The intrument's identifier\.
      * - observers
        - :ref:`Observers <type-daml-finance-interface-common-types-observers-20361>`
@@ -68,14 +68,14 @@ Templates
   + **Choice Archive**
     
 
-  + **implements** :ref:`I <type-daml-finance-interface-asset-instrument-i-66474>`
-  
   + **implements** :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
+  
+  + **implements** :ref:`I <type-daml-finance-interface-instrument-base-instrument-i-67236>`
 
 Data Types
 ----------
 
-.. _type-daml-finance-asset-instrument-t-94008:
+.. _type-daml-finance-instrument-base-instrument-t-28558:
 
-**type** `T <type-daml-finance-asset-instrument-t-94008_>`_
-  \= `Instrument <type-daml-finance-asset-instrument-instrument-84320_>`_
+**type** `T <type-daml-finance-instrument-base-instrument-t-28558_>`_
+  \= `Instrument <type-daml-finance-instrument-base-instrument-instrument-9526_>`_

@@ -1,17 +1,17 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-.. _module-daml-finance-bond-inflationlinked-4596:
+.. _module-daml-finance-instrument-bond-inflationlinked-38254:
 
-Module Daml.Finance.Bond.InflationLinked
-========================================
+Module Daml.Finance.Instrument.Bond.InflationLinked
+===================================================
 
 Templates
 ---------
 
-.. _type-daml-finance-bond-inflationlinked-factory-12125:
+.. _type-daml-finance-instrument-bond-inflationlinked-factory-6079:
 
-**template** `Factory <type-daml-finance-bond-inflationlinked-factory-12125_>`_
+**template** `Factory <type-daml-finance-instrument-bond-inflationlinked-factory-6079_>`_
 
   Factory template for instrument creation\.
   
@@ -32,18 +32,18 @@ Templates
   + **Choice Archive**
     
 
-  + **implements** :ref:`Factory <type-daml-finance-interface-bond-inflationlinked-factory-99998>`
-  
   + **implements** :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
+  
+  + **implements** :ref:`Factory <type-daml-finance-interface-instrument-bond-inflationlinked-factory-67758>`
 
-.. _type-daml-finance-bond-inflationlinked-instrument-28311:
+.. _type-daml-finance-instrument-bond-inflationlinked-instrument-89525:
 
-**template** `Instrument <type-daml-finance-bond-inflationlinked-instrument-28311_>`_
+**template** `Instrument <type-daml-finance-instrument-bond-inflationlinked-instrument-89525_>`_
 
   This template models an inflation linked bond\.
   It pays a fixed coupon rate at the end of every coupon period\.
   This is calculated based on a principal that is adjusted according to an inflation index, for example the Consumer Price Index (CPI) in the U\.S\.
-  For example\: 0\.5% p\.a coupon, CPI adjusted principal\:
+  For example\: 0\.5% p\.a\. coupon, CPI adjusted principal\:
   At maturity, the greater of the adjusted principal and the original principal is redeemed\.
   For clarity, this only applies to the redemption amount\. The coupons are always calculated based on the adjusted principal\.
   
@@ -61,17 +61,17 @@ Templates
        - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
        - The issuer of the instrument\.
      * - id
-       - :ref:`Id <type-daml-finance-interface-asset-types-id-89116>`
+       - :ref:`Id <type-daml-finance-interface-common-types-id-88316>`
        - An identifier of the instrument\.
      * - inflationIndexId
        - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
-       - The inflation index reference ID\. For example, in case of \"0\.5% p\.a coupon, CPI adjusted principal\" this should a valid reference to the \"CPI\" index\.
+       - The inflation index reference ID\. For example, in case of \"0\.5% p\.a\. coupon, CPI adjusted principal\" this should a valid reference to the \"CPI\" index\.
      * - inflationIndexBaseValue
        - `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
        - The value of the inflation index on the first reference date of this bond (called \"dated date\" on US TIPS)\. This is used as the base value for the principal adjustment\.
      * - couponRate
        - `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
-       - The fixed coupon rate, per annum\. For example, in case of a \"0\.5% p\.a coupon, CPI adjusted principal\" this should be 0\.005\.
+       - The fixed coupon rate, per annum\. For example, in case of a \"0\.5% p\.a\. coupon, CPI adjusted principal\" this should be 0\.005\.
      * - issueDate
        - `Date <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
        - The date when the bond was issued\.
@@ -100,7 +100,7 @@ Templates
        - `Int <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
        - The coupon period multiplier\. For example, in case of a 3M coupon period (a coupon every 3 months), this should be 3\.
      * - currency
-       - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+       - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-58546>`
        - The currency of the bond\. For example, if the bond pays in USD this should be a USD cash instrument\.
      * - observers
        - :ref:`Observers <type-daml-finance-interface-common-types-observers-20361>`
@@ -112,18 +112,18 @@ Templates
   + **Choice Archive**
     
 
-  + **implements** :ref:`I <type-daml-finance-interface-asset-instrument-i-66474>`
-  
   + **implements** :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
   
-  + **implements** :ref:`I <type-daml-finance-interface-derivative-hasclaims-i-90893>`
+  + **implements** :ref:`I <type-daml-finance-interface-instrument-base-instrument-i-67236>`
+  
+  + **implements** :ref:`I <type-daml-finance-interface-instrument-generic-hasclaims-i-36868>`
   
   + **implements** :ref:`I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924>`
 
 Data Types
 ----------
 
-.. _type-daml-finance-bond-inflationlinked-t-96325:
+.. _type-daml-finance-instrument-bond-inflationlinked-t-3299:
 
-**type** `T <type-daml-finance-bond-inflationlinked-t-96325_>`_
-  \= `Instrument <type-daml-finance-bond-inflationlinked-instrument-28311_>`_
+**type** `T <type-daml-finance-instrument-bond-inflationlinked-t-3299_>`_
+  \= `Instrument <type-daml-finance-instrument-bond-inflationlinked-instrument-89525_>`_
