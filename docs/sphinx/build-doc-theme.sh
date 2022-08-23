@@ -5,7 +5,7 @@
 set -eu
 
 # Build theme CSS
-cd docs/sphinx/theme && sass \
+cd theme && sass \
   -I bower_components_static/bourbon/dist \
   -I bower_components_static/neat/app/assets/stylesheets \
   -I bower_components_static/font-awesome/scss \
@@ -13,6 +13,9 @@ cd docs/sphinx/theme && sass \
   --style compressed \
   --sourcemap=none \
   --update sass:da_theme/static/css
+
+# Restore node packages
+yarn install --frozen-lockfile
 
 # Grunt build
 grunt build
