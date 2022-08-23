@@ -69,6 +69,7 @@ prepareAndTagClaims claim tag = do
     claims = mapClaimToUTCTime $ mconcat claim
   pure [taggedClaim tag claims]
 
+-- FIXED_RATE_BOND_COUPON_CLAIMS_BEGIN
 -- | Calculate a fix coupon amount for each coupon date and create claims
 createFixRateCouponClaims : (HasField "adjustedEndDate" r Date, HasField "adjustedStartDate" r Date, Applicative f) => [r] -> Decimal -> DayCountConventionEnum -> Deliverable -> f [TaggedClaim]
 createFixRateCouponClaims schedule couponRate dayCountConvention cashInstrumentCid = do
@@ -77,7 +78,9 @@ createFixRateCouponClaims schedule couponRate dayCountConvention cashInstrumentC
     couponAmounts = map (\p -> couponRate * (calcDcf dayCountConvention p.adjustedStartDate p.adjustedEndDate)) schedule
     couponClaims = zipWith (\d a -> when (TimeGte $ d) $ scale (Const a) $ one cashInstrumentCid) couponDatesAdjusted couponAmounts
   prepareAndTagClaims couponClaims "Fix Coupon"
+-- FIXED_RATE_BOND_COUPON_CLAIMS_END
 
+-- FLOATING_RATE_BOND_COUPON_CLAIMS_BEGIN
 -- | Calculate a floating coupon amount for each coupon date and create claims
 createFloatingRateCouponClaims : (HasField "adjustedEndDate" r Date, HasField "adjustedStartDate" r Date, Applicative f) => [r] -> Decimal -> DayCountConventionEnum -> Deliverable -> Observable -> f [TaggedClaim]
 createFloatingRateCouponClaims schedule couponSpread dayCountConvention cashInstrumentCid referenceRateId = do
@@ -86,13 +89,16 @@ createFloatingRateCouponClaims schedule couponSpread dayCountConvention cashInst
       when (TimeGte $ p.adjustedStartDate) $ scale ((Observe referenceRateId + Const couponSpread) * (Const (calcDcf dayCountConvention p.adjustedStartDate p.adjustedEndDate))) $
       when (TimeGte $ p.adjustedEndDate) $ one cashInstrumentCid) schedule
   prepareAndTagClaims couponClaims "Floating Coupon"
+-- FLOATING_RATE_BOND_COUPON_CLAIMS_END
 
+-- FIXED_RATE_BOND_REDEMPTION_CLAIM_BEGIN
 -- | Create a redemption claim
 createRedemptionClaim : Applicative f => Deliverable -> Date -> f [TaggedClaim]
 createRedemptionClaim cashInstrumentCid maturityDate = do
   let
     redemptionClaim = [when (TimeGte $ maturityDate) $ one cashInstrumentCid]
   prepareAndTagClaims redemptionClaim "Redemption"
+-- FIXED_RATE_BOND_REDEMPTION_CLAIM_END
 
 -- | HIDE
 -- Type-class constraint verified by the bond templates.
@@ -120,6 +126,7 @@ mapClaimToUTCTime : Claim Date Decimal Deliverable Observable -> C
 mapClaimToUTCTime =
   let dateToTime = toUTCTime . Unit in toTime' dateToTime
 
+-- BOND_PROCESS_CLOCK_UPDATE_INITAL_CLAIMS_BEGIN
 -- | Rule to process a clock update event.
 processClockUpdate : IsBond t => Party -> ContractId Event.I -> ContractId Clock.I -> ContractId Lifecyclable.I -> t -> [ContractId Observable.I] -> Update (ContractId Lifecyclable.I, [ContractId Effect.I])
 processClockUpdate settler eventCid _ self instrument observableCids = do
@@ -130,8 +137,12 @@ processClockUpdate settler eventCid _ self instrument observableCids = do
 
   -- Recover claims tree as of the lastEventTimestamp. For a bond, this just requires lifecycling as of the lastEventTimestamp
   initialClaims <- HasClaims.getClaims claimInstrument
+  -- BOND_PROCESS_CLOCK_UPDATE_INITAL_CLAIMS_END
+  -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_FASTFORWARD_BEGIN
   claims <- Prelude.fst <$> lifecycle observableCids claimInstrument [timeEvent instrument.lastEventTimestamp]
+  -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_FASTFORWARD_END
 
+  -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_BEGIN
   -- Lifecycle
   (remaining, pending) <- lifecycleClaims observableCids acquisitionTime claims [timeEvent t]
   let
@@ -156,3 +167,4 @@ processClockUpdate settler eventCid _ self instrument observableCids = do
       id = instrument.id.label <> "-" <> show settlementDate
       observers = (.observers) . _view $ toInterface @Disclosure.I instrument
     pure (toInterfaceContractId newInstrumentCid, [effectCid])
+  -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_END
