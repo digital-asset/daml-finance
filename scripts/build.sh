@@ -6,25 +6,27 @@
 # These should be moved into Interface.Common (see https://github.com/DACH-NY/daml-finance/issues/288)
 DAML_PROJECT=../package/main/daml/Daml.Finance.Common daml build
 
-# Build Interfaces
+# Build core Interfaces
 DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Common daml build
 DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Asset daml build
 DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Instrument.Base daml build
-DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Instrument.Bond daml build
-DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Instrument.Equity daml build
-DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Instrument.Generic daml build
 DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Settlement daml build
 DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Lifecycle daml build
 
+# Build extension Interfaces
+DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Instrument.Bond daml build
+DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Instrument.Equity daml build
+DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Instrument.Generic daml build
+
 # Build Implementations
 DAML_PROJECT=../package/main/daml/Daml.Finance.Asset daml build
+DAML_PROJECT=../package/main/daml/Daml.Finance.Settlement daml build
+DAML_PROJECT=../package/main/daml/Daml.Finance.Lifecycle daml build
 DAML_PROJECT=../package/main/daml/Daml.Finance.Instrument.Base daml build
+DAML_PROJECT=../package/main/daml/Daml.Finance.RefData daml build
 DAML_PROJECT=../package/main/daml/Daml.Finance.Instrument.Bond daml build
 DAML_PROJECT=../package/main/daml/Daml.Finance.Instrument.Equity daml build
 DAML_PROJECT=../package/main/daml/Daml.Finance.Instrument.Generic daml build
-DAML_PROJECT=../package/main/daml/Daml.Finance.Settlement daml build
-DAML_PROJECT=../package/main/daml/Daml.Finance.Lifecycle daml build
-DAML_PROJECT=../package/main/daml/Daml.Finance.RefData daml build
 
 if [[ -d ../.dars ]]; then
   rm -r ../.dars
