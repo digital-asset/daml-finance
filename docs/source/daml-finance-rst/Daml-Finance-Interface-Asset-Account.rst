@@ -29,7 +29,7 @@ Interfaces
          - Type
          - Description
        * - quantity
-         - :ref:`Q <type-daml-finance-interface-asset-instrument-q-31714>`
+         - :ref:`Quantity <type-daml-finance-interface-common-types-quantity-934>` :ref:`InstrumentKey <type-daml-finance-interface-common-types-instrumentkey-87168>` `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
          - The target ``Instrument`` and corresponding amount\.
   
   + **Choice Debit**
@@ -74,7 +74,7 @@ Interfaces
     
     Implementation of the ``Debit`` choice\.
   
-  + **Method getKey \:** :ref:`AccountKey <type-daml-finance-interface-asset-types-accountkey-21197>`
+  + **Method getKey \:** :ref:`AccountKey <type-daml-finance-interface-common-types-accountkey-81709>`
     
     Get the unique key of the ``Account``\.
 
@@ -109,7 +109,7 @@ Data Types
 .. _type-daml-finance-interface-asset-account-k-29547:
 
 **type** `K <type-daml-finance-interface-asset-account-k-29547_>`_
-  \= :ref:`AccountKey <type-daml-finance-interface-asset-types-accountkey-21197>`
+  \= :ref:`AccountKey <type-daml-finance-interface-common-types-accountkey-81709>`
   
   Type synonym for ``AccountKey``\.
 
@@ -182,7 +182,7 @@ Functions
 .. _function-daml-finance-interface-asset-account-tokey-59196:
 
 `toKey <function-daml-finance-interface-asset-account-tokey-59196_>`_
-  \: `View <type-daml-finance-interface-asset-account-view-6934_>`_ \-\> :ref:`AccountKey <type-daml-finance-interface-asset-types-accountkey-21197>`
+  \: `View <type-daml-finance-interface-asset-account-view-6934_>`_ \-\> :ref:`AccountKey <type-daml-finance-interface-common-types-accountkey-81709>`
   
   Convert the account's 'View' to its key\.
 
@@ -194,7 +194,7 @@ Functions
 .. _function-daml-finance-interface-asset-account-getkey-3746:
 
 `getKey <function-daml-finance-interface-asset-account-getkey-3746_>`_
-  \: `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Account <type-daml-finance-interface-asset-account-account-19971_>`_ \=\> t \-\> :ref:`AccountKey <type-daml-finance-interface-asset-types-accountkey-21197>`
+  \: `Implements <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-interface-implements-92077>`_ t `Account <type-daml-finance-interface-asset-account-account-19971_>`_ \=\> t \-\> :ref:`AccountKey <type-daml-finance-interface-common-types-accountkey-81709>`
 
 .. _function-daml-finance-interface-asset-account-credit-63464:
 

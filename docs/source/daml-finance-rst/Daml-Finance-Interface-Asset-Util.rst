@@ -16,24 +16,17 @@ Functions
   
   Fetch the account of a holding\.
 
-.. _function-daml-finance-interface-asset-util-fetchinstrument-22695:
-
-`fetchInstrument <function-daml-finance-interface-asset-util-fetchinstrument-22695_>`_
-  \: `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ t :ref:`I <type-daml-finance-interface-asset-holding-i-4221>` \=\> t \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ :ref:`I <type-daml-finance-interface-asset-instrument-i-66474>`
-  
-  Fetch instrument from holding\.
-
 .. _function-daml-finance-interface-asset-util-getinstrument-33161:
 
 `getInstrument <function-daml-finance-interface-asset-util-getinstrument-33161_>`_
-  \: `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ t :ref:`I <type-daml-finance-interface-asset-holding-i-4221>` \=\> t \-\> :ref:`InstrumentKey <type-daml-finance-interface-asset-types-instrumentkey-68480>`
+  \: `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ t :ref:`I <type-daml-finance-interface-asset-holding-i-4221>` \=\> t \-\> :ref:`InstrumentKey <type-daml-finance-interface-common-types-instrumentkey-87168>`
   
-  Get the instrument key of a holding\.
+  Get the key of a holding\.
 
 .. _function-daml-finance-interface-asset-util-getaccount-52132:
 
 `getAccount <function-daml-finance-interface-asset-util-getaccount-52132_>`_
-  \: `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ t :ref:`I <type-daml-finance-interface-asset-holding-i-4221>` \=\> t \-\> :ref:`AccountKey <type-daml-finance-interface-asset-types-accountkey-21197>`
+  \: `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ t :ref:`I <type-daml-finance-interface-asset-holding-i-4221>` \=\> t \-\> :ref:`AccountKey <type-daml-finance-interface-common-types-accountkey-81709>`
   
   Get the account key of a holding\.
 

@@ -1,0 +1,90 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Interface.Instrument.Equity.Instrument where
+
+import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (I)
+import Daml.Finance.Interface.Common.Util (verify)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, Implementation, K, Q, asDisclosure)
+import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I)
+
+type I = Instrument
+type V = View
+
+-- | View for `Instrument`.
+data View = View () deriving (Eq, Ord, Show)
+
+-- | An interface for a generic equity instrument.
+interface Instrument where
+  viewtype View
+
+  asInstrument : BaseInstrument.I
+    -- ^ Conversion to base `Instrument` interface.
+  declareDividend : DeclareDividend -> Update (ContractId Event.I)
+    -- ^ Implementation fo the `DeclareDividend` choice.
+  declareStockSplit : DeclareStockSplit -> Update (ContractId Event.I)
+    -- ^ Implementation fo the `DeclareStockSplit` choice.
+  declareReplacement : DeclareReplacement -> Update (ContractId Event.I)
+    -- ^ Implementation fo the `DeclareReplacement` choice.
+
+  nonconsuming choice GetView : View
+    -- ^ Retrieves the instrument view.
+    with
+      viewer : Party
+        -- ^ The party retrieving the view.
+    controller viewer
+    do
+      pure $ _view this
+
+  nonconsuming choice DeclareDividend : ContractId Event.I
+    -- ^ Declare a dividend distribution to shareholders.
+    with
+      id : Text
+        -- ^ Event identifier of the dividend distribution.
+      effectiveDate : Date
+        -- ^ Date at which the dividend is distributed.
+      newInstrument : BaseInstrument.K
+        -- ^ Instrument held after the dividend distribution (ie. "ex-dividend" stock).
+      perUnitDistribution : [BaseInstrument.Q]
+        -- ^ Distributed quantities per unit held.
+    controller (_view $ asInstrument this).issuer
+    do
+      declareDividend this arg
+
+  nonconsuming choice DeclareStockSplit : ContractId Event.I
+    -- ^ Declare a stock split.
+    with
+      id : Text
+        -- ^ Event identifier of the stock split.
+      effectiveDate : Date
+        -- ^ Date at which the stock split is effective.
+      newInstrument : BaseInstrument.K
+        -- ^ Instrument to be held after the stock split is executed.
+      adjustmentFactor : Decimal
+        -- ^ Adjustment factor for the stock split.
+        -- A factor of between 0 and 1 represents a classic stock split (eg. 2-for-1 or two new for one old).
+        -- A factor above 1 represents a reverse stock split (eg. 1-for-2 or one new for two old).
+    controller (_view $ asInstrument this).issuer
+    do
+      verify (adjustmentFactor > 0.0) "Factor cannot be equal to or below zero."
+      declareStockSplit this arg
+
+  nonconsuming choice DeclareReplacement : ContractId Event.I
+    -- ^ Declare a replacement event, where units of the instrument are replaced by a basket of other instruments.
+    with
+      id : Text
+        -- ^ Distribution Id.
+      effectiveDate : Date
+        -- ^ Date the replacement is to be executed.
+      perUnitReplacement : [BaseInstrument.Q]
+        -- ^ Payout offered to shareholders per held share.
+    controller (_view $ asInstrument this).issuer
+    do
+      declareReplacement this arg
+
+-- | Type constraint used to require templates implementing `Instrument` to also implement `BaseInstrument.I`.
+type Implementation t = (HasToInterface t I, BaseInstrument.Implementation t)
+instance HasToInterface I BaseInstrument.I where _toInterface = asInstrument
+instance HasToInterface I Disclosure.I where _toInterface = BaseInstrument.asDisclosure . asInstrument
+class (Implementation t) => HasImplementation t
+instance HasImplementation I

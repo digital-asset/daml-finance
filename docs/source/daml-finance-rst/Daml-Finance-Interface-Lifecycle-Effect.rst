@@ -100,10 +100,10 @@ Data Types
          - Type
          - Description
        * - consumed
-         - \[:ref:`Q <type-daml-finance-interface-asset-instrument-q-31714>`\]
+         - \[:ref:`Q <type-daml-finance-interface-instrument-base-instrument-q-62956>`\]
          - Consumed quantities\.
        * - produced
-         - \[:ref:`Q <type-daml-finance-interface-asset-instrument-q-31714>`\]
+         - \[:ref:`Q <type-daml-finance-interface-instrument-base-instrument-q-62956>`\]
          - Produced quantities\.
   
   **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `CalculationResult <type-daml-finance-interface-lifecycle-effect-calculationresult-55343_>`_
@@ -117,7 +117,7 @@ Data Types
 **type** `I <type-daml-finance-interface-lifecycle-effect-i-11106_>`_
   \= `Effect <type-daml-finance-interface-lifecycle-effect-effect-69649_>`_
   
-  **instance** HasMethod :ref:`Exercisable <type-daml-finance-interface-derivative-election-exercisable-60012>` \"applyElection\" (ApplyElection \-\> `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`Exercisable <type-daml-finance-interface-derivative-election-exercisable-60012>` \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924>`, \[`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-effect-i-11106_>`_\]))
+  **instance** HasMethod :ref:`Exercisable <type-daml-finance-interface-instrument-generic-election-exercisable-33711>` \"applyElection\" (ApplyElection \-\> `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`Exercisable <type-daml-finance-interface-instrument-generic-election-exercisable-33711>` \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-lifecyclable-i-34924>`, \[`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-effect-i-11106_>`_\]))
   
   **instance** HasMethod :ref:`Lifecyclable <type-daml-finance-interface-lifecycle-lifecyclable-lifecyclable-83497>` \"lifecycle\" (Lifecycle \-\> `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`Lifecyclable <type-daml-finance-interface-lifecycle-lifecyclable-lifecyclable-83497>` \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`Lifecyclable <type-daml-finance-interface-lifecycle-lifecyclable-lifecyclable-83497>`, \[`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-effect-i-11106_>`_\]))
 
@@ -155,10 +155,10 @@ Data Types
          - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party providing the claim processing\.
        * - targetInstrument
-         - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+         - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-58546>`
          - A holding on this instrument is required to claim the effect\.
        * - producedInstrument
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-58546>`
          - The new version of the target instrument, when it exists\.
        * - id
          - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_

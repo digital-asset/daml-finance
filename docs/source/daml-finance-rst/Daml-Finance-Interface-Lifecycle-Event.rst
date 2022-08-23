@@ -47,13 +47,13 @@ Data Types
 **type** `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
   \= `Event <type-daml-finance-interface-lifecycle-event-event-2931_>`_
   
-  **instance** HasMethod :ref:`Election <type-daml-finance-interface-derivative-election-election-60525>` \"asEvent\" `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
+  **instance** HasMethod :ref:`Instrument <type-daml-finance-interface-instrument-equity-instrument-instrument-99859>` \"declareDividend\" (DeclareDividend \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_))
   
-  **instance** HasMethod :ref:`Instrument <type-daml-finance-interface-equity-instrument-instrument-81959>` \"declareDividend\" (DeclareDividend \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_))
+  **instance** HasMethod :ref:`Instrument <type-daml-finance-interface-instrument-equity-instrument-instrument-99859>` \"declareReplacement\" (DeclareReplacement \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_))
   
-  **instance** HasMethod :ref:`Instrument <type-daml-finance-interface-equity-instrument-instrument-81959>` \"declareReplacement\" (DeclareReplacement \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_))
+  **instance** HasMethod :ref:`Instrument <type-daml-finance-interface-instrument-equity-instrument-instrument-99859>` \"declareStockSplit\" (DeclareStockSplit \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_))
   
-  **instance** HasMethod :ref:`Instrument <type-daml-finance-interface-equity-instrument-instrument-81959>` \"declareStockSplit\" (DeclareStockSplit \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_))
+  **instance** HasMethod :ref:`Election <type-daml-finance-interface-instrument-generic-election-election-25324>` \"asEvent\" `I <type-daml-finance-interface-lifecycle-event-i-17082_>`_
 
 .. _type-daml-finance-interface-lifecycle-event-implementation-22192:
 

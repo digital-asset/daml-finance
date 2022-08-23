@@ -42,7 +42,7 @@ Interfaces
          - Type
          - Description
        * - receiverAccount
-         - :ref:`AccountKey <type-daml-finance-interface-asset-types-accountkey-21197>`
+         - :ref:`AccountKey <type-daml-finance-interface-common-types-accountkey-81709>`
          - Account reference of the receiving parties\.
   
   + **Choice Execute**

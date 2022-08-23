@@ -27,7 +27,7 @@ Interfaces
          - Type
          - Description
        * - account
-         - :ref:`AccountKey <type-daml-finance-interface-asset-types-accountkey-21197>`
+         - :ref:`AccountKey <type-daml-finance-interface-common-types-accountkey-81709>`
          - The account's key\.
        * - holdingFactoryCid
          - `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`F <type-daml-finance-interface-asset-factory-holding-f-78374>`
@@ -48,7 +48,7 @@ Interfaces
          - Type
          - Description
        * - account
-         - :ref:`AccountKey <type-daml-finance-interface-asset-types-accountkey-21197>`
+         - :ref:`AccountKey <type-daml-finance-interface-common-types-accountkey-81709>`
          - The account's key\.
   
   + **Method asDisclosure \:** :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`

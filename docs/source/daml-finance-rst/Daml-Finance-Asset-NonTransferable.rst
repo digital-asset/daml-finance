@@ -52,10 +52,10 @@ Templates
        - Type
        - Description
      * - instrument
-       - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+       - :ref:`InstrumentKey <type-daml-finance-interface-common-types-instrumentkey-87168>`
        - The instrument of which units are held\.
      * - account
-       - :ref:`AccountKey <type-daml-finance-interface-asset-types-accountkey-21197>`
+       - :ref:`AccountKey <type-daml-finance-interface-common-types-accountkey-81709>`
        - The account at which the holding is held\. Defines the holding's owner and custodian\.
      * - amount
        - `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_

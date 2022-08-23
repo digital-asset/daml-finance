@@ -32,10 +32,10 @@ Templates
        - `Date <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
        - Date on which the replacement is effectuated\.
      * - targetInstrument
-       - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+       - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-58546>`
        - Instrument the replacement event applies to\.
      * - perUnitReplacement
-       - \[:ref:`Q <type-daml-finance-interface-asset-instrument-q-31714>`\]
+       - \[:ref:`Q <type-daml-finance-interface-instrument-base-instrument-q-62956>`\]
        - Instrument quantities the target instrument is replaced with\.
      * - observers
        - :ref:`Observers <type-daml-finance-interface-common-types-observers-20361>`

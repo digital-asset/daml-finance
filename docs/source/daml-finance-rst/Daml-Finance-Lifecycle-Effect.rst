@@ -29,16 +29,16 @@ Templates
        - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
        - The party settling the effect's consequences\.
      * - targetInstrument
-       - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+       - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-58546>`
        - The target instrument\.
      * - producedInstrument
-       - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
+       - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-58546>`
        - The produced instrument, when it exists\.
      * - consumed
-       - \[:ref:`Q <type-daml-finance-interface-asset-instrument-q-31714>`\]
+       - \[:ref:`Q <type-daml-finance-interface-instrument-base-instrument-q-62956>`\]
        - Consumed quantities (not including the target instrument)\.
      * - produced
-       - \[:ref:`Q <type-daml-finance-interface-asset-instrument-q-31714>`\]
+       - \[:ref:`Q <type-daml-finance-interface-instrument-base-instrument-q-62956>`\]
        - Produced quantities (not including the produced instrument)\.
      * - settlementDate
        - `Date <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_

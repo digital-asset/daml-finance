@@ -42,7 +42,7 @@ Interfaces
          - Type
          - Description
        * - newOwnerAccount
-         - :ref:`AccountKey <type-daml-finance-interface-asset-types-accountkey-21197>`
+         - :ref:`AccountKey <type-daml-finance-interface-common-types-accountkey-81709>`
          - Account contract id of the parties to transfer the contract to
   
   + **Method asLockable \:** :ref:`I <type-daml-finance-interface-asset-lockable-i-23182>`
