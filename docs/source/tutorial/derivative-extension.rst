@@ -10,7 +10,7 @@ Download the code for the tutorial
 The code of this tutorial resides in the `Daml Finance <https://github.com/digital-asset/daml-finance>`_ repo.
 You can install it locally by following :doc:`these instructions <../getting-started/install-daml-finance>`.
 
-In particular, the file ``src/test/daml/Daml/Finance/Derivative/Test/Intermediated/BondCoupon.daml`` is the starting point
+In particular, the file ``src/test/daml/Daml/Finance/Instrument/Generic/Test/Intermediated/BondCoupon.daml`` is the starting point
 of this tutorial.
 
 How to create a generic instrument
@@ -26,14 +26,14 @@ Consider a fixed rate bond which pays a 4% p.a. coupon with a 6M coupon period.
 Assume there are two coupons remaining until maturity: one today and one in 180 days.
 This could be modeled in the following way using ``Contingent Claims``:
 
-.. literalinclude:: ../../../src/test/daml/Daml/Finance/Derivative/Test/Intermediated/BondCoupon.daml
+.. literalinclude:: ../../../src/test/daml/Daml/Finance/Instrument/Generic/Test/Intermediated/BondCoupon.daml
   :language: daml
   :start-after: -- CREATE_CC_INSTRUMENT_VARIABLES_BEGIN
   :end-before: -- CREATE_CC_INSTRUMENT_VARIABLES_END
 
 Now that we have specified the economic terms we can create a derivative instrument:
 
-.. literalinclude:: ../../../src/test/daml/Daml/Finance/Derivative/Test/Intermediated/BondCoupon.daml
+.. literalinclude:: ../../../src/test/daml/Daml/Finance/Instrument/Generic/Test/Intermediated/BondCoupon.daml
   :language: daml
   :start-after: -- CREATE_CC_INSTRUMENT_BEGIN
   :end-before: -- CREATE_CC_INSTRUMENT_END
@@ -44,7 +44,7 @@ How to trade and transfer a generic instrument
 **********************************************
 
 When you have created a holding on the instrument above it can be transfered to another party.
-This is described in :doc:`Getting Started: Transfer <../getting-started/getting-started>`.
+This is described in :doc:`Getting Started: Transfer <../getting-started/transfer>`.
 
 In order to trade the instrument (transfer it in exchange for cash) you can also initiate a delivery versus payment with atomic settlement.
 This is described in :doc:`Getting Started: Settlement <../getting-started/settlement>`.
