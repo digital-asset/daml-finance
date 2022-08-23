@@ -79,5 +79,3 @@ Data Types
 
 **type** `T <type-daml-finance-asset-account-t-52313_>`_
   \= `Account <type-daml-finance-asset-account-account-64286_>`_
-  
-  **instance** :ref:`HasImplementation <class-daml-finance-interface-asset-account-hasimplementation-58285>` `T <type-daml-finance-asset-account-t-52313_>`_

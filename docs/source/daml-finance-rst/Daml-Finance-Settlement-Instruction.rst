@@ -64,5 +64,3 @@ Data Types
 
 **type** `T <type-daml-finance-settlement-instruction-t-45988_>`_
   \= `Instruction <type-daml-finance-settlement-instruction-instruction-35758_>`_
-  
-  **instance** :ref:`HasImplementation <class-daml-finance-interface-settlement-instruction-hasimplementation-40548>` `T <type-daml-finance-settlement-instruction-t-45988_>`_

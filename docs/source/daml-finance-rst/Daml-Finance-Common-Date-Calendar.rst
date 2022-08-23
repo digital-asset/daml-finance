@@ -112,13 +112,7 @@ Data Types
   
   **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `HolidayCalendarData <type-daml-finance-common-date-calendar-holidaycalendardata-72016_>`_
   
-  **instance** `HasExercise <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercise-70422>`_ :ref:`HolidayCalendar <type-daml-finance-refdata-holidaycalendar-holidaycalendar-89891>` GetCalendar `HolidayCalendarData <type-daml-finance-common-date-calendar-holidaycalendardata-72016_>`_
-  
   **instance** `HasExerciseByKey <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercisebykey-36549>`_ :ref:`HolidayCalendar <type-daml-finance-refdata-holidaycalendar-holidaycalendar-89891>` :ref:`HolidayCalendarKey <type-daml-finance-refdata-holidaycalendar-holidaycalendarkey-14389>` GetCalendar `HolidayCalendarData <type-daml-finance-common-date-calendar-holidaycalendardata-72016_>`_
-  
-  **instance** `HasFromAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasfromanychoice-81184>`_ :ref:`HolidayCalendar <type-daml-finance-refdata-holidaycalendar-holidaycalendar-89891>` GetCalendar `HolidayCalendarData <type-daml-finance-common-date-calendar-holidaycalendardata-72016_>`_
-  
-  **instance** `HasToAnyChoice <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastoanychoice-82571>`_ :ref:`HolidayCalendar <type-daml-finance-refdata-holidaycalendar-holidaycalendar-89891>` GetCalendar `HolidayCalendarData <type-daml-finance-common-date-calendar-holidaycalendardata-72016_>`_
 
 Functions
 ---------

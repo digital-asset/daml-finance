@@ -15,11 +15,11 @@ Templates
 
   A contract encoding the consequences of an election for a unit of the target instrument\.
   It needs to be claimed with a holding of the right amount and is consumed after claiming\.
-
+  
   .. list-table::
      :widths: 15 10 30
      :header-rows: 1
-
+  
      * - Field
        - Type
        - Description
@@ -36,19 +36,19 @@ Templates
        - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
        - The owner of the holding put forward for election\.
      * - targetInstrument
-       - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-75164>`
+       - :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
        - The target instrument\.
      * - producedInstrument
-       - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-75164>`
+       - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`K <type-daml-finance-interface-asset-instrument-k-75164>`
        - The produced instrument, when it exists\.
      * - amount
        - `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
        - The elected amount\.
      * - consumed
-       - \[:ref:`Q <type-daml-finance-interface-instrument-base-instrument-q-31714>`\]
+       - \[:ref:`Q <type-daml-finance-interface-asset-instrument-q-31714>`\]
        - Consumed quantities (not including the target instrument)\.
      * - produced
-       - \[:ref:`Q <type-daml-finance-interface-instrument-base-instrument-q-31714>`\]
+       - \[:ref:`Q <type-daml-finance-interface-asset-instrument-q-31714>`\]
        - Produced quantities (not including the produced instrument)\.
      * - settlementDate
        - `Date <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
@@ -59,9 +59,9 @@ Templates
      * - observers
        - :ref:`Observers <type-daml-finance-interface-common-types-observers-20361>`
        - Observers\.
-
+  
   + **Choice Archive**
-
+    
 
   + **implements** :ref:`I <type-daml-finance-interface-lifecycle-effect-i-11106>`
 
@@ -72,5 +72,3 @@ Data Types
 
 **type** `T <type-daml-finance-lifecycle-electioneffect-t-5245_>`_
   \= `ElectionEffect <type-daml-finance-lifecycle-electioneffect-electioneffect-28146_>`_
-
-  **instance** :ref:`HasImplementation <class-daml-finance-interface-lifecycle-effect-hasimplementation-26488>` `T <type-daml-finance-lifecycle-electioneffect-t-5245_>`_

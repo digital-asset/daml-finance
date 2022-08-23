@@ -18,12 +18,42 @@ Daml Finance Documentation
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents
+   :caption: Architecture and concepts
 
    Introduction <intro>
    architecture
    core-concepts
-   getting-started/getting-started
+
+.. toctree::
+   :titlesonly:
+   :maxdepth: 2
+   :hidden:
+   :caption: Getting started
+
+   getting-started/intro
+   getting-started/transfer
+   getting-started/install-daml-finance
+   getting-started/settlement
+   getting-started/lifecycling
+
+.. toctree::
+   :titlesonly:
+   :maxdepth: 2
+   :hidden:
+   :caption: Tutorials
+
+   tutorial/intro
+   tutorial/bond-extension
+   tutorial/derivative-extension
+   tutorial/contingent-claims-instrument
+   tutorial/contingent-claims-on-ledger-vs-on-the-fly
+
+.. toctree::
+   :titlesonly:
+   :maxdepth: 2
+   :hidden:
+   :caption: Reference
+
    glossary
    Code documentation <daml-finance-rst/index>
 

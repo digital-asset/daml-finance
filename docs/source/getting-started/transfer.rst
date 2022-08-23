@@ -1,7 +1,7 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-Getting started 1 : Transfer
+Getting started : Transfer
 ############################
 
 This tutorial introduces the core asset model of the library through a
@@ -44,6 +44,8 @@ You can then run
    daml studio
 
 to open the code editor and inspect the code.
+
+.. _structure-of-code-dependencies:
 
 Structure of the code, dependencies
 ***********************************
