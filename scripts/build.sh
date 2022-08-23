@@ -16,7 +16,7 @@ DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Settlement daml build
 DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Lifecycle daml build
 
 # Implementations
-DAML_PROJECT=../package/main/daml/Daml.Finance.Asset daml build
+DAML_PROJECT=../package/main/daml/Daml.Finance.Holding daml build
 DAML_PROJECT=../package/main/daml/Daml.Finance.Settlement daml build
 DAML_PROJECT=../package/main/daml/Daml.Finance.Lifecycle daml build
 DAML_PROJECT=../package/main/daml/Daml.Finance.Instrument.Base daml build
@@ -46,7 +46,7 @@ cp ../package/main/daml/*/.daml/dist/* ../.dars/
 # Core
 DAML_PROJECT=../package/test/daml/Daml.Finance.Test.Util daml build
 DAML_PROJECT=../package/test/daml/Daml.Finance.Common.Test daml build
-DAML_PROJECT=../package/test/daml/Daml.Finance.Asset.Test daml build
+DAML_PROJECT=../package/test/daml/Daml.Finance.Holding.Test daml build
 DAML_PROJECT=../package/test/daml/Daml.Finance.Settlement.Test daml build
 DAML_PROJECT=../package/test/daml/Daml.Finance.RefData.Test daml build
 

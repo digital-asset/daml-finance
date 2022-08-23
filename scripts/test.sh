@@ -3,7 +3,7 @@
 
 # Test
 
-daml test --project-root ../package/test/daml/Daml.Finance.Asset.Test
+daml test --project-root ../package/test/daml/Daml.Finance.Holding.Test
 daml test --project-root ../package/test/daml/Daml.Finance.Common.Test
 daml test --project-root ../package/test/daml/Daml.Finance.Instrument.Generic.Test
 daml test --project-root ../package/test/daml/Daml.Finance.Instrument.Bond.Test

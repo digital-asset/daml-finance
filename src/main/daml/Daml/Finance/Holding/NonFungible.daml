@@ -1,26 +1,31 @@
 -- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
-module Daml.Finance.Asset.NonTransferable where
+module Daml.Finance.Holding.NonFungible where
 
+import DA.Assert ((===))
 import DA.Set (delete, insert, null, singleton)
+import Daml.Finance.Interface.Asset.Account qualified as Account (Credit(..), I, R, exerciseInterfaceByKey)
 import Daml.Finance.Interface.Asset.Factory.Holding qualified as HoldingFactory (Create(..), F, HasImplementation(..), Remove(..), View(..))
-import Daml.Finance.Interface.Asset.Holding qualified as Holding (I, HasImplementation, View(..))
+import Daml.Finance.Interface.Asset.Holding qualified as Holding (I, View(..))
 import Daml.Finance.Interface.Asset.Lockable qualified as Lockable (Acquire(..), I, Lock(..), LockType(..), Release(..), View(..))
+import Daml.Finance.Interface.Asset.Transferable qualified as NonFungible (HasImplementation)
+import Daml.Finance.Interface.Asset.Transferable qualified as Transferable (I, Transfer(..), View(..))
 import Daml.Finance.Interface.Asset.Util (getLocker)
 import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (I, SetObservers(..), View(..))
 import Daml.Finance.Interface.Common.Types (AccountKey(..), InstrumentKey(..), Observers)
-import Daml.Finance.Interface.Common.Util (flattenObservers)
+import Daml.Finance.Interface.Common.Util (fetchInterfaceByKey, flattenObservers)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (qty)
 import Prelude hiding (null)
 
 type F = Factory
-type T = NonTransferable
+type T = NonFungible
 
-instance Holding.HasImplementation T
--- | Implementation of a non-transferable holding.
--- `NonTransferable` implements the interface `Lockable.I` (which requires `Holding.I`, and
--- `Disclosure.I` to be implemented as well).
-template NonTransferable
+instance NonFungible.HasImplementation T
+-- | Implementation of a non-fungible holding.
+-- `NonFungible` implements the interface `Transferable.I` (which requires `Lockable.I`,
+-- `Holding.I`, and `Disclosure.I` to be implemented as well).
+template NonFungible
   with
     instrument : InstrumentKey
       -- ^ The instrument of which units are held.
@@ -41,7 +46,7 @@ template NonTransferable
     implements Disclosure.I where
       view = Disclosure.View with disclosureControllers = singleton $ singleton account.owner; observers
       setObservers Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
-      archive' self = archive $ fromInterfaceContractId @NonTransferable self
+      archive' self = archive $ fromInterfaceContractId @NonFungible self
 
     implements Holding.I where
       asDisclosure = toInterface @Disclosure.I this
@@ -69,6 +74,24 @@ template NonTransferable
           releasedLock = lock >>= f
         toInterfaceContractId <$> create this with lock = releasedLock
 
+    implements Transferable.I where
+      asLockable = toInterface @Lockable.I this
+      view = Transferable.View ()
+      transfer Transferable.Transfer{newOwnerAccount} = do
+        -- Account sanity checks
+        newAccount <- fetchInterfaceByKey @Account.R newOwnerAccount
+        let v = _view newAccount
+        v.owner === newOwnerAccount.owner
+        v.custodian === account.custodian
+        -- Create new holding via Credit
+        newHoldingCid <- coerceContractId <$> Account.exerciseInterfaceByKey @Account.I newOwnerAccount newOwnerAccount.owner Account.Credit
+          with
+            quantity = Instrument.qty amount instrument
+        -- Holding sanity checks. This prevents a holding from changing type during a `Transfer` (from e.g., `NonFungible` to `Fungible`)
+        newHolding <- fetch newHoldingCid
+        assertMsg "Sent holding type does not correspond to receiving account holding type" $ interfaceTypeRep newHolding == templateTypeRep @NonFungible
+        pure newHoldingCid
+
 instance HoldingFactory.HasImplementation Factory
 -- | Implementation of the corresponding Holding Factory.
 template Factory
@@ -86,10 +109,10 @@ template Factory
         asDisclosure = toInterface @Disclosure.I this
         view = HoldingFactory.View with provider
         create' HoldingFactory.Create{instrument; account; amount; observers} =
-          toInterfaceContractId <$> create NonTransferable with instrument; account; amount; observers; lock = None
-        remove HoldingFactory.Remove{actors; holdingCid} = archive $ fromInterfaceContractId @NonTransferable holdingCid
+          toInterfaceContractId <$> create NonFungible with instrument; account; amount; observers; lock = None
+        remove HoldingFactory.Remove{actors; holdingCid} = archive $ fromInterfaceContractId @NonFungible holdingCid
 
     implements Disclosure.I where
       view = Disclosure.View with disclosureControllers = singleton $ singleton provider; observers
       setObservers Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
-      archive' self = archive (coerceContractId self : ContractId NonTransferable)
+      archive' self = archive (coerceContractId self : ContractId NonFungible)

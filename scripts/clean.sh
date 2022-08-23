@@ -13,7 +13,7 @@ daml clean --project-root ../package/main/daml/Daml.Finance.Interface.Lifecycle
 
 daml clean --project-root ../package/main/daml/Daml.Finance.Common
 daml clean --project-root ../package/main/daml/Daml.Finance.Instrument.Base
-daml clean --project-root ../package/main/daml/Daml.Finance.Asset
+daml clean --project-root ../package/main/daml/Daml.Finance.Holding
 daml clean --project-root ../package/main/daml/Daml.Finance.Instrument.Bond
 daml clean --project-root ../package/main/daml/Daml.Finance.Instrument.Equity
 daml clean --project-root ../package/main/daml/Daml.Finance.Instrument.Generic
@@ -22,7 +22,7 @@ daml clean --project-root ../package/main/daml/Daml.Finance.Lifecycle
 daml clean --project-root ../package/main/daml/Daml.Finance.RefData
 
 daml clean --project-root ../package/test/daml/Daml.Finance.Common.Test
-daml clean --project-root ../package/test/daml/Daml.Finance.Asset.Test
+daml clean --project-root ../package/test/daml/Daml.Finance.Holding.Test
 daml clean --project-root ../package/test/daml/Daml.Finance.Instrument.Bond.Test
 daml clean --project-root ../package/test/daml/Daml.Finance.Instrument.Equity.Test
 daml clean --project-root ../package/test/daml/Daml.Finance.Instrument.Generic.Test
