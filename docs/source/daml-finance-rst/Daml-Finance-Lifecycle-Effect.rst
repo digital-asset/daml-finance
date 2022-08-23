@@ -14,11 +14,11 @@ Templates
 **template** `Effect <type-daml-finance-lifecycle-effect-effect-18432_>`_
 
   A contract encoding the consequences of a lifecycle event for a unit of the target instrument\.
-
+  
   .. list-table::
      :widths: 15 10 30
      :header-rows: 1
-
+  
      * - Field
        - Type
        - Description
@@ -29,16 +29,16 @@ Templates
        - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
        - The party settling the effect's consequences\.
      * - targetInstrument
-       - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-75164>`
+       - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-58546>`
        - The target instrument\.
      * - producedInstrument
-       - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-75164>`
+       - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-58546>`
        - The produced instrument, when it exists\.
      * - consumed
-       - \[:ref:`Q <type-daml-finance-interface-instrument-base-instrument-q-31714>`\]
+       - \[:ref:`Q <type-daml-finance-interface-instrument-base-instrument-q-62956>`\]
        - Consumed quantities (not including the target instrument)\.
      * - produced
-       - \[:ref:`Q <type-daml-finance-interface-instrument-base-instrument-q-31714>`\]
+       - \[:ref:`Q <type-daml-finance-interface-instrument-base-instrument-q-62956>`\]
        - Produced quantities (not including the produced instrument)\.
      * - settlementDate
        - `Date <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
@@ -49,9 +49,9 @@ Templates
      * - observers
        - :ref:`Observers <type-daml-finance-interface-common-types-observers-20361>`
        - Observers\.
-
+  
   + **Choice Archive**
-
+    
 
   + **implements** :ref:`I <type-daml-finance-interface-lifecycle-effect-i-11106>`
 
@@ -62,5 +62,5 @@ Data Types
 
 **type** `T <type-daml-finance-lifecycle-effect-t-84092_>`_
   \= `Effect <type-daml-finance-lifecycle-effect-effect-18432_>`_
-
+  
   **instance** :ref:`HasImplementation <class-daml-finance-interface-lifecycle-effect-hasimplementation-26488>` `T <type-daml-finance-lifecycle-effect-t-84092_>`_

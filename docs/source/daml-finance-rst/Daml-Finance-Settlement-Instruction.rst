@@ -41,7 +41,7 @@ Templates
        - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-asset-transferable-i-10374>`)
        - Allocated holding\.
      * - account
-       - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`AccountKey <type-daml-finance-interface-asset-types-accountkey-21197>`
+       - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`AccountKey <type-daml-finance-interface-common-types-accountkey-81709>`
        - Receiving account\.
      * - id
        - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_

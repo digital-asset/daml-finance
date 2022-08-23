@@ -14,11 +14,11 @@ Templates
 **template** `Factory <type-daml-finance-asset-nonfungible-factory-66887_>`_
 
   Implementation of the corresponding Holding Factory\.
-
+  
   .. list-table::
      :widths: 15 10 30
      :header-rows: 1
-
+  
      * - Field
        - Type
        - Description
@@ -28,12 +28,12 @@ Templates
      * - observers
        - :ref:`Observers <type-daml-finance-interface-common-types-observers-20361>`
        - The factory's observers\.
-
+  
   + **Choice Archive**
-
+    
 
   + **implements** :ref:`F <type-daml-finance-interface-asset-factory-holding-f-78374>`
-
+  
   + **implements** :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
 
 .. _type-daml-finance-asset-nonfungible-nonfungible-15366:
@@ -43,19 +43,19 @@ Templates
   Implementation of a non\-fungible holding\.
   ``NonFungible`` implements the interface ``Transferable.I`` (which requires ``Lockable.I``,
   ``Holding.I``, and ``Disclosure.I`` to be implemented as well)\.
-
+  
   .. list-table::
      :widths: 15 10 30
      :header-rows: 1
-
+  
      * - Field
        - Type
        - Description
      * - instrument
-       - :ref:`K <type-daml-finance-interface-instrument-base-instrument-k-75164>`
+       - :ref:`InstrumentKey <type-daml-finance-interface-common-types-instrumentkey-87168>`
        - The instrument of which units are held\.
      * - account
-       - :ref:`AccountKey <type-daml-finance-interface-asset-types-accountkey-21197>`
+       - :ref:`AccountKey <type-daml-finance-interface-common-types-accountkey-81709>`
        - The account at which the holding is held\. Defines the holding's owner and custodian\.
      * - amount
        - `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
@@ -66,16 +66,16 @@ Templates
      * - observers
        - :ref:`Observers <type-daml-finance-interface-common-types-observers-20361>`
        - Observers\.
-
+  
   + **Choice Archive**
-
+    
 
   + **implements** :ref:`I <type-daml-finance-interface-asset-holding-i-4221>`
-
+  
   + **implements** :ref:`I <type-daml-finance-interface-asset-lockable-i-23182>`
-
+  
   + **implements** :ref:`I <type-daml-finance-interface-asset-transferable-i-10374>`
-
+  
   + **implements** :ref:`I <type-daml-finance-interface-common-disclosure-i-70158>`
 
 Data Types
@@ -90,5 +90,5 @@ Data Types
 
 **type** `T <type-daml-finance-asset-nonfungible-t-43787_>`_
   \= `NonFungible <type-daml-finance-asset-nonfungible-nonfungible-15366_>`_
-
+  
   **instance** :ref:`HasImplementation <class-daml-finance-interface-asset-transferable-hasimplementation-59736>` `T <type-daml-finance-asset-nonfungible-t-43787_>`_
