@@ -71,6 +71,8 @@ Data Types
   **instance** HasMethod :ref:`Instrument <type-daml-finance-interface-instrument-equity-instrument-instrument-99859>` \"asInstrument\" `I <type-daml-finance-interface-instrument-base-instrument-i-67236_>`_
   
   **instance** HasMethod :ref:`Factory <type-daml-finance-interface-instrument-generic-factory-factory-64962>` \"create'\" (Create \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-instrument-base-instrument-i-67236_>`_))
+  
+  **instance** `HasExerciseByKey <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercisebykey-36549>`_ Reference `K <type-daml-finance-interface-instrument-base-instrument-k-58546_>`_ GetCid (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-instrument-base-instrument-i-67236_>`_)
 
 .. _type-daml-finance-interface-instrument-base-instrument-implementation-67110:
 
@@ -86,6 +88,26 @@ Data Types
   \= :ref:`InstrumentKey <type-daml-finance-interface-common-types-instrumentkey-87168>`
   
   Type synonym for ``InstrumentKey``\.
+  
+  **instance** `HasExerciseByKey <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercisebykey-36549>`_ Reference `K <type-daml-finance-interface-instrument-base-instrument-k-58546_>`_ GetCid (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-instrument-base-instrument-i-67236_>`_)
+  
+  **instance** `HasExerciseByKey <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercisebykey-36549>`_ Reference `K <type-daml-finance-interface-instrument-base-instrument-k-58546_>`_ SetCid (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `R <type-daml-finance-interface-instrument-base-instrument-r-56343_>`_)
+  
+  **instance** `HasExerciseByKey <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercisebykey-36549>`_ Reference `K <type-daml-finance-interface-instrument-base-instrument-k-58546_>`_ SetObservers (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `R <type-daml-finance-interface-instrument-base-instrument-r-56343_>`_)
+  
+  **instance** `HasExerciseByKey <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercisebykey-36549>`_ Reference `K <type-daml-finance-interface-instrument-base-instrument-k-58546_>`_ `Archive <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-template-archive-15178>`_ ()
+  
+  **instance** `HasFetchByKey <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasfetchbykey-54638>`_ Reference `K <type-daml-finance-interface-instrument-base-instrument-k-58546_>`_
+  
+  **instance** `HasFromAnyContractKey <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasfromanycontractkey-95587>`_ Reference `K <type-daml-finance-interface-instrument-base-instrument-k-58546_>`_
+  
+  **instance** `HasKey <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-haskey-87616>`_ Reference `K <type-daml-finance-interface-instrument-base-instrument-k-58546_>`_
+  
+  **instance** `HasLookupByKey <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-haslookupbykey-92299>`_ Reference `K <type-daml-finance-interface-instrument-base-instrument-k-58546_>`_
+  
+  **instance** `HasMaintainer <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasmaintainer-28932>`_ Reference `K <type-daml-finance-interface-instrument-base-instrument-k-58546_>`_
+  
+  **instance** `HasToAnyContractKey <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastoanycontractkey-35010>`_ Reference `K <type-daml-finance-interface-instrument-base-instrument-k-58546_>`_
 
 .. _type-daml-finance-interface-instrument-base-instrument-q-62956:
 
@@ -100,6 +122,10 @@ Data Types
   \= Reference
   
   Type synonym for ``Reference``\. This type is currently used as a work\-around given the lack of interface keys\.
+  
+  **instance** `HasExerciseByKey <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercisebykey-36549>`_ Reference `K <type-daml-finance-interface-instrument-base-instrument-k-58546_>`_ SetCid (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `R <type-daml-finance-interface-instrument-base-instrument-r-56343_>`_)
+  
+  **instance** `HasExerciseByKey <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercisebykey-36549>`_ Reference `K <type-daml-finance-interface-instrument-base-instrument-k-58546_>`_ SetObservers (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `R <type-daml-finance-interface-instrument-base-instrument-r-56343_>`_)
 
 .. _type-daml-finance-interface-instrument-base-instrument-v-38963:
 
@@ -169,7 +195,7 @@ Functions
 .. _function-daml-finance-interface-instrument-base-instrument-tokey-12561:
 
 `toKey <function-daml-finance-interface-instrument-base-instrument-tokey-12561_>`_
-  \: `View <type-daml-finance-interface-instrument-base-instrument-view-86425_>`_ \-\> :ref:`InstrumentKey <type-daml-finance-interface-common-types-instrumentkey-87168>`
+  \: `V <type-daml-finance-interface-instrument-base-instrument-v-38963_>`_ \-\> `K <type-daml-finance-interface-instrument-base-instrument-k-58546_>`_
   
   Convert the instrument's View to its key\.
 
@@ -183,13 +209,13 @@ Functions
 .. _function-daml-finance-interface-instrument-base-instrument-qty-82779:
 
 `qty <function-daml-finance-interface-instrument-base-instrument-qty-82779_>`_
-  \: `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_ \-\> :ref:`InstrumentKey <type-daml-finance-interface-common-types-instrumentkey-87168>` \-\> :ref:`Quantity <type-daml-finance-interface-common-types-quantity-934>` :ref:`InstrumentKey <type-daml-finance-interface-common-types-instrumentkey-87168>` `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+  \: `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_ \-\> `K <type-daml-finance-interface-instrument-base-instrument-k-58546_>`_ \-\> `Q <type-daml-finance-interface-instrument-base-instrument-q-62956_>`_
   
   Wraps an amount and an instrument key into an instrument quantity\.
 
 .. _function-daml-finance-interface-instrument-base-instrument-scale-11943:
 
 `scale <function-daml-finance-interface-instrument-base-instrument-scale-11943_>`_
-  \: `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_ \-\> :ref:`Quantity <type-daml-finance-interface-common-types-quantity-934>` :ref:`InstrumentKey <type-daml-finance-interface-common-types-instrumentkey-87168>` `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_ \-\> :ref:`Quantity <type-daml-finance-interface-common-types-quantity-934>` :ref:`InstrumentKey <type-daml-finance-interface-common-types-instrumentkey-87168>` `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+  \: `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_ \-\> `Q <type-daml-finance-interface-instrument-base-instrument-q-62956_>`_ \-\> `Q <type-daml-finance-interface-instrument-base-instrument-q-62956_>`_
   
   Scale ``Quantity`` by the provided factor\.
