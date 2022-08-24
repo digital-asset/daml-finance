@@ -48,3 +48,4 @@ DAML_PROJECT=../package/test/daml/Daml.Finance.RefData.Test daml build
 # Extensions
 DAML_PROJECT=../package/test/daml/Daml.Finance.Instrument.Generic.Test daml build
 DAML_PROJECT=../package/test/daml/Daml.Finance.Instrument.Bond.Test daml build
+DAML_PROJECT=../package/test/daml/Daml.Finance.Instrument.Equity.Test daml build
