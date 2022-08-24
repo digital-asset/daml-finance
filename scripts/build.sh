@@ -9,7 +9,7 @@ DAML_PROJECT=../package/main/daml/Daml.Finance.Common daml build
 ## Build Core
 # Interfaces
 DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Common daml build
-DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Asset daml build
+DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Holding daml build
 DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Instrument.Base daml build
 DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Settlement daml build
 DAML_PROJECT=../package/main/daml/Daml.Finance.Interface.Lifecycle daml build
