@@ -53,5 +53,3 @@ doc: doc-json
 		--base-url=https://docs.daml.com/daml/daml-finance \
 		--input-anchor=${HOME}/.daml/sdk/${SDK_VERSION}/damlc/resources/daml-base-anchors.json \
 		.docs/daml-finance.json
-
-
