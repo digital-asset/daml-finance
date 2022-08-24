@@ -4,7 +4,7 @@
 ## Clean Core
 # Interfaces
 daml clean --project-root ../package/main/daml/Daml.Finance.Interface.Common
-daml clean --project-root ../package/main/daml/Daml.Finance.Interface.Asset
+daml clean --project-root ../package/main/daml/Daml.Finance.Interface.Holding
 daml clean --project-root ../package/main/daml/Daml.Finance.Interface.Instrument.Base
 daml clean --project-root ../package/main/daml/Daml.Finance.Interface.Settlement
 daml clean --project-root ../package/main/daml/Daml.Finance.Interface.Lifecycle
