@@ -17,6 +17,7 @@ import Daml.Finance.Instrument.Generic.Election (CreateElection(..), ElectionFac
 import Daml.Finance.Instrument.Generic.Test.Util (originateGeneric, dateToDateClockTime, mapClaimToUTCTime)
 import Daml.Finance.Interface.Asset.Fungible qualified as Fungible (SplitResult(..), I, Split(..))
 import Daml.Finance.Interface.Asset.Util (getAmount, getOwner)
+import Daml.Finance.Interface.Common.Types (Id(..))
 import Daml.Finance.Interface.Instrument.Generic.Election qualified as Election (Apply(..), I)
 import Daml.Finance.Interface.Instrument.Generic.Types (C, Observable, Deliverable)
 import Daml.Finance.Interface.Lifecycle.SettlementRule qualified as SettlementRule (Claim(..))
@@ -75,7 +76,7 @@ run = script do
     createCmd Fungible.Factory with provider = bank; observers = M.fromList pp
 
   -- Create accounts
-  [bankAccount, investor1Account, investor2Account] <- mapA (Account.createAccount [publicParty] accountFactoryCid holdingFactoryCid [] bank) [bank, investor1, investor2]
+  [bankAccount, investor1Account, investor2Account] <- mapA (Account.createAccount "Default Account" [publicParty] accountFactoryCid holdingFactoryCid [] bank) [bank, investor1, investor2]
 
   -- Distribute cash
   now <- getTime
@@ -93,7 +94,7 @@ run = script do
   let
     equityObservable = "SPOT/AAPL"
     (option, exercised, notExercised) = bootstrapOption maturity 150.0 equityObservable cashInstrumentCid
-  genericInstrument <- originateGeneric bank broker "OPTION-AAPL" now option obs now
+  genericInstrument <- originateGeneric bank broker "OPTION-AAPL" "European Option" now option obs now
   investor1GenericTransferableCid <- Account.credit [publicParty] genericInstrument 1_000.0 investor1Account
   investor2GenericTransferableCid <- Account.credit [publicParty] genericInstrument 1_000.0 investor2Account
 
@@ -101,7 +102,7 @@ run = script do
   exerciseElectionFactoryCid <- submitMulti [broker] [] do
     createCmd ElectionFactory with
       provider = broker
-      id = "OPTION-AAPL - Exercise"
+      description = "OPTION-AAPL - Exercise"
       claim = exercised
       observers = M.fromList obs
       instrument = genericInstrument
@@ -109,13 +110,13 @@ run = script do
   expireElectionFactoryCid <- submitMulti [broker] [] do
     createCmd ElectionFactory with
       provider = broker
-      id = "OPTION-AAPL - Expire"
+      description = "OPTION-AAPL - Expire"
       claim = notExercised
       observers = M.fromList obs
       instrument = genericInstrument
 
   -- create clock (defines current time)
-  let clock = DateClock with u = Unit maturity; id = "Clock"; provider = broker; observers = M.empty
+  let clock = DateClock with u = Unit maturity; id = (Id with label = show maturity; description = "Maturity Date"); provider = broker; observers = M.empty
   clockCid <- toInterfaceContractId <$> submitMulti [broker] [] do createCmd clock
 
   -----------------------------------------
@@ -129,6 +130,7 @@ run = script do
       electionTime = dateToDateClockTime maturity
       holdingCid = investor1GenericTransferableCid
       amount = 5000.0
+      label = "Election - " <> show maturity
 
   -- Create election
   exerciseOptionCid : ContractId Election.I <- toInterfaceContractId <$> submitMulti [investor1] [publicParty] do
@@ -137,6 +139,7 @@ run = script do
       electionTime = dateToDateClockTime maturity
       holdingCid = investor1GenericTransferableCid
       amount = 500.0
+      label = "Election - " <> show maturity
 
   -- Apply election to generate new instrument version + effects
   (_, [effectCid]) <- submitMulti [broker] [] do
@@ -203,6 +206,7 @@ run = script do
       electionTime = dateToDateClockTime maturity
       holdingCid = investor2GenericTransferableCid
       amount = 1000.0
+      label = "Election - " <> show maturity
 
   (_, [effectCid]) <- submitMulti [broker] [] do
     exerciseCmd expireOptionCid Election.Apply

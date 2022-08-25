@@ -13,6 +13,7 @@ import Daml.Finance.Asset.Test.Util.Account qualified as Account (createAccount,
 import Daml.Finance.Asset.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
 import Daml.Finance.Asset.Test.Util.Instrument qualified as Instrument (originate, submitExerciseInterfaceByKeyCmd)
 import Daml.Finance.Instrument.Generic.Test.Util (originateGeneric, dateToDateClockTime)
+import Daml.Finance.Interface.Common.Types (Id(..))
 import Daml.Finance.Interface.Lifecycle.Lifecyclable qualified as Lifecyclable (I, Lifecycle(..))
 import Daml.Finance.Interface.Lifecycle.SettlementRule qualified as SettlementRule (Claim(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
@@ -52,7 +53,7 @@ run = script do
     createCmd Fungible.Factory with provider = bank; observers = M.fromList pp
 
   -- Create accounts
-  [bankOwnAccount, investorAccount] <- mapA (Account.createAccount [publicParty] accountFactoryCid holdingFactoryCid [] bank) [bank, investor]
+  [bankOwnAccount, investorAccount] <- mapA (Account.createAccount "Default Account" [publicParty] accountFactoryCid holdingFactoryCid [] bank) [bank, investor]
 
   -- Distribute cash
   now <- getTime
@@ -70,13 +71,13 @@ run = script do
   let
     equityObservable = "SPOT/AAPL"
     claims = when (TimeGte $ dateToDateClockTime maturity) $ scale (Observe equityObservable - Const 150.0) $ one cashInstrument
-  genericInstrument <- originateGeneric bank broker "FWD-AAPL" now claims obs now
+  genericInstrument <- originateGeneric bank broker "FWD-AAPL" "Forward Contract" now claims obs now
   investorGenericTransferableCid <- Account.credit [publicParty] genericInstrument 1_000.0 investorAccount
 
   -- create clock and clock update event
-  let clock = DateClock with u = Unit maturity; id = "Clock"; provider = broker; observers = M.empty
+  let clock = DateClock with u = Unit maturity; id = (Id with label = show maturity; description = "Maturity Date"); provider = broker; observers = M.empty
   clockCid <- toInterfaceContractId <$> submitMulti [broker] [] do createCmd clock
-  clockEventCid <- toInterfaceContractId <$> submitMulti [broker] [] do createCmd DateClockUpdateEvent with clock; id = "Update to " <> show maturity
+  clockEventCid <- toInterfaceContractId <$> submitMulti [broker] [] do createCmd DateClockUpdateEvent with clock; id = (Id with label = show maturity; description = "Update to " <> show maturity)
 
   -- Lifecycle derivative
   (_, [effectCid]) <- Instrument.submitExerciseInterfaceByKeyCmd @Lifecyclable.I [broker] [] genericInstrument Lifecyclable.Lifecycle with settler; eventCid = clockEventCid; observableCids = [observableCid]; ruleName = "Time"; clockCid

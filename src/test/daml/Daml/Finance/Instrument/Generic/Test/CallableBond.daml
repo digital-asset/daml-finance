@@ -16,6 +16,7 @@ import Daml.Finance.Asset.Test.Util.Instrument qualified as Instrument (originat
 import Daml.Finance.Instrument.Generic.Election (CreateElection(..), ElectionFactory(..))
 import Daml.Finance.Instrument.Generic.Test.Util (originateGeneric, dateToDateClockTime, mapClaimToUTCTime)
 import Daml.Finance.Interface.Asset.Util (getAmount, getOwner)
+import Daml.Finance.Interface.Common.Types (Id(..))
 import Daml.Finance.Interface.Instrument.Generic.Election qualified as Election (Apply(..), I)
 import Daml.Finance.Interface.Instrument.Generic.Types (C, Deliverable)
 import Daml.Finance.Interface.Lifecycle.SettlementRule qualified as SettlementRule (Claim(..))
@@ -72,7 +73,7 @@ run = script do
     createCmd Fungible.Factory with provider = bank; observers = M.fromList pp
 
   -- Create accounts
-  [bankAccount, investorAccount] <- mapA (Account.createAccount [publicParty] accountFactoryCid holdingFactoryCid [] bank) [bank, investor]
+  [bankAccount, investorAccount] <- mapA (Account.createAccount "Default Account" [publicParty] accountFactoryCid holdingFactoryCid [] bank) [bank, investor]
 
   -- Distribute cash
   now <- getTime
@@ -89,20 +90,20 @@ run = script do
     couponAmount = 1_000.0
     principalAmount = 100_000.0
     (bond, called, _) = bootstrapBond intermediateDate maturityDate couponAmount principalAmount cashInstrumentCid
-  genericInstrument <- originateGeneric bank issuer "BOND" acquisitionTime bond obs now
+  genericInstrument <- originateGeneric bank issuer "ABC.DE 1% 07/07/23 Corp" "Callable Bond" acquisitionTime bond obs now
   investorGenericTransferableCid <- Account.credit [publicParty] genericInstrument 1.0 investorAccount
 
   -- Create election factory to allow custodian to create elections
   callElectionFactoryCid <- submitMulti [issuer] [] do
     createCmd ElectionFactory with
       provider = issuer
-      id = "Bond - Call"
+      description = "Bond - Call"
       claim = called
       observers = M.fromList obs
       instrument = genericInstrument
 
   -- create clock (defines current time) and set it at the intermediate date
-  let clock = DateClock with u = Unit intermediateDate; id = "Clock"; provider = issuer; observers = M.empty
+  let clock = DateClock with u = Unit intermediateDate; id = (Id with label = show intermediateDate; description = "Intermediate Date"); provider = issuer; observers = M.empty
   clockCid <- toInterfaceContractId <$> submitMulti [issuer] [] do createCmd clock
 
   ---------------------------------
@@ -116,6 +117,7 @@ run = script do
       electionTime = dateToDateClockTime intermediateDate
       holdingCid = investorGenericTransferableCid
       amount = 5000.0
+      label = "Election - " <> show intermediateDate
 
   -- Create election
   callBondCid : ContractId Election.I <- toInterfaceContractId <$> submitMulti [bank] [publicParty] do
@@ -124,6 +126,7 @@ run = script do
       electionTime = dateToDateClockTime intermediateDate
       holdingCid = fromInterfaceContractId investorGenericTransferableCid
       amount = 1.0
+      label = "Election - " <> show intermediateDate
 
   -- Apply election to generate new instrument version + effects
   (_, [effectCid]) <- submitMulti [issuer] [] do
