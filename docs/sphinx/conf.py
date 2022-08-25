@@ -44,6 +44,9 @@ templates_path = ['_templates']
 # source_suffix = ['.rst', '.md']
 source_suffix = '.rst'
 
+# The master toctree document.
+master_doc = 'index'
+
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
@@ -87,6 +90,13 @@ html_show_sourcelink = False
 
 # Don't display the link for scaled images
 html_scaled_image_link = False
+
+# -- Options for HTMLHelp output ------------------------------------------
+
+# Output file base name for HTML help builder.
+htmlhelp_basename = 'DamlFinanceDoc'
+
+html4_writer = True
 
 # Import the Daml lexer
 
