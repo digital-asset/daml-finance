@@ -1,0 +1,82 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Common.Date.Functions.DayCount
+  ( calcDcf
+  , calcDcf30E360
+  ) where
+
+import DA.Date
+import Daml.Finance.Common.Date.Types.DayCount(DayCountConventionEnum(..))
+
+-- | Calculates the day count fraction given the correponding convention.
+-- Currently 30E360 is not supported as we do not want to expose the maturity date of the product as an additional parameter.
+calcDcf : DayCountConventionEnum -> Date -> Date -> Decimal
+calcDcf _ f t | f > t = error "fromDate is greater than toDate"
+calcDcf Act360 f t = calcDcfAct360 f t
+calcDcf Act365_Fixed f t = calcDcfAct365Fixed f t
+calcDcf Basis_30360 f t = calcDcf30360 f t
+calcDcf Basis_30360_ICMA f t = calcDcf30360Icma f t
+calcDcf Basis_30E3360 f t = calcDcf30E360 False f t -- this corresponds to 30E/360 without the maturity date adjustment
+calcDcf Basis_30E360 f t = error "This calculation requires the knowledge of the maturity date of the product. Please, use `calcDcf30E360 instead`."
+
+-- | HIDE
+-- | Calculate Actual 360 day count fraction.
+calcDcfAct360 : Date -> Date -> Decimal
+calcDcfAct360 fromDate toDate =
+  (/ 360.0) . intToDecimal $ subDate toDate fromDate
+
+-- | HIDE
+-- | Calculate Actual 365 (Fixed) day count fraction.
+calcDcfAct365Fixed : Date -> Date -> Decimal
+calcDcfAct365Fixed fromDate toDate =
+  (/ 365.0) . intToDecimal $ subDate toDate fromDate
+
+-- | HIDE
+-- | Calculate 30/360 day count fraction. This is also known as the '30/360 (ISDA)' or 'Bond Basis' day count convention.
+calcDcf30360 : Date -> Date -> Decimal
+calcDcf30360 fromDate toDate =
+  let
+    d1Adj = if d1 == 31 then 30 else d1
+    d2Adj = if d2 == 31 && d1 > 29 then 30 else d2
+  in
+    calc30360Formula (y1, m1, d1Adj) (y2, m2, d2Adj)
+  where
+    (y1, m1, d1) = toGregorian fromDate
+    (y2, m2, d2) = toGregorian toDate
+
+-- | HIDE
+-- | Calculate 30/360 ICMA day count fraction.
+calcDcf30360Icma : Date -> Date -> Decimal
+calcDcf30360Icma fromDate toDate =
+  let
+    adjust d = if d == 31 then 30 else d
+  in
+    calc30360Formula (y1, m1, adjust d1) (y2, m2, adjust d2)
+  where
+    (y1, m1, d1) = toGregorian fromDate
+    (y2, m2, d2) = toGregorian toDate
+
+-- | Calculate 30E/360 day count fraction.
+calcDcf30E360 : Bool -> Date -> Date -> Decimal
+calcDcf30E360 _ fromDate toDate | fromDate > toDate =
+  error "fromDate is greater than toDate"
+calcDcf30E360 toDateIsMaturityDate fromDate toDate =
+  let
+    d1Adj = if d1 == monthDayCount y1 m1 then 30 else d1
+    d2Adj = if d2 == 31 || not toDateIsMaturityDate && isEndOfFebruary (y2, m2, d2) then 30 else d2
+  in
+    calc30360Formula (y1, m1, d1Adj) (y2, m2, d2Adj)
+  where
+    (y1, m1, d1) = toGregorian fromDate
+    (y2, m2, d2) = toGregorian toDate
+
+-- | HIDE
+calc30360Formula : (Int, Month, Int) -> (Int, Month, Int) -> Decimal
+calc30360Formula (y1, m1, d1) (y2, m2, d2) =
+  (/ 360.0) . intToDecimal $ 360 * (y2-y1) + 30 * (fromMonth m2 - fromMonth m1) + (d2-d1)
+
+-- | HIDE
+isEndOfFebruary : (Int, Month, Int) -> Bool
+isEndOfFebruary (y, m, d) =
+  m == Feb && d == monthDayCount y m

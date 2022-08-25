@@ -1,0 +1,89 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Common.Date.Functions.Calendar
+  ( addBusinessDays
+  , adjustDate
+  , isBusinessDay
+  , isHoliday
+  , merge
+  , nextBusinessDay
+  , nextOrSameBusinessDay
+  , nextSameOrLastInMonthBusinessDay
+  , previousBusinessDay
+  , previousOrSameBusinessDay
+  , previousSameOrFirstInMonthBusinessDay
+  ) where
+
+import DA.Date
+import DA.List
+import Daml.Finance.Common.Date.Types.Calendar(BusinessDayConventionEnum(..), HolidayCalendarData(..))
+
+-- | Merge multiple holiday calendars into a single one. `id`\s are concatenated by `,`.
+merge : [HolidayCalendarData] -> HolidayCalendarData
+merge [] = HolidayCalendarData with id = "Empty"; holidays = []; weekend = []
+merge cals = foldl1
+  (\cal1 cal2 ->
+    HolidayCalendarData with
+      id = cal1.id <> "," <> cal2.id
+      weekend = dedup $ cal1.weekend ++ cal2.weekend
+      holidays = dedup $ cal1.holidays ++ cal2.holidays
+  )
+  cals
+
+-- | Check if Date is a holiday
+isHoliday : HolidayCalendarData -> Date -> Bool
+isHoliday cal date = date `elem` cal.holidays || (dayOfWeek date) `elem` cal.weekend
+
+-- | Check if Date is a business day
+isBusinessDay : HolidayCalendarData -> Date -> Bool
+isBusinessDay cal date = not $ isHoliday cal date
+
+-- | Get next business day
+nextBusinessDay : HolidayCalendarData -> Date -> Date
+nextBusinessDay cal date = if isHoliday cal next then nextBusinessDay cal next else next
+  where next = addDays date 1
+
+-- | Get previous business day
+previousBusinessDay : HolidayCalendarData -> Date -> Date
+previousBusinessDay cal date = if isHoliday cal previous then previousBusinessDay cal previous else previous
+  where previous = addDays date (-1)
+
+-- | Get next or same business day
+nextOrSameBusinessDay : HolidayCalendarData -> Date -> Date
+nextOrSameBusinessDay cal date = if isHoliday cal date then nextBusinessDay cal date else date
+
+-- | Get previous or same business day
+previousOrSameBusinessDay : HolidayCalendarData -> Date -> Date
+previousOrSameBusinessDay cal date = if isHoliday cal date then previousBusinessDay cal date else date
+
+-- | Get next or same business day if before end of month. Otherwise get last business day in month.
+nextSameOrLastInMonthBusinessDay : HolidayCalendarData -> Date -> Date
+nextSameOrLastInMonthBusinessDay cal date = if month nextOrSame /= month date then previousBusinessDay cal date else nextOrSame
+  where
+    nextOrSame = nextOrSameBusinessDay cal date
+    month date = let (_, m, _) = toGregorian date in m
+
+-- | Get previous or same business day if before end of month. Otherwise get first business day in month.
+previousSameOrFirstInMonthBusinessDay : HolidayCalendarData -> Date -> Date
+previousSameOrFirstInMonthBusinessDay cal date = if month previousOrSame /= month date then nextBusinessDay cal date else previousOrSame
+  where
+    previousOrSame = previousOrSameBusinessDay cal date
+    month date = let (_, m, _) = toGregorian date in m
+
+-- | Add business days to a Date
+addBusinessDays : HolidayCalendarData -> Int -> Date -> Date
+addBusinessDays cal n date
+ | n == 0 = date
+ | n < 0 = addBusinessDays cal (n + 1) $ previousBusinessDay cal date
+ | otherwise = addBusinessDays cal (n - 1) $ nextBusinessDay cal date
+
+-- | Adjust date according to the given business day convention
+adjustDate : HolidayCalendarData -> BusinessDayConventionEnum -> Date -> Date
+adjustDate cal convention date =
+  case convention of
+    FOLLOWING -> nextOrSameBusinessDay cal date
+    MODFOLLOWING -> nextSameOrLastInMonthBusinessDay cal date
+    PRECEDING -> previousOrSameBusinessDay cal date
+    MODPRECEDING -> previousSameOrFirstInMonthBusinessDay cal date
+    NONE -> date
