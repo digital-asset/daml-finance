@@ -73,6 +73,8 @@ data SchedulePeriod = SchedulePeriod
       -- ^ Unadjusted end date.
     unadjustedStartDate : Date
       -- ^ Unadjusted start date.
+    stubType : Optional StubPeriodTypeEnum
+      -- ^ Indicates whether this period is a stub (and if so, what type of stub it is)
   deriving (Eq, Show)
 
 -- | A schedule defined by a list of periods.
@@ -83,9 +85,9 @@ createSchedule : [HolidayCalendarData] -> PeriodicSchedule -> Schedule
 createSchedule _ ps | Some errorMsg <- validDates ps = error errorMsg
 createSchedule cals ps@PeriodicSchedule{businessDayAdjustment; effectiveDateBusinessDayAdjustment; terminationDateBusinessDayAdjustment} =
   let
-    unadj = generateUnadjustedDates ps
+    (unadj, stubTypeInitial, stubTypeFinal) = generateUnadjustedDatesAndStubInfo ps
     adj = adjust cals businessDayAdjustment effectiveDateBusinessDayAdjustment terminationDateBusinessDayAdjustment unadj
-  in toSchedule unadj adj
+  in toSchedule unadj adj stubTypeInitial stubTypeFinal
 
 -- | HIDE
 validDates : PeriodicSchedule -> Optional Text
@@ -101,8 +103,8 @@ validDates PeriodicSchedule{effectiveDate; terminationDate; firstRegularPeriodSt
     else None
 
 -- | HIDE
-generateUnadjustedDates : PeriodicSchedule -> [Date]
-generateUnadjustedDates PeriodicSchedule{effectiveDate; terminationDate; firstRegularPeriodStartDate; lastRegularPeriodEndDate; frequency; stubPeriodType} =
+generateUnadjustedDatesAndStubInfo : PeriodicSchedule -> ([Date], Optional StubPeriodTypeEnum, Optional StubPeriodTypeEnum)
+generateUnadjustedDatesAndStubInfo PeriodicSchedule{effectiveDate; terminationDate; firstRegularPeriodStartDate; lastRegularPeriodEndDate; frequency; stubPeriodType} =
   let
     firstRegStartDate = fromOptional effectiveDate firstRegularPeriodStartDate
     lastRegEndDate = fromOptional terminationDate lastRegularPeriodEndDate
@@ -115,19 +117,19 @@ generateUnadjustedDates PeriodicSchedule{effectiveDate; terminationDate; firstRe
       -- Roll forward for implicit final stub
       Some stubType | stubType == SHORT_FINAL || stubType == LONG_FINAL -> do
         let dates = rollForward effectiveDate terminationDate period frequency.rollConvention
-        -- No real tub
-        if head dates == terminationDate then reverse dates
+        -- No real stub
+        if head dates == terminationDate then (reverse dates, None, None)
         else
           let relevantDates = if stubType == LONG_FINAL && length dates > 1 then tail dates else dates
-          in reverse $ terminationDate::relevantDates
+          in (reverse $ terminationDate::relevantDates, None, Some stubType)
       -- Roll backwards for implicit initial stub
       Some stubType | stubType == SHORT_INITIAL || stubType == LONG_INITIAL -> do
         let dates = rollBackwards effectiveDate terminationDate period frequency.rollConvention
-        -- No real tub
-        if head dates == effectiveDate then dates
+        -- No real stub
+        if head dates == effectiveDate then (dates, None, None)
         else
           let relevantDates = if stubType == LONG_INITIAL && length dates > 1 then tail dates else dates
-          in effectiveDate::relevantDates
+          in (effectiveDate::relevantDates, Some stubType, None)
       -- Roll backwards for explicit stubs
       _ ->
         -- Regular Periods
@@ -135,9 +137,9 @@ generateUnadjustedDates PeriodicSchedule{effectiveDate; terminationDate; firstRe
           dates = rollBackwards firstRegStartDate lastRegEndDate period frequency.rollConvention
           _ =  if (head dates /= firstRegStartDate) then error "expecting regular schedule between regular dates" else ()
           -- Stubs
-          withFinalStub = if explicitFinalStub then dates++[terminationDate] else dates
-          withInitialStub = if explicitInitStub then effectiveDate::withFinalStub else withFinalStub
-        in withInitialStub
+          (withFinalStub, stubTypeFinal) = if explicitFinalStub then (dates++[terminationDate], if terminationDate < addPeriod lastRegEndDate period then Some SHORT_FINAL else Some LONG_FINAL) else (dates, None)
+          (withInitialStub, stubTypeInitial) = if explicitInitStub then (effectiveDate::withFinalStub, if addPeriod effectiveDate period > firstRegStartDate then Some SHORT_INITIAL else Some LONG_INITIAL) else (withFinalStub, None)
+        in (withInitialStub, stubTypeInitial, stubTypeFinal)
 
 -- | HIDE
 getImplicitStubType : Optional StubPeriodTypeEnum -> Bool -> Bool -> Optional StubPeriodTypeEnum
@@ -210,10 +212,14 @@ adjust cals bdAdj optBdAdjStart optBdAdjEnd dates =
       merge $ map (\calId -> fromSomeNote ("calendar with id " <> calId <> " missing.") $ find ((== calId) . (.id)) cals) calIds
 
 -- | HIDE
-toSchedule : [Date] -> [Date] -> Schedule
-toSchedule unadj adj =
-  let pairs = zip unadj adj
-  in zipWith toPeriod (init pairs) (tail pairs)
+toSchedule : [Date] -> [Date] -> Optional StubPeriodTypeEnum -> Optional StubPeriodTypeEnum -> Schedule
+toSchedule unadj adj stubTypeInitial stubTypeFinal =
+  let
+    pairs = zip unadj adj
+    stubTypesDefault = (replicate (length unadj - 1) None)
+    stubTypesInclInitial = if (isSome stubTypeInitial) then stubTypeInitial :: (tail stubTypesDefault) else stubTypesDefault
+    stubTypes = if (isSome stubTypeFinal) then (init stubTypesInclInitial) ++ [stubTypeFinal] else stubTypesInclInitial
+  in zipWith3 toPeriod (init pairs) (tail pairs) stubTypes
   where
-    toPeriod : (Date, Date) -> (Date, Date) -> SchedulePeriod
-    toPeriod (unadjustedStartDate, adjustedStartDate) (unadjustedEndDate, adjustedEndDate) = SchedulePeriod with adjustedEndDate; adjustedStartDate; unadjustedEndDate; unadjustedStartDate
+    toPeriod : (Date, Date) -> (Date, Date) -> Optional StubPeriodTypeEnum -> SchedulePeriod
+    toPeriod (unadjustedStartDate, adjustedStartDate) (unadjustedEndDate, adjustedEndDate) stubType = SchedulePeriod with adjustedEndDate; adjustedStartDate; unadjustedEndDate; unadjustedStartDate; stubType

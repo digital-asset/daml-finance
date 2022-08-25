@@ -1,0 +1,110 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Interface.Holding.Lockable where
+
+import DA.Assert ((===))
+import DA.Optional (fromSomeNote, whenSome)
+import DA.Set (Set, fromList, intersection, notMember)
+import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (I)
+import Daml.Finance.Interface.Common.Types (Parties)
+import Daml.Finance.Interface.Common.Util (verify)
+import Daml.Finance.Interface.Holding.Base qualified as Base (I, Implementation, asDisclosure)
+
+-- | Type synonym for `Lockable`.
+type I = Lockable
+
+-- | Type synonym for `View`.
+type V = View
+
+-- | Type of lock held.
+data LockType
+    = Semaphore
+        -- ^ A one time only lock.
+    | Reentrant
+        -- ^ A mutual exclusion lock where the same lockers may lock a contract multiple times.
+  deriving (Eq, Show)
+
+-- | Locking details.
+data Lock = Lock
+  with
+    locker : Parties
+      -- ^ Parties which are locking the contract.
+    context : Set Text
+      -- ^ Why this lock is held by the locking parties.
+    lockType : LockType
+      -- ^ The type of lock applied.
+  deriving (Eq, Show)
+
+-- | View for `Lockable`.
+data View = View
+  with
+    lock : Optional Lock
+      -- ^ When a contract is locked, contains the locking details.
+  deriving (Eq, Show)
+
+-- | Lockable requires Base.I
+type Implementation t = (HasToInterface t I, Base.Implementation t)
+class (Implementation t) => HasImplementation t
+instance HasImplementation I
+instance HasToInterface I Base.I where _toInterface = asHolding
+instance HasToInterface I Disclosure.I where _toInterface = Base.asDisclosure . asHolding
+
+-- | An interface respresenting contracts which can restrict a contract by a set of specifed parties
+interface Lockable where
+  viewtype V
+
+  asHolding : Base.I
+    -- ^ Conversion to `Holding` interface.
+  acquire : Acquire -> Update (ContractId Lockable)
+    -- ^ Implementation of the `Acquire` choice.
+  release : Release -> Update (ContractId Lockable)
+    -- ^ Implementation of the `Release` choice.
+
+  nonconsuming choice GetView : View
+    -- ^ Retrieves the instrument view.
+    with
+      viewer : Party
+        -- ^ The party retrieving the view.
+    controller viewer
+    do
+      pure $ _view this
+
+  choice Acquire : ContractId Lockable
+    -- ^ Lock a contract.
+    with
+      newLocker : Parties
+        -- ^ Parties which restrain the contracts ability to preform specified actions.
+      context : Text
+        -- ^ Reason for acquiring a lock.
+      lockType : LockType
+        -- ^ Type of lock to acquire
+    controller (_view $ asHolding this).account.owner, newLocker
+    do
+      validateRequest this arg
+      lockableCid <- acquire this arg
+      lockable <- fetch lockableCid
+      let lock = fromSomeNote "Contract has not been locked." (_view lockable).lock
+      lock.locker === newLocker
+      fromList (signatory lockable) `intersection` newLocker === newLocker
+      pure lockableCid
+
+  choice Release : ContractId Lockable
+    -- ^ Unlock a locked contract.
+    with
+      context : Text
+    controller case (_view this).lock of None -> mempty; Some lock -> lock.locker
+    do
+      release this arg
+
+-- | HIDE
+-- Validate a new acquire request.
+validateRequest : Lockable -> Acquire -> Update (Optional Lock)
+validateRequest this (Acquire with newLocker; context; lockType) = do
+  let lock = (_view this).lock
+  whenSome lock \lock -> do
+    lock.locker === newLocker
+    lock.lockType === lockType
+    verify (lock.lockType == Reentrant) "Contract is already locked."
+    verify (context `notMember` lock.context) "This contract has already been locked for this context."
+  pure lock

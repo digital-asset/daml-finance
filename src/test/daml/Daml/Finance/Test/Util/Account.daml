@@ -1,0 +1,56 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
+module Daml.Finance.Test.Util.Account where
+
+import DA.Assert ((===))
+import DA.List (head)
+import DA.Map qualified as M
+import DA.Set (Set)
+import Daml.Finance.Holding.Account qualified as Account (Factory(..))
+import Daml.Finance.Interface.Common.Types  (AccountKey, Id(..), Parties)
+import Daml.Finance.Interface.Holding.Account qualified as Account (GetCid(..), Credit(..), Debit(..), I, View(..), R, toKey)
+import Daml.Finance.Interface.Holding.Base qualified as Base (GetView(..), I)
+import Daml.Finance.Interface.Holding.Factory.Account qualified as Account (Create(..), F)
+import Daml.Finance.Interface.Holding.Factory.Holding qualified as Holding (F)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (K, qty)
+import Daml.Finance.Test.Util.Common (submitExerciseInterfaceByKeyCmdHelper, submitMustFailExerciseInterfaceByKeyCmdHelper)
+import Daml.Script
+
+-- | Create factory for `Account`.
+createFactory : Party -> [(Text, Set Parties)] -> Script (ContractId Account.Factory)
+createFactory provider observers = submitMulti [provider] [] do
+  createCmd Account.Factory with provider; observers = M.fromList observers
+
+-- | Create `Account`.
+createAccount : Text -> [Party] -> ContractId Account.F -> ContractId Holding.F -> [(Text, Set Parties)] -> Party -> Party -> Script AccountKey
+createAccount description readAs factoryCid holdingFactoryCid obs custodian owner = do
+  let
+    id = Id with label = show owner <> "@" <> show custodian; description
+    v = Account.View with custodian; owner; id; holdingFactoryCid
+    k = Account.toKey v
+  submitMulti [v.custodian, v.owner] readAs do
+    exerciseCmd factoryCid Account.Create with account = k; holdingFactoryCid; observers = M.fromList obs
+  pure k
+
+-- | Credit an `Account`.
+credit : [Party] -> Instrument.K  -> Decimal -> AccountKey -> Script (ContractId b)
+credit readAs instrument amount account =
+  coerceContractId <$> submitExerciseInterfaceByKeyCmdHelper @Account.R @Account.I [account.custodian, account.owner] readAs account (Account.GetCid with viewer = account.owner) (Account.Credit with quantity = Instrument.qty amount instrument)
+
+-- | Debit an `Account`.
+debit : [Party] -> Party -> ContractId Base.I -> Script ()
+debit readAs holder holdingCid = do
+  v <- submitMulti [holder] [] do exerciseCmd holdingCid Base.GetView with viewer = holder
+  v.account.owner === holder
+  submitExerciseInterfaceByKeyCmdHelper @Account.R @Account.I [v.account.custodian, holder] readAs v.account (Account.GetCid with viewer = holder) (Account.Debit with holdingCid)
+
+-- | Utilty function for exercising an interface by key.
+submitExerciseInterfaceByKeyCmd : forall t2 c2 b. (HasTemplateTypeRep t2, HasToAnyTemplate t2, HasFromAnyTemplate t2, HasFromAnyChoice t2 c2 b, HasToAnyChoice t2 c2 b, HasExercise t2 c2 b) => [Party] -> [Party] -> AccountKey -> c2 -> Script b
+submitExerciseInterfaceByKeyCmd actAs readAs k arg = submitExerciseInterfaceByKeyCmdHelper @Account.R @t2 actAs readAs k (Account.GetCid with viewer = head actAs) arg
+
+-- | Utilty function for exercising an interface by key.
+submitMustFailExerciseInterfaceByKeyCmd : forall t2 c2. (HasTemplateTypeRep t2, HasToAnyTemplate t2, HasFromAnyTemplate t2, HasFromAnyChoice t2 c2 (), HasToAnyChoice t2 c2 (), HasExercise t2 c2 ()) => [Party] -> [Party] -> AccountKey -> c2 -> Script ()
+submitMustFailExerciseInterfaceByKeyCmd actAs readAs k arg = submitMustFailExerciseInterfaceByKeyCmdHelper @Account.R @t2 actAs readAs k (Account.GetCid with viewer = head actAs) arg

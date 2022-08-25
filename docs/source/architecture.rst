@@ -104,7 +104,7 @@ coupling to an implementation is not problematic, as these are
 considered one-time actions.
 
 The image below depicts the dependency graph of an example customer
-application using Daml Finance. The :doc:`Getting Started <getting-started/getting-started>` example showcases this dependency pattern.
+application using Daml Finance. The :doc:`Getting Started <getting-started/intro>` examples showcase this dependency pattern.
 
 .. image:: images/customer_integration_example.png
 

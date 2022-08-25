@@ -1,0 +1,98 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Holding.NonTransferable where
+
+import DA.Set (delete, insert, null, singleton)
+import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (I, SetObservers(..), View(..))
+import Daml.Finance.Interface.Common.Types (AccountKey(..), InstrumentKey(..), Observers)
+import Daml.Finance.Interface.Common.Util (flattenObservers)
+import Daml.Finance.Interface.Holding.Base qualified as Base (I, HasImplementation, View(..))
+import Daml.Finance.Interface.Holding.Factory.Holding qualified as HoldingFactory (Create(..), F, HasImplementation(..), Remove(..), View(..))
+import Daml.Finance.Interface.Holding.Lockable qualified as Lockable (Acquire(..), I, Lock(..), LockType(..), Release(..), View(..))
+import Daml.Finance.Interface.Holding.Util (getLocker)
+import Prelude hiding (null)
+
+-- | Type synonym for `Factory`.
+type F = Factory
+
+-- | Type synonym for `NonTransferable`.
+type T = NonTransferable
+
+instance Base.HasImplementation T
+-- | Implementation of a non-transferable holding.
+-- `NonTransferable` implements the interface `Lockable.I` (which requires `Base.I`, and
+-- `Disclosure.I` to be implemented as well).
+template NonTransferable
+  with
+    instrument : InstrumentKey
+      -- ^ The instrument of which units are held.
+    account : AccountKey
+      -- ^ The account at which the holding is held. Defines the holding's owner and custodian.
+    amount : Decimal
+      -- ^ Number of units.
+    lock : Optional Lockable.Lock
+      -- ^ An optional lock of a holding.
+    observers : Observers
+      -- ^ Observers.
+  where
+    signatory account.custodian, account.owner, getLocker this
+    observer flattenObservers observers
+
+    ensure amount > 0.0
+
+    implements Disclosure.I where
+      view = Disclosure.View with disclosureControllers = singleton $ singleton account.owner; observers
+      setObservers Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
+      archive' self = archive $ fromInterfaceContractId @NonTransferable self
+
+    implements Base.I where
+      asDisclosure = toInterface @Disclosure.I this
+      view = Base.View with
+        instrument
+        account = AccountKey with custodian = account.custodian; owner = account.owner; id = account.id
+        amount
+
+    implements Lockable.I where
+      asHolding = toInterface @Base.I this
+      view = Lockable.View with lock
+      acquire Lockable.Acquire{newLocker; context; lockType} = do
+        newLock <- case (lock, lockType) of
+          (Some existingLock, Lockable.Reentrant) -> pure existingLock with context = context `insert` existingLock.context
+          (None, _) -> pure Lockable.Lock with locker = newLocker; context = singleton context; lockType
+          _ -> abort "Contract is already locked."
+        toInterfaceContractId <$> create this with lock = Some newLock
+      release Lockable.Release{context} = do
+        let
+          f currentLock = do
+            let newContext = context `delete` currentLock.context
+            case (currentLock.lockType, null newContext) of
+              (Lockable.Reentrant, False) -> Some currentLock with context = newContext
+              _ -> None
+          releasedLock = lock >>= f
+        toInterfaceContractId <$> create this with lock = releasedLock
+
+instance HoldingFactory.HasImplementation Factory
+-- | Implementation of the corresponding Holding Factory.
+template Factory
+  with
+    provider : Party
+      -- ^ The factory's provider.
+    observers : Observers
+      -- ^ The factory's observers.
+  where
+    signatory provider
+    observer flattenObservers observers
+
+    implements HoldingFactory.F
+      where
+        asDisclosure = toInterface @Disclosure.I this
+        view = HoldingFactory.View with provider
+        create' HoldingFactory.Create{instrument; account; amount; observers} =
+          toInterfaceContractId <$> create NonTransferable with instrument; account; amount; observers; lock = None
+        remove HoldingFactory.Remove{actors; holdingCid} = archive $ fromInterfaceContractId @NonTransferable holdingCid
+
+    implements Disclosure.I where
+      view = Disclosure.View with disclosureControllers = singleton $ singleton provider; observers
+      setObservers Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
+      archive' self = archive (coerceContractId self : ContractId NonTransferable)
