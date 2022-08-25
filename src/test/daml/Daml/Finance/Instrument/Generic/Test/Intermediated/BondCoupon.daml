@@ -21,12 +21,12 @@ import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstru
 import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (SetProvider(..), GetView(..), I)
 import Daml.Finance.Interface.Lifecycle.Lifecyclable qualified as Lifecyclable (I, Lifecycle(..))
 import Daml.Finance.Interface.Lifecycle.SettlementRule qualified as SettlementRule (Claim(..))
+import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
-import Daml.Finance.Interface.Settlement.Settleable qualified as Settleable (Settle(..))
 import Daml.Finance.Interface.Settlement.Types (Step)
 import Daml.Finance.Lifecycle.Rule.Settlement qualified as Settlement (Rule(..))
 import Daml.Finance.RefData.Time.DateClock (DateClock(..), DateClockUpdateEvent(..), Unit(..))
-import Daml.Finance.Settlement.Batch (BatchFactory(..), BatchFactoryWithIntermediaries(..), Path(..))
+import Daml.Finance.Settlement.Factory (Factory(..), FactoryWithIntermediaries(..), Path(..))
 import Daml.Finance.Test.Util.Account qualified as Account (createAccount, createFactory, credit, submitExerciseInterfaceByKeyCmd)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
@@ -167,8 +167,8 @@ run = script do
       [ ( "USD" , Path with senderPath = [csd, centralBank]; receiverPath = [investor, bank, centralBank])
       ]
 
-  factoryCid <- submit csd do
-    createCmd BatchFactoryWithIntermediaries
+  factoryWithIntermediariesCid <- submit csd do
+    createCmd FactoryWithIntermediaries
       with
         provider = csd
         paths = M.fromList routes
@@ -181,7 +181,7 @@ run = script do
         owner = investor
         claimers = singleton investor
         settler
-        instructableCid = toInterfaceContractId factoryCid
+        factoryCid = toInterfaceContractId factoryWithIntermediariesCid
 
   result <- submitMulti [investor] [publicParty] do
     exerciseCmd settlementRuleCid SettlementRule.Claim with
@@ -205,7 +205,7 @@ run = script do
     exerciseCmd bankCashInstructionCid Instruction.Approve with receiverAccount = investorCashAccount
 
   -- Settle container
-  [bankCashTransferableCid, investorCashTransferableCid] <- submitMulti [settler] [publicParty] do exerciseCmd result.containerCid Settleable.Settle
+  [bankCashTransferableCid, investorCashTransferableCid] <- submitMulti [settler] [publicParty] do exerciseCmd result.containerCid Batch.Settle
 
   -- Assert state
   Holding.verifyOwnerOfHolding
@@ -281,7 +281,7 @@ template EffectSettlementService
           pure (hCid, h)
 
         -- 1. csd claims effect against issuer
-        factoryCid <- create BatchFactory with provider = csd; observers = empty
+        settlementFactoryCid <- create Factory with provider = csd; observers = empty
 
         settlementRuleCid <- create Settlement.Rule
           with
@@ -289,14 +289,14 @@ template EffectSettlementService
             owner = csd
             claimers = singleton csd
             settler = csd
-            instructableCid = toInterfaceContractId factoryCid
+            factoryCid = toInterfaceContractId settlementFactoryCid
 
         result <- exercise settlementRuleCid SettlementRule.Claim with
           claimer = csd
           holdingCids = [toInterfaceContractId instrumentHoldingCid]
           effectCid
 
-        archive factoryCid
+        archive settlementFactoryCid
         archive settlementRuleCid
 
         -- TODO : use settlement instruction instead of direct transfer, or at least make sure it gets archived
