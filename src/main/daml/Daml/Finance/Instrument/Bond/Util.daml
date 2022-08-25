@@ -31,7 +31,7 @@ import Daml.Finance.RefData.Time.DateClock (Unit(..))
 import Prelude hiding (key)
 
 -- | Retrieve holiday calendar(s) from the ledger and create a coupon schedule
-createCouponSchedule : Date -> [Text] -> BusinessDayConventionEnum -> PeriodEnum -> Int -> Date -> Date -> Party -> Party -> Update Schedule
+createCouponSchedule : Date -> [Text] -> BusinessDayConventionEnum -> PeriodEnum -> Int -> Date -> Date -> Party -> Party -> Update (Schedule, Frequency)
 createCouponSchedule firstCouponDate holidayCalendarIds businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate issuer calendarDataAgency = do
   let
     (y, m, d) = toGregorian firstCouponDate
@@ -60,7 +60,7 @@ createCouponSchedule firstCouponDate holidayCalendarIds businessDayConvention co
           entity = holidayCalendarId
   -- Get the holiday calendars
   cals <- mapA getCalendar holidayCalendarIds
-  pure $ createSchedule cals periodicSchedule
+  pure $ (createSchedule cals periodicSchedule, periodicSchedule.frequency)
 
 -- | Convert the claims to UTCTime and tag them
 prepareAndTagClaims : Applicative f => [Claim Date Decimal Deliverable Observable] -> Text -> f [TaggedClaim]
@@ -71,26 +71,22 @@ prepareAndTagClaims claim tag = do
 
 -- FIXED_RATE_BOND_COUPON_CLAIMS_BEGIN
 -- | Calculate a fix coupon amount for each coupon date and create claims
---createFixRateCouponClaims : (HasField "adjustedEndDate" r Date, HasField "adjustedStartDate" r Date, Applicative f) => [r] -> Decimal -> DayCountConventionEnum -> Date -> Deliverable -> f [TaggedClaim]
-createFixRateCouponClaims : Applicative f => [SchedulePeriod] -> Decimal -> DayCountConventionEnum -> Date -> Deliverable -> f [TaggedClaim]
-createFixRateCouponClaims schedule couponRate dayCountConvention maturityDate cashInstrumentCid = do
+createFixRateCouponClaims : Applicative f => [SchedulePeriod] -> Decimal -> DayCountConventionEnum -> Date -> Frequency -> Deliverable -> f [TaggedClaim]
+createFixRateCouponClaims schedule couponRate dayCountConvention maturityDate frequency cashInstrumentCid = do
   let
     couponDatesAdjusted = map (.adjustedEndDate) schedule
-    --couponAmounts = map (\p -> couponRate * (calcDcf dayCountConvention p.adjustedStartDate p.adjustedEndDate)) schedule
-    couponAmounts = map (\p -> couponRate * (calcPeriodDcf dayCountConvention p maturityDate)) schedule
+    couponAmounts = map (\p -> couponRate * (calcPeriodDcf dayCountConvention p maturityDate frequency)) schedule
     couponClaims = zipWith (\d a -> when (TimeGte $ d) $ scale (Const a) $ one cashInstrumentCid) couponDatesAdjusted couponAmounts
   prepareAndTagClaims couponClaims "Fix Coupon"
 -- FIXED_RATE_BOND_COUPON_CLAIMS_END
 
 -- FLOATING_RATE_BOND_COUPON_CLAIMS_BEGIN
 -- | Calculate a floating coupon amount for each coupon date and create claims
---createFloatingRateCouponClaims : (HasField "adjustedEndDate" r Date, HasField "adjustedStartDate" r Date, Applicative f) => [r] -> Decimal -> DayCountConventionEnum -> Date -> Deliverable -> Observable -> f [TaggedClaim]
-createFloatingRateCouponClaims : Applicative f => [SchedulePeriod] -> Decimal -> DayCountConventionEnum -> Date -> Deliverable -> Observable -> f [TaggedClaim]
-createFloatingRateCouponClaims schedule couponSpread dayCountConvention maturityDate cashInstrumentCid referenceRateId = do
+createFloatingRateCouponClaims : Applicative f => [SchedulePeriod] -> Decimal -> DayCountConventionEnum -> Date -> Frequency -> Deliverable -> Observable -> f [TaggedClaim]
+createFloatingRateCouponClaims schedule couponSpread dayCountConvention maturityDate frequency cashInstrumentCid referenceRateId = do
   let
     couponClaims = map (\p ->
-      --when (TimeGte $ p.adjustedStartDate) $ scale ((Observe referenceRateId + Const couponSpread) * (Const (calcDcf dayCountConvention p.adjustedStartDate p.adjustedEndDate))) $
-      when (TimeGte $ p.adjustedStartDate) $ scale ((Observe referenceRateId + Const couponSpread) * (Const (calcPeriodDcf dayCountConvention p maturityDate))) $
+      when (TimeGte $ p.adjustedStartDate) $ scale ((Observe referenceRateId + Const couponSpread) * (Const (calcPeriodDcf dayCountConvention p maturityDate frequency))) $
       when (TimeGte $ p.adjustedEndDate) $ one cashInstrumentCid) schedule
   prepareAndTagClaims couponClaims "Floating Coupon"
 -- FLOATING_RATE_BOND_COUPON_CLAIMS_END
