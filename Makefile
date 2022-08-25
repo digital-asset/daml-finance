@@ -30,8 +30,8 @@ headers-update:
 
 DAML_SRC:=$(shell find src/main/daml -name '*.daml')
 
-.PHONY: doc-json
-doc-json: $(DAML_SRC)
+.PHONY: doc-code-json
+doc-code-json: $(DAML_SRC)
 	daml damlc docs \
 		--output=docs/build/daml-finance.json \
 		--package-name=daml-finance \
@@ -40,8 +40,8 @@ doc-json: $(DAML_SRC)
 
 SDK_VERSION:=$(shell yq e '.sdk-version' daml.yaml)
 
-.PHONY: doc
-doc: doc-json
+.PHONY: doc-code
+doc-code: doc-code-json
 	daml damlc docs \
 		--output=docs/build/daml-finance-rst \
 		--input-format=json \
@@ -53,3 +53,25 @@ doc: doc-json
 		--base-url=https://docs.daml.com/daml/daml-finance \
 		--input-anchor=${HOME}/.daml/sdk/${SDK_VERSION}/damlc/resources/daml-base-anchors.json \
 		docs/build/daml-finance.json
+
+# Build doc theme
+.PHONY: doc-theme
+doc-theme:
+	cd docs/sphinx && ./build-doc-theme.sh
+
+# You can set these variables from the command line, and also
+# from the environment for the first two.
+SPHINXOPTS    ?= -c "$(CONFDIR)" -W
+SPHINXBUILD   ?= sphinx-build
+SOURCEDIR     = docs/source
+BUILDDIR      = docs/build
+CONFDIR       = docs/sphinx
+
+.PHONY: doc-html
+doc-html: doc-theme doc-code
+	$(SPHINXBUILD) -M html "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
+
+.PHONY: doc-clean
+doc-clean: Makefile
+	$(SPHINXBUILD) -M clean "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
+
