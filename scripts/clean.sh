@@ -30,7 +30,7 @@ daml clean --project-root ../package/main/daml/Daml.Finance.Instrument.Equity
 # Util
 daml clean --project-root ../package/test/daml/Daml.Finance.Test.Util
 # Core
-daml clean --project-root ../package/test/daml/Daml.Finance.Common.Test
+daml clean --project-root ../package/test/daml/Daml.Finance.Interface.Common.Test
 daml clean --project-root ../package/test/daml/Daml.Finance.Holding.Test
 daml clean --project-root ../package/test/daml/Daml.Finance.Settlement.Test
 daml clean --project-root ../package/test/daml/Daml.Finance.RefData.Test
