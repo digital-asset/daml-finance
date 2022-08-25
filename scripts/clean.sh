@@ -9,7 +9,6 @@ daml clean --project-root ../package/main/daml/Daml.Finance.Interface.Instrument
 daml clean --project-root ../package/main/daml/Daml.Finance.Interface.Settlement
 daml clean --project-root ../package/main/daml/Daml.Finance.Interface.Lifecycle
 # Implementations
-daml clean --project-root ../package/main/daml/Daml.Finance.Common
 daml clean --project-root ../package/main/daml/Daml.Finance.Holding
 daml clean --project-root ../package/main/daml/Daml.Finance.Settlement
 daml clean --project-root ../package/main/daml/Daml.Finance.Lifecycle
