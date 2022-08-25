@@ -20,8 +20,8 @@ import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I,
 import Daml.Finance.Interface.Holding.Util (getAmount, getInstrument, getOwner)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (GetCid(..), R)
 import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (SetProvider(..), GetView(..), I)
-import Daml.Finance.Interface.Lifecycle.Lifecyclable qualified as Lifecyclable (I, Lifecycle(..))
-import Daml.Finance.Interface.Lifecycle.SettlementRule qualified as SettlementRule (Claim(..))
+import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..))
+import Daml.Finance.Interface.Lifecycle.Rule.Settlement qualified as Settlement (Claim(..))
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
 import Daml.Finance.Interface.Settlement.Types (Step)
@@ -127,7 +127,7 @@ run = script do
   csdGenericTransferableCid <- Account.credit [publicParty] genericInstrument 1_000_000.0 csdAccountAtIssuer
   investorGenericTransferableCid <- Account.credit [publicParty] genericInstrument 1_000_000.0 investorSecurityAccount
 
-  genericLifecyclableCid <- submitMulti [issuer] [] $ exerciseByKeyCmd @BaseInstrument.R genericInstrument BaseInstrument.GetCid with viewer = issuer
+  genericLifecycleCid <- submitMulti [issuer] [] $ exerciseByKeyCmd @BaseInstrument.R genericInstrument BaseInstrument.GetCid with viewer = issuer
 
   -- create clock and clock update event
   let clock = DateClock with u = Unit today; id = (Id with label = show today; description = "Current Date"); provider = issuer; observers = M.empty
@@ -135,7 +135,7 @@ run = script do
   clockEventCid <- toInterfaceContractId <$> submitMulti [issuer] [] do createCmd DateClockUpdateEvent with clock; id = (Id with label = show today; description = "Update to " <> show today)
 
   -- Lifecycle bond
-  (genericLifecyclableCid2, [effectCid]) <- BaseInstrument.submitExerciseInterfaceByKeyCmd @Lifecyclable.I [issuer] [] genericInstrument Lifecyclable.Lifecycle with settler; eventCid = clockEventCid; observableCids = []; ruleName = "Time"; clockCid
+  (genericLifecycleCid2, [effectCid]) <- BaseInstrument.submitExerciseInterfaceByKeyCmd @Lifecycle.I [issuer] [] genericInstrument Lifecycle.Evolve with settler; eventCid = clockEventCid; observableCids = []; ruleName = "Time"; clockCid
 
   -- setup settlement contract between issuer and CSD
   -- Setup settlement contract between issuer and CSD
@@ -175,7 +175,7 @@ run = script do
         paths = M.fromList routes
         observers = fromList [investor]
 
-  settlementRuleCid <- submitMulti [csd, investor] [] do
+  lifecycleSettlementRuleCid <- submitMulti [csd, investor] [] do
     createCmd Settlement.Rule
       with
         custodian = csd
@@ -185,7 +185,7 @@ run = script do
         factoryCid = toInterfaceContractId factoryWithIntermediariesCid
 
   result <- submitMulti [investor] [publicParty] do
-    exerciseCmd settlementRuleCid SettlementRule.Claim with
+    exerciseCmd lifecycleSettlementRuleCid Settlement.Claim with
       claimer = investor
       holdingCids = [investorGenericTransferableCid]
       effectCid
@@ -284,7 +284,7 @@ template EffectSettlementService
         -- 1. csd claims effect against issuer
         settlementFactoryCid <- create Factory with provider = csd; observers = empty
 
-        settlementRuleCid <- create Settlement.Rule
+        lifecycleSettlementRuleCid <- create Settlement.Rule
           with
             custodian = issuer
             owner = csd
@@ -292,13 +292,13 @@ template EffectSettlementService
             settler = csd
             factoryCid = toInterfaceContractId settlementFactoryCid
 
-        result <- exercise settlementRuleCid SettlementRule.Claim with
+        result <- exercise lifecycleSettlementRuleCid Settlement.Claim with
           claimer = csd
           holdingCids = [toInterfaceContractId instrumentHoldingCid]
           effectCid
 
         archive settlementFactoryCid
-        archive settlementRuleCid
+        archive lifecycleSettlementRuleCid
 
         -- TODO : use settlement instruction instead of direct transfer, or at least make sure it gets archived
 
