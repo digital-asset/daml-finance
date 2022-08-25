@@ -3,33 +3,26 @@
 
 module Daml.Finance.Settlement.Batch
   ( Batch(..)
-  , BatchFactory(..)
-  , BatchFactoryWithIntermediaries(..)
-  , Path(..)
   , T
   ) where
 
 import DA.Foldable (forA_)
-import DA.List (groupOn, head, isSuffixOf, stripSuffix, tails)
-import DA.Map qualified as M (Map, fromList, lookup)
 import DA.Optional (fromSomeNote)
-import DA.Set (empty, fromList, singleton)
-import Daml.Finance.Common.Util (mapWithIndex)
+import DA.Set (fromList, singleton)
 import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (I, RemoveObservers(..))
 import Daml.Finance.Interface.Common.Types (Parties)
 import Daml.Finance.Interface.Holding.Account qualified as Account (exerciseInterfaceByKey)
 import Daml.Finance.Interface.Holding.Base qualified as Base (I)
 import Daml.Finance.Interface.Holding.Util (fetchAccount, getAccount)
-import Daml.Finance.Interface.Settlement.Instructable qualified as Instructable (I, Instruct(..), View(..))
+import Daml.Finance.Interface.Settlement.Batch qualified as Batch (HasImplementation, I, View(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Execute(..))
-import Daml.Finance.Interface.Settlement.Settleable qualified as Settleable (HasImplementation, I, View(..))
 import Daml.Finance.Interface.Settlement.Types (Step(..))
 import Daml.Finance.Settlement.Instruction (Instruction(..))
 
 -- | Type synonym for `Batch`.
 type T = Batch
 
-instance Settleable.HasImplementation T
+instance Batch.HasImplementation T
 
 -- | Allows to atomically settle a set of settlement `Step`\s.
 template Batch
@@ -48,8 +41,8 @@ template Batch
 
     let (steps, instructionIds) = unzip stepsWithInstructionId
 
-    interface instance Settleable.I for Batch where
-      view = Settleable.View with settler; steps
+    interface instance Batch.I for Batch where
+      view = Batch.View with settler; steps
       settle = do
         -- collect accounts and check that sender accounts are still active
         accountInstructionIds <- fromList . mconcat <$> forA stepsWithInstructionId
@@ -74,97 +67,3 @@ template Batch
         forA_ accountInstructionIds \(account, id) ->
           Account.exerciseInterfaceByKey @Disclosure.I account settler Disclosure.RemoveObservers with observersToRemove = (id, singleton settler)
         pure l
-
--- | Factory template that implements the `Instructable` interface and is used to create a settlement batch.
--- A batch is made of a set of `Instruction`\s, as well as a container template used to atomically settle them.
-template BatchFactory
-  with
-    provider : Party
-      -- ^ Party providing the facility to create settlement instructions.
-    observers : Parties
-      -- ^ Observers.
-  where
-    signatory provider
-    observer observers
-
-    interface instance Instructable.I for BatchFactory where
-      view = Instructable.View with provider; observers
-      instruct Instructable.Instruct{instructors; settler; id; steps} = do
-        let
-          createInstruction step index = let idUsed = id <> "-" <> show index in
-            Instruction with requestors = instructors; signed = empty; settler; step; allocation = None; account = None; id = idUsed; observers = M.fromList [(idUsed, singleton $ singleton settler)]
-          instructions = mapWithIndex createInstruction steps
-          instructionIds = map (.id) instructions
-        instructionCids <- mapA (fmap toInterfaceContractId . create) instructions
-        settleableCid <- toInterfaceContractId <$> create Batch with requestors = instructors; settler; id; stepsWithInstructionId = zip steps instructionIds
-        pure (settleableCid, instructionCids)
-
--- | Factory template that implements the `Instructable` interface and is used to create a settlement batch.
--- A batch is made of a set of `Instruction`\s, as well as a container template used to atomically settle them.
--- For each instrument to settle as part of the batch, a hierarchy of intermediaries is specified in `paths`. This hierarchy is used to generate settlement instructions.
-template BatchFactoryWithIntermediaries
-  with
-    provider : Party
-      -- ^ Party providing the facility to create settlement instructions.
-    observers : Parties
-      -- ^ Observers.
-    paths : M.Map Text Path
-      -- ^ Hierarchical paths used to settle holding transfers. A path is specified for each instrument label.
-  where
-    signatory provider
-    observer observers
-
-    interface instance Instructable.I for BatchFactoryWithIntermediaries where
-      view = Instructable.View with provider; observers
-      instruct Instructable.Instruct{instructors; settler; id; steps} = do
-        let
-          -- Group steps by instrument. For each group, lookup corresponding paths and expand steps according to the corresponding settlement route.
-          groupedSteps = mconcat $ fromSomeNote "Could not find path or route." $ mapA (\steps -> do
-            let k = (head steps).quantity.unit.id.label
-            route <- M.lookup k paths
-            mconcat <$> mapA (unfoldStep route) steps
-            ) $ groupOn (.quantity.unit) steps
-          -- For each step, generate instructions and ids.
-          createInstruction step index = let idUsed = id <> "-" <> show index in
-            Instruction with requestors = instructors; signed = empty; settler; step; allocation = None; account = None; id = idUsed; observers = M.fromList [(idUsed, singleton $ singleton settler)]
-          instructions = mapWithIndex createInstruction groupedSteps
-          instructionIds = map (.id) instructions
-        instructionCids <- mapA (fmap toInterfaceContractId . create) instructions
-        settleableCid <- toInterfaceContractId <$> create Batch with requestors = instructors; settler; id; stepsWithInstructionId = zip groupedSteps instructionIds
-        pure (settleableCid, instructionCids)
-
--- | Data type that describes a hierarchical account structure between two parties for holdings on an instrument.
-data Path = Path
-  with
-    senderPath : [Party]
-      -- ^ Path from the sender to the root custodian of the holding. If the sender `p` is the root custodian, it should be `[p, p]`.
-    receiverPath : [Party]
-      -- ^ Path from the receiver to the root custodian of the holding. If the receiver `p` is the root custodian, it should be `[p, p]`.
-  deriving (Eq, Show)
-
--- | HIDE
--- Given a sender path and a receiver path, calculate the route to transfer a holding from sender to receiver.
--- We assume that transfers can only be done between accounts at the same custodian.
--- Returns `None` if no such route can be found. Otherwise, a list of (sender, receiver) pairs is returned.
-getRoute : (Eq a) => [a] -> [a] -> Optional [(a,a)]
-getRoute senderPath receiverPath =
-  case filter (`isSuffixOf` receiverPath) $ tails senderPath of
-  [] -> None
-  h :: _ -> do
-    fromRoute <- stripSuffix h senderPath
-    toRoute <- reverse <$> stripSuffix h receiverPath
-    let
-      fullRoute = fromRoute <> toRoute
-    pure $ zip fullRoute (drop 1 fullRoute)
-
--- | HIDE
--- Given a hierarchical path, unfold a step from sender to receiver (resp. receiver to sender) onto the corresponding route.
--- Returns `None` if no route can be found.
-unfoldStep : Path -> Step -> Optional [Step]
-unfoldStep path step | step.sender == head path.senderPath =
-  map (\(sender, receiver) -> Step with sender; receiver; quantity = step.quantity ) <$> getRoute path.senderPath path.receiverPath
-unfoldStep path step | step.sender == head path.receiverPath =
-  map (\(sender, receiver) -> Step with sender; receiver; quantity = step.quantity ) <$> getRoute path.receiverPath path.senderPath
-unfoldStep _ _ = error "One of the parties is neither the sender, nor the receiver."
-
-
