@@ -5,9 +5,12 @@ module Daml.Finance.Common.Date.DayCount
   ( DayCountConventionEnum(..)
   , calcDcf
   , calcDcf30E360
+  , calcPeriodDcf
+  , calcPeriodDcfActActIsda
   ) where
 
 import DA.Date
+import Daml.Finance.Common.Date.Schedule
 
 -- | An enum type to specify a day count convention used to calculate day count fractions.
 -- For a detailed definition of each convention, we refer to the "Method of Interest Computation Indicator" definitions in the context of the ISO-20022 standard. Where useful, we provide disambiguation comments.
@@ -16,6 +19,8 @@ data DayCountConventionEnum
   -- ^ Actual 360.
   | Act365_Fixed
   -- ^ Actual 365 fixed.
+  | ActAct_ISDA
+  -- ^ Actual Actual ISDA
   | Basis_30360
   -- ^ 30/360 (also, 30/360 ISDA or A001 or American Basic rule)
   | Basis_30360_ICMA
@@ -32,10 +37,58 @@ calcDcf : DayCountConventionEnum -> Date -> Date -> Decimal
 calcDcf _ f t | f > t = error "fromDate is greater than toDate"
 calcDcf Act360 f t = calcDcfAct360 f t
 calcDcf Act365_Fixed f t = calcDcfAct365Fixed f t
+calcDcf ActAct_ISDA f t = error "This calculation requires the knowledge of the stub period. Please, call `calcPeriodDcf` instead."
 calcDcf Basis_30360 f t = calcDcf30360 f t
 calcDcf Basis_30360_ICMA f t = calcDcf30360Icma f t
 calcDcf Basis_30E3360 f t = calcDcf30E360 False f t -- this corresponds to 30E/360 without the maturity date adjustment
-calcDcf Basis_30E360 f t = error "This calculation requires the knowledge of the maturity date of the product. Please, use `calcDcf30E360 instead`."
+calcDcf Basis_30E360 f t = error "This calculation requires the knowledge of the maturity date of the product. Please, use `calcDcf30E360` instead."
+
+-- | Calculate day count fraction for a schedule period
+calcPeriodDcf : DayCountConventionEnum -> SchedulePeriod -> Date -> Decimal
+calcPeriodDcf Act360 p maturityDate = calcDcf Act360 p.adjustedStartDate p.adjustedEndDate
+calcPeriodDcf Act365_Fixed p maturityDate = calcDcf Act365_Fixed p.adjustedStartDate p.adjustedEndDate
+calcPeriodDcf ActAct_ISDA p maturityDate = calcPeriodDcfActActIsda p maturityDate
+calcPeriodDcf Basis_30360 p maturityDate = calcDcf Basis_30360 p.adjustedStartDate p.adjustedEndDate
+calcPeriodDcf Basis_30360_ICMA p maturityDate = calcDcf Basis_30360_ICMA p.adjustedStartDate p.adjustedEndDate
+calcPeriodDcf Basis_30E3360 p maturityDate = calcDcf Basis_30E3360 p.adjustedStartDate p.adjustedEndDate
+calcPeriodDcf Basis_30E360 p maturityDate = calcDcf Basis_30E360 p.adjustedStartDate p.adjustedEndDate
+
+-- | Calculate Actual Actual day count fraction
+calcPeriodDcfActActIsda : SchedulePeriod -> Date -> Decimal
+calcPeriodDcfActActIsda p maturityDate =
+  let
+    (y1, m1, d1) = toGregorian p.adjustedStartDate
+    (y2, m2, d2) = toGregorian p.adjustedEndDate
+    sameYear = (y1 == y2)
+    -- TODO ensure not more than two years (or support that as well)
+  in
+    if sameYear then calcPeriodDcfActActIsdaSingleYear p maturityDate else calcPeriodDcfActActIsdaMultipleYears p maturityDate
+
+-- | HIDE
+-- | Calculate Actual Actual day count fraction for a period spanning more than one calendar year
+calcPeriodDcfActActIsdaSingleYear : SchedulePeriod -> Date -> Decimal
+calcPeriodDcfActActIsdaSingleYear p maturityDate =
+  let
+    (y1, m1, d1) = toGregorian p.adjustedStartDate
+    nDaysY1 = subDate p.adjustedEndDate p.adjustedStartDate
+    nTotDaysY1 = if isLeapYear y1 && maturityDate >= getDateEndOfFebruary y1 then 366 else 365 -- TODO verify that bond ecomprises the leapDay?
+  in
+    intToDecimal nDaysY1 / intToDecimal nTotDaysY1
+
+-- | HIDE
+-- | Calculate Actual Actual day count fraction for a period spanning more than one calendar year
+calcPeriodDcfActActIsdaMultipleYears : SchedulePeriod -> Date -> Decimal
+calcPeriodDcfActActIsdaMultipleYears p maturityDate =
+  let
+    (y1, m1, d1) = toGregorian p.adjustedStartDate
+    (y2, m2, d2) = toGregorian p.adjustedEndDate
+    dateYearEnd = fromGregorian (y1, Dec, 31)
+    nDaysY1 = subDate dateYearEnd p.adjustedStartDate + 1
+    nDaysY2 = subDate p.adjustedEndDate dateYearEnd - 1
+    nTotDaysY1 = if isLeapYear y1 then 366 else 365 -- TODO verify that bond ecomprises the leapDay?
+    nTotDaysY2 = if isLeapYear y2 && maturityDate >= getDateEndOfFebruary y2 then 366 else 365 -- TODO verify that bond ecomprises the leapDay
+  in
+    intToDecimal nDaysY1 / intToDecimal nTotDaysY1 + intToDecimal nDaysY2 / intToDecimal nTotDaysY2
 
 -- | HIDE
 -- | Calculate Actual 360 day count fraction.
@@ -97,3 +150,8 @@ calc30360Formula (y1, m1, d1) (y2, m2, d2) =
 isEndOfFebruary : (Int, Month, Int) -> Bool
 isEndOfFebruary (y, m, d) =
   m == Feb && d == monthDayCount y m
+
+-- | HIDE
+getDateEndOfFebruary : Int -> Date
+getDateEndOfFebruary y =
+  fromGregorian (y, Feb, monthDayCount y Feb)
