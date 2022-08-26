@@ -4,8 +4,9 @@
 ## Run tests
 ## Util
 daml test --project-root ../package/test/daml/Daml.Finance.Test.Util
-## Core
+## Common
 daml test --project-root ../package/test/daml/Daml.Finance.Common.Test
+## Core
 daml test --project-root ../package/test/daml/Daml.Finance.Holding.Test
 daml test --project-root ../package/test/daml/Daml.Finance.Settlement.Test
 daml test --project-root ../package/test/daml/Daml.Finance.RefData.Test
