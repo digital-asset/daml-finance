@@ -50,10 +50,10 @@ We start by defining the terms:
   :start-after: -- CREATE_FIXED_RATE_BOND_VARIABLES_BEGIN
   :end-before: -- CREATE_FIXED_RATE_BOND_VARIABLES_END
 
-The :ref:`day count convention <type-daml-finance-common-date-daycount-daycountconventionenum-57741>` is used to determine how many days (i.e. what fraction of a full year)
+The :ref:`day count convention <type-daml-finance-interface-types-date-daycount-daycountconventionenum-67281>` is used to determine how many days (i.e. what fraction of a full year)
 each coupon period has. This will determine the exact coupon amount each period.
 
-The :ref:`business day convention <type-daml-finance-common-date-calendar-businessdayconventionenum-67582>` determines how a coupon date is adjusted if it
+The :ref:`business day convention <type-daml-finance-interface-types-date-calendar-businessdayconventionenum-88986>` determines how a coupon date is adjusted if it
 falls on a non-business day.
 
 Now that we have defined the terms we can create the bond instrument:

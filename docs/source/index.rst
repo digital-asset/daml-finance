@@ -55,7 +55,7 @@ Daml Finance Documentation
    :caption: Reference
 
    glossary
-   Code documentation <daml-finance-rst/index>
+   Code documentation <code-documentation/daml-finance-rst/index>
 
 .. Indices and tables
 .. ==================
