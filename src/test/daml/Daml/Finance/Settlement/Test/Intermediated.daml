@@ -61,14 +61,13 @@ run useDelegatee = script do
   TestParties{..} <- setupParties
 
   -- Account and holding factory
-  let pp = [("PublicParty", singleton $ singleton publicParty)]
+  let fp = [("FactoryProvider", singleton $ singleton publicParty)]
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory publicParty []
   holdingFactoryCid <- toInterfaceContractId <$> submitMulti [publicParty] [] do
-    createCmd Fungible.Factory with provider = publicParty; observers = M.fromList pp
+    createCmd Fungible.Factory with provider = publicParty; observers = M.fromList fp
 
   -- Create accounts
-  let
-    createAccounts custodian = mapA (Account.createAccount [publicParty] accountFactoryCid holdingFactoryCid [] custodian)
+  let createAccounts custodian = mapA (Account.createAccount [publicParty] accountFactoryCid holdingFactoryCid [] custodian)
   -- cash
   [bank1OwnCashAccount, aliceCashAccount] <- createAccounts bank1 [bank1, alice]
   [bank2OwnCashAccount, bobCashAccount] <- createAccounts bank2 [bank2, bob]
@@ -117,35 +116,32 @@ run useDelegatee = script do
       ]
   -- Create settlement factory
   settlementFactoryCid <- submitMulti [agent] [] do createCmd Factory with provider = agent; observers = empty
-  (containerSettleableCid, [aliceInstructionCid, bank1InstructionCid, bank2InstructionCid, bobInstructionCid, custodian1InstructionCid, custodian2InstructionCid]) <-
+
+  -- Instruct settlement
+  (batchCid, [aliceInstructionCid, bank1InstructionCid, bank2InstructionCid, bobInstructionCid, custodian1InstructionCid, custodian2InstructionCid]) <-
     submitMulti [agent] [] do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = singleton agent; settler = agent; id = "CROSSPAYMENT"; steps
 
   -- Allocate instructions
   aliceInstructionCid <-
     if useDelegatee then
       do
-        -- TODO: use explicit disclosure (when it lands)
+        -- delegate
+        delegationCid <- submitMulti [alice] [] do createCmd AllocationDelegation with delegator = alice; delegatee
         -- disclose
+        -- TODO: use explicit disclosure (once available)
         let observerContext = ("delegation123", singleton delegatee)
         aliceCashCid : ContractId Transferable.I <- coerceContractId <$> submitMulti [alice] [] do exerciseCmd (coerceContractId aliceCashCid : ContractId Disclosure.I) Disclosure.AddObservers with disclosers = singleton alice; observersToAdd = observerContext
         aliceInstructionCid : ContractId Instruction.I <- coerceContractId <$> submitMulti [alice] [] do exerciseCmd (coerceContractId aliceInstructionCid : ContractId Disclosure.I) Disclosure.AddObservers with disclosers = singleton alice; observersToAdd = observerContext
-
         Account.submitExerciseInterfaceByKeyCmd @Disclosure.I [alice] [] aliceCashAccount Disclosure.AddObservers with disclosers = singleton alice; observersToAdd = observerContext
-
-        -- delegation
-        delegationCid <- submitMulti [alice] [] do createCmd AllocationDelegation with delegator = alice; delegatee
+        -- allocate (on behalf of alice)
         instructionCid <- submitMulti [delegatee] [] do exerciseCmd delegationCid OnBehalfAllocation with id = observerContext._1; instructionCid = aliceInstructionCid; transferableCid = aliceCashCid
-
         -- undisclose
         Account.submitExerciseInterfaceByKeyCmd @Disclosure.I [delegatee] [] aliceCashAccount Disclosure.RemoveObservers with observersToRemove = observerContext
-
         pure instructionCid
     else
       submitMulti [alice] [] do exerciseCmd aliceInstructionCid Instruction.Allocate with transferableCid = aliceCashCid
-
   bank1InstructionCid <- submitMulti [bank1] [] do exerciseCmd bank1InstructionCid Instruction.Allocate with transferableCid = bank1CashCid
   bank2InstructionCid <- submitMulti [bank2] [] do exerciseCmd bank2InstructionCid Instruction.Allocate with transferableCid = bank2CashCid
-
   bobInstructionCid <- submitMulti [bob] [] do exerciseCmd bobInstructionCid Instruction.Allocate with transferableCid = bobAssetCid
   custodian1InstructionCid <- submitMulti [custodian1] [] do exerciseCmd custodian1InstructionCid Instruction.Allocate with transferableCid = custodian1AssetCid
   custodian2InstructionCid <- submitMulti [custodian2] [] do exerciseCmd custodian2InstructionCid Instruction.Allocate with transferableCid = custodian2AssetCid
@@ -154,13 +150,12 @@ run useDelegatee = script do
   aliceInstructionCid <- submitMulti [bank1] [] do exerciseCmd aliceInstructionCid Instruction.Approve with receiverAccount = bank1OwnCashAccount
   bank1InstructionCid <- submitMulti [bank2] [] do exerciseCmd bank1InstructionCid Instruction.Approve with receiverAccount = bank2CashAccount
   bank2InstructionCid <- submitMulti [bob] [] do exerciseCmd bank2InstructionCid Instruction.Approve with receiverAccount = bobCashAccount
-
   bobInstructionCid <- submitMulti [custodian1] [] do exerciseCmd bobInstructionCid Instruction.Approve with receiverAccount = custodian1OwnDepoAccount
   custodian1InstructionCid <- submitMulti [custodian2] [] do exerciseCmd custodian1InstructionCid Instruction.Approve with receiverAccount = custodian2DepoAccount
   custodian2InstructionCid <- submitMulti [alice] [] do exerciseCmd custodian2InstructionCid Instruction.Approve with receiverAccount = aliceDepoAccount
 
-  -- Settle container
-  [bank1CashCid, bank2CashCid, bobCashCid, custodian1AssetCid, custodian2AssetCid, aliceAssetCid] <- submitMulti [agent] [publicParty] do exerciseCmd containerSettleableCid Batch.Settle
+  -- Settle batch
+  [bank1CashCid, bank2CashCid, bobCashCid, custodian1AssetCid, custodian2AssetCid, aliceAssetCid] <- submitMulti [agent] [publicParty] do exerciseCmd batchCid Batch.Settle
 
   -- Assert state
   Holding.verifyOwnerOfHolding [(bank1, bank1CashCid), (bank2, bank2CashCid), (bob, bobCashCid), (custodian1, custodian1AssetCid), (custodian2, custodian2AssetCid), (alice, aliceAssetCid)]

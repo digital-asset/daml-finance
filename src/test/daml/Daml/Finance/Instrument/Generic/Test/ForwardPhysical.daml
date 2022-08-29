@@ -48,20 +48,20 @@ run = script do
   TestParties{..} <- setupParties
 
   -- Account and holding factory
-  let pp = [("PublicParty", singleton $ singleton publicParty)]
-  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank pp
+  let fp = [("FactoryProvider", singleton $ singleton publicParty)]
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank fp
   holdingFactoryCid <- toInterfaceContractId <$> submit bank do
-    createCmd Fungible.Factory with provider = bank; observers = M.fromList pp
+    createCmd Fungible.Factory with provider = bank; observers = M.fromList fp
 
   -- Create accounts
   [bankOwnAccount, investorAccount] <- mapA (Account.createAccount [publicParty] accountFactoryCid holdingFactoryCid [] bank) [bank, investor]
 
   -- Distribute assets
   now <- getTime
-  let obs = [("public party", singleton $ singleton publicParty)]
-  equityInstrument <- Instrument.originate bank equityIssuer "AAPL" obs now
+  let pp = [("PublicParty", singleton $ singleton publicParty)]
+  equityInstrument <- Instrument.originate bank equityIssuer "AAPL" pp now
   bankEquityTransferableCid <- Account.credit [publicParty] equityInstrument 1_000.0 bankOwnAccount
-  cashInstrument <- Instrument.originate centralBank centralBank "USD" obs now
+  cashInstrument <- Instrument.originate centralBank centralBank "USD" pp now
   investorCashTransferableCid <- Account.credit [publicParty] cashInstrument 200_000.0 investorAccount
 
   -- Create and distribute a generic derivative
@@ -70,7 +70,7 @@ run = script do
     cashInstrumentDeliverable = one cashInstrument
     equityInstrumentDeliverable = one equityInstrument
     claims = when (TimeGte $ dateToDateClockTime maturity) $ and equityInstrumentDeliverable $ scale (Const 200.0) $ give cashInstrumentDeliverable
-  genericInstrument <- originateGeneric bank broker "FWD-AAPL" now claims [("public party", singleton $ singleton publicParty)] now
+  genericInstrument <- originateGeneric bank broker "FWD-AAPL" now claims [("PublicParty", singleton $ singleton publicParty)] now
   investorGenericTransferableCid <- Account.credit [publicParty] genericInstrument 1_000.0 investorAccount
 
   -- create clock and clock update event
@@ -100,8 +100,7 @@ run = script do
       holdingCids = [coerceContractId investorGenericTransferableCid]
       effectCid
 
-  let
-    [investorCashInstructionCid, bankEquityInstructionCid] = result.instructionCids
+  let [investorCashInstructionCid, bankEquityInstructionCid] = result.instructionCids
 
   -- Allocate instructions
   bankEquityInstructionCid <- submitMulti [bank] [] do exerciseCmd bankEquityInstructionCid Instruction.Allocate with transferableCid = bankEquityTransferableCid
@@ -111,9 +110,9 @@ run = script do
   investorCashInstructionCid <- submitMulti [bank] [] do exerciseCmd investorCashInstructionCid Instruction.Approve with receiverAccount = bankOwnAccount
   bankEquityInstructionCid <- submitMulti [investor] [] do exerciseCmd bankEquityInstructionCid Instruction.Approve with receiverAccount = investorAccount
 
-  -- Settle container
+  -- Settle batch
   [bankCashTransferableCid, investorEquityTransferableCid] <-
-    submitMulti [settler] [publicParty] do exerciseCmd result.containerCid Batch.Settle
+    submitMulti [settler] [publicParty] do exerciseCmd result.batchCid Batch.Settle
 
   -- Assert state
   Holding.verifyOwnerOfHolding [(bank, bankCashTransferableCid), (investor, investorEquityTransferableCid)]
