@@ -22,9 +22,9 @@ data DayCountConventionEnum
   | Act365_Fixed
   -- ^ Actual 365 fixed.
   | ActAct_ISDA
-  -- ^ Actual Actual ISDA
-  | ActAct_ISMA
-  -- ^ Actual Actual ISMA
+  -- ^ Actual Actual ISDA.
+  | ActAct_ICMA
+  -- ^ Actual Actual ICMA (also called ISMA in the 1998 ISDA paper).
   | Basis_30360
   -- ^ 30/360 (also, 30/360 ISDA or A001 or American Basic rule)
   | Basis_30360_ICMA
@@ -42,37 +42,40 @@ calcDcf _ f t | f > t = error "fromDate is greater than toDate"
 calcDcf Act360 f t = calcDcfAct360 f t
 calcDcf Act365_Fixed f t = calcDcfAct365Fixed f t
 calcDcf ActAct_ISDA f t = error "This calculation requires the knowledge of the stub period. Please, call `calcPeriodDcf` instead."
-calcDcf ActAct_ISMA f t = error "This calculation requires the knowledge of the stub period. Please, call `calcPeriodDcf` instead."
+calcDcf ActAct_ICMA f t = error "This calculation requires the knowledge of the stub period. Please, call `calcPeriodDcf` instead."
 calcDcf Basis_30360 f t = calcDcf30360 f t
 calcDcf Basis_30360_ICMA f t = calcDcf30360Icma f t
 calcDcf Basis_30E3360 f t = calcDcf30E360 False f t -- this corresponds to 30E/360 without the maturity date adjustment
 calcDcf Basis_30E360 f t = error "This calculation requires the knowledge of the maturity date of the product. Please, use `calcDcf30E360` instead."
 
--- | Calculate day count fraction for a schedule period
-calcPeriodDcf : DayCountConventionEnum -> SchedulePeriod -> Date -> Frequency -> Decimal
-calcPeriodDcf Act360 p maturityDate frequency = calcDcf Act360 p.adjustedStartDate p.adjustedEndDate
-calcPeriodDcf Act365_Fixed p maturityDate frequency = calcDcf Act365_Fixed p.adjustedStartDate p.adjustedEndDate
-calcPeriodDcf ActAct_ISDA p maturityDate frequency = calcPeriodDcfActActIsda p maturityDate
-calcPeriodDcf ActAct_ISMA p maturityDate frequency = calcPeriodDcfActActIsma p maturityDate frequency
-calcPeriodDcf Basis_30360 p maturityDate frequency = calcDcf Basis_30360 p.adjustedStartDate p.adjustedEndDate
-calcPeriodDcf Basis_30360_ICMA p maturityDate frequency = calcDcf Basis_30360_ICMA p.adjustedStartDate p.adjustedEndDate
-calcPeriodDcf Basis_30E3360 p maturityDate frequency = calcDcf Basis_30E3360 p.adjustedStartDate p.adjustedEndDate
-calcPeriodDcf Basis_30E360 p maturityDate frequency = calcDcf Basis_30E360 p.adjustedStartDate p.adjustedEndDate
+-- | Calculate day count fraction for a schedule period.
+-- It takes the following parameters:
+--   DayCountConventionEnum: to specify which day count convention should be used
+--   SchedulePeriod: the schedule period for which the day count fraction should be calculated
+--   Bool: Whether day count fraction should be calculated on adjusted dates (if False: unadjusted dates)
+--   Date: The maturity date of the instrument
+--   Frequency: the frequency of the schedule period
+calcPeriodDcf : DayCountConventionEnum -> SchedulePeriod -> Bool -> Date -> Frequency -> Decimal
+calcPeriodDcf ActAct_ISDA p useAdjustedDates maturityDate frequency = calcPeriodDcfActActIsda p useAdjustedDates maturityDate
+calcPeriodDcf ActAct_ICMA p useAdjustedDates maturityDate frequency = calcPeriodDcfActActIsma p useAdjustedDates maturityDate frequency
+calcPeriodDcf Basis_30E360 p useAdjustedDates maturityDate frequency = calcDcf30E360 (maturityDate == if useAdjustedDates then p.adjustedEndDate else p.unadjustedEndDate) (if useAdjustedDates then p.adjustedStartDate else p.unadjustedStartDate) (if useAdjustedDates then p.adjustedEndDate else p.unadjustedEndDate)
+calcPeriodDcf basis p useAdjustedDates _ _ = calcDcf basis (if useAdjustedDates then p.adjustedStartDate else p.unadjustedStartDate) (if useAdjustedDates then p.adjustedEndDate else p.unadjustedEndDate)
 
--- | Calculate Actual Actual day count fraction according to the ISDA method
-calcPeriodDcfActActIsda : SchedulePeriod -> Date -> Decimal
-calcPeriodDcfActActIsda p maturityDate =
+-- | Calculate Actual Actual day count fraction according to the ISDA method.
+calcPeriodDcfActActIsda : SchedulePeriod -> Bool -> Date -> Decimal
+calcPeriodDcfActActIsda p useAdjustedDates maturityDate =
   let
     (y1, m1, d1) = toGregorian p.adjustedStartDate
     (y2, m2, d2) = toGregorian p.adjustedEndDate
+    nYears = y2 - y1 + 1
   in
     -- DCF calculation depends on whether coupon period spans over year-end (more than one calendar year involved?)
-    case y2 - y1 of
-      0 -> intToDecimal nDaysY1 / intToDecimal nTotDaysY1
+    case nYears of
+      1 -> intToDecimal nDaysY1 / intToDecimal nTotDaysY1
             where
               nDaysY1 = subDate p.adjustedEndDate p.adjustedStartDate
               nTotDaysY1 = if isLeapYear y1 && maturityDate >= getDateEndOfFebruary y1 then 366 else 365
-      1 -> intToDecimal nDaysY1 / intToDecimal nTotDaysY1 + intToDecimal nDaysY2 / intToDecimal nTotDaysY2
+      x | x > 1 -> intToDecimal nDaysY1 / intToDecimal nTotDaysY1 + (intToDecimal nYears - 2.0) + intToDecimal nDaysY2 / intToDecimal nTotDaysY2
             where
               dateYearEnd = fromGregorian (y1, Dec, 31)
               nDaysY1 = subDate dateYearEnd p.adjustedStartDate + 1
@@ -82,8 +85,8 @@ calcPeriodDcfActActIsda p maturityDate =
       _ -> error "The coupon end date must be in the same or in the following calendar year"
 
 -- | Calculate Actual Actual day count fraction according to the ISMA method
-calcPeriodDcfActActIsma : SchedulePeriod -> Date -> Frequency -> Decimal
-calcPeriodDcfActActIsma p maturityDate frequency =
+calcPeriodDcfActActIsma : SchedulePeriod -> Bool -> Date -> Frequency -> Decimal
+calcPeriodDcfActActIsma p useAdjustedDates maturityDate frequency =
   let
     nDays = subDate p.adjustedEndDate p.adjustedStartDate
     nPeriodsPerYear = if frequency.period == M then 12.0 / intToDecimal frequency.periodMultiplier else error "only monthly period currently supported"
