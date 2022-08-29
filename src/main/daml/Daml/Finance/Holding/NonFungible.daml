@@ -5,9 +5,6 @@ module Daml.Finance.Holding.NonFungible where
 
 import DA.Assert ((===))
 import DA.Set (delete, insert, null, singleton)
-import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (I, SetObservers(..), View(..))
-import Daml.Finance.Interface.Common.Types (AccountKey(..), InstrumentKey(..), Observers)
-import Daml.Finance.Interface.Common.Util (fetchInterfaceByKey, flattenObservers)
 import Daml.Finance.Interface.Holding.Account qualified as Account (Credit(..), I, R, exerciseInterfaceByKey)
 import Daml.Finance.Interface.Holding.Base qualified as Base (I, View(..))
 import Daml.Finance.Interface.Holding.Factory.Holding qualified as HoldingFactory (Create(..), F, HasImplementation(..), Remove(..), View(..))
@@ -16,6 +13,9 @@ import Daml.Finance.Interface.Holding.Transferable qualified as NonFungible (Has
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..), View(..))
 import Daml.Finance.Interface.Holding.Util (getLocker)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (qty)
+import Daml.Finance.Interface.Types.Common (AccountKey(..), InstrumentKey(..), Observers)
+import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey)
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
 import Prelude hiding (null)
 
 -- | Type synonym for `Factory`.
@@ -42,23 +42,23 @@ template NonFungible
       -- ^ Observers.
   where
     signatory account.custodian, account.owner, getLocker this
-    observer flattenObservers observers
+    observer Disclosure.flattenObservers observers
 
     ensure amount > 0.0
 
-    implements Disclosure.I where
+    interface instance Disclosure.I for NonFungible where
       view = Disclosure.View with disclosureControllers = singleton $ singleton account.owner; observers
       setObservers Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
       archive' self = archive $ fromInterfaceContractId @NonFungible self
 
-    implements Base.I where
+    interface instance Base.I for NonFungible where
       asDisclosure = toInterface @Disclosure.I this
       view = Base.View with
         instrument
         account = AccountKey with custodian = account.custodian; owner = account.owner; id = account.id
         amount
 
-    implements Lockable.I where
+    interface instance Lockable.I for NonFungible where
       asHolding = toInterface @Base.I this
       view = Lockable.View with lock
       acquire Lockable.Acquire{newLocker; context; lockType} = do
@@ -77,7 +77,7 @@ template NonFungible
           releasedLock = lock >>= f
         toInterfaceContractId <$> create this with lock = releasedLock
 
-    implements Transferable.I where
+    interface instance Transferable.I for NonFungible where
       asLockable = toInterface @Lockable.I this
       view = Transferable.View ()
       transfer Transferable.Transfer{newOwnerAccount} = do
@@ -105,9 +105,9 @@ template Factory
       -- ^ The factory's observers.
   where
     signatory provider
-    observer flattenObservers observers
+    observer Disclosure.flattenObservers observers
 
-    implements HoldingFactory.F
+    interface instance HoldingFactory.F for Factory
       where
         asDisclosure = toInterface @Disclosure.I this
         view = HoldingFactory.View with provider
@@ -115,7 +115,7 @@ template Factory
           toInterfaceContractId <$> create NonFungible with instrument; account; amount; observers; lock = None
         remove HoldingFactory.Remove{actors; holdingCid} = archive $ fromInterfaceContractId @NonFungible holdingCid
 
-    implements Disclosure.I where
+    interface instance Disclosure.I for Factory where
       view = Disclosure.View with disclosureControllers = singleton $ singleton provider; observers
       setObservers Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
       archive' self = archive (coerceContractId self : ContractId NonFungible)
