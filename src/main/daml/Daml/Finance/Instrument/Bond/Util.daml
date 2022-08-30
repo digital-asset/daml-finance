@@ -15,7 +15,7 @@ import Daml.Finance.Interface.Instrument.Generic.Util.Claims (isZero', toTime')
 import Daml.Finance.Interface.Instrument.Generic.Util.Claims.Lifecycle (lifecycle, lifecycleClaims, splitPending, timeEvent)
 import Daml.Finance.Interface.Lifecycle.Clock qualified as Clock (I)
 import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (I)
-import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I, getEventTime)
+import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I)
 import Daml.Finance.Interface.Lifecycle.Observable qualified as Observable (I)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I)
 import Daml.Finance.Interface.Types.Common (Id)
@@ -88,6 +88,7 @@ type IsBond t =
   , HasToInterface t HasClaims.I
   , HasToInterface t Lifecycle.I
   , HasField "id" t Id
+  , HasField "version" t Text
   , HasField "issuer" t Party
   , HasField "lastEventTimestamp" t Time
   , HasCreate t
@@ -110,7 +111,7 @@ mapClaimToUTCTime =
 -- | Rule to process a clock update event.
 processClockUpdate : IsBond t => Party -> ContractId Event.I -> ContractId Clock.I -> ContractId Lifecycle.I -> t -> [ContractId Observable.I] -> Update (ContractId Lifecycle.I, [ContractId Effect.I])
 processClockUpdate settler eventCid _ self instrument observableCids = do
-  t <- Event.getEventTime <$> fetch eventCid
+  v <- _view <$> fetch eventCid
   let
     claimInstrument = toInterface @HasClaims.I instrument
     acquisitionTime = HasClaims.getAcquisitionTime claimInstrument
@@ -124,26 +125,27 @@ processClockUpdate settler eventCid _ self instrument observableCids = do
 
   -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_BEGIN
   -- Lifecycle
-  (remaining, pending) <- lifecycleClaims observableCids acquisitionTime claims [timeEvent t]
+  (remaining, pending) <- lifecycleClaims observableCids acquisitionTime claims [timeEvent v.eventTime]
   let (consumed, produced) = splitPending pending
   if remaining == claims && null pending then
     pure (self, [])
   else do
     let
       currentKey = Instrument.getKey $ toInterface @Instrument.I instrument
-      settlementDate = toDateUTC t -- TODO remove this dependency
-      newKey = currentKey with id.version = sha256 $ show remaining
-    newInstrumentCid <- create instrument with lastEventTimestamp = t; id = newKey.id
+      settlementDate = toDateUTC v.eventTime -- TODO remove this dependency
+      newKey = currentKey with version = sha256 $ show remaining
+    newInstrumentCid <- create instrument with lastEventTimestamp = v.eventTime; version = newKey.version
     Instrument.createReference instrument.issuer $ toInterfaceContractId newInstrumentCid
     effectCid <- toInterfaceContractId <$> create Effect with
       provider = currentKey.issuer
       settler
+      id = v.id
+      description = v.description
       targetInstrument = currentKey
       producedInstrument = if isZero' remaining then None else Some newKey
       consumed
       produced
       settlementDate
-      id = instrument.id.label <> "-" <> show settlementDate
       observers = (.observers) . _view $ toInterface @Disclosure.I instrument
     pure (toInterfaceContractId newInstrumentCid, [effectCid])
   -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_END

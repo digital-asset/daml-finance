@@ -11,7 +11,7 @@ import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument
 import Daml.Finance.Interface.Instrument.Generic.Election qualified as Election (HasImplementation, I, View(..))
 import Daml.Finance.Interface.Instrument.Generic.Types (C)
 import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I, View(..))
-import Daml.Finance.Interface.Types.Common (Observers)
+import Daml.Finance.Interface.Types.Common (Id(..), Observers)
 import Daml.Finance.Interface.Util.Common (verify)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
 
@@ -28,8 +28,10 @@ template Election
       -- ^ Faces the `elector` in the `Holding`.
     provider : Party
       -- ^ The provider of the election is an entity that has the authority to process the election and create a new instrument version.
-    id : Text
-      -- ^ A textual identifier.
+    id : Id
+      -- ^ Election identifier.
+    description : Text
+      -- ^ A human readable description of the election.
     instrument : Instrument.K
       -- ^ The instrument to which the election applies.
     amount : Decimal
@@ -46,12 +48,9 @@ template Election
     signatory elector, provider
     observer Disclosure.flattenObservers observers
 
-    interface instance Event.I for Election where
-      view = Event.View with eventTime = electionTime
-
     interface instance Election.I for Election where
       asEvent = toInterface @Event.I this
-      view = Election.View with amount; elector; counterparty; electorIsOwner; observers; provider; instrument; claim
+      view = Election.View with id; description; amount; elector; counterparty; electorIsOwner; observers; provider; instrument; claim
       archive' self = archive (coerceContractId self : ContractId Election)
 
     interface instance Disclosure.I for Election where
@@ -60,14 +59,19 @@ template Election
         toInterfaceContractId <$> create this with observers = newObservers
       archive' self = archive (coerceContractId self : ContractId Election)
 
+    interface instance Event.I for Election where
+      view = Event.View with id; description; eventTime = electionTime
+
 -- | Helper contract to delegate the right to create `Election`\s referencing a specific `Instrument`.
 -- The provider delegates the ability to create `Election`\s to any party that has visibility on the `ElectionFactory` contract. In order to create the `Election`, a valid `Holding` must be presented which identifies the choice controller as either the owner or the custodian to the `Holding`.
 template ElectionFactory
   with
     provider : Party
-      -- ^ provider
-    id : Text
-      -- ^ a textual identifier
+      -- ^ The provider.
+    id : Id
+      -- ^ Election identifier
+    description : Text
+      -- ^ A human readable description of the election claim.
     claim : C
       -- ^ the elected sub-tree
     observers : Observers
@@ -89,6 +93,8 @@ template ElectionFactory
           -- ^ A holding used to verify that the elector is entitled to make the election.
         amount : Decimal
           -- ^ Number of units of instrument to which the election applies.
+        label : Text
+          -- ^ Unique identifier for this election.
       controller elector
       do
         holding <- fetch holdingCid
@@ -104,6 +110,7 @@ template ElectionFactory
         create Election
           with
             id
+            description
             claim
             electionTime
             electorIsOwner

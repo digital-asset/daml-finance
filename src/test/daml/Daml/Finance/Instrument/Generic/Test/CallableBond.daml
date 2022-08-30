@@ -19,6 +19,7 @@ import Daml.Finance.Interface.Instrument.Generic.Types (C, Deliverable)
 import Daml.Finance.Interface.Lifecycle.Rule.Settlement qualified as Settlement (Claim(..))
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Types.Common (Id(..))
 import Daml.Finance.Lifecycle.Rule.Settlement (Rule(..))
 import Daml.Finance.RefData.Time.DateClock (DateClock(..), Unit(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
@@ -72,12 +73,12 @@ run = script do
     createCmd Fungible.Factory with provider = bank; observers = M.fromList fp
 
   -- Create accounts
-  [bankAccount, investorAccount] <- mapA (Account.createAccount [publicParty] accountFactoryCid holdingFactoryCid [] bank) [bank, investor]
+  [bankAccount, investorAccount] <- mapA (Account.createAccount "Default Account" [publicParty] accountFactoryCid holdingFactoryCid [] bank) [bank, investor]
 
   -- Distribute cash
   now <- getTime
   let pp = [("PublicParty", singleton $ singleton publicParty)]
-  cashInstrumentCid <- Instrument.originate centralBank centralBank "USD" pp now
+  cashInstrumentCid <- Instrument.originate centralBank centralBank "USD" "United States Doller" pp now
   bankCashTransferableCouponCid <- Account.credit [publicParty] cashInstrumentCid 1_000.0 bankAccount
   bankCashTransferablePrincipalCid <- Account.credit [publicParty] cashInstrumentCid 100_000.0 bankAccount
 
@@ -89,20 +90,21 @@ run = script do
     couponAmount = 1_000.0
     principalAmount = 100_000.0
     (bond, called, _) = bootstrapBond intermediateDate maturityDate couponAmount principalAmount cashInstrumentCid
-  genericInstrument <- originateGeneric bank issuer "BOND" acquisitionTime bond pp now
+  genericInstrument <- originateGeneric bank issuer "ABC.DE 1% 07/07/23 Corp" "Callable Bond" acquisitionTime bond pp now
   investorGenericTransferableCid <- Account.credit [publicParty] genericInstrument 1.0 investorAccount
 
   -- Create election factory to allow custodian to create elections
   callElectionFactoryCid <- submitMulti [issuer] [] do
     createCmd ElectionFactory with
       provider = issuer
-      id = "Bond - Call"
+      id = Id "bondcall1"
+      description = "Bond - Call"
       claim = called
       observers = M.fromList pp
       instrument = genericInstrument
 
   -- create clock (defines current time) and set it at the intermediate date
-  let clock = DateClock with u = Unit intermediateDate; id = "Clock"; provider = issuer; observers = M.empty
+  let clock = DateClock with u = Unit intermediateDate; id = Id (show intermediateDate); provider = issuer; observers = M.empty
   clockCid <- toInterfaceContractId <$> submitMulti [issuer] [] do createCmd clock
 
   ---------------------------------
@@ -116,6 +118,7 @@ run = script do
       electionTime = dateToDateClockTime intermediateDate
       holdingCid = investorGenericTransferableCid
       amount = 5000.0
+      label = "Election - " <> show intermediateDate
 
   -- Create election
   callBondCid : ContractId Election.I <- toInterfaceContractId <$> submitMulti [bank] [publicParty] do
@@ -124,6 +127,7 @@ run = script do
       electionTime = dateToDateClockTime intermediateDate
       holdingCid = fromInterfaceContractId investorGenericTransferableCid
       amount = 1.0
+      label = "Election - " <> show intermediateDate
 
   -- Apply election to generate new instrument version + effects
   (_, [effectCid]) <- submitMulti [issuer] [] do

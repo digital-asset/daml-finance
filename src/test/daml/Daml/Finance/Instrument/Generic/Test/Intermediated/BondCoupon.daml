@@ -23,6 +23,7 @@ import Daml.Finance.Interface.Lifecycle.Rule.Settlement qualified as Settlement 
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
 import Daml.Finance.Interface.Settlement.Types (Step)
+import Daml.Finance.Interface.Types.Common (Id(..))
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, AddObservers(..))
 import Daml.Finance.Lifecycle.Rule.Settlement qualified as Settlement (Rule(..))
 import Daml.Finance.RefData.Time.DateClock (DateClock(..), DateClockUpdateEvent(..), Unit(..))
@@ -79,12 +80,12 @@ data TestParties = TestParties
       -- ^ The public party. Every party can readAs the public party.
 
 -- | Setup a set of accounts.
-setupAccounts : Party -> Party -> [Party] -> Script [Account.K]
-setupAccounts custodian publicParty owners = do
+setupAccounts : Text -> Party -> Party -> [Party] -> Script [Account.K]
+setupAccounts description custodian publicParty owners = do
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory custodian []
   holdingFactoryCid <- toInterfaceContractId <$> submit custodian do
     createCmd Fungible.Factory with provider= custodian; observers = M.fromList [("PublicParty", singleton $ singleton publicParty)]
-  forA owners $ Account.createAccount [] accountFactoryCid holdingFactoryCid [] custodian
+  forA owners $ Account.createAccount description [] accountFactoryCid holdingFactoryCid [] custodian
 
 -- | Penultimate coupon payment on a bond showing creation of new instrument version.
 run : Script ()
@@ -92,19 +93,19 @@ run = script do
   TestParties{..} <- setupParties
 
   -- Setup security accounts
-  [csdOwnSecurityAccount, investorSecurityAccount] <- setupAccounts csd publicParty [csd, investor]
-  [csdAccountAtIssuer] <- setupAccounts issuer publicParty [csd]
+  [csdOwnSecurityAccount, investorSecurityAccount] <- setupAccounts "Security Account" csd publicParty [csd, investor]
+  [csdAccountAtIssuer] <- setupAccounts "Security Account" issuer publicParty [csd]
 
   -- Setup cash accounts at central bank
-  [issuerCashAccount, bankCashAccount, csdCashAccount] <- setupAccounts centralBank publicParty [issuer, bank, csd]
+  [issuerCashAccount, bankCashAccount, csdCashAccount] <- setupAccounts "Cash Account" centralBank publicParty [issuer, bank, csd]
 
   -- Setup Issuer's cash account at Bank
-  [investorCashAccount, bankOwnCashAccount] <- setupAccounts bank publicParty [investor, bank]
+  [investorCashAccount, bankOwnCashAccount] <- setupAccounts "Cash Account" bank publicParty [investor, bank]
 
   -- Distribute central-bank cash
   now <- getTime
   let pp = [("PublicParty", singleton $ singleton publicParty)]
-  cashInstrument <- BaseInstrument.originate centralBank centralBank "USD" pp now
+  cashInstrument <- BaseInstrument.originate centralBank centralBank "USD" "United States Doller" pp now
   issuerCashTransferableCid <- Account.credit [publicParty] cashInstrument 20_000.0 issuerCashAccount
 
   -- CREATE_CC_INSTRUMENT_VARIABLES_BEGIN
@@ -112,6 +113,7 @@ run = script do
   let
     today = toDateUTC now
     expiry = addDays today 180
+    bondLabel = "ABC.DE 2% " <> show expiry <> " Corp"
     claims = mapClaimToUTCTime $ mconcat
       [ when (TimeGte $ today) $ scale (Const 0.02) $ one cashInstrument
       , when (TimeGte $ expiry) $ scale (Const 0.02) $ one cashInstrument
@@ -120,18 +122,17 @@ run = script do
   -- CREATE_CC_INSTRUMENT_VARIABLES_END
 
   -- CREATE_CC_INSTRUMENT_BEGIN
-  genericInstrument <- originateGeneric csd issuer "BOND" now claims pp now
+  genericInstrument <- originateGeneric csd issuer bondLabel "Bond" now claims pp now
   -- CREATE_CC_INSTRUMENT_END
   csdGenericTransferableCid <- Account.credit [publicParty] genericInstrument 1_000_000.0 csdAccountAtIssuer
   investorGenericTransferableCid <- Account.credit [publicParty] genericInstrument 1_000_000.0 investorSecurityAccount
 
-
   genericLifecycleCid <- submitMulti [issuer] [] $ exerciseByKeyCmd @BaseInstrument.R genericInstrument BaseInstrument.GetCid with viewer = issuer
 
   -- create clock and clock update event
-  let clock = DateClock with u = Unit today; id = "Clock"; provider = issuer; observers = M.empty
+  let clock = DateClock with u = Unit today; id = Id (show today); provider = issuer; observers = M.empty
   clockCid <- toInterfaceContractId <$> submitMulti [issuer] [] do createCmd clock
-  clockEventCid <- toInterfaceContractId <$> submitMulti [issuer] [] do createCmd DateClockUpdateEvent with clock; id = "Update to " <> show today
+  clockEventCid <- toInterfaceContractId <$> submitMulti [issuer] [] do createCmd DateClockUpdateEvent with clock; id = Id (show today)
 
   -- Lifecycle bond
   (genericLifecycleCid2, [effectCid]) <- BaseInstrument.submitExerciseInterfaceByKeyCmd @Lifecycle.I [issuer] [] genericInstrument Lifecycle.Evolve with settler; eventCid = clockEventCid; observableCids = []; ruleName = "Time"; clockCid
@@ -146,7 +147,7 @@ run = script do
       with
         csd
         issuer
-        instrumentLabel = "BOND"
+        instrumentId = Id bondLabel
         securitiesAccount = csdAccountAtIssuer
         issuerCashAccount
         csdCashAccount
@@ -225,7 +226,7 @@ template EffectSettlementService
       -- ^ Owner of the instrument holding. Acts as depository of the instrument.
     issuer : Party
       -- ^ Counterparty of the instrument holding. Issuer of the instrument.
-    instrumentLabel : Text
+    instrumentId : Id
       -- ^ Defines the instrument to which the contract is applicable.
     securitiesAccount : Account.K
       -- ^ Security account of CSD @ issuer.
@@ -262,11 +263,11 @@ template EffectSettlementService
 
         oldInstrument.depository === csd
         oldInstrument.issuer === issuer
-        oldInstrument.id.label === instrumentLabel
+        oldInstrument.id === instrumentId
 
         F.forA_ newInstrument $ (=== csd) . (.depository)
         F.forA_ newInstrument $ (=== issuer) . (.issuer)
-        F.forA_ newInstrument $ (=== instrumentLabel) . (.id.label)
+        F.forA_ newInstrument $ (=== instrumentId) . (.id)
 
         -- fetch instrument fungible
         fungible <- fetch instrumentHoldingCid
