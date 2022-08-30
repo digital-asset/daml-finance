@@ -4,7 +4,7 @@
 Getting started : Download Daml Finance
 #######################################
 
-If you want to have a more detailed look in the Daml Finance codebase, you can download the repo
+If you want to have a more detailed look in the Daml Finance codebase, you can clone the repo
 locally on your machine. That allows you to navigate the code, both the template definitions
 and the tests.
 
