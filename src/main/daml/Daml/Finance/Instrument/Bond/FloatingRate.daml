@@ -10,9 +10,8 @@ import Daml.Finance.Interface.Instrument.Bond.FloatingRate qualified as Floating
 import Daml.Finance.Interface.Instrument.Generic.HasClaims qualified as HasClaims (I, View(..))
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..), View(..))
 import Daml.Finance.Interface.Types.Common (Id(..), InstrumentKey(..), Observers)
-import Daml.Finance.Interface.Types.Date.Calendar (BusinessDayConventionEnum)
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
-import Daml.Finance.Interface.Types.Date.RollConvention (PeriodEnum)
+import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..))
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
 import Prelude hiding (key)
 
@@ -39,24 +38,14 @@ template Instrument
     -- FLOATING_RATE_BOND_TEMPLATE_UNTIL_REFRATE_END
     couponSpread : Decimal
       -- ^ The floating rate coupon spread. For example, in case of "3M Euribor + 0.5%" this should be 0.005.
-    issueDate : Date
-      -- ^ The date when the bond was issued.
-    firstCouponDate : Date
-      -- ^ The first coupon date of the bond.
-    maturityDate : Date
-      -- ^ The last coupon date (and the redemption date) of the bond.
+    periodicSchedule : PeriodicSchedule
+      -- ^ The schedule for the periodic coupon payments.
     holidayCalendarIds : [Text]
       -- ^ the identifier of the holiday calendar to be used for the coupon schedule.
     calendarDataProvider : Party
       -- ^ The reference data provider to use for the holiday calendar.
     dayCountConvention : DayCountConventionEnum
       -- ^ The day count convention used to calculate day count fractions. For example: Act360.
-    businessDayConvention : BusinessDayConventionEnum
-      -- ^ An enum type to specify how a non-business day is adjusted. For example: FOLLOWING.
-    couponPeriod : PeriodEnum
-      -- ^ The coupon period. For example, in case of a 3M coupon period (a coupon every 3 months), this should be M.
-    couponPeriodMultiplier : Int
-      -- ^ The coupon period multiplier. For example, in case of a 3M coupon period (a coupon every 3 months), this should be 3.
     currency : Instrument.K
       -- ^ The currency of the bond. For example, if the bond pays in USD this should be a USD cash instrument.
     observers : Observers
@@ -70,14 +59,14 @@ template Instrument
     let instrumentKey = InstrumentKey with depository; issuer; id
 
     interface instance HasClaims.I for Instrument where
-      view = HasClaims.View with acquisitionTime = dateToDateClockTime issueDate
+      view = HasClaims.View with acquisitionTime = dateToDateClockTime periodicSchedule.effectiveDate
       getClaims = do
         -- get the initial claims tree (as of the bond's acquisition time)
-        (schedule, frequency) <- createCouponScheduleAndFrequency firstCouponDate holidayCalendarIds businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate issuer calendarDataProvider
+        schedule <- rollCouponSchedule periodicSchedule holidayCalendarIds issuer calendarDataProvider
         let
           useAdjustedDatesForDcf = True
-        couponClaims <- createFloatingRateCouponClaims schedule useAdjustedDatesForDcf couponSpread dayCountConvention maturityDate frequency currency referenceRateId
-        redemptionClaim <- createRedemptionClaim currency maturityDate
+        couponClaims <- createFloatingRateCouponClaims schedule periodicSchedule useAdjustedDatesForDcf couponSpread dayCountConvention currency referenceRateId
+        redemptionClaim <- createRedemptionClaim currency periodicSchedule.terminationDate
         pure $ mconcat [couponClaims, redemptionClaim]
 
     interface instance Instrument.I for Instrument where
@@ -114,7 +103,7 @@ template Factory
     interface instance FloatingRate.Factory for Factory where
       asDisclosure = toInterface @Disclosure.I this
       view = FloatingRate.View with provider
-      create' FloatingRate.Create{instrument; referenceRateId; couponSpread; issueDate; firstCouponDate; maturityDate; holidayCalendarIds; calendarDataProvider; dayCountConvention; businessDayConvention; couponPeriod; couponPeriodMultiplier; currency; lastEventTimestamp; observers} = do
+      create' FloatingRate.Create{instrument; referenceRateId; couponSpread; periodicSchedule; holidayCalendarIds; calendarDataProvider; dayCountConvention; currency; lastEventTimestamp; observers} = do
         cid <- toInterfaceContractId <$> create Instrument
           with
             depository = instrument.depository
@@ -122,15 +111,10 @@ template Factory
             id = instrument.id
             referenceRateId
             couponSpread
-            issueDate
-            firstCouponDate
-            maturityDate
+            periodicSchedule
             holidayCalendarIds
             calendarDataProvider
             dayCountConvention
-            businessDayConvention
-            couponPeriod
-            couponPeriodMultiplier
             currency
             lastEventTimestamp
             observers

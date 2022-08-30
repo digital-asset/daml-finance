@@ -3,6 +3,7 @@
 
 module Daml.Finance.Instrument.Bond.Test.Util where
 
+import DA.Date
 import DA.Map qualified as M
 import DA.Set (Set, empty, singleton)
 import Daml.Finance.Instrument.Bond.FixedRate qualified as FixedRate (Instrument(..))
@@ -20,9 +21,10 @@ import Daml.Finance.Interface.Lifecycle.Rule.Settlement qualified as Settlement 
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
 import Daml.Finance.Interface.Types.Common
-import Daml.Finance.Interface.Types.Date.Calendar
-import Daml.Finance.Interface.Types.Date.DayCount
-import Daml.Finance.Interface.Types.Date.RollConvention
+import Daml.Finance.Interface.Types.Date.Calendar (BusinessDayAdjustment(..), BusinessDayConventionEnum)
+import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
+import Daml.Finance.Interface.Types.Date.RollConvention (PeriodEnum, RollConventionEnum(..))
+import Daml.Finance.Interface.Types.Date.Schedule (Frequency(..), PeriodicSchedule(..))
 import Daml.Finance.Lifecycle.Rule.Settlement (Rule(..))
 import Daml.Finance.RefData.Time.DateClock (DateClock(..), DateClockUpdateEvent(..), Unit(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
@@ -32,11 +34,37 @@ import Daml.Finance.Test.Util.Instrument qualified as Instrument (submitExercise
 import Daml.Script
 import Prelude hiding (lookup)
 
+-- | Create a schedule for the periodic coupon payments.
+createCouponPeriodicSchedule : Date -> [Text] -> BusinessDayConventionEnum -> PeriodEnum -> Int -> Date -> Date -> PeriodicSchedule
+createCouponPeriodicSchedule firstCouponDate holidayCalendarIds businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate = do
+  let
+    (y, m, d) = toGregorian firstCouponDate
+    periodicSchedule = PeriodicSchedule with
+      businessDayAdjustment =
+        BusinessDayAdjustment with
+          calendarIds = holidayCalendarIds
+          convention = businessDayConvention
+      effectiveDateBusinessDayAdjustment = None
+      terminationDateBusinessDayAdjustment = None
+      frequency =
+        Frequency with
+          rollConvention = DOM d
+          period = couponPeriod
+          periodMultiplier = couponPeriodMultiplier
+      effectiveDate = issueDate
+      firstRegularPeriodStartDate = Some firstCouponDate
+      lastRegularPeriodEndDate = Some maturityDate
+      stubPeriodType = None
+      terminationDate = maturityDate
+  periodicSchedule
+
 originateFixedRateBond : Party -> Party -> Text -> [(Text, Set Parties)] -> Time -> Date -> [Text] -> Party -> Date-> Date -> DayCountConventionEnum -> BusinessDayConventionEnum -> Decimal -> PeriodEnum -> Int -> Instrument.K -> Script Instrument.K
 originateFixedRateBond depository issuer label observers lastEventTimestamp issueDate holidayCalendarIds calendarDataProvider firstCouponDate maturityDate dayCountConvention businessDayConvention couponRate couponPeriod couponPeriodMultiplier currency = do
   -- CREATE_FIXED_RATE_BOND_INSTRUMENT_BEGIN
+  let
+    periodicSchedule = createCouponPeriodicSchedule firstCouponDate holidayCalendarIds businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate
   cid <- toInterfaceContractId @Instrument.I <$> submitMulti [depository, issuer] [] do
-    createCmd FixedRate.Instrument with depository; issuer; id = (Id with label; version = "0"); observers = M.fromList observers; lastEventTimestamp; issueDate; holidayCalendarIds; calendarDataProvider; firstCouponDate; maturityDate; dayCountConvention; businessDayConvention; couponRate; couponPeriod; couponPeriodMultiplier; currency
+    createCmd FixedRate.Instrument with depository; issuer; id = (Id with label; version = "0"); observers = M.fromList observers; lastEventTimestamp; periodicSchedule; holidayCalendarIds; calendarDataProvider; dayCountConvention; couponRate; currency
   -- CREATE_FIXED_RATE_BOND_INSTRUMENT_END
   createReference cid depository issuer observers
 
@@ -51,16 +79,20 @@ originateZeroCouponBond depository issuer label observers lastEventTimestamp iss
 originateFloatingRateBond : Party -> Party -> Text -> [(Text, Set Parties)] -> Time -> Date -> [Text] -> Party -> Date -> Date -> DayCountConventionEnum -> BusinessDayConventionEnum -> Decimal -> PeriodEnum -> Int -> Instrument.K -> Text -> Script Instrument.K
 originateFloatingRateBond depository issuer label observers lastEventTimestamp issueDate holidayCalendarIds calendarDataProvider firstCouponDate maturityDate dayCountConvention businessDayConvention couponRate couponPeriod couponPeriodMultiplier currency referenceRateId = do
   -- CREATE_FLOATING_RATE_BOND_INSTRUMENT_BEGIN
+  let
+    periodicSchedule = createCouponPeriodicSchedule firstCouponDate holidayCalendarIds businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate
   cid <- toInterfaceContractId <$> submitMulti [depository, issuer] [] do
-    createCmd FloatingRate.Instrument with depository; issuer; id = (Id with label; version = "0"); observers = M.fromList observers; lastEventTimestamp; issueDate; holidayCalendarIds; calendarDataProvider; firstCouponDate; maturityDate; dayCountConvention; businessDayConvention; couponSpread=couponRate; referenceRateId; couponPeriod; couponPeriodMultiplier; currency
+    createCmd FloatingRate.Instrument with depository; issuer; id = (Id with label; version = "0"); observers = M.fromList observers; lastEventTimestamp; periodicSchedule; holidayCalendarIds; calendarDataProvider; dayCountConvention; couponSpread=couponRate; referenceRateId; currency
   -- CREATE_FLOATING_RATE_BOND_INSTRUMENT_END
   createReference cid depository issuer observers
 
 originateInflationLinkedBond : Party -> Party -> Text -> [(Text, Set Parties)] -> Time -> Date -> [Text] -> Party -> Date -> Date -> DayCountConventionEnum -> BusinessDayConventionEnum -> Decimal -> PeriodEnum -> Int -> Instrument.K -> Text -> Decimal -> Script Instrument.K
 originateInflationLinkedBond depository issuer label observers lastEventTimestamp issueDate holidayCalendarIds calendarDataProvider firstCouponDate maturityDate dayCountConvention businessDayConvention couponRate couponPeriod couponPeriodMultiplier currency inflationIndexId inflationIndexBaseValue = do
   -- CREATE_INFLATION_LINKED_BOND_INSTRUMENT_BEGIN
+  let
+    periodicSchedule = createCouponPeriodicSchedule firstCouponDate holidayCalendarIds businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate
   cid <- toInterfaceContractId <$> submitMulti [depository, issuer] [] do
-    createCmd InflationLinked.Instrument with depository; issuer; id = (Id with label; version = "0"); observers = M.fromList observers; lastEventTimestamp; issueDate; holidayCalendarIds; calendarDataProvider; firstCouponDate; maturityDate; dayCountConvention; businessDayConvention; couponRate; inflationIndexId; couponPeriod; couponPeriodMultiplier; currency; inflationIndexBaseValue
+    createCmd InflationLinked.Instrument with depository; issuer; id = (Id with label; version = "0"); observers = M.fromList observers; lastEventTimestamp; periodicSchedule; holidayCalendarIds; calendarDataProvider; dayCountConvention; couponRate; inflationIndexId; currency; inflationIndexBaseValue
   -- CREATE_INFLATION_LINKED_BOND_INSTRUMENT_END
   createReference cid depository issuer observers
 
