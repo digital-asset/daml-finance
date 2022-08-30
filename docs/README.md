@@ -24,6 +24,16 @@ Theme is copied from Daml Docs theme.
 
 `Node` and `yarn` must be installed on your machine.
 
+### Sass
+
+The `ruby` version of `sass` must be installed: `gem install sass`.
+
+### Grunt
+
+If grunt is not already installed: `npm install grunt-cli`.
+
+If you had to install anything new above, but it still does not work, you may have to recreate the virtual environment: `pipenv install` again.
+
 ## Building the docs
 
 1. Navigate to the root folder of the repository.

@@ -17,7 +17,7 @@ Next steps
 
 The :doc:`Transfer <transfer>` page describes accounts, cash instrument, deposit and transfer.
 
-The :doc:`Install Daml Finance <install-daml-finance>` page shows you how to download and install Daml Finance locally.
+The :doc:`Download Daml Finance <download-daml-finance>` page shows you how to download Daml Finance locally.
 
 The :doc:`Settlement <settlement>` page describes how to do a single transfer and an atomic delivery vs payment.
 
