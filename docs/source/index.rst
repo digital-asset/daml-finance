@@ -32,7 +32,7 @@ Daml Finance Documentation
 
    getting-started/intro
    getting-started/transfer
-   getting-started/install-daml-finance
+   getting-started/download-daml-finance
    getting-started/settlement
    getting-started/lifecycling
 

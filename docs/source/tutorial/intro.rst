@@ -17,7 +17,7 @@ The :doc:`Bond Extension <bond-extension>` tutorial introduces the different typ
 
 The :doc:`Derivative Extension <derivative-extension>` tutorial shows you how to define your own generic instrument.
 
-The :doc:`Contingent Claims Instrument <contingent-claims-instrument>` tutorial describes how to create a new instrument type (similar to the bonds in the Bond Extension)
+The :doc:`Contingent Claims Instrument <contingent-claims-instrument>` tutorial describes how to create a new instrument type (similar to the bond instruments that you saw in the Bond Extension above)
 
-The :doc:`On ledger vs on-the-fly <contingent-claims-on-ledger-vs-on-the-fly>` tutorial helps you to decide whether to store the claims tree on the ledger or generate it on-the-fly.
+The :doc:`On ledger vs on-the-fly <contingent-claims-on-ledger-vs-on-the-fly>` tutorial helps you to decide whether to explicitly store the claims tree on the ledger or generate it on-the-fly.
 

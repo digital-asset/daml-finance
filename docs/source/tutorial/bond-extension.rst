@@ -8,7 +8,7 @@ Download the code for the tutorial
 **********************************
 
 The code of this tutorial resides in the `Daml Finance <https://github.com/digital-asset/daml-finance>`_ repo.
-You can install it locally by following :doc:`these instructions <../getting-started/install-daml-finance>`.
+You can download it locally by following :doc:`these instructions <../getting-started/download-daml-finance>`.
 
 In particular, the Bond test folder ``src/test/daml/Daml/Finance/Instrument/Bond/Test/`` is the starting point
 of this tutorial.
@@ -23,13 +23,13 @@ For bonds this means that you should only include the bond interface package:
 ``Daml.Finance.Interface.Instrument.Bond``.
 
 Your initialization scripts are an exception to this, since they are only run once when your app is initialized.
-These would create the factories needed. Your app can then create bonds through these factory interfaces.
+This would create the factories needed. Your app can then create bonds through these factory interfaces.
 
 How to create a bond instrument
 *******************************
 
 There are different types of bonds, which mainly differ in the way the coupon is defined.
-In order to create a bond instrument you first have to decide what type it is.
+In order to create a bond instrument you first have to decide what type of bond you need.
 The bond extension package currently supports the following bond types:
 
 Fixed rate
@@ -51,10 +51,12 @@ We start by defining the terms:
   :end-before: -- CREATE_FIXED_RATE_BOND_VARIABLES_END
 
 The :ref:`day count convention <type-daml-finance-interface-types-date-daycount-daycountconventionenum-67281>` is used to determine how many days (i.e. what fraction of a full year)
-each coupon period has. This will determine the exact coupon amount each period.
+each coupon period has. This will determine the exact coupon amount that will be paid each period.
 
 The :ref:`business day convention <type-daml-finance-interface-types-date-calendar-businessdayconventionenum-88986>` determines how a coupon date is adjusted if it
 falls on a non-business day.
+
+We can use these variables to create a :ref:`Periodic Schedule <type-daml-finance-interface-types-date-calendar-businessdayconventionenum-88986>`. This is used to determine when coupons are paid.
 
 Now that we have defined the terms we can create the bond instrument:
 
