@@ -56,7 +56,17 @@ each coupon period has. This will determine the exact coupon amount that will be
 The :ref:`business day convention <type-daml-finance-interface-types-date-calendar-businessdayconventionenum-88986>` determines how a coupon date is adjusted if it
 falls on a non-business day.
 
-We can use these variables to create a :ref:`Periodic Schedule <type-daml-finance-interface-types-date-calendar-businessdayconventionenum-88986>`. This is used to determine when coupons are paid.
+We can use these variables to create a :ref:`PeriodicSchedule <constr-daml-finance-interface-types-date-schedule-periodicschedule-99705>`:
+
+.. literalinclude:: ../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
+  :language: daml
+  :start-after: -- CREATE_BOND_PERIODIC_SCHEDULE_BEGIN
+  :end-before: -- CREATE_BOND_PERIODIC_SCHEDULE_END
+
+This is used to determine the periods that are used to calculate the coupon. There are a few things to note here:
+
+- The :ref:`RollConventionEnum <type-daml-finance-interface-types-date-rollconvention-rollconventionenum-73360>` defines whether dates are rolled on month end or on a given date of the month. In our example above we went for the latter option.
+- The :ref:`StubPeriodTypeEnum <type-daml-finance-interface-types-date-schedule-stubperiodtypeenum-69372>` allows you to explicitly specify what kind of stub period the bond should have. This is optional and not used in the example above. Instead, we defined the stub implicitly by specifying a ``firstRegularPeriodStartDate``.
 
 Now that we have defined the terms we can create the bond instrument:
 
