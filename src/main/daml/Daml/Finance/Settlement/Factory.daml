@@ -13,7 +13,7 @@ import DA.Optional (fromSomeNote)
 import DA.Set (empty, singleton)
 import Daml.Finance.Interface.Settlement.Factory qualified as Factory (I, Instruct(..), View(..))
 import Daml.Finance.Interface.Settlement.Types (Step(..))
-import Daml.Finance.Interface.Types.Common (Parties)
+import Daml.Finance.Interface.Types.Common (Id(..), Parties)
 import Daml.Finance.Settlement.Batch (Batch(..))
 import Daml.Finance.Settlement.Instruction (Instruction(..))
 import Daml.Finance.Util.Common (mapWithIndex)
@@ -32,14 +32,14 @@ template Factory
 
     interface instance Factory.I for Factory where
       view = Factory.View with provider; observers
-      instruct Factory.Instruct{instructors; settler; id; steps} = do
+      instruct Factory.Instruct{instructors; settler; id; description; steps} = do
         let
-          createInstruction step index = let idUsed = id with label = id.label <> "-" <> show index in
-            Instruction with requestors = instructors; signed = empty; settler; step; allocation = None; account = None; id = idUsed; observers = M.fromList [(idUsed.label, singleton $ singleton settler)]
+          createInstruction step index = let idUsed = Id (show id <> "-" <> show index) in
+            Instruction with requestors = instructors; signed = empty; settler; step; allocation = None; account = None; id = idUsed; observers = M.fromList [(show idUsed, singleton $ singleton settler)]
           instructions = mapWithIndex createInstruction steps
           instructionIds = map (.id) instructions
         instructionCids <- mapA (fmap toInterfaceContractId . create) instructions
-        batchCid <- toInterfaceContractId <$> create Batch with requestors = instructors; settler; id; stepsWithInstructionId = zip steps instructionIds
+        batchCid <- toInterfaceContractId <$> create Batch with requestors = instructors; settler; id; description; stepsWithInstructionId = zip steps instructionIds
         pure (batchCid, instructionCids)
 
 -- | Factory template that implements the `Factory` interface and is used to create a settlement batch.
@@ -59,21 +59,21 @@ template FactoryWithIntermediaries
 
     interface instance Factory.I for FactoryWithIntermediaries where
       view = Factory.View with provider; observers
-      instruct Factory.Instruct{instructors; settler; id; steps} = do
+      instruct Factory.Instruct{instructors; settler; id; description; steps} = do
         let
           -- Group steps by instrument. For each group, lookup corresponding paths and expand steps according to the corresponding settlement route.
           groupedSteps = mconcat $ fromSomeNote "Could not find path or route." $ mapA (\steps -> do
-            let k = (head steps).quantity.unit.id.label
+            let k = show (head steps).quantity.unit.id
             route <- M.lookup k paths
             mconcat <$> mapA (unfoldStep route) steps
             ) $ groupOn (.quantity.unit) steps
           -- For each step, generate instructions and ids.
-          createInstruction step index = let idUsed = id with label = id.label <> "-" <> show index in
-            Instruction with requestors = instructors; signed = empty; settler; step; allocation = None; account = None; id = idUsed; observers = M.fromList [(idUsed.label, singleton $ singleton settler)]
+          createInstruction step index = let idUsed = Id (show id <> "-" <> show index) in
+            Instruction with requestors = instructors; signed = empty; settler; step; allocation = None; account = None; id = idUsed; observers = M.fromList [(show idUsed, singleton $ singleton settler)]
           instructions = mapWithIndex createInstruction groupedSteps
           instructionIds = map (.id) instructions
         instructionCids <- mapA (fmap toInterfaceContractId . create) instructions
-        batchCid <- toInterfaceContractId <$> create Batch with requestors = instructors; settler; id; stepsWithInstructionId = zip groupedSteps instructionIds
+        batchCid <- toInterfaceContractId <$> create Batch with requestors = instructors; settler; id; description; stepsWithInstructionId = zip groupedSteps instructionIds
         pure (batchCid, instructionCids)
 
 -- | Data type that describes a hierarchical account structure between two parties for holdings on an instrument.
