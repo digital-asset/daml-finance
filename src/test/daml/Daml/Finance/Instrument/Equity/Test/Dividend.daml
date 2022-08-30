@@ -14,6 +14,7 @@ import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (Effectuat
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (Evolve(..))
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Types.Common (Id(..))
 import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
 import Daml.Finance.Lifecycle.Rule.Distribution qualified as Distribution (Rule(..))
 import Daml.Finance.RefData.Time.DateClock (DateClock(..), Unit(..))
@@ -38,22 +39,22 @@ run = script do
   settlementFactoryCid <- toInterfaceContractId <$> submitMulti [issuer] [] do createCmd Factory with provider = issuer; observers = singleton public
 
   -- Create accounts
-  issuerCashAccount <- Account.createAccount [public] accountFactoryCid holdingFactoryCid [] cb issuer
-  investorCashAccount <- Account.createAccount [public] accountFactoryCid holdingFactoryCid [] cb investor
-  investorSecuritiesAccount <- Account.createAccount [public] accountFactoryCid holdingFactoryCid [] issuer investor
+  issuerCashAccount <- Account.createAccount "Cash Account" [public] accountFactoryCid holdingFactoryCid [] cb issuer
+  investorCashAccount <- Account.createAccount "Cash Account" [public] accountFactoryCid holdingFactoryCid [] cb investor
+  investorSecuritiesAccount <- Account.createAccount "Securities Account" [public] accountFactoryCid holdingFactoryCid [] issuer investor
 
   -- Create lifecycle rules
   distributionRuleCid <- submit issuer do createCmd Distribution.Rule with provider = issuer; observers = M.fromList pp
-  lifecycleSettlementRuleCid <- submitMulti [issuer, investor] [] do createCmd Claim.Rule with custodian = issuer; owner = investor; claimers = singleton investor; settler = investor; factoryCid = settlementFactoryCid
+  lifecycleClaimRuleCid <- submitMulti [issuer, investor] [] do createCmd Claim.Rule with custodian = issuer; owner = investor; claimers = singleton investor; settler = investor; factoryCid = settlementFactoryCid
 
   -- Create clock
   now <- getTime
-  clockCid <- toInterfaceContractId <$> submit issuer do createCmd DateClock with u = Unit $ toDateUTC now; id = "Date clock"; provider = issuer; observers = M.empty
+  clockCid <- toInterfaceContractId <$> submit issuer do createCmd DateClock with u = Unit $ toDateUTC now; id = Id (show now); provider = issuer; observers = M.empty
 
   -- Originate instruments
-  cashInstrument <- originate cb cb "USD" pp now
-  cumEquityInstrument <- originateEquity issuer issuer "AAPL" "0" pp now
-  exEquityInstrument <- originateEquity issuer issuer "AAPL" "1" [] now
+  cashInstrument <- originate cb cb "USD" "United States Doller" pp now
+  cumEquityInstrument <- originateEquity issuer issuer "EQUITY-INST-1" "0" "APPL" pp now
+  exEquityInstrument <- originateEquity issuer issuer "EQUITY-INST-1" "1" "APPL" [] now
 
   -- Distribute holdings
   investorEquityCid <- Account.credit [public] cumEquityInstrument 1_000.0 investorSecuritiesAccount
@@ -62,7 +63,8 @@ run = script do
   -- Create cash dividend event
   distributionEventCid <- Instrument.submitExerciseInterfaceByKeyCmd @Equity.I [issuer] [public] cumEquityInstrument Equity.DeclareDividend
     with
-      id = "CASHDIV"
+      id = Id $ "APPL - " <> show now
+      description = "Cash Dividend"
       effectiveDate = toDateUTC now
       newInstrument = exEquityInstrument
       perUnitDistribution = [Instrument.qty 2.0 cashInstrument]
@@ -71,7 +73,7 @@ run = script do
   (_, [effectCid]) <- submit issuer do exerciseCmd distributionRuleCid Lifecycle.Evolve with ruleName = "Dividend"; settler = investor; observableCids = []; eventCid = distributionEventCid; clockCid
 
   -- Claim effect
-  result <- submitMulti [investor] [public] do exerciseCmd lifecycleSettlementRuleCid Claim.Effectuate with claimer = investor; holdingCids = [investorEquityCid]; effectCid
+  result <- submitMulti [investor] [public] do exerciseCmd lifecycleClaimRuleCid Claim.Effectuate with claimer = investor; holdingCids = [investorEquityCid]; effectCid
 
   let
     Some [investorEquityTransferableCid] = result.newInstrumentHoldingCids

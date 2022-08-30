@@ -14,7 +14,8 @@ import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (Effectuat
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..))
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
-import Daml.Finance.Lifecycle.Rule.Claim (Rule(..))
+import Daml.Finance.Interface.Types.Common (Id(..))
+import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
 import Daml.Finance.RefData.Observation (Observation(..))
 import Daml.Finance.RefData.Time.DateClock (DateClock(..), DateClockUpdateEvent(..), Unit(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
@@ -52,12 +53,12 @@ run = script do
     createCmd Fungible.Factory with provider = bank; observers = M.fromList fp
 
   -- Create accounts
-  [bankOwnAccount, investorAccount] <- mapA (Account.createAccount [publicParty] accountFactoryCid holdingFactoryCid [] bank) [bank, investor]
+  [bankOwnAccount, investorAccount] <- mapA (Account.createAccount "Default Account" [publicParty] accountFactoryCid holdingFactoryCid [] bank) [bank, investor]
 
   -- Distribute cash
   now <- getTime
   let pp = [("PublicParty", singleton $ singleton publicParty)]
-  cashInstrument <- Instrument.originate centralBank centralBank "USD" pp now
+  cashInstrument <- Instrument.originate centralBank centralBank "USD" "United States Doller" pp now
   bankCashTransferableCid <- Account.credit [publicParty] cashInstrument 50_000.0 bankOwnAccount
 
   -- Create observable
@@ -70,13 +71,13 @@ run = script do
   let
     equityObservable = "SPOT/AAPL"
     claims = when (TimeGte $ dateToDateClockTime maturity) $ scale (Observe equityObservable - Const 150.0) $ one cashInstrument
-  genericInstrument <- originateGeneric bank broker "FWD-AAPL" now claims pp now
+  genericInstrument <- originateGeneric bank broker "FWD-AAPL" "Forward Contract" now claims pp now
   investorGenericTransferableCid <- Account.credit [publicParty] genericInstrument 1_000.0 investorAccount
 
   -- create clock and clock update event
-  let clock = DateClock with u = Unit maturity; id = "Clock"; provider = broker; observers = M.empty
+  let clock = DateClock with u = Unit maturity; id = Id (show maturity); provider = broker; observers = M.empty
   clockCid <- toInterfaceContractId <$> submitMulti [broker] [] do createCmd clock
-  clockEventCid <- toInterfaceContractId <$> submitMulti [broker] [] do createCmd DateClockUpdateEvent with clock; id = "Update to " <> show maturity
+  clockEventCid <- toInterfaceContractId <$> submitMulti [broker] [] do createCmd DateClockUpdateEvent with clock; id = Id (show maturity)
 
   -- Lifecycle derivative
   (_, [effectCid]) <- Instrument.submitExerciseInterfaceByKeyCmd @Lifecycle.I [broker] [] genericInstrument Lifecycle.Evolve with settler; eventCid = clockEventCid; observableCids = [observableCid]; ruleName = "Time"; clockCid
@@ -85,8 +86,8 @@ run = script do
   settlementFactoryCid <- submitMulti [investor] [] do createCmd Factory with provider = investor; observers = empty
 
   -- Claim effect
-  lifecycleSettlementRuleCid <- submitMulti [bank, investor] [] do
-    createCmd Rule
+  lifecycleClaimRuleCid <- submitMulti [bank, investor] [] do
+    createCmd Claim.Rule
       with
         custodian = bank
         owner = investor
@@ -95,7 +96,7 @@ run = script do
         factoryCid = toInterfaceContractId settlementFactoryCid
 
   result <- submitMulti [investor] [publicParty] do
-    exerciseCmd lifecycleSettlementRuleCid Claim.Effectuate with
+    exerciseCmd lifecycleClaimRuleCid Claim.Effectuate with
       claimer = investor
       holdingCids = [coerceContractId investorGenericTransferableCid]
       effectCid
