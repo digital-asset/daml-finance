@@ -4,10 +4,16 @@
 module Daml.Finance.Util.Date.DayCount
   ( calcDcf
   , calcDcf30E360
+  , calcPeriodDcf
+  , calcPeriodDcfActActIsda
+  , calcPeriodDcfActActIsma
   ) where
 
 import DA.Date
-import Daml.Finance.Interface.Types.Date.DayCount(DayCountConventionEnum(..))
+import Daml.Finance.Interface.Types.Date.DayCount
+import Daml.Finance.Interface.Types.Date.RollConvention (Period(..), PeriodEnum(..))
+import Daml.Finance.Interface.Types.Date.Schedule (Frequency, SchedulePeriod, StubPeriodTypeEnum(..))
+import Daml.Finance.Util.Date.RollConvention (next, previous)
 
 -- | Calculates the day count fraction given the correponding convention.
 -- Currently 30E360 is not supported as we do not want to expose the maturity date of the product as an additional parameter.
@@ -15,10 +21,84 @@ calcDcf : DayCountConventionEnum -> Date -> Date -> Decimal
 calcDcf _ f t | f > t = error "fromDate is greater than toDate"
 calcDcf Act360 f t = calcDcfAct360 f t
 calcDcf Act365_Fixed f t = calcDcfAct365Fixed f t
+calcDcf ActAct_ISDA f t = error "This calculation requires the knowledge of the stub period. Please, call `calcPeriodDcf` instead."
+calcDcf ActAct_ICMA f t = error "This calculation requires the knowledge of the stub period. Please, call `calcPeriodDcf` instead."
 calcDcf Basis_30360 f t = calcDcf30360 f t
 calcDcf Basis_30360_ICMA f t = calcDcf30360Icma f t
 calcDcf Basis_30E3360 f t = calcDcf30E360 False f t -- this corresponds to 30E/360 without the maturity date adjustment
-calcDcf Basis_30E360 f t = error "This calculation requires the knowledge of the maturity date of the product. Please, use `calcDcf30E360 instead`."
+calcDcf Basis_30E360 f t = error "This calculation requires the knowledge of the maturity date of the product. Please, use `calcDcf30E360` instead."
+
+-- | Calculate day count fraction for a schedule period.
+-- It takes the following parameters:
+--  - DayCountConventionEnum: to specify which day count convention should be used
+--  - SchedulePeriod: the schedule period for which the day count fraction should be calculated
+--  - Bool: Whether day count fraction should be calculated on adjusted dates (if False: unadjusted dates)
+--  - Date: The maturity date of the instrument
+--  - Frequency: the frequency of the schedule period
+calcPeriodDcf : DayCountConventionEnum -> SchedulePeriod -> Bool -> Date -> Frequency -> Decimal
+calcPeriodDcf ActAct_ISDA p useAdjustedDates maturityDate frequency = calcPeriodDcfActActIsda p useAdjustedDates maturityDate
+calcPeriodDcf ActAct_ICMA p useAdjustedDates maturityDate frequency = calcPeriodDcfActActIsma p useAdjustedDates maturityDate frequency
+calcPeriodDcf Basis_30E360 p useAdjustedDates maturityDate frequency = calcDcf30E360 (maturityDate == if useAdjustedDates then p.adjustedEndDate else p.unadjustedEndDate) (if useAdjustedDates then p.adjustedStartDate else p.unadjustedStartDate) (if useAdjustedDates then p.adjustedEndDate else p.unadjustedEndDate)
+calcPeriodDcf basis p useAdjustedDates _ _ = calcDcf basis (if useAdjustedDates then p.adjustedStartDate else p.unadjustedStartDate) (if useAdjustedDates then p.adjustedEndDate else p.unadjustedEndDate)
+
+-- | Calculate Actual Actual day count fraction according to the ISDA method.
+calcPeriodDcfActActIsda : SchedulePeriod -> Bool -> Date -> Decimal
+calcPeriodDcfActActIsda p useAdjustedDates maturityDate =
+  let
+    startDate = if useAdjustedDates then p.adjustedStartDate else p.unadjustedStartDate
+    endDate = if useAdjustedDates then p.adjustedEndDate else p.unadjustedEndDate
+    (y1, m1, d1) = toGregorian startDate
+    (y2, m2, d2) = toGregorian endDate
+    nYears = y2 - y1 + 1
+  in
+    -- DCF calculation depends on whether coupon period spans over year-end (more than one calendar year involved?)
+    case nYears of
+      1 -> intToDecimal nDaysY1 / intToDecimal nTotDaysY1
+            where
+              nDaysY1 = subDate endDate startDate
+              nTotDaysY1 = if isLeapYear y1 then 366 else 365
+      x | x > 1 -> intToDecimal nDaysY1 / intToDecimal nTotDaysY1 + (intToDecimal nYears - 2.0) + intToDecimal nDaysY2 / intToDecimal nTotDaysY2
+            where
+              dateYearEnd = fromGregorian (y1, Dec, 31)
+              nDaysY1 = subDate dateYearEnd startDate + 1
+              nDaysY2 = subDate endDate dateYearEnd - 1
+              nTotDaysY1 = if isLeapYear y1 then 366 else 365
+              nTotDaysY2 = if isLeapYear y2 then 366 else 365
+      _ -> error "The coupon end date must be in the same or in the following calendar year"
+
+-- | Calculate Actual Actual day count fraction according to the ISMA method.
+calcPeriodDcfActActIsma : SchedulePeriod -> Bool -> Date -> Frequency -> Decimal
+calcPeriodDcfActActIsma p useAdjustedDates maturityDate frequency =
+  let
+    startDate = if useAdjustedDates then p.adjustedStartDate else p.unadjustedStartDate
+    endDate = if useAdjustedDates then p.adjustedEndDate else p.unadjustedEndDate
+    nDays = subDate endDate startDate
+    nPeriodsPerYear = if frequency.period == M then 12.0 / intToDecimal frequency.periodMultiplier else error "only monthly period currently supported"
+    period = Period with
+      period = frequency.period
+      periodMultiplier = frequency.periodMultiplier
+  in
+    -- DCF calculation depends on the type of period (regular or stub)
+    case p.stubType of
+      None -> (intToDecimal nDays) / (intToDecimal nDays * nPeriodsPerYear)
+      Some SHORT_INITIAL -> (intToDecimal nDays) / (intToDecimal (subDate endDate notionalStartDate) * nPeriodsPerYear)
+        where
+          notionalStartDate = previous endDate period frequency.rollConvention
+      Some LONG_INITIAL -> (intToDecimal nDaysP1) / (intToDecimal nDaysP1 * nPeriodsPerYear) + (intToDecimal nDaysP2) / (intToDecimal (subDate notionalPaymentDate notionalStartDate) * nPeriodsPerYear)
+        where
+          notionalPaymentDate = previous endDate period frequency.rollConvention
+          notionalStartDate = previous notionalPaymentDate period frequency.rollConvention
+          nDaysP1 = subDate endDate notionalPaymentDate
+          nDaysP2 = subDate notionalPaymentDate startDate
+      Some SHORT_FINAL -> (intToDecimal nDays) / (intToDecimal (subDate notionalMaturityDate startDate) * nPeriodsPerYear)
+        where
+          notionalMaturityDate = next startDate period frequency.rollConvention
+      Some LONG_FINAL -> (intToDecimal nDaysP1) / (intToDecimal nDaysP1 * nPeriodsPerYear) + (intToDecimal nDaysP2)/ (intToDecimal (subDate notionalMaturityDate notionalPaymentDate) * nPeriodsPerYear)
+        where
+          notionalPaymentDate = next startDate period frequency.rollConvention
+          notionalMaturityDate = next notionalPaymentDate period frequency.rollConvention
+          nDaysP1 = subDate notionalPaymentDate startDate
+          nDaysP2 = subDate endDate notionalPaymentDate
 
 -- | HIDE
 -- | Calculate Actual 360 day count fraction.
@@ -80,3 +160,8 @@ calc30360Formula (y1, m1, d1) (y2, m2, d2) =
 isEndOfFebruary : (Int, Month, Int) -> Bool
 isEndOfFebruary (y, m, d) =
   m == Feb && d == monthDayCount y m
+
+-- | HIDE
+getDateEndOfFebruary : Int -> Date
+getDateEndOfFebruary y =
+  fromGregorian (y, Feb, monthDayCount y Feb)

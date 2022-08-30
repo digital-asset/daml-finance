@@ -47,18 +47,18 @@ run = script do
   TestParties{..} <- setupParties
 
   -- Account and holding factory
-  let pp = [("factoryProvider", singleton $ singleton publicParty)]
-  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank pp
+  let fp = [("FactoryProvider", singleton $ singleton publicParty)]
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank fp
   holdingFactoryCid <- toInterfaceContractId <$> submit bank do
-    createCmd Fungible.Factory with provider = bank; observers = M.fromList pp
+    createCmd Fungible.Factory with provider = bank; observers = M.fromList fp
 
   -- Create accounts
   [bankOwnAccount, investorAccount] <- mapA (Account.createAccount "Default Account" [publicParty] accountFactoryCid holdingFactoryCid [] bank) [bank, investor]
 
   -- Distribute cash
   now <- getTime
-  let obs = [("PublicParty", singleton $ singleton publicParty)]
-  cashInstrument <- Instrument.originate centralBank centralBank "USD" "United States Doller" obs now
+  let pp = [("PublicParty", singleton $ singleton publicParty)]
+  cashInstrument <- Instrument.originate centralBank centralBank "USD" "United States Doller" pp now
   bankCashTransferableCid <- Account.credit [publicParty] cashInstrument 50_000.0 bankOwnAccount
 
   -- Create observable
@@ -71,7 +71,7 @@ run = script do
   let
     equityObservable = "SPOT/AAPL"
     claims = when (TimeGte $ dateToDateClockTime maturity) $ scale (Observe equityObservable - Const 150.0) $ one cashInstrument
-  genericInstrument <- originateGeneric bank broker "FWD-AAPL" "Forward Contract" now claims obs now
+  genericInstrument <- originateGeneric bank broker "FWD-AAPL" "Forward Contract" now claims pp now
   investorGenericTransferableCid <- Account.credit [publicParty] genericInstrument 1_000.0 investorAccount
 
   -- create clock and clock update event
@@ -101,8 +101,7 @@ run = script do
       holdingCids = [coerceContractId investorGenericTransferableCid]
       effectCid
 
-  let
-    [bankCashInstructionCid] = result.instructionCids
+  let [bankCashInstructionCid] = result.instructionCids
 
   -- Allocate instructions
   bankCashInstructionCid <- submitMulti [bank] []  do exerciseCmd bankCashInstructionCid Instruction.Allocate with transferableCid = bankCashTransferableCid
@@ -110,8 +109,8 @@ run = script do
   -- Approve instructions
   bankCashInstructionCid <- submitMulti [investor] [] do exerciseCmd bankCashInstructionCid Instruction.Approve with receiverAccount = investorAccount
 
-  -- Settle container
-  [investorCashTransferableCid] <- submitMulti [settler] [publicParty] do exerciseCmd result.containerCid Batch.Settle
+  -- Settle batch
+  [investorCashTransferableCid] <- submitMulti [settler] [publicParty] do exerciseCmd result.batchCid Batch.Settle
 
   -- Assert state
   Holding.verifyOwnerOfHolding [(investor, investorCashTransferableCid)]

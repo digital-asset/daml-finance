@@ -18,42 +18,22 @@ import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (I)
 import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I)
 import Daml.Finance.Interface.Lifecycle.Observable qualified as Observable (I)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I)
-import Daml.Finance.Interface.Types.Common (Id(..))
-import Daml.Finance.Interface.Types.Date.Calendar
+import Daml.Finance.Interface.Types.Common (Id)
 import Daml.Finance.Interface.Types.Date.Classes (toUTCTime)
-import Daml.Finance.Interface.Types.Date.DayCount
-import Daml.Finance.Interface.Types.Date.RollConvention
-import Daml.Finance.Interface.Types.Date.Schedule
+import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
+import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..), Schedule, SchedulePeriod)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I)
 import Daml.Finance.Lifecycle.Effect (Effect(..))
-import Daml.Finance.RefData.HolidayCalendar
+import Daml.Finance.RefData.HolidayCalendar (GetCalendar(..), HolidayCalendar, HolidayCalendarKey(..))
 import Daml.Finance.RefData.Time.DateClock (Unit(..))
-import Daml.Finance.Util.Date.DayCount
-import Daml.Finance.Util.Date.Schedule
+import Daml.Finance.Util.Date.DayCount (calcPeriodDcf)
+import Daml.Finance.Util.Date.Schedule (createSchedule)
 import Prelude hiding (key)
 
--- | Retrieve holiday calendar(s) from the ledger and create a coupon schedule
-createCouponSchedule : Date -> [Text] -> BusinessDayConventionEnum -> PeriodEnum -> Int -> Date -> Date -> Party -> Party -> Update Schedule
-createCouponSchedule firstCouponDate holidayCalendarIds businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate issuer calendarDataAgency = do
+-- | Retrieve holiday calendar(s) from the ledger and roll out the coupon schedule.
+rollCouponSchedule : PeriodicSchedule -> [Text] -> Party -> Party -> Update Schedule
+rollCouponSchedule periodicSchedule holidayCalendarIds issuer calendarDataAgency = do
   let
-    (y, m, d) = toGregorian firstCouponDate
-    periodicSchedule = PeriodicSchedule with
-      businessDayAdjustment =
-        BusinessDayAdjustment with
-          calendarIds = holidayCalendarIds
-          convention = businessDayConvention
-      effectiveDateBusinessDayAdjustment = None
-      terminationDateBusinessDayAdjustment = None
-      frequency =
-        Frequency with
-          rollConvention = DOM d
-          period = couponPeriod
-          periodMultiplier = couponPeriodMultiplier
-      effectiveDate = issueDate
-      firstRegularPeriodStartDate = Some firstCouponDate
-      lastRegularPeriodEndDate = Some maturityDate
-      stubPeriodType = None
-      terminationDate = maturityDate
     -- get a holiday calendar from the ledger
     getCalendar holidayCalendarId = do
       exerciseByKey @HolidayCalendar holCalKey GetCalendar with viewer = issuer where
@@ -67,28 +47,27 @@ createCouponSchedule firstCouponDate holidayCalendarIds businessDayConvention co
 -- | Convert the claims to UTCTime and tag them
 prepareAndTagClaims : Applicative f => [Claim Date Decimal Deliverable Observable] -> Text -> f [TaggedClaim]
 prepareAndTagClaims claim tag = do
-  let
-    claims = mapClaimToUTCTime $ mconcat claim
+  let claims = mapClaimToUTCTime $ mconcat claim
   pure [taggedClaim tag claims]
 
 -- FIXED_RATE_BOND_COUPON_CLAIMS_BEGIN
 -- | Calculate a fix coupon amount for each coupon date and create claims
-createFixRateCouponClaims : (HasField "adjustedEndDate" r Date, HasField "adjustedStartDate" r Date, Applicative f) => [r] -> Decimal -> DayCountConventionEnum -> Deliverable -> f [TaggedClaim]
-createFixRateCouponClaims schedule couponRate dayCountConvention cashInstrumentCid = do
+createFixRateCouponClaims : Applicative f => [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> DayCountConventionEnum -> Deliverable -> f [TaggedClaim]
+createFixRateCouponClaims schedule periodicSchedule useAdjustedDatesForDcf couponRate dayCountConvention cashInstrumentCid = do
   let
     couponDatesAdjusted = map (.adjustedEndDate) schedule
-    couponAmounts = map (\p -> couponRate * (calcDcf dayCountConvention p.adjustedStartDate p.adjustedEndDate)) schedule
+    couponAmounts = map (\p -> couponRate * (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency)) schedule
     couponClaims = zipWith (\d a -> when (TimeGte $ d) $ scale (Const a) $ one cashInstrumentCid) couponDatesAdjusted couponAmounts
   prepareAndTagClaims couponClaims "Fix Coupon"
 -- FIXED_RATE_BOND_COUPON_CLAIMS_END
 
 -- FLOATING_RATE_BOND_COUPON_CLAIMS_BEGIN
 -- | Calculate a floating coupon amount for each coupon date and create claims
-createFloatingRateCouponClaims : (HasField "adjustedEndDate" r Date, HasField "adjustedStartDate" r Date, Applicative f) => [r] -> Decimal -> DayCountConventionEnum -> Deliverable -> Observable -> f [TaggedClaim]
-createFloatingRateCouponClaims schedule couponSpread dayCountConvention cashInstrumentCid referenceRateId = do
+createFloatingRateCouponClaims : Applicative f => [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> DayCountConventionEnum -> Deliverable -> Observable -> f [TaggedClaim]
+createFloatingRateCouponClaims schedule periodicSchedule useAdjustedDatesForDcf couponSpread dayCountConvention cashInstrumentCid referenceRateId = do
   let
     couponClaims = map (\p ->
-      when (TimeGte $ p.adjustedStartDate) $ scale ((Observe referenceRateId + Const couponSpread) * (Const (calcDcf dayCountConvention p.adjustedStartDate p.adjustedEndDate))) $
+      when (TimeGte $ p.adjustedStartDate) $ scale ((Observe referenceRateId + Const couponSpread) * (Const (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency))) $
       when (TimeGte $ p.adjustedEndDate) $ one cashInstrumentCid) schedule
   prepareAndTagClaims couponClaims "Floating Coupon"
 -- FLOATING_RATE_BOND_COUPON_CLAIMS_END
@@ -97,8 +76,7 @@ createFloatingRateCouponClaims schedule couponSpread dayCountConvention cashInst
 -- | Create a redemption claim
 createRedemptionClaim : Applicative f => Deliverable -> Date -> f [TaggedClaim]
 createRedemptionClaim cashInstrumentCid maturityDate = do
-  let
-    redemptionClaim = [when (TimeGte $ maturityDate) $ one cashInstrumentCid]
+  let redemptionClaim = [when (TimeGte $ maturityDate) $ one cashInstrumentCid]
   prepareAndTagClaims redemptionClaim "Redemption"
 -- FIXED_RATE_BOND_REDEMPTION_CLAIM_END
 
@@ -148,8 +126,7 @@ processClockUpdate settler eventCid _ self instrument observableCids = do
   -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_BEGIN
   -- Lifecycle
   (remaining, pending) <- lifecycleClaims observableCids acquisitionTime claims [timeEvent v.eventTime]
-  let
-    (consumed, produced) = splitPending pending
+  let (consumed, produced) = splitPending pending
   if remaining == claims && null pending then
     pure (self, [])
   else do

@@ -11,12 +11,11 @@ import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument
 import Daml.Finance.Interface.Instrument.Bond.InflationLinked qualified as InflationLinked (Create(..), Factory, HasImplementation, Remove(..), View(..))
 import Daml.Finance.Interface.Instrument.Generic.HasClaims qualified as HasClaims (I, View(..))
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..), View(..))
-import Daml.Finance.Interface.Types.Common (Id, InstrumentKey(..), Observers)
-import Daml.Finance.Interface.Types.Date.Calendar (BusinessDayConventionEnum)
+import Daml.Finance.Interface.Types.Common (Id(..), InstrumentKey(..), Observers)
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
-import Daml.Finance.Interface.Types.Date.RollConvention (PeriodEnum)
+import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..))
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
-import Daml.Finance.Util.Date.DayCount (calcDcf)
+import Daml.Finance.Util.Date.DayCount (calcPeriodDcf)
 import Prelude hiding ((<=), key, or)
 
 -- | Type synonym for `Instrument`.
@@ -48,24 +47,14 @@ template Instrument
       -- ^ The value of the inflation index on the first reference date of this bond (called "dated date" on US TIPS). This is used as the base value for the principal adjustment.
     couponRate : Decimal
       -- ^ The fixed coupon rate, per annum. For example, in case of a "0.5% p.a. coupon, CPI adjusted principal" this should be 0.005.
-    issueDate : Date
-      -- ^ The date when the bond was issued.
-    firstCouponDate : Date
-      -- ^ The first coupon date of the bond.
-    maturityDate : Date
-      -- ^ The last coupon date (and the redemption date) of the bond.
+    periodicSchedule : PeriodicSchedule
+      -- ^ The schedule for the periodic coupon payments.
     holidayCalendarIds : [Text]
       -- ^ the identifier of the holiday calendar to be used for the coupon schedule.
     calendarDataProvider : Party
       -- ^ The reference data provider to use for the holiday calendar.
     dayCountConvention : DayCountConventionEnum
       -- ^ The day count convention used to calculate day count fractions. For example: Act360.
-    businessDayConvention : BusinessDayConventionEnum
-      -- ^ An enum type to specify how a non-business day is adjusted. For example: FOLLOWING.
-    couponPeriod : PeriodEnum
-      -- ^ The coupon period. For example, in case of a 3M coupon period (a coupon every 3 months), this should be M.
-    couponPeriodMultiplier : Int
-      -- ^ The coupon period multiplier. For example, in case of a 3M coupon period (a coupon every 3 months), this should be 3.
     currency : Instrument.K
       -- ^ The currency of the bond. For example, if the bond pays in USD this should be a USD cash instrument.
     observers : Observers
@@ -81,18 +70,19 @@ template Instrument
     interface instance HasClaims.I for Instrument where
       view = HasClaims.View
         with
-          acquisitionTime = dateToDateClockTime issueDate
+          acquisitionTime = dateToDateClockTime periodicSchedule.effectiveDate
       getClaims = do
         -- get the initial claims tree (as of the bond's acquisition time)
-        schedule <- createCouponSchedule firstCouponDate holidayCalendarIds businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate issuer calendarDataProvider
+        schedule <- rollCouponSchedule periodicSchedule holidayCalendarIds issuer calendarDataProvider
 
         let
           -- calculate the current inflation factor (how inflation has developed from the first reference date until now)
           inflationFactor = Observe inflationIndexId / Const inflationIndexBaseValue
 
           -- calculate the fixed rate coupons (based on an inflation adjusted principal)
+          useAdjustedDatesForDcf = True
           couponClaims = map (\p ->
-            when (TimeGte $ p.adjustedEndDate) $ scale ((Const couponRate) * inflationFactor * (Const (calcDcf dayCountConvention p.adjustedStartDate p.adjustedEndDate))) $ one currency) schedule
+            when (TimeGte $ p.adjustedEndDate) $ scale ((Const couponRate) * inflationFactor * (Const (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency))) $ one currency) schedule
 
           -- check whether there has been deflation or inflation during the lifetime of the bond
           deflation = Observe inflationIndexId <= Const inflationIndexBaseValue
@@ -104,7 +94,7 @@ template Instrument
           inflationClaim = scale inflationFactor (one currency)
 
           -- add the redemption claim
-          redemptionClaim = when (TimeGte $ maturityDate) $ cond deflation deflationClaim inflationClaim
+          redemptionClaim = when (TimeGte $ periodicSchedule.terminationDate) $ cond deflation deflationClaim inflationClaim
 
         couponClaimsTagged <- prepareAndTagClaims couponClaims "Coupon"
         redemptionClaimTagged <- prepareAndTagClaims [redemptionClaim] "Redemption"
@@ -144,7 +134,7 @@ template Factory
     interface instance InflationLinked.Factory for Factory where
       asDisclosure = toInterface @Disclosure.I this
       view = InflationLinked.View with provider
-      create' InflationLinked.Create{instrument; description; inflationIndexId; inflationIndexBaseValue; couponRate; issueDate; firstCouponDate; maturityDate; holidayCalendarIds; calendarDataProvider; dayCountConvention; businessDayConvention; couponPeriod; couponPeriodMultiplier; currency; lastEventTimestamp; observers} = do
+      create' InflationLinked.Create{instrument; description; inflationIndexId; inflationIndexBaseValue; couponRate; periodicSchedule; holidayCalendarIds; calendarDataProvider; dayCountConvention; currency; lastEventTimestamp; observers} = do
         cid <- toInterfaceContractId <$> create Instrument
           with
             depository = instrument.depository
@@ -155,15 +145,10 @@ template Factory
             inflationIndexId
             inflationIndexBaseValue
             couponRate
-            issueDate
-            firstCouponDate
-            maturityDate
+            periodicSchedule
             holidayCalendarIds
             calendarDataProvider
             dayCountConvention
-            businessDayConvention
-            couponPeriod
-            couponPeriodMultiplier
             currency
             lastEventTimestamp
             observers
