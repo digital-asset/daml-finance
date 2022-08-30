@@ -16,7 +16,7 @@ Download the code for the tutorial
 **********************************
 
 The code of this tutorial resides in the `Daml Finance <https://github.com/digital-asset/daml-finance>`_ repo.
-You can install it locally by following :doc:`these instructions <install-daml-finance>`.
+You can download it locally by following :doc:`these instructions <download-daml-finance>`.
 
 In particular, the file ``src/test/daml/Daml/Finance/Instrument/Bond/Test/FixedRate.daml`` is the starting point
 of this tutorial.
