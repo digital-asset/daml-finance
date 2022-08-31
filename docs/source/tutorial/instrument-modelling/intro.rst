@@ -4,6 +4,14 @@
 Tutorial : Introduction
 #######################
 
+.. toctree::
+   :hidden:
+
+   bond-extension
+   derivative-extension
+   contingent-claims-instrument
+   contingent-claims-on-ledger-vs-on-the-fly
+
 Introduction
 ************
 

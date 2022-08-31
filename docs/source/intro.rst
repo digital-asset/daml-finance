@@ -39,4 +39,4 @@ The :doc:`Architecture <architecture>` page gives you an overview of the availab
 
 The :doc:`Core Concepts <core-concepts>` page defines the fundamental templates and interfaces provided by the library.
 
-The :doc:`Getting Started <getting-started/intro>` tutorials introduce the basic functionalities of the library through practical examples.
+The :doc:`Getting Started <tutorial/getting-started/intro>` tutorials introduce the basic functionalities of the library through practical examples.

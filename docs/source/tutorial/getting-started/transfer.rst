@@ -217,7 +217,7 @@ is returned. This is done using ``toInterfaceContractId``.
 In order to fully understand these instructions, we need to keep it mind
 the interface hierarchy used by our holding implementation.
 
-.. image:: ../images/interface_hierarchy.png
+.. image:: ../../images/interface_hierarchy.png
 
 We use ``coerceContractId`` to convert the ``Holding`` to a
 ``Transferable``. The success of this operation is not guaranteed and
