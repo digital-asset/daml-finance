@@ -1,17 +1,18 @@
 module Scripts.Setup where
 
-import DA.Map (empty)
+import DA.Map (empty, fromList)
+import DA.Set (singleton)
 import Daml.Script
 
 -- INTERFACE DEPENDENCIES --
-import Daml.Finance.Interface.Asset.Factory.Account qualified as Account (F)
-import Daml.Finance.Interface.Asset.Factory.Holding qualified as Holding (F)
-import Daml.Finance.Interface.Asset.Types (Id(..), InstrumentKey(..))
+import Daml.Finance.Interface.Holding.Factory.Account qualified as Account (F)
+import Daml.Finance.Interface.Holding.Factory.Holding qualified as Holding (F)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (I)
+import Daml.Finance.Interface.Types.Common (Id(..), InstrumentKey(..))
 
 -- IMPLEMENTATION DEPENDENCIES --
-import Daml.Finance.Asset.Account qualified as Account (Factory(..))
-import Daml.Finance.Asset.Fungible qualified as Fungible (Factory(..))
+import Daml.Finance.Holding.Account qualified as Account (Factory(..))
+import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Instrument.Base.Instrument (Instrument(..))
 
 import Workflow.CreateAccount
@@ -27,7 +28,7 @@ setup : Script()
 setup = do
 
   -- Allocate Parties.
-  [alice, bank, bob] <- mapA createParty $ ["Alice", "Bank", "Bob"]
+  [alice, bank, bob, public] <- mapA createParty $ ["Alice", "Bank", "Bob", "Public"]
 
   -- Account Factory (it is used by the bank to create accounts).
   -- CREATE_ACCOUNT_FACTORY_BEGIN
@@ -44,7 +45,7 @@ setup = do
     createCmd Fungible.Factory
       with
         provider = bank
-        observers = empty
+        observers = fromList [("PublicObserver", singleton $ singleton public )]
   -- CREATE_HOLDING_FACTORY_END
 
   -- Alice and Bob setup account @Bank
@@ -58,6 +59,7 @@ setup = do
     exerciseCmd aliceRequestCid AccountOpenRequest_Accept
       with
         label = "Alice@Bank"
+        description = "Account of Alice at Bank"
         accountFactoryCid = accountFactoryCid
         holdingFactoryCid = holdingFactoryCid
         observers = []
@@ -72,13 +74,16 @@ setup = do
     exerciseCmd bobRequestCid AccountOpenRequest_Accept
       with
         label = "Bob@Bank"
+        description = "Account of Bob at Bank"
         accountFactoryCid = accountFactoryCid
         holdingFactoryCid = holdingFactoryCid
         observers = [alice]
 
   -- Bank creates the cash instrument
   -- ISSUE_CASH_INSTRUMENT_BEGIN
-  let instrumentId = Id with label = "USD"; version = "0"
+  let
+    instrumentId = Id "USD"
+    instrumentVersion = "0"
   now <- getTime
 
   cashInstrumentCid <- toInterfaceContractId @Instrument.I <$> submit bank do
@@ -87,6 +92,8 @@ setup = do
         depository = bank
         issuer = bank
         id = instrumentId
+        description = "Instrument representing units of USD"
+        version = instrumentVersion
         observers = empty
         validAsOf = now
   -- ISSUE_CASH_INSTRUMENT_END
@@ -97,7 +104,7 @@ setup = do
     createCmd DepositRequest
       with
         account = aliceAccount
-        instrument = InstrumentKey with issuer = bank; depository = bank; id = instrumentId
+        instrument = InstrumentKey with issuer = bank; depository = bank; id = instrumentId; version = instrumentVersion
         amount = 1000.0
 
   aliceCashHoldingCid <- submit bank do exerciseCmd aliceRequestCid CashDepositRequest_Accept
@@ -109,11 +116,11 @@ setup = do
     createCmd TransferRequest
       with
         receiverAccount = bobAccount
-        instrument = InstrumentKey with issuer = bank; depository = bank; id = instrumentId
+        instrument = InstrumentKey with issuer = bank; depository = bank; id = instrumentId; version = instrumentVersion
         amount = 1000.0
         currentOwner = alice
 
-  newHoldingCid <- submit alice do exerciseCmd transferRequestCid CashTransferRequest_Accept with holdingCid = aliceCashHoldingCid
+  newHoldingCid <- submitMulti [alice] [public] do exerciseCmd transferRequestCid CashTransferRequest_Accept with holdingCid = aliceCashHoldingCid
   -- TRANSFER_END
 
   pure ()
