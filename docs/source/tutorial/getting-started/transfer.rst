@@ -1,8 +1,8 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-Getting started : Transfer
-############################
+Transfer
+########
 
 This tutorial introduces the core asset model of the library through a
 simple example. The purpose is to illustrate the concepts of
