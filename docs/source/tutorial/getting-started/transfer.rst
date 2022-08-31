@@ -94,7 +94,7 @@ The first instruction instantiates an account factory. This is just a
 template that is used by a party (the Bank in this case) to create
 accounts as part of the ``CreateAccount`` workflow.
 
-.. literalinclude:: ../../code-samples/getting-started-1/daml/Scripts/Setup.daml
+.. literalinclude:: ../../../code-samples/getting-started-1/daml/Scripts/Setup.daml
   :language: daml
   :start-after: -- CREATE_ACCOUNT_FACTORY_BEGIN
   :end-before: -- CREATE_ACCOUNT_FACTORY_END
@@ -106,7 +106,7 @@ of concrete template implementations.
 Similarly, we define a holding factory, which is used within an account
 to ``Credit`` and ``Debit`` holdings.
 
-.. literalinclude:: ../../code-samples/getting-started-1/daml/Scripts/Setup.daml
+.. literalinclude:: ../../../code-samples/getting-started-1/daml/Scripts/Setup.daml
   :language: daml
   :start-after: -- CREATE_HOLDING_FACTORY_BEGIN
   :end-before: -- CREATE_HOLDING_FACTORY_END
@@ -130,7 +130,7 @@ The creation of an account needs to be authorized by both the
 ``custodian`` and the ``owner`` (resp. the Bank and Alice in our
 case). Authorization is collected using an initiate / accept pattern.
 
-.. literalinclude:: ../../code-samples/getting-started-1/daml/Scripts/Setup.daml
+.. literalinclude:: ../../../code-samples/getting-started-1/daml/Scripts/Setup.daml
   :language: daml
   :start-after: -- SETUP_ALICE_ACCOUNT_BEGIN
   :end-before: -- SETUP_ALICE_ACCOUNT_END
@@ -143,7 +143,7 @@ Issuing the cash instrument
 In order to credit Alice’s account with some cash, we first need
 to introduce a cash ``Instrument`` in our model.
 
-.. literalinclude:: ../../code-samples/getting-started-1/daml/Scripts/Setup.daml
+.. literalinclude:: ../../../code-samples/getting-started-1/daml/Scripts/Setup.daml
   :language: daml
   :start-after: -- ISSUE_CASH_INSTRUMENT_BEGIN
   :end-before: -- ISSUE_CASH_INSTRUMENT_END
@@ -164,7 +164,7 @@ Depositing cash on Alice’s account
 We can now deposit cash on Alice’s account, using the ``Deposit``
 workflow.
 
-.. literalinclude:: ../../code-samples/getting-started-1/daml/Scripts/Setup.daml
+.. literalinclude:: ../../../code-samples/getting-started-1/daml/Scripts/Setup.daml
   :language: daml
   :start-after: -- CREATE_ALICE_HOLDING_BEGIN
   :end-before: -- CREATE_ALICE_HOLDING_END
@@ -182,7 +182,7 @@ Transferring cash from Alice to Bob
 The final step of our ``Setup`` script transfers Alice’s holding to Bob
 using the ``Transfer`` workflow.
 
-.. literalinclude:: ../../code-samples/getting-started-1/daml/Scripts/Setup.daml
+.. literalinclude:: ../../../code-samples/getting-started-1/daml/Scripts/Setup.daml
   :language: daml
   :start-after: -- TRANSFER_BEGIN
   :end-before: -- TRANSFER_END
@@ -209,7 +209,7 @@ How does the ``Transfer`` workflow work?
 If you look at the implementation of the ``Transfer`` workflow, you will
 notice the following lines:
 
-.. literalinclude:: ../../code-samples/getting-started-1/daml/Workflow/Transfer.daml
+.. literalinclude:: ../../../code-samples/getting-started-1/daml/Workflow/Transfer.daml
   :language: daml
   :start-after: -- DO_TRANSFER_BEGIN
   :end-before: -- DO_TRANSFER_END
@@ -312,7 +312,7 @@ This interface exposes the ``AddObservers`` and ``RemoveObservers`` choices, whi
 Next steps
 **********
 
-You now know know how to setup basic accounts, holdings and instruments.
+You now know how to setup basic accounts, holdings and instruments.
 You also learned how to perform a simple transfer.
 
 However, transfers typically happen within a larger financial transaction.
