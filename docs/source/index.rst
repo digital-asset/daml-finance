@@ -18,23 +18,23 @@ Daml Finance Documentation
 
 .. toctree::
    :maxdepth: 2
-   :caption: Architecture and concepts
+   :caption: Overview
 
    Introduction <intro>
    architecture
    core-concepts
 
 .. toctree::
-   :titlesonly:
    :maxdepth: 2
    :hidden:
-   :caption: Getting started
+   :caption: Packages
 
-   getting-started/intro
-   getting-started/transfer
-   getting-started/download-daml-finance
-   getting-started/settlement
-   getting-started/lifecycling
+   Introduction <packages/intro>
+   Core Interfaces <packages/core-interfaces>
+   packages/core-implementations
+   packages/asset-specific-extensions
+   packages/experimental-extensions
+   packages/upgrading
 
 .. toctree::
    :titlesonly:
@@ -42,11 +42,12 @@ Daml Finance Documentation
    :hidden:
    :caption: Tutorials
 
-   tutorial/intro
-   tutorial/bond-extension
-   tutorial/derivative-extension
-   tutorial/contingent-claims-instrument
-   tutorial/contingent-claims-on-ledger-vs-on-the-fly
+   Getting Started <tutorial/getting-started/intro>
+   Intrument modeling <tutorial/instrument-modelling/intro>
+   Intermediated settlement <tutorial/intermediated-settlement/intro>
+   Extending implementations <tutorial/extending-implementations/intro>
+   Non-financial use cases <tutorial/non-financial-use-cases/intro>
+
 
 .. toctree::
    :titlesonly:

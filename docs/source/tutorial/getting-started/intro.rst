@@ -4,6 +4,14 @@
 Getting Started : Introduction
 ##############################
 
+.. toctree::
+   :hidden:
+
+   transfer
+   settlement
+   download-daml-finance
+   lifecycling
+
 Introduction
 ************
 

@@ -26,14 +26,14 @@ Consider a fixed rate bond which pays a 4% p.a. coupon with a 6M coupon period.
 Assume there are two coupons remaining until maturity: one today and one in 180 days.
 This could be modeled in the following way using ``Contingent Claims``:
 
-.. literalinclude:: ../../../src/test/daml/Daml/Finance/Instrument/Generic/Test/Intermediated/BondCoupon.daml
+.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Generic/Test/Intermediated/BondCoupon.daml
   :language: daml
   :start-after: -- CREATE_CC_INSTRUMENT_VARIABLES_BEGIN
   :end-before: -- CREATE_CC_INSTRUMENT_VARIABLES_END
 
 Now that we have specified the economic terms we can create a derivative instrument:
 
-.. literalinclude:: ../../../src/test/daml/Daml/Finance/Instrument/Generic/Test/Intermediated/BondCoupon.daml
+.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Generic/Test/Intermediated/BondCoupon.daml
   :language: daml
   :start-after: -- CREATE_CC_INSTRUMENT_BEGIN
   :end-before: -- CREATE_CC_INSTRUMENT_END
