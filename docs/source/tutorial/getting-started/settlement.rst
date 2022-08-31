@@ -49,65 +49,66 @@ For every instruction
 A :ref:`Batch <type-daml-finance-interface-settlement-batch-batch-97497>` contract is used to settle all instructions atomically (transfering all allocated holdings to the corresponding receiving accounts).
 This batch contract is created in step 2, together with the settlement instructions.
 
-.. The ``Workflow`` folder includes an ``FXTradeProposal`` template, which is used to propose an exchange of two assets. These are specified as :ref:`instrument quantities <type-daml-finance-interface-instrument-base-instrument-q-62956>`.
+Running the script
+******************
 
-.. Once the proposal is accepted by the counterparty, we generate
-.. - settlement instructions for each step to be settled
-.. - a batch contract used to settle all instructions atomically
+This tutorial is executed in the ``Settlement`` script.
 
-.. Outline of the ``FXTradeProposal`` template
-.. *******************************************
+The first part is a repetition of the workflow of the previous tutorial. Only, in this case, two cash instruments are issued instead of just one.
 
-.. The ``Workflow`` folder includes an ``FXTradeProposal`` template, which is used to propose an exchange of two assets. These are specified as :ref:`instrument quantities <type-daml-finance-interface-instrument-base-instrument-q-62956>`.
+The interesting bit starts once Alice proposes the FX trade to Bob. Before creating the trade proposal, we need to instantiate a :ref:`Settlement Factory <type-daml-finance-interface-settlement-factory-factory-31525>` contract.
 
-.. Once the proposal is accepted by the counterparty, we generate
-.. - settlement instructions for each step to be settled
-.. - a batch contract used to settle all instructions atomically
+.. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Settlement.daml
+  :language: daml
+  :start-after: -- SETTLEMENT_FACTORY_BEGIN
+  :end-before: -- SETTLEMENT_FACTORY_END
 
-Running the setup script
-************************
+This is used to generate settlement instruction from settlement :ref:`steps <type-daml-finance-interface-settlement-types-step-78661>`.
 
-Creating a ``Settlement factory``
-=================================
-
-The first part of the setup script is a repetition of the workflow of the previous tutorial.
-
-The interesting bit starts once Alice proposes the FX trade to Bob.
+Alice creates an ``FXTradeProposal`` template to propose the exchange of ``EUR`` against ``USD``.
 
 .. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Settlement.daml
   :language: daml
   :start-after: -- FX_PROPOSE_BEGIN
   :end-before: -- FX_PROPOSE_END
 
-In order to create this contract, we need to pass in a :ref:`Settlement Factory <type-daml-finance-interface-settlement-factory-factory-31525>` contract.
-This is used to generate settlement instructions given a set of :ref:`steps <type-daml-finance-interface-settlement-types-step-78661>`.
-
-The ``Settlement Factory`` contract is created before the proposal and signed by the bank.
-
-.. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Settlement.daml
-  :language: daml
-  :start-after: -- BATCH_FACTORY_BEGIN
-  :end-before: -- BATCH_FACTORY_END
-
-Bob then accepts the proposal.
+Bob then accepts the proposal, agreeing to the terms of the trade.
 
 .. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Settlement.daml
   :language: daml
   :start-after: -- FX_ACCEPT_BEGIN
   :end-before: -- FX_ACCEPT_END
 
-Once the proposal is accepted, three additional contracts are created:
-- an instruction to transfer ``1000 USD`` from Alice to Bob
-- an instruction to transfer ``1000 EUR`` from Bob to Alice
+Once the proposal is accepted, three contracts are created:
+
+- an instruction to transfer ``1000 EUR`` from Alice to Bob
+- an instruction to transfer ``1000 USD`` from Bob to Alice
 - a batch contract to settle the two instructions atomically
-.. - Atomic Dvp (Alice -> Bob and Bob -> Alice)
 
-..   #. Instructing
-..   #. Allocation
-..   #. Approval
-..   #. Settlement
+The workflow to create these contracts makes use of the settlement factory.
 
-.. Where can I explain the above pattern? Instruct, allocate, approve, settle
+.. literalinclude:: ../../../code-samples/getting-started/daml/Workflow/FXTrade.daml
+  :language: daml
+  :start-after: -- INSTRUCT_BEGIN
+  :end-before: -- INSTRUCT_END
+
+As a next step, Alice allocates her ``EUR`` holding to the corresponding instruction. Bob then approves the instruction specifying the receiving account.
+
+.. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Settlement.daml
+  :language: daml
+  :start-after: -- ALLOCATE_APPROVE_BEGIN
+  :end-before: -- ALLOCATE_APPROVE_END
+
+The same happens on the second instruction (where Bob allocates his ``USD`` holding and Alice provides the receiving account).
+
+Now that all instructions are fully allocated and approved, they can be finally settled.
+
+.. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Settlement.daml
+  :language: daml
+  :start-after: -- SETTLE_BEGIN
+  :end-before: -- SETTLE_END
+
+Within the same transaction, Alice receives a ``USD`` holding from Bob in exchange for a ``EUR`` holding.
 
 Further considerations
 **********************
