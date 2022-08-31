@@ -1,8 +1,8 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-Getting started : Lifecycling
-###############################
+Lifecycling
+###########
 
 This tutorial describes the :ref:`lifecycle <lifecycling>` flow between two counterparties.
 We will use a bond instrument to illustrate the different steps:
