@@ -1,8 +1,8 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-Getting started : Download Daml Finance
-#######################################
+Download Daml Finance
+#####################
 
 If you want to have a more detailed look in the Daml Finance codebase, you can clone the repo
 locally on your machine. That allows you to navigate the code, both the template definitions

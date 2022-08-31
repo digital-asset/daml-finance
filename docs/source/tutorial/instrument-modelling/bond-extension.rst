@@ -1,8 +1,8 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-Tutorial : How to use the Bond extension package
-################################################
+How to use the Bond extension package
+#####################################
 
 Download the code for the tutorial
 **********************************

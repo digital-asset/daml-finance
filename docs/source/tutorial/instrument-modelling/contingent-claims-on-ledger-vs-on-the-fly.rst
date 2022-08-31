@@ -1,8 +1,8 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-Tutorial : Contingent Claims tree on ledger vs on-the-fly creation
-##################################################################
+Contingent Claims tree on ledger vs on-the-fly creation
+#######################################################
 
 Different ways to create and store the Contingent Claims tree
 *************************************************************

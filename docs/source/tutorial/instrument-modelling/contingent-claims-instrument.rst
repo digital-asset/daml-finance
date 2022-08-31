@@ -1,8 +1,8 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-Tutorial : How to implement a Contingent Claims-based instrument
-################################################################
+How to implement a Contingent Claims-based instrument
+#####################################################
 
 In this chapter we will look at how to create a strongly typed instrument, which leverages
 the ``Contingent Claims`` library.

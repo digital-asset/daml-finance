@@ -48,6 +48,13 @@ Daml Finance Documentation
    Extending implementations <tutorial/extending-implementations/intro>
    Non-financial use cases <tutorial/non-financial-use-cases/intro>
 
+.. toctree::
+   :titlesonly:
+   :maxdepth: 2
+   :hidden:
+   :caption: Demo Application
+
+   Introduction <demo-application/intro>
 
 .. toctree::
    :titlesonly:
