@@ -17,6 +17,9 @@ We are going to
 #. credit a cash holding to Alice’s account
 #. transfer the holding from Alice to Bob
 
+We expect the reader to be familiar with the basic building blocks of Daml.
+If that is not the case, a suitable introduction can be found in `this page <https://www.digitalasset.com/developers/learn>`_.
+
 Download the code for the tutorial
 **********************************
 
@@ -74,7 +77,7 @@ the template implementations used in ``daml-finance`` and, thus, makes it easier
 to upgrade the one without being forced to upgrade the other.
 
 On the other hand, the script in the ``Scripts`` folder depends also on
-implementation packages (in this case, ``Daml.Finance.Asset``).
+implementation packages (in this case, ``Daml.Finance.Holding`` and ``Daml.Finance.Instrument.Base``).
 
 This is not problematic, as the script is meant to be run only once when
 the application is initialized.
@@ -91,7 +94,7 @@ The first instruction instantiates an account factory. This is just a
 template that is used by a party (the Bank in this case) to create
 accounts as part of the ``CreateAccount`` workflow.
 
-.. literalinclude:: code/daml/Scripts/Setup.daml
+.. literalinclude:: ../../code-samples/getting-started-1/daml/Scripts/Setup.daml
   :language: daml
   :start-after: -- CREATE_ACCOUNT_FACTORY_BEGIN
   :end-before: -- CREATE_ACCOUNT_FACTORY_END
@@ -103,7 +106,7 @@ of concrete template implementations.
 Similarly, we define a holding factory, which is used within an account
 to ``Credit`` and ``Debit`` holdings.
 
-.. literalinclude:: code/daml/Scripts/Setup.daml
+.. literalinclude:: ../../code-samples/getting-started-1/daml/Scripts/Setup.daml
   :language: daml
   :start-after: -- CREATE_HOLDING_FACTORY_BEGIN
   :end-before: -- CREATE_HOLDING_FACTORY_END
@@ -112,6 +115,10 @@ This factory contract can be used to create ``Fungible`` holdings, which
 are defined in ``Daml.Finance.Asset.Fungible`` and are
 :ref:`fungible <fungibility>`, as well as
 :ref:`transferable <transferability>`.
+
+We are adding a so-called *public party* as an observer to the holding factory.
+This is done to ensure that every other party has visibility over this contract, as all parties can `readAs` the public party.
+The reason why this is necessary will come into play at the end of this tutorial.
 
 Opening Alice’s and Bob’s accounts
 ==================================
@@ -123,7 +130,7 @@ The creation of an account needs to be authorized by both the
 ``custodian`` and the ``owner`` (resp. the Bank and Alice in our
 case). Authorization is collected using an initiate / accept pattern.
 
-.. literalinclude:: code/daml/Scripts/Setup.daml
+.. literalinclude:: ../../code-samples/getting-started-1/daml/Scripts/Setup.daml
   :language: daml
   :start-after: -- SETUP_ALICE_ACCOUNT_BEGIN
   :end-before: -- SETUP_ALICE_ACCOUNT_END
@@ -136,7 +143,7 @@ Issuing the cash instrument
 In order to credit Alice’s account with some cash, we first need
 to introduce a cash ``Instrument`` in our model.
 
-.. literalinclude:: code/daml/Scripts/Setup.daml
+.. literalinclude:: ../../code-samples/getting-started-1/daml/Scripts/Setup.daml
   :language: daml
   :start-after: -- ISSUE_CASH_INSTRUMENT_BEGIN
   :end-before: -- ISSUE_CASH_INSTRUMENT_END
@@ -157,7 +164,7 @@ Depositing cash on Alice’s account
 We can now deposit cash on Alice’s account, using the ``Deposit``
 workflow.
 
-.. literalinclude:: code/daml/Scripts/Setup.daml
+.. literalinclude:: ../../code-samples/getting-started-1/daml/Scripts/Setup.daml
   :language: daml
   :start-after: -- CREATE_ALICE_HOLDING_BEGIN
   :end-before: -- CREATE_ALICE_HOLDING_END
@@ -175,13 +182,16 @@ Transferring cash from Alice to Bob
 The final step of our ``Setup`` script transfers Alice’s holding to Bob
 using the ``Transfer`` workflow.
 
-.. literalinclude:: code/daml/Scripts/Setup.daml
+.. literalinclude:: ../../code-samples/getting-started-1/daml/Scripts/Setup.daml
   :language: daml
   :start-after: -- TRANSFER_BEGIN
   :end-before: -- TRANSFER_END
 
 Bob requests the cash to be transferred to his account. Alice
 then accepts the request.
+
+You notice that here we make explicit use of the fact that Alice can ``readAs`` the public party.
+This is needed as, in order to complete the transfer, visibility on the receiving account's holding factory is required.
 
 Further considerations
 **********************
@@ -199,7 +209,7 @@ How does the ``Transfer`` workflow work?
 If you look at the implementation of the ``Transfer`` workflow, you will
 notice the following lines:
 
-.. literalinclude:: code/daml/Workflow/Transfer.daml
+.. literalinclude:: ../../code-samples/getting-started-1/daml/Workflow/Transfer.daml
   :language: daml
   :start-after: -- DO_TRANSFER_BEGIN
   :end-before: -- DO_TRANSFER_END
@@ -238,10 +248,6 @@ This is because the party exercising the ``Transfer`` choice, which in
 this case is Alice, needs to fetch Bob’s account in order to
 verify that it has not been archived.
 
-In one of the following tutorials, we will see how to use the ``Disclosure``
-interface to temporarily disclose Bob’s account to Alice and
-then undisclose it as part of the same transaction.
-
 If we wanted to avoid Bob’s account contract ever being disclosed
 to Alice, we would need a third party (in this case the Bank) to
 execute the ``Transfer``.
@@ -276,15 +282,15 @@ There are a couple of improvements to the code that can be implemented as an exe
 Giving them a try will help you familiarize yourself with the library and with Daml interfaces.
 
 Split the holding to transfer the right amount
-==================================================
+==============================================
 
 In the example, Bob requests ``1,000 USD`` from Alice and Alice allocates a holding for exactly the right amount, because the transfer would otherwise fail.
 We want the transfer to be successful also if Alice allocates a holding for a larger amount e.g., ``1,500 USD``.
 
-We can leverage the fact that the holding is ``Fungible``, which makes it possible to ``Split`` it into a holding of ``1,000 USD`` and one of ``500 USD``.
+We can leverage the fact that the holding implements the :ref:`Fungible <type-daml-finance-interface-holding-fungible-fungible-60176>` interface, which makes it possible to ``Split`` it into a holding of ``1,000 USD`` and one of ``500 USD``.
 In the implementation of the ``CashTransferRequest_Accept`` choice
 
-- cast the allocated holding to the ``Fungible`` interface (which is defined in ``Daml.Finance.Interface.Asset.Fungible``)
+- cast the allocated holding to the ``Fungible`` interface
 - use the ``Split`` choice to split the larger holding into two holdings
 - execute the transfer, allocating the holding on the correct amount
 
@@ -300,6 +306,14 @@ Modify the original code, such that
 - Bob's account is disclosed to Alice once the transfer is initiated
 - When the Transfer is executed, Alice removes herself from the account observers
 
-In order to do that, you can leverage the fact that ``Account`` implements the ``Disclosure`` interface (which is defined in ``Daml.Finance.Interface.Common``).
+In order to do that, you can leverage the fact that ``Account`` implements the :ref:`Disclosure <type-daml-finance-interface-util-disclosure-disclosure-97052>` interface.
 This interface exposes the ``AddObservers`` and ``RemoveObservers`` choices, which can be used to disclose / undisclose Bob's account contract to Alice.
 
+Next steps
+**********
+
+You now know know how to setup basic accounts, holdings and instruments.
+You also learned how to perform a simple transfer.
+
+However, transfers typically happen within a larger financial transaction.
+The next tutorial will show you how to create such a transaction and how to settle all transfers atomically.
