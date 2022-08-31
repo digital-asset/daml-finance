@@ -1,0 +1,115 @@
+module Scripts.Settlement where
+
+import DA.Map as M (empty)
+import DA.Set as S (fromList)
+import Daml.Script
+
+-- INTERFACE DEPENDENCIES --
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (I, qty)
+import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
+import Daml.Finance.Interface.Settlement.Factory qualified as Factory (I)
+import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Types.Common (Id(..), InstrumentKey(..))
+
+-- IMPLEMENTATION DEPENDENCIES --
+import Daml.Finance.Instrument.Base.Instrument (Instrument(..))
+import Daml.Finance.Settlement.Factory (Factory(..))
+
+import Workflow.Deposit
+import Workflow.FXTrade
+
+import Scripts.Transfer (runTransfer)
+
+-- | Test script that
+-- 1. creates an account for Alice and Bob at the Bank
+-- 2. issues two cash instruments
+-- 3. credits a cash holding to Alice on her bank account and one to Bob
+-- 4. atomically exchanges the two holdings
+runSettlement : Script()
+runSettlement = do
+
+  -- Retrieve state from `Transfer` script.
+  -- This way we do not need to setup accounts and factories again.
+  (alice, bank, bob, public, aliceAccount, bobAccount, usdInstrument, holdingFactoryCid, bobHoldingCid) <- runTransfer
+
+  -- Bank issues a second cash instrument
+  let
+    instrumentId = Id "EUR"
+    instrumentVersion = "0"
+    eurInstrument = InstrumentKey with issuer = bank; depository = bank; id = instrumentId; version = instrumentVersion
+
+  now <- getTime
+
+  eurInstrumentCid <- toInterfaceContractId @Instrument.I <$> submit bank do
+    createCmd Instrument
+      with
+        depository = bank
+        issuer = bank
+        id = instrumentId
+        description = "Instrument representing units of EUR"
+        version = instrumentVersion
+        observers = empty
+        validAsOf = now
+
+  -- Alice deposits EUR cash at the bank
+  aliceRequestCid <- submit alice do
+    createCmd DepositRequest
+      with
+        account = aliceAccount
+        instrument = eurInstrument
+        amount = 1000.0
+
+  aliceHoldingCid <- submit bank do exerciseCmd aliceRequestCid CashDepositRequest_Accept
+
+  -- Setup a Batch Factory facility
+  -- This is used to generate settlement instructions from a list of `Step`s
+  -- BATCH_FACTORY_BEGIN
+  batchFactoryCid <- toInterfaceContractId @Factory.I <$> submit bank do
+    createCmd Factory
+      with
+        provider = bank
+        observers = S.fromList [alice, bob]
+  -- BATCH_FACTORY_END
+
+  -- Alice proposes an FX trade to Bob
+  -- FX_PROPOSE_BEGIN
+  fxTradeProposalCid <- submit alice do
+    createCmd FXTradeProposal with
+      id = "xccy trade"
+      recQuantity = Instrument.qty 1000.0 usdInstrument
+      payQuantity = Instrument.qty 1000.0 eurInstrument
+      proposer = alice
+      counterparty = bob
+      batchFactoryCid = batchFactoryCid
+  -- FX_PROPOSE_END
+
+  -- FX_ACCEPT_BEGIN
+  (settleableCid, recSettleInstructionCid, paySettleInstructionCid) <- submit bob do
+    exerciseCmd fxTradeProposalCid FXTradeProposal_Accept
+  -- FX_ACCEPT_END
+
+  -- Settle the FX Trade
+
+  -- i. Bob allocates his asset, Alice approves by providing her account.
+  allocatedRecSettleInstructionCid <- submit bob do
+    exerciseCmd recSettleInstructionCid Instruction.Allocate with
+      transferableCid = coerceContractId bobHoldingCid
+
+  approvedRecSettleInstructionCid <- submit alice do
+    exerciseCmd allocatedRecSettleInstructionCid Instruction.Approve with
+      receiverAccount = aliceAccount
+
+  -- ii. Alice allocates her asset, Bob approves by providing his account.
+  allocatedPaySettleInstructionCid <- submit alice do
+    exerciseCmd paySettleInstructionCid Instruction.Allocate with
+      transferableCid = coerceContractId aliceHoldingCid
+
+  approvedPaySettleInstructionCid <- submit bob do
+    exerciseCmd allocatedPaySettleInstructionCid Instruction.Approve with
+      receiverAccount = bobAccount
+
+  -- iii. Alice executes the settlement.
+  dvpSettleResult <- submitMulti [alice] [public] do
+    exerciseCmd settleableCid Batch.Settle
+
+  pure ()

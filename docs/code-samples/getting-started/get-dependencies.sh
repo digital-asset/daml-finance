@@ -14,7 +14,9 @@ dependencies=( \
   "Daml.Finance.Instrument.Base" \
   "Daml.Finance.Interface.Holding" \
   "Daml.Finance.Interface.Instrument.Base" \
+  "Daml.Finance.Interface.Settlement" \
   "Daml.Finance.Interface.Types" \
+  "Daml.Finance.Settlement" \
 )
 
 for dependency in "${dependencies[@]}"; do
@@ -35,4 +37,3 @@ for dependency in "${dependencies[@]}"; do
   fi
 
 done
-

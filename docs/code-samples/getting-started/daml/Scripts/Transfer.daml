@@ -1,14 +1,15 @@
-module Scripts.Setup where
+module Scripts.Transfer where
 
 import DA.Map (empty, fromList)
 import DA.Set (singleton)
 import Daml.Script
 
 -- INTERFACE DEPENDENCIES --
+import Daml.Finance.Interface.Holding.Base qualified as Holding (I)
 import Daml.Finance.Interface.Holding.Factory.Account qualified as Account (F)
 import Daml.Finance.Interface.Holding.Factory.Holding qualified as Holding (F)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (I)
-import Daml.Finance.Interface.Types.Common (Id(..), InstrumentKey(..))
+import Daml.Finance.Interface.Types.Common (AccountKey, Id(..), InstrumentKey(..))
 
 -- IMPLEMENTATION DEPENDENCIES --
 import Daml.Finance.Holding.Account qualified as Account (Factory(..))
@@ -24,8 +25,8 @@ import Workflow.Transfer
 -- 2. issues a cash instrument
 -- 3. credits a cash holding to Alice on her bank account
 -- 4. transfers the holding from Alice to Bob
-setup : Script()
-setup = do
+runTransfer : Script Data
+runTransfer = do
 
   -- Allocate Parties.
   [alice, bank, bob, public] <- mapA createParty $ ["Alice", "Bank", "Bob", "Public"]
@@ -112,18 +113,24 @@ setup = do
 
   -- Bob requests a cash transfer from Alice
   -- TRANSFER_BEGIN
+  let cashInstrument = InstrumentKey with issuer = bank; depository = bank; id = instrumentId; version = instrumentVersion
+
   transferRequestCid <- submit bob do
     createCmd TransferRequest
       with
         receiverAccount = bobAccount
-        instrument = InstrumentKey with issuer = bank; depository = bank; id = instrumentId; version = instrumentVersion
+        instrument = cashInstrument
         amount = 1000.0
         currentOwner = alice
 
   newHoldingCid <- submitMulti [alice] [public] do exerciseCmd transferRequestCid CashTransferRequest_Accept with holdingCid = aliceCashHoldingCid
   -- TRANSFER_END
 
-  pure ()
+  pure (alice, bank, bob, public, aliceAccount, bobAccount, cashInstrument, holdingFactoryCid, newHoldingCid)
 
+-- | Creates a party given a hint.
 createParty : Text -> Script Party
 createParty name = allocatePartyWithHint name $ PartyIdHint name
+
+-- | Helper container used to transfer state from one script to another.
+type Data = (Party, Party, Party, Party, AccountKey, AccountKey, InstrumentKey, ContractId Holding.F, ContractId Holding.I)
