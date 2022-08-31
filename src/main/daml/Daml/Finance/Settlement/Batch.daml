@@ -7,11 +7,10 @@ module Daml.Finance.Settlement.Batch
   ) where
 
 import DA.Foldable (forA_)
-import DA.List (dedup)
-import DA.Optional (fromSomeNote)
-import DA.Set (fromList, singleton)
+import DA.Optional (fromSome, fromSomeNote)
+import DA.Set (fromList, singleton, size)
 import Daml.Finance.Interface.Holding.Account qualified as Account (exerciseInterfaceByKey)
-import Daml.Finance.Interface.Holding.Base qualified as Base (GetTemplateTypeRepText(..), I)
+import Daml.Finance.Interface.Holding.Base qualified as Base (I)
 import Daml.Finance.Interface.Holding.Util (fetchAccount, getAccount)
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (HasImplementation, I, View(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Execute(..))
@@ -53,7 +52,7 @@ template Batch
             (instructionCid, instruction) <- fetchByKey @Instruction (requestors, instructionId)
             let
               receiverAccount = fromSomeNote "Receiving account not set" instruction.account
-              senderTransferableCid = fromSomeNote "Holding not allocated" instruction.allocation
+              senderTransferableCid = fst $ fromSomeNote "Holding not allocated" instruction.allocation
               holdingCid : ContractId Base.I = coerceContractId senderTransferableCid
             holding <- fetch holdingCid
             fetchAccount holding
@@ -64,13 +63,12 @@ template Batch
             -- NOTE: ideally we should exerciseByKey (but currently doesn't work for interface choices).
             -- (as a workaround we could proxy the choice in the same contract)
             (instructionCid, instruction) <- fetchByKey @Instruction (requestors, instructionId)
-            exercise instructionCid Instruction.Execute
+            transferableCid <- exercise instructionCid Instruction.Execute
+            pure (transferableCid, snd $ fromSome instruction.allocation)
         l <- mapA settleInstruction instructionIds
         -- check consistency
-        isConsistent <- (== 1) . length . dedup <$> mapA (\holdingCid ->
-            exercise (coerceContractId holdingCid : ContractId Base.I) Base.GetTemplateTypeRepText with actor = settler
-          ) l
-        assertMsg "The template type rep of allocated holdings must be the same for all instructions." isConsistent
+        let (transferableCids, templateTypeRepTexts) = unzip l
+        assertMsg "The template type rep of allocated holdings must be the same for all instructions." $ size (fromList templateTypeRepTexts) == 1
         forA_ accountInstructionIds \(account, id) ->
           Account.exerciseInterfaceByKey @Disclosure.I account settler Disclosure.RemoveObservers with observersToRemove = (show id, singleton settler)
-        pure l
+        pure transferableCids
