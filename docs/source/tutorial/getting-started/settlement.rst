@@ -119,6 +119,48 @@ Within the same transaction, Alice receives a ``USD`` holding from Bob in exchan
 Further considerations
 **********************
 
-Why do we need a batch factory?
+We now take a look at some aspects of the workflow and try to answer
+some questions that you might be having.
+
+If you are curious to see more use-cases for the library, feel free to
+jump to the next tutorials and come back to this section when you feel
+it is the right time.
+
+Why do we need a settlement factory?
+====================================
+
+A settlement factory contract is used to generate settlement instructions from steps.
+It also generates a batch contract which is used to settle instructions atomically.
+
+The first reason why the factory is needed has already been introduced in the previous tutorial:
+it provides an interface abstraction, so that your workflow does not need to depend on concrete implementations
+of ``Batch`` or ``Instruction``.
+
+A second aspect has to do with intermediated settlement.
+
+Consider a real-world example where Alice instructs a bank transfer to send 100 USD to Bob. The following happens:
+
+- 100 USD are debited from Alice's account at her bank
+- 100 USD are transferred from Alice's bank to Bob's bank (via their accounts at the central bank)
+- 100 USD are credited to Bob's account at his bank
+
+A single ``Step`` requires three instructions to settle.
+
+The same dynamics can be reproduced in Daml with the Settlement Factory, allowing for on-ledger intermediated settlement.
+An example will be covered in one of the following tutorials.
+
+Can we use a different settler?
 ===============================
+
+In our example, Alice triggers the final settlement of the transaction (by exercising the ``Settle`` choice on the ``Batch`` contract).
+
+In principle, a different settler could be chosen. The choice of a settler is usually quite delicate, as this party acquires visibility on the entire transaction and hence needs to be trusted.
+
+Next steps
+**********
+
+You now know how to define complex transactions and settle them atomically.
+
+In the next tutorial, we will introduce the lifecycling framework of the library, which is used to model the evolution of instruments.
+The concepts of the settlement tutorial will be used to settle payments arising from lifecycling events.
 
