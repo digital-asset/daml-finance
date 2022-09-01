@@ -22,6 +22,7 @@ import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffe
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..))
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
 import Daml.Finance.Interface.Settlement.Types (Step)
 import Daml.Finance.Interface.Types.Common (Id(..))
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, AddObservers(..))
@@ -192,15 +193,15 @@ run = script do
     [csdCashInstructionCid, bankCashInstructionCid] = result.instructionCids
 
   -- Allocate instructions
-  csdCashInstructionCid <- submitMulti [csd] [] do exerciseCmd csdCashInstructionCid Instruction.Allocate with transferableCid = cashHolding
+  csdCashInstructionCid <- submitMulti [csd] [] do exerciseCmd csdCashInstructionCid Instruction.Allocate with allocation = PLEDGE cashHolding
   bankOwnCashTransferableCid <- Account.credit [publicParty] cashInstrument 20_000.0 bankOwnCashAccount
-  bankCashInstructionCid <- submitMulti [bank] [] do exerciseCmd bankCashInstructionCid Instruction.Allocate with transferableCid = bankOwnCashTransferableCid
+  bankCashInstructionCid <- submitMulti [bank] [] do exerciseCmd bankCashInstructionCid Instruction.Allocate with allocation = PLEDGE bankOwnCashTransferableCid
 
   -- Approve instructions
   csdCashInstructionCid <- submitMulti [bank] [] do
-    exerciseCmd csdCashInstructionCid Instruction.Approve with receiverAccount = bankCashAccount
+    exerciseCmd csdCashInstructionCid Instruction.Approve with approval = TAKE_DELIVERY  bankCashAccount
   bankCashInstructionCid <- submitMulti [investor] [] do
-    exerciseCmd bankCashInstructionCid Instruction.Approve with receiverAccount = investorCashAccount
+    exerciseCmd bankCashInstructionCid Instruction.Approve with approval = TAKE_DELIVERY  investorCashAccount
 
   -- Settle batch
   [bankCashTransferableCid, investorCashTransferableCid] <- submitMulti [settler] [publicParty] do exerciseCmd result.batchCid Batch.Settle
@@ -303,7 +304,7 @@ template EffectSettlementService
 
         newHoldingsCid <- fmap toInterfaceContractId .  mconcat <$> forA steps \s -> case find (match s . Prelude.snd) holdings of
           Some (hCid, h) -> do
-            let transferableCid = coerceContractId hCid
+            let allocation = PLEDGE $ coerceContractId hCid
             newHCid <- exercise hCid Transferable.Transfer with newOwnerAccount = csdCashAccount
             pure [newHCid]
             -- TODO fix so that it works for effects going in the other direction
