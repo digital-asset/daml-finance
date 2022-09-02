@@ -55,8 +55,8 @@ Structure of the code, dependencies
 
 The code includes
 
-- three workflows defined in the ``Workflows`` folder
-- a ``Setup`` script
+- four workflows defined in the ``Workflows`` folder
+- two Daml scripts defined in the ``Scripts`` folder
 
 The first encapsulate the core business logic of the application, whereas the latter includes scripts that are
 executed on a one-off basis.
@@ -68,7 +68,9 @@ initiate / accept patterns to
 - make a deposit to the account
 - execute a holding transfer
 
-Files in this folder depend only on interface packages of ``daml-finance``
+The ``FXTrade`` workflow will be used in the next tutorial, so please ignore that one for now.
+
+Files in the ``Workflows`` folder depend only on interface packages of ``daml-finance``
 (the ones that start with ``Daml.Finance.Interface.*``), as you can see from
 the import list.
 
@@ -82,10 +84,10 @@ implementation packages (in this case, ``Daml.Finance.Holding`` and ``Daml.Finan
 This is not problematic, as the script is meant to be run only once when
 the application is initialized.
 
-Running the setup script
-************************
+Running the Transfer script
+***************************
 
-Let us now explore the setup script step-by-step.
+Let us now explore the ``Transfer`` script step-by-step.
 
 Creating ``Holding`` and ``Account`` factories
 ==============================================
@@ -94,7 +96,7 @@ The first instruction instantiates an account factory. This is just a
 template that is used by a party (the Bank in this case) to create
 accounts as part of the ``CreateAccount`` workflow.
 
-.. literalinclude:: ../../../code-samples/getting-started-1/daml/Scripts/Setup.daml
+.. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Transfer.daml
   :language: daml
   :start-after: -- CREATE_ACCOUNT_FACTORY_BEGIN
   :end-before: -- CREATE_ACCOUNT_FACTORY_END
@@ -106,7 +108,7 @@ of concrete template implementations.
 Similarly, we define a holding factory, which is used within an account
 to ``Credit`` and ``Debit`` holdings.
 
-.. literalinclude:: ../../../code-samples/getting-started-1/daml/Scripts/Setup.daml
+.. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Transfer.daml
   :language: daml
   :start-after: -- CREATE_HOLDING_FACTORY_BEGIN
   :end-before: -- CREATE_HOLDING_FACTORY_END
@@ -130,7 +132,7 @@ The creation of an account needs to be authorized by both the
 ``custodian`` and the ``owner`` (resp. the Bank and Alice in our
 case). Authorization is collected using an initiate / accept pattern.
 
-.. literalinclude:: ../../../code-samples/getting-started-1/daml/Scripts/Setup.daml
+.. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Transfer.daml
   :language: daml
   :start-after: -- SETUP_ALICE_ACCOUNT_BEGIN
   :end-before: -- SETUP_ALICE_ACCOUNT_END
@@ -143,7 +145,7 @@ Issuing the cash instrument
 In order to credit Alice’s account with some cash, we first need
 to introduce a cash ``Instrument`` in our model.
 
-.. literalinclude:: ../../../code-samples/getting-started-1/daml/Scripts/Setup.daml
+.. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Transfer.daml
   :language: daml
   :start-after: -- ISSUE_CASH_INSTRUMENT_BEGIN
   :end-before: -- ISSUE_CASH_INSTRUMENT_END
@@ -164,7 +166,7 @@ Depositing cash on Alice’s account
 We can now deposit cash on Alice’s account, using the ``Deposit``
 workflow.
 
-.. literalinclude:: ../../../code-samples/getting-started-1/daml/Scripts/Setup.daml
+.. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Transfer.daml
   :language: daml
   :start-after: -- CREATE_ALICE_HOLDING_BEGIN
   :end-before: -- CREATE_ALICE_HOLDING_END
@@ -182,7 +184,7 @@ Transferring cash from Alice to Bob
 The final step of our ``Setup`` script transfers Alice’s holding to Bob
 using the ``Transfer`` workflow.
 
-.. literalinclude:: ../../../code-samples/getting-started-1/daml/Scripts/Setup.daml
+.. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Transfer.daml
   :language: daml
   :start-after: -- TRANSFER_BEGIN
   :end-before: -- TRANSFER_END
@@ -209,7 +211,7 @@ How does the ``Transfer`` workflow work?
 If you look at the implementation of the ``Transfer`` workflow, you will
 notice the following lines:
 
-.. literalinclude:: ../../../code-samples/getting-started-1/daml/Workflow/Transfer.daml
+.. literalinclude:: ../../../code-samples/getting-started/daml/Workflow/Transfer.daml
   :language: daml
   :start-after: -- DO_TRANSFER_BEGIN
   :end-before: -- DO_TRANSFER_END
@@ -316,4 +318,4 @@ You now know how to setup basic accounts, holdings and instruments.
 You also learned how to perform a simple transfer.
 
 However, transfers typically happen within a larger financial transaction.
-The next tutorial will show you how to create such a transaction and how to settle all transfers atomically.
+The next tutorial will show you how to create such a transaction and how to settle all transfers therein atomically.
