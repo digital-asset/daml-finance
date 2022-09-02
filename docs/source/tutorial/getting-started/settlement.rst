@@ -105,7 +105,7 @@ As a next step, Alice allocates her ``EUR`` holding to the corresponding instruc
   :start-after: -- ALLOCATE_APPROVE_BEGIN
   :end-before: -- ALLOCATE_APPROVE_END
 
-The same happens on the second instruction (where Bob allocates his ``USD`` holding and Alice provides the receiving account).
+The same happens in the second instruction (where Bob allocates his ``USD`` holding and Alice provides the receiving account).
 
 Now that all instructions are fully allocated and approved, they can be finally settled.
 
@@ -129,8 +129,8 @@ it is the right time.
 Why do we need a settlement factory?
 ====================================
 
-A settlement factory contract is used to generate settlement instructions from steps.
-It also generates a batch contract which is used to settle instructions atomically.
+A settlement factory contract is used to generate settlement ``Instructions`` from ``steps``.
+It also generates a ``Batch`` contract which is used to settle instructions atomically.
 
 The first reason why the factory is needed has already been introduced in the previous tutorial:
 it provides an interface abstraction, so that your workflow does not need to depend on concrete implementations
