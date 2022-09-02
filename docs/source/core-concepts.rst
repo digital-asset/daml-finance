@@ -13,7 +13,7 @@ Asset model
 
 The library’s asset model is the set of contracts that describe the financial rights and obligations that exist between parties. It is composed of instruments, holdings, and accounts.
 
-It is important to note that she economic terms of an asset are separated from the representation of an asset holding. This is to allow centralized management of instruments (e.g. lifecycling), and to allow reuse of instruments and associated logic across different entities (e.g. custodians). It also avoids the data redundancy of replicating instrument data and logic on every holding contract.
+It is important to note that the economic terms of an asset are separated from the representation of an asset holding. This is to allow centralized management of instruments (e.g. lifecycling), and to allow reuse of instruments and associated logic across different entities (e.g. custodians). It also avoids the data redundancy of replicating instrument data and logic on every holding contract.
 
 All asset model interfaces are defined in the ``Daml.Finance.Interface.Asset`` package. Implementations are in ``Daml.Finance.Asset``.
 
@@ -158,7 +158,7 @@ A base account implementation is provided in ``Daml.Finance.Asset``.
 Settlement
 **********
 
-Settlement refers to the execution of holding transfers originating from
+:ref:`Settlement <settlement>` refers to the execution of holding transfers originating from
 a financial transaction.
 
 For instance, an example FX spot transaction involves the transfer of a
@@ -168,7 +168,34 @@ USD-denominated holding.
 The library provides facilities to execute these transfers atomically
 (i.e., within the same Daml transaction) in the package ``Daml.Finance.Interface.Settlement``.
 
-EXPLAIN INSTRUCTABLE, BATCH, INSTRUCTION USING THE FX EXAMPLE
+Step
+====
+
+The FX example transaction above contains two steps:
+
+#. transfer EUR from Alice to Bob
+#. transfer USD from Bob to Alice
+
+They are represented using one ``Step`` each.
+The step defines who is the sender, who is the receiver and what should be transferred (instrument and amount).
+
+Instruction
+===========
+
+A ``Step`` is not sufficient to do a transfer. We also need to know exactly which holding should be used and to which account it should be transferred.
+This is specified in an ``Instruction`` (one for each ``Step``).
+The ``Instruction`` allows the sender to specify which holding to transfer, by exercising the ``Allocate`` choice.
+The receiver can then specify which account should be used, by exercising the ``Approve`` choice.
+
+Batch
+=====
+
+We could execute the transfer of the two instructions above individually, but that would cause
+a problem if one instruction fails and the other one succeeds. Instead, we want to execute them
+simultaneously in one atomic transaction. We can do that by using a ``Batch`` contract.
+
+These settlement concepts are explained in more detail with example code in the :doc:`Settlement tutorial <tutorial/getting-started/settlement>`.
+
 
 Lifecycling
 ***********
