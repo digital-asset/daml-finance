@@ -54,4 +54,4 @@ ${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Instru
 ${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Instrument.Bond.Test
 ${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Instrument.Equity.Test
 
-echo -e "\nAll packages successfully build!"
+echo -e "\nAll packages successfully built!"

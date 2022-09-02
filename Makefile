@@ -1,12 +1,16 @@
 SCRIPTS_DIR := scripts
 
-.PHONY: build
-build: install
-	daml build
+##########################
+# Project Source (./src) #
+##########################
 
 .PHONY: install
 install:
 	./$(SCRIPTS_DIR)/get-dependencies.sh daml.yaml
+
+.PHONY: build
+build: install
+	daml build
 
 .PHONY: test
 test: build
@@ -17,6 +21,10 @@ clean:
 	-rm -r .lib/
 	daml clean
 
+#########################
+# Packages (./packages) #
+#########################
+
 .PHONY: build-packages
 build-packages:
 	./$(SCRIPTS_DIR)/build-packages.sh
@@ -25,19 +33,56 @@ build-packages:
 test-packages: build-packages
 	./$(SCRIPTS_DIR)/test-packages.sh
 
+.PHONY: validate-packages
+validate-packages: build-packages
+	./$(SCRIPTS_DIR)/validate-packages.sh
+
 .PHONY: clean-packages
 clean-packages:
 	./$(SCRIPTS_DIR)/clean-packages.sh
 
-.PHONY: clean-cache
-clean-cache:
-	-rm -r .cache
+###############################
+# Project Source and Packages #
+###############################
+
+.PHONY: build-all
+test-all: build build-packages
 
 .PHONY: test-all
 test-all: test test-packages
 
 .PHONY: clean-all
-clean-all: clean clean-packages clean-cache
+clean-all: clean clean-packages
+
+##################################
+# CI (avoids unnecessary builds) #
+##################################
+.PHONY: ci-build
+ci-build: build build-packages
+
+.PHONY: ci-test
+ci-test:
+	daml test
+	./$(SCRIPTS_DIR)/test-packages.sh
+
+.PHONY: ci-validate
+ci-validate:
+	./$(SCRIPTS_DIR)/validate-packages.sh
+
+.PHONY: ci-local
+ci-local: clean-all ci-build ci-test ci-validate
+
+#########
+# Cache #
+#########
+
+.PHONY: clean-cache
+clean-cache:
+	-rm -r .cache
+
+#####################
+# Copyright headers #
+#####################
 
 .PHONY: headers-check
 headers-check:
@@ -46,6 +91,10 @@ headers-check:
 .PHONY: headers-update
 headers-update:
 	./scripts/dade-copyright-headers.py update
+
+############################
+# Documentation Generation #
+############################
 
 DAML_SRC:=$(shell find src/main/daml -name '*.daml')
 

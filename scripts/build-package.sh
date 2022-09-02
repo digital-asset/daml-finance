@@ -8,8 +8,8 @@ project=$1
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd -P)
 project_name=$(yq e '.name' ${project}/daml.yaml)
 
-colour_off='\033[0m'
 green='\033[0;32m'
+colour_off='\033[0m'
 
 project_string="Building package - ${project_name}"
 bar=""
@@ -24,4 +24,4 @@ ${script_dir}/get-dependencies.sh ${project}/daml.yaml
 echo "Compiling ${project_name}..."
 DAML_PROJECT=${project} daml build
 
-echo -e "\Successfully built package ${project_name}."
+echo -e "\nSuccessfully built package ${project_name}."

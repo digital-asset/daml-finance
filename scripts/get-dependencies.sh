@@ -14,10 +14,10 @@ package_root_dir="${root_dir}/package/*/daml"
 project_root_dir=$(cd "$(dirname "${daml_yaml_file}")"; pwd -P)
 project_lib_dir="${project_root_dir}/.lib"
 
-colour_off='\033[0m'
 red='\033[0;31m'
+colour_off='\033[0m'
 
-echo -e "Extracting dependencies for library ${project_name}\n"
+echo -e "Extracting dependencies for library ${project_name}...\n"
 
 dependencies=($(yq e '.data-dependencies[]' ${daml_yaml_file}))
 if [[ -z ${dependencies:-} ]]; then
@@ -41,7 +41,7 @@ else
     fi
 
     if [[ -a ${project_root_dir}/${dependency_path} ]]; then
-      echo -e "Dependency ${dependency_path} already setup. Skipping...\n"
+      echo -e "Dependency ${dependency_path} already setup. Skipping.\n"
     else
       # Extract the dependency details from dependency path
       read repo_name file_name tag <<<$(awk '{ n=split($0,array,"/"); print array[2], array[n]; for (i=3; i < n; i++) { printf array[i]; if (i != n-1) printf "/" }}' <<< ${dependency_path})
@@ -81,12 +81,6 @@ else
   done
 fi
 
-# For the package build
-# 1 - run get-dependencies.sh
-# 2 - build
-# 3 - check if the package and version exists remotely
-#   4 - if so, pull it down
-#   5 - compare the package hashes
-#   6 - if different, fail the build!
-
-# If we have a locally built .dar, we should use the latest built jar :/
+# TODO:
+# If we have a locally built .dar, we should use the latest built jar :/ [done]
+# Update CI config!
