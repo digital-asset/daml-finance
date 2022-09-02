@@ -84,20 +84,25 @@ template Instruction
         case (allocation, approval) of
           (UNALLOCATED, _) -> abort "instruction must be allocated"
           (_, UNAPPROVED) -> abort "instruction must be approved"
-          (PLEDGE transferableCid, TAKE_DELIVERY account) -> Some <$> exercise transferableCid Transferable.Transfer with newOwnerAccount = account
+          (PLEDGE transferableCid, TAKE_DELIVERY account) -> do
+            transferable <- fetch transferableCid
+            transferredCid <- exercise transferableCid Transferable.Transfer with newOwnerAccount = account
+            pure $ (Some transferredCid, Some $ templateTypeRepToText $ interfaceTypeRep transferable)
           (PLEDGE transferableCid, DEBIT_SENDER) -> do
             transferableCid : ContractId Transferable.I <- coerceContractId <$> exercise (toInterfaceContractId @Disclosure.I transferableCid) Disclosure.AddObservers with disclosers = singleton step.sender; observersToAdd = (show id, singleton settler)
             transferable <- fetch transferableCid
             let senderAccount = getAccount transferable
             assertMsg "the custodian of the transferable must be the receiver" $ senderAccount.custodian == step.receiver
             accountCid <- Account.exerciseInterfaceByKey @Account.I senderAccount step.sender Account.Debit with holdingCid = coerceContractId transferableCid
-            pure None
+            pure (None, Some $ templateTypeRepToText $ interfaceTypeRep transferable)
           (CREDIT_RECEIVER, TAKE_DELIVERY receiverAccount) -> do
             assertMsg "the custodian of the receiver account must be the sender" $ receiverAccount.custodian == step.sender
-            Some . coerceContractId <$> Account.exerciseInterfaceByKey @Account.I receiverAccount step.receiver Account.Credit with quantity = step.quantity
+            transferableCid <- coerceContractId <$> Account.exerciseInterfaceByKey @Account.I receiverAccount step.receiver Account.Credit with quantity = step.quantity
+            transferable <- fetch transferableCid
+            pure $ (Some transferableCid, Some $ templateTypeRepToText $ interfaceTypeRep transferable)
           (CREDIT_RECEIVER, DEBIT_SENDER) -> do
             assertMsg "sender must be the same party as receiver" $ step.sender == step.receiver
-            pure None
-          (SETTLE_OFFLEDGER, SETTLE_OFFLEDGER_ACKNOWLEDGE) -> pure None
+            pure (None, None)
+          (SETTLE_OFFLEDGER, SETTLE_OFFLEDGER_ACKNOWLEDGE) -> pure (None, None)
           (SETTLE_OFFLEDGER, _) -> abort "offledger settlement must be acknowledged"
           (_, SETTLE_OFFLEDGER_ACKNOWLEDGE) -> abort "offledger settlement must be initiated"
