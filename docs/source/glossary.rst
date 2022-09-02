@@ -88,6 +88,8 @@ Disclosure
 
 The ability to disclose a contract to a third party by adding them as an observer.
 
+.. _settlement:
+
 Settlement
 ----------
 
