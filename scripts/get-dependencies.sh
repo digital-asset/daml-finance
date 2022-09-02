@@ -5,29 +5,88 @@
 set -eu
 
 daml_yaml_file=$1
-root_dir="$(dirname "${daml_yaml_file}")"
+project_name=$(yq e '.name' ${daml_yaml_file})
+
+# Use absolute paths to allow this script to be called from any location
+root_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")"; cd ..; pwd -P)
+cache_dir="${root_dir}/.cache"
+package_root_dir="${root_dir}/package/*/daml"
+project_root_dir=$(cd "$(dirname "${daml_yaml_file}")"; pwd -P)
+project_lib_dir="${project_root_dir}/.lib"
+
+colour_off='\033[0m'
+red='\033[0;31m'
+
+echo -e "Extracting dependencies for library ${project_name}\n"
 
 dependencies=($(yq e '.data-dependencies[]' ${daml_yaml_file}))
-for dependency_path in "${dependencies[@]}"; do
+if [[ -z ${dependencies:-} ]]; then
+  echo "Project ${project_name} has no dependencies. Ignoring..."
+else
+  for dependency_path in "${dependencies[@]}"; do
 
-  echo "Processing dependency ${dependency_path}"
+    echo "Processing dependency ${dependency_path}"
 
-  if [[ -a ${root_dir}/${dependency_path} ]]; then
-    echo "Dependency ${dependency_path} already exists. Skipping..."
-  else
-    # Take the full path, split on the unix file separator and take the last element in array
-    file_name=`awk '{ n=split($0,array,"/"); print array[n] }' <<< ${dependency_path}`
+    isValidPath=`awk '{ match($0, /^.lib\/[a-zA-Z\-]*\/([a-zA-Z\.]*\/v?[0-9\.]*|v?[0-9\.]*)\/[a-zA-Z0-9\.\-]*\.dar$/); print RLENGTH }' <<< ${dependency_path}`
+    if [[ ${isValidPath} -eq -1 ]]; then
+      echo -e "${red}ERROR: Dependency ${dependency_path} does not match the expected format.
 
-    # From the end of the file name, remove the file extension and the version to get the repo name
-    repo_name=`awk '{ sub(/\-[0-9]*\..*$/, "") ; print }' <<< ${file_name}`
+              Dependency syntax :
+                .lib/<repo_name>/<tag>/<file_name>
+              <tag> syntax :
+                <version> | <project_name>/<version>
 
-    # Match from the major version until the end of the file name; keep what was matched from the input string; remove the file extension
-    version=`awk '{ match($0, /[0-9a-zA-Z]+\..*/) ; $0=substr($0, RSTART, RLENGTH); sub(/.[a-z]+$/, ""); print }' <<< ${file_name}`
+              Regex format : ^\.lib\/[a-zA-Z\-]*\/([a-zA-Z\.]*\/v?[0-9\.]*|v?[0-9\.]*)\/[a-zA-Z0-9\.\-]*\.dar$ ${colour_off}"
+      exit 1
+    fi
 
-    echo "Downloading ${file_name} from Github repository at https://github.com/digital-asset/${repo_name}/releases/download/v${version}/${file_name}."
-    curl -Lf# https://github.com/digital-asset/${repo_name}/releases/download/v${version}/${file_name} -o ${root_dir}/${dependency_path}
+    if [[ -a ${project_root_dir}/${dependency_path} ]]; then
+      echo -e "Dependency ${dependency_path} already setup. Skipping...\n"
+    else
+      # Extract the dependency details from dependency path
+      read repo_name file_name tag <<<$(awk '{ n=split($0,array,"/"); print array[2], array[n]; for (i=3; i < n; i++) { printf array[i]; if (i != n-1) printf "/" }}' <<< ${dependency_path})
 
-    echo -e "\nDependency ${file_name} downloaded successfully and saved to ${root_dir}/${dependency_path}.\n"
-  fi
+      # Check if the dependency exists in the following order :
+      # 1 - cache
+      # 2 - GitHub
+      # 3 - locally
+      cache_dependency_path=${cache_dir}/${repo_name}/${tag}
 
-done
+      if [[ -a ${cache_dependency_path}/${file_name} ]]; then
+        echo "Using cached dependency at ${cache_dependency_path}/${file_name}"
+        mkdir -p ${project_lib_dir}/${repo_name}/${tag} && cp ${cache_dependency_path}/${file_name} ${project_root_dir}/${dependency_path}
+      elif [[ `curl -L -o /dev/null --silent -I -w '%{http_code}' https://github.com/digital-asset/${repo_name}/releases/download/${tag}/${file_name}` == "200" ]]; then
+        echo "Downloading ${file_name} from Github repository at https://github.com/digital-asset/${repo_name}/releases/download/${tag}/${file_name}..."
+        curl -Lf# https://github.com/digital-asset/${repo_name}/releases/download/${tag}/${file_name} --create-dirs -o ${project_root_dir}/${dependency_path}
+
+        echo -e "\nAdding ${file_name} to the cache..."
+        mkdir -p ${cache_dependency_path} && cp ${project_root_dir}/${dependency_path} ${cache_dependency_path}/${file_name}
+      elif [[ `awk '{ match($0, /^\.lib\/daml-finance\/Daml.Finance.[a-zA-Z\.]*\/v?[0-9\.]*\/daml-finance-[a-zA-Z0-9\.\-]*\.dar$/); print RLENGTH }' <<< ${dependency_path}` -ne -1 ]]; then
+        echo "Attempting to get dependency ${file_name} locally..."
+        package_name=$(echo ${tag} | cut -f1 -d/)
+        if ( ls ${package_root_dir}/${package_name}/.daml/dist/${file_name} 1> /dev/null 2>&1 ); then
+          mkdir -p ${project_lib_dir}/${repo_name}/${tag} && cp ${package_root_dir}/${package_name}/.daml/dist/${file_name} ${project_root_dir}/${dependency_path}
+        else
+          echo -e "${red}ERROR: Unable to locally locate dependency ${file_name}. Ensure this dependency has been successfully built.${colour_off}"
+          exit 1
+        fi
+      else
+        echo -e "${red}ERROR: Unable to locate dependency - ${file_name}.${colour_off}"
+        exit 1
+      fi
+
+      echo -e "Dependency ${file_name} installed successfully and saved to ${project_root_dir}/${dependency_path}.\n"
+    fi
+
+  done
+fi
+
+# For the package build
+# 1 - run get-dependencies.sh
+# 2 - build
+# 3 - check if the package and version exists remotely
+#   4 - if so, pull it down
+#   5 - compare the package hashes
+#   6 - if different, fail the build!
+
+# If we have a locally built .dar, we should use the latest built jar :/

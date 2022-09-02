@@ -3,22 +3,41 @@ SCRIPTS_DIR := scripts
 .PHONY: build
 build: install
 	daml build
-	cd $(SCRIPTS_DIR) && ./build.sh
 
 .PHONY: install
 install:
 	./$(SCRIPTS_DIR)/get-dependencies.sh daml.yaml
 
-.PHONY: clean
-clean:
-	daml clean
-	./$(SCRIPTS_DIR)/remove-dependencies.sh daml.yaml
-	cd scripts && ./clean.sh
-
 .PHONY: test
 test: build
 	daml test
-	cd $(SCRIPTS_DIR) && ./test.sh
+
+.PHONY: clean
+clean:
+	-rm -r .lib/
+	daml clean
+
+.PHONY: build-packages
+build-packages:
+	./$(SCRIPTS_DIR)/build-packages.sh
+
+.PHONY: test-packages
+test-packages: build-packages
+	./$(SCRIPTS_DIR)/test-packages.sh
+
+.PHONY: clean-packages
+clean-packages:
+	./$(SCRIPTS_DIR)/clean-packages.sh
+
+.PHONY: clean-cache
+clean-cache:
+	-rm -r .cache
+
+.PHONY: test-all
+test-all: test test-packages
+
+.PHONY: clean-all
+clean-all: clean clean-packages clean-cache
 
 .PHONY: headers-check
 headers-check:
