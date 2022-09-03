@@ -46,6 +46,8 @@ template Instruction
     key (requestors, id) : (Parties, Id)
     maintainer fst key
 
+    let messageSuffix = " / instruction id = " <> show id
+
     interface instance Disclosure.I for Instruction where
       view = Disclosure.View with disclosureControllers = fromList [singleton step.sender, singleton step.receiver]; observers
       setObservers Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
@@ -55,7 +57,7 @@ template Instruction
       asDisclosure = toInterface @Disclosure.I this
       view = Instruction.View with id; step; settler
       allocate Instruction.Allocate{allocation} = do
-        assertMsg "allocation must be new" $ allocation /= this.allocation
+        assertMsg ("allocation must be new" <> messageSuffix) $ allocation /= this.allocation
         -- disclose allocation
         allocationDisclosed <- case allocation of
           PLEDGE transferableCid -> do
@@ -69,7 +71,7 @@ template Instruction
         -- update instruction state
         toInterfaceContractId <$> create this with allocation = allocationDisclosed; signed = insert step.sender signed
       approve Instruction.Approve{approval} = do
-        assertMsg "approval must be new" $ approval /= this.approval
+        assertMsg ("approval must be new" <> messageSuffix) $ approval /= this.approval
         -- disclose approval
         case approval of
           TAKE_DELIVERY receiverAccount -> do
@@ -81,8 +83,8 @@ template Instruction
       execute = do
         -- execute instruction
         t <- case (allocation, approval) of
-            (UNALLOCATED, _) -> abort "instruction must be allocated"
-            (_, UNAPPROVED) -> abort "instruction must be approved"
+            (UNALLOCATED, _) -> abort $ "instruction must be allocated" <> messageSuffix
+            (_, UNAPPROVED) -> abort $ "instruction must be approved" <> messageSuffix
             (PLEDGE transferableCid, TAKE_DELIVERY account) -> do
               transferable <- fetch transferableCid
               transferredCid <- exercise transferableCid Transferable.Transfer with newOwnerAccount = account
@@ -90,19 +92,19 @@ template Instruction
             (PLEDGE transferableCid, DEBIT_SENDER) -> do
               transferable <- fetch transferableCid
               let senderAccount = getAccount transferable
-              assertMsg "the custodian of the transferable must be the receiver" $ senderAccount.custodian == step.receiver
+              assertMsg ("the custodian of the transferable must be the receiver" <> messageSuffix) $ senderAccount.custodian == step.receiver
               accountCid <- Account.exerciseInterfaceByKey @Account.I senderAccount step.sender Account.Debit with holdingCid = coerceContractId transferableCid
               pure (None, Some transferable)
             (CREDIT_RECEIVER, TAKE_DELIVERY receiverAccount) -> do
-              assertMsg "the custodian of the receiver account must be the sender" $ receiverAccount.custodian == step.sender
+              assertMsg ("the custodian of the receiver account must be the sender" <> messageSuffix) $ receiverAccount.custodian == step.sender
               transferableCid <- coerceContractId <$> Account.exerciseInterfaceByKey @Account.I receiverAccount step.receiver Account.Credit with quantity = step.quantity
               transferable <- fetch transferableCid
               pure (Some transferableCid, Some transferable)
             (CREDIT_RECEIVER, DEBIT_SENDER) -> do
-              assertMsg "sender must be the same party as receiver" $ step.sender == step.receiver
+              assertMsg ("sender must be the same party as receiver" <> messageSuffix) $ step.sender == step.receiver
               pure (None, None)
             (SETTLE_OFFLEDGER, SETTLE_OFFLEDGER_ACKNOWLEDGE) -> pure (None, None)
-            (SETTLE_OFFLEDGER, _) -> abort "offledger settlement must be acknowledged"
-            (_, SETTLE_OFFLEDGER_ACKNOWLEDGE) -> abort "offledger settlement must be initiated"
+            (SETTLE_OFFLEDGER, _) -> abort $ "offledger settlement must be acknowledged" <> messageSuffix
+            (_, SETTLE_OFFLEDGER_ACKNOWLEDGE) -> abort $ "offledger settlement must be initiated" <> messageSuffix
         let typeRep = fmap (\transferable -> templateTypeRepToText $ interfaceTypeRep transferable) t._2
         pure (t._1, typeRep)
