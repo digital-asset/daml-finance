@@ -4,14 +4,13 @@
 module Daml.Finance.Settlement.Instruction where
 
 import DA.Assert ((===))
-import DA.Optional (fromSome)
 import DA.Set (fromList, insert, singleton)
-import Daml.Finance.Interface.Holding.Account qualified as Account (exerciseInterfaceByKey)
-import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
+import Daml.Finance.Interface.Holding.Account qualified as Account (I, Credit(..), Debit(..), exerciseInterfaceByKey)
+import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (Transfer(..))
 import Daml.Finance.Interface.Holding.Util (getAccount, getAmount, getInstrument)
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..), HasImplementation, I, View(..))
-import Daml.Finance.Interface.Settlement.Types (Step)
-import Daml.Finance.Interface.Types.Common (AccountKey(..), Id, Observers, Parties)
+import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), Step)
+import Daml.Finance.Interface.Types.Common (Id(..), Observers, Parties)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (AddObservers(..), SetObservers(..), I, View(..), flattenObservers)
 
 -- | Type synonym for `Instruction`.
@@ -34,9 +33,9 @@ template Instruction
       -- ^ Instruction identifier.
     step : Step
       -- ^ Settlement step.
-    allocation : Optional (ContractId Transferable.I, Text)
+    allocation : Allocation
       -- ^ Allocated holding and its template type rep text representation.
-    account : Optional AccountKey
+    approval : Approval
       -- ^ Receiving account.
     observers : Observers
       -- ^ Observers.
@@ -47,6 +46,8 @@ template Instruction
     key (requestors, id) : (Parties, Id)
     maintainer fst key
 
+    let messageSuffix = " / instruction id = " <> show id
+
     interface instance Disclosure.I for Instruction where
       view = Disclosure.View with disclosureControllers = fromList [singleton step.sender, singleton step.receiver]; observers
       setObservers Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
@@ -55,14 +56,53 @@ template Instruction
     interface instance Instruction.I for Instruction where
       asDisclosure = toInterface @Disclosure.I this
       view = Instruction.View with id; step; settler
-      allocate Instruction.Allocate{transferableCid} = do
-        transferableCid <- coerceContractId <$> exercise (toInterfaceContractId @Disclosure.I transferableCid) Disclosure.AddObservers with disclosers = singleton step.sender; observersToAdd = (show id, singleton settler)
-        transferable <- fetch transferableCid
-        accountCid <- Account.exerciseInterfaceByKey @Disclosure.I (getAccount transferable) step.sender Disclosure.AddObservers with disclosers = singleton step.sender; observersToAdd = (show id, singleton settler)
-        getAmount transferable === step.quantity.amount
-        getInstrument transferable === step.quantity.unit
-        toInterfaceContractId <$> create this with allocation = Some (transferableCid, templateTypeRepToText $ interfaceTypeRep transferable); signed = insert step.sender signed
-      approve Instruction.Approve{receiverAccount} = do
-        Account.exerciseInterfaceByKey @Disclosure.I receiverAccount step.receiver Disclosure.AddObservers with disclosers = singleton step.receiver; observersToAdd = (show id, singleton settler)
-        toInterfaceContractId <$> create this with signed = insert step.receiver signed; account = Some receiverAccount
-      execute = exercise (fst $ fromSome allocation) Transferable.Transfer with newOwnerAccount = fromSome account
+      allocate Instruction.Allocate{allocation} = do
+        assertMsg ("allocation must be new" <> messageSuffix) $ allocation /= this.allocation
+        -- disclose allocation
+        allocationDisclosed <- case allocation of
+          PLEDGE transferableCid -> do
+            transferableCid <- coerceContractId <$> exercise (toInterfaceContractId @Disclosure.I transferableCid) Disclosure.AddObservers with disclosers = singleton step.sender; observersToAdd = (show id, singleton settler)
+            transferable <- fetch transferableCid
+            accountCid <- Account.exerciseInterfaceByKey @Disclosure.I (getAccount transferable) step.sender Disclosure.AddObservers with disclosers = singleton step.sender; observersToAdd = (show id, singleton settler)
+            getAmount transferable === step.quantity.amount
+            getInstrument transferable === step.quantity.unit
+            pure $ PLEDGE transferableCid
+          a -> pure a
+        -- update instruction state
+        toInterfaceContractId <$> create this with allocation = allocationDisclosed; signed = insert step.sender signed
+      approve Instruction.Approve{approval} = do
+        assertMsg ("approval must be new" <> messageSuffix) $ approval /= this.approval
+        -- disclose approval
+        case approval of
+          TAKE_DELIVERY receiverAccount -> do
+            Account.exerciseInterfaceByKey @Disclosure.I receiverAccount step.receiver Disclosure.AddObservers with disclosers = singleton step.receiver; observersToAdd = (show id, singleton settler)
+            pure ()
+          _ -> pure ()
+        -- update instruction state
+        toInterfaceContractId <$> create this with signed = insert step.receiver signed; approval
+      execute = do
+        -- execute instruction
+        case (allocation, approval) of
+          (UNALLOCATED, _) -> abort $ "instruction must be allocated" <> messageSuffix
+          (_, UNAPPROVED) -> abort $ "instruction must be approved" <> messageSuffix
+          (PLEDGE transferableCid, TAKE_DELIVERY account) -> do
+            transferable <- fetch transferableCid
+            transferredCid <- exercise transferableCid Transferable.Transfer with newOwnerAccount = account
+            pure $ Some transferredCid
+          (PLEDGE transferableCid, DEBIT_SENDER) -> do
+            transferable <- fetch transferableCid
+            let senderAccount = getAccount transferable
+            assertMsg ("the custodian of the transferable must be the receiver" <> messageSuffix) $ senderAccount.custodian == step.receiver
+            accountCid <- Account.exerciseInterfaceByKey @Account.I senderAccount step.sender Account.Debit with holdingCid = coerceContractId transferableCid
+            pure None
+          (CREDIT_RECEIVER, TAKE_DELIVERY receiverAccount) -> do
+            assertMsg ("the custodian of the receiver account must be the sender" <> messageSuffix) $ receiverAccount.custodian == step.sender
+            transferableCid <- coerceContractId <$> Account.exerciseInterfaceByKey @Account.I receiverAccount step.receiver Account.Credit with quantity = step.quantity
+            transferable <- fetch transferableCid
+            pure $ Some transferableCid
+          (CREDIT_RECEIVER, DEBIT_SENDER) -> do
+            assertMsg ("sender must be the same party as receiver" <> messageSuffix) $ step.sender == step.receiver
+            pure None
+          (SETTLE_OFFLEDGER, SETTLE_OFFLEDGER_ACKNOWLEDGE) -> pure None
+          (SETTLE_OFFLEDGER, _) -> abort $ "offledger settlement must be acknowledged" <> messageSuffix
+          (_, SETTLE_OFFLEDGER_ACKNOWLEDGE) -> abort $ "offledger settlement must be initiated" <> messageSuffix

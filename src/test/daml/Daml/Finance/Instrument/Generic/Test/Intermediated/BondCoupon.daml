@@ -18,11 +18,11 @@ import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I,
 import Daml.Finance.Interface.Holding.Util (getAmount, getInstrument, getOwner)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (GetCid(..), R)
 import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (SetProvider(..), GetView(..), I)
-import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..))
+import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..), I)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..))
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
-import Daml.Finance.Interface.Settlement.Types (Step)
+import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), Step)
 import Daml.Finance.Interface.Types.Common (Id(..))
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, AddObservers(..))
 import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
@@ -172,7 +172,7 @@ run = script do
         paths = M.fromList routes
         observers = fromList [investor]
 
-  lifecycleClaimRuleCid <- submitMulti [csd, investor] [] do
+  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [csd, investor] [] do
     createCmd Claim.Rule
       with
         custodian = csd
@@ -192,15 +192,15 @@ run = script do
     [csdCashInstructionCid, bankCashInstructionCid] = result.instructionCids
 
   -- Allocate instructions
-  csdCashInstructionCid <- submitMulti [csd] [] do exerciseCmd csdCashInstructionCid Instruction.Allocate with transferableCid = cashHolding
+  csdCashInstructionCid <- submitMulti [csd] [] do exerciseCmd csdCashInstructionCid Instruction.Allocate with allocation = PLEDGE cashHolding
   bankOwnCashTransferableCid <- Account.credit [publicParty] cashInstrument 20_000.0 bankOwnCashAccount
-  bankCashInstructionCid <- submitMulti [bank] [] do exerciseCmd bankCashInstructionCid Instruction.Allocate with transferableCid = bankOwnCashTransferableCid
+  bankCashInstructionCid <- submitMulti [bank] [] do exerciseCmd bankCashInstructionCid Instruction.Allocate with allocation = PLEDGE bankOwnCashTransferableCid
 
   -- Approve instructions
   csdCashInstructionCid <- submitMulti [bank] [] do
-    exerciseCmd csdCashInstructionCid Instruction.Approve with receiverAccount = bankCashAccount
+    exerciseCmd csdCashInstructionCid Instruction.Approve with approval = TAKE_DELIVERY  bankCashAccount
   bankCashInstructionCid <- submitMulti [investor] [] do
-    exerciseCmd bankCashInstructionCid Instruction.Approve with receiverAccount = investorCashAccount
+    exerciseCmd bankCashInstructionCid Instruction.Approve with approval = TAKE_DELIVERY  investorCashAccount
 
   -- Settle batch
   [bankCashTransferableCid, investorCashTransferableCid] <- submitMulti [settler] [publicParty] do exerciseCmd result.batchCid Batch.Settle
@@ -289,7 +289,7 @@ template EffectSettlementService
             settler = csd
             factoryCid = toInterfaceContractId settlementFactoryCid
 
-        result <- exercise lifecycleClaimRuleCid Claim.ClaimEffect with
+        result <- exercise (toInterfaceContractId @Claim.I lifecycleClaimRuleCid) Claim.ClaimEffect with
           claimer = csd
           holdingCids = [toInterfaceContractId instrumentHoldingCid]
           effectCid
@@ -299,11 +299,11 @@ template EffectSettlementService
 
         -- TODO : use settlement instruction instead of direct transfer, or at least make sure it gets archived
 
-        steps <- fmap ((.step) . _view) <$> mapA fetch result.instructionCids
+        steps <- fmap ((.step) . view) <$> mapA fetch result.instructionCids
 
         newHoldingsCid <- fmap toInterfaceContractId .  mconcat <$> forA steps \s -> case find (match s . Prelude.snd) holdings of
           Some (hCid, h) -> do
-            let transferableCid = coerceContractId hCid
+            let allocation = PLEDGE $ coerceContractId hCid
             newHCid <- exercise hCid Transferable.Transfer with newOwnerAccount = csdCashAccount
             pure [newHCid]
             -- TODO fix so that it works for effects going in the other direction

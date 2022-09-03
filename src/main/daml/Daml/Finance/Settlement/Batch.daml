@@ -7,15 +7,14 @@ module Daml.Finance.Settlement.Batch
   ) where
 
 import DA.Foldable (forA_)
-import DA.Optional (fromSome, fromSomeNote)
-import DA.Set (fromList, singleton, size)
-import DA.List (groupOn)
+import DA.Optional (catOptionals)
+import DA.Set (fromList, singleton)
 import Daml.Finance.Interface.Holding.Account qualified as Account (exerciseInterfaceByKey)
 import Daml.Finance.Interface.Holding.Base qualified as Base (I)
 import Daml.Finance.Interface.Holding.Util (fetchAccount, getAccount)
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (HasImplementation, I, View(..))
-import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Execute(..))
-import Daml.Finance.Interface.Settlement.Types (Step(..))
+import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Execute(..), I)
+import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), Step(..))
 import Daml.Finance.Interface.Types.Common (Id(..), Parties)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, RemoveObservers(..))
 import Daml.Finance.Settlement.Instruction (Instruction(..))
@@ -51,28 +50,28 @@ template Batch
         accountInstructionIds <- fromList . mconcat <$> forA stepsWithInstructionId
           \(step, instructionId) -> do
             (instructionCid, instruction) <- fetchByKey @Instruction (requestors, instructionId)
+            s <- case instruction.allocation of
+              PLEDGE senderTransferableCid -> do
+                let holdingCid : ContractId Base.I = coerceContractId senderTransferableCid
+                holding <- fetch holdingCid
+                fetchAccount holding
+                pure [(getAccount holding, instructionId)]
+              _ -> pure []
             let
-              receiverAccount = fromSomeNote "Receiving account not set" instruction.account
-              senderTransferableCid = fst $ fromSomeNote "Holding not allocated" instruction.allocation
-              holdingCid : ContractId Base.I = coerceContractId senderTransferableCid
-            holding <- fetch holdingCid
-            fetchAccount holding
-            pure [(receiverAccount, instructionId), (getAccount holding, instructionId)]
+              r = case instruction.approval of
+                TAKE_DELIVERY receiverAccount -> [(receiverAccount, instructionId)]
+                _ -> []
+            pure $ s ++ r
         -- settle
         let
           settleInstruction instructionId = do
             -- NOTE: ideally we should exerciseByKey (but currently doesn't work for interface choices).
             -- (as a workaround we could proxy the choice in the same contract)
             (instructionCid, instruction) <- fetchByKey @Instruction (requestors, instructionId)
-            transferableCid <- exercise instructionCid Instruction.Execute
-            pure (transferableCid, (snd $ fromSome instruction.allocation, instruction.step.quantity.unit))
-        l <- mapA settleInstruction instructionIds
-        -- check consistency
-        let
-          (transferableCids, ts) = unzip l
-          groupedPerInstrument = groupOn snd ts
-        forA_ groupedPerInstrument \ts ->
-          assertMsg "The template type rep of allocated holdings must be the same for all instructions for the same instrument." $ size (fromList ts) == 1
+            exercise (toInterfaceContractId @Instruction.I instructionCid) Instruction.Execute
+        -- execute instruction
+        transferableCidOpts <- mapA settleInstruction instructionIds
+        -- undisclose accounts
         forA_ accountInstructionIds \(account, id) ->
           Account.exerciseInterfaceByKey @Disclosure.I account settler Disclosure.RemoveObservers with observersToRemove = (show id, singleton settler)
-        pure transferableCids
+        pure $ catOptionals transferableCidOpts
