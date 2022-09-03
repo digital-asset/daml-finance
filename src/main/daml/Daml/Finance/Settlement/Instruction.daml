@@ -6,7 +6,7 @@ module Daml.Finance.Settlement.Instruction where
 import DA.Assert ((===))
 import DA.Set (fromList, insert, singleton)
 import Daml.Finance.Interface.Holding.Account qualified as Account (I, Credit(..), Debit(..), exerciseInterfaceByKey)
-import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
+import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (Transfer(..))
 import Daml.Finance.Interface.Holding.Util (getAccount, getAmount, getInstrument)
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..), HasImplementation, I, View(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), Step)
@@ -17,7 +17,6 @@ import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (AddObserv
 type T = Instruction
 
 instance Instruction.HasImplementation T
-
 
 -- | Instruction is used to settle a single settlement `Step`. In order to settle the instruction,
 -- - the sender must allocate a suitable transferable holding.
@@ -79,30 +78,31 @@ template Instruction
           _ -> pure ()
         -- update instruction state
         toInterfaceContractId <$> create this with signed = insert step.receiver signed; approval
-      execute =
+      execute = do
         -- execute instruction
-        case (allocation, approval) of
-          (UNALLOCATED, _) -> abort "instruction must be allocated"
-          (_, UNAPPROVED) -> abort "instruction must be approved"
-          (PLEDGE transferableCid, TAKE_DELIVERY account) -> do
-            transferable <- fetch transferableCid
-            transferredCid <- exercise transferableCid Transferable.Transfer with newOwnerAccount = account
-            pure $ (Some transferredCid, Some $ templateTypeRepToText $ interfaceTypeRep transferable)
-          (PLEDGE transferableCid, DEBIT_SENDER) -> do
-            transferableCid : ContractId Transferable.I <- coerceContractId <$> exercise (toInterfaceContractId @Disclosure.I transferableCid) Disclosure.AddObservers with disclosers = singleton step.sender; observersToAdd = (show id, singleton settler)
-            transferable <- fetch transferableCid
-            let senderAccount = getAccount transferable
-            assertMsg "the custodian of the transferable must be the receiver" $ senderAccount.custodian == step.receiver
-            accountCid <- Account.exerciseInterfaceByKey @Account.I senderAccount step.sender Account.Debit with holdingCid = coerceContractId transferableCid
-            pure (None, Some $ templateTypeRepToText $ interfaceTypeRep transferable)
-          (CREDIT_RECEIVER, TAKE_DELIVERY receiverAccount) -> do
-            assertMsg "the custodian of the receiver account must be the sender" $ receiverAccount.custodian == step.sender
-            transferableCid <- coerceContractId <$> Account.exerciseInterfaceByKey @Account.I receiverAccount step.receiver Account.Credit with quantity = step.quantity
-            transferable <- fetch transferableCid
-            pure $ (Some transferableCid, Some $ templateTypeRepToText $ interfaceTypeRep transferable)
-          (CREDIT_RECEIVER, DEBIT_SENDER) -> do
-            assertMsg "sender must be the same party as receiver" $ step.sender == step.receiver
-            pure (None, None)
-          (SETTLE_OFFLEDGER, SETTLE_OFFLEDGER_ACKNOWLEDGE) -> pure (None, None)
-          (SETTLE_OFFLEDGER, _) -> abort "offledger settlement must be acknowledged"
-          (_, SETTLE_OFFLEDGER_ACKNOWLEDGE) -> abort "offledger settlement must be initiated"
+        t <- case (allocation, approval) of
+            (UNALLOCATED, _) -> abort "instruction must be allocated"
+            (_, UNAPPROVED) -> abort "instruction must be approved"
+            (PLEDGE transferableCid, TAKE_DELIVERY account) -> do
+              transferable <- fetch transferableCid
+              transferredCid <- exercise transferableCid Transferable.Transfer with newOwnerAccount = account
+              pure (Some transferredCid, Some transferable)
+            (PLEDGE transferableCid, DEBIT_SENDER) -> do
+              transferable <- fetch transferableCid
+              let senderAccount = getAccount transferable
+              assertMsg "the custodian of the transferable must be the receiver" $ senderAccount.custodian == step.receiver
+              accountCid <- Account.exerciseInterfaceByKey @Account.I senderAccount step.sender Account.Debit with holdingCid = coerceContractId transferableCid
+              pure (None, Some transferable)
+            (CREDIT_RECEIVER, TAKE_DELIVERY receiverAccount) -> do
+              assertMsg "the custodian of the receiver account must be the sender" $ receiverAccount.custodian == step.sender
+              transferableCid <- coerceContractId <$> Account.exerciseInterfaceByKey @Account.I receiverAccount step.receiver Account.Credit with quantity = step.quantity
+              transferable <- fetch transferableCid
+              pure (Some transferableCid, Some transferable)
+            (CREDIT_RECEIVER, DEBIT_SENDER) -> do
+              assertMsg "sender must be the same party as receiver" $ step.sender == step.receiver
+              pure (None, None)
+            (SETTLE_OFFLEDGER, SETTLE_OFFLEDGER_ACKNOWLEDGE) -> pure (None, None)
+            (SETTLE_OFFLEDGER, _) -> abort "offledger settlement must be acknowledged"
+            (_, SETTLE_OFFLEDGER_ACKNOWLEDGE) -> abort "offledger settlement must be initiated"
+        let typeRep = fmap (\transferable -> templateTypeRepToText $ interfaceTypeRep transferable) t._2
+        pure (t._1, typeRep)

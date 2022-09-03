@@ -69,14 +69,15 @@ template Batch
             -- NOTE: ideally we should exerciseByKey (but currently doesn't work for interface choices).
             -- (as a workaround we could proxy the choice in the same contract)
             (instructionCid, instruction) <- fetchByKey @Instruction (requestors, instructionId)
-            (executionResult, templateTypeRepText) <- exercise instructionCid Instruction.Execute
-            pure $ (executionResult, fmap (\t -> (instruction.step.quantity.unit, t)) templateTypeRepText)
+            executionResult <- exercise instructionCid Instruction.Execute
+            let usedTypeRep = fmap (\t -> (instruction.step.quantity.unit, t)) executionResult._2
+            pure (executionResult._1, usedTypeRep)
         -- execute instruction
-        (transferableCids, instrumentTemplateTypeRepTextTuples) <- unzip <$> mapA settleInstruction instructionIds
+        (transferableCids, usedTypeReps) <- unzip <$> mapA settleInstruction instructionIds
         -- consistency check
-        forA_ (groupOn fst $ catOptionals instrumentTemplateTypeRepTextTuples) \ts ->
-          assertMsg "The template type rep of allocated holdings must be the same for all instructions for the same instrument." $ size (fromList ts) == 1
+        forA_ (groupOn fst $ catOptionals usedTypeReps) \ts ->
+          assertMsg "The template type rep of allocated transferables must be the same for all instructions for the same instrument." $ size (fromList ts) == 1
         -- undisclose accounts
         forA_ accountInstructionIds \(account, id) ->
           Account.exerciseInterfaceByKey @Disclosure.I account settler Disclosure.RemoveObservers with observersToRemove = (show id, singleton settler)
-        pure transferableCids
+        pure $ catOptionals transferableCids
