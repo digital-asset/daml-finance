@@ -5,6 +5,7 @@ module Daml.Finance.Holding.NonFungible where
 
 import DA.Assert ((===))
 import DA.Set (delete, insert, null, singleton)
+import Daml.Finance.Holding.Util (reapplyLocks)
 import Daml.Finance.Interface.Holding.Account qualified as Account (Credit(..), I, R, exerciseInterfaceByKey)
 import Daml.Finance.Interface.Holding.Base qualified as Base (I, View(..))
 import Daml.Finance.Interface.Holding.Factory.Holding qualified as HoldingFactory (Create(..), F, HasImplementation(..), Remove(..), View(..))
@@ -79,11 +80,11 @@ template NonFungible
 
     interface instance Transferable.I for NonFungible where
       asLockable = toInterface @Lockable.I this
-      view = Transferable.View ()
+      view = Transferable.View {}
       transfer Transferable.Transfer{newOwnerAccount} = do
         -- Account sanity checks
         newAccount <- fetchInterfaceByKey @Account.R newOwnerAccount
-        let v = _view newAccount
+        let v = view newAccount
         v.owner === newOwnerAccount.owner
         v.custodian === account.custodian
         -- Create new holding via Credit
@@ -93,7 +94,10 @@ template NonFungible
         -- Holding sanity checks. This prevents a holding from changing type during a `Transfer` (from e.g., `NonFungible` to `Fungible`)
         newHolding <- fetch newHoldingCid
         assertMsg "Sent holding type does not correspond to receiving account holding type" $ interfaceTypeRep newHolding == templateTypeRep @NonFungible
-        pure newHoldingCid
+        -- Reapply holding locks
+        coerceContractId <$> case lock of
+          Some lock -> reapplyLocks lock newHoldingCid
+          None -> pure newHoldingCid
 
 instance HoldingFactory.HasImplementation Factory
 -- | Implementation of the corresponding Holding Factory.

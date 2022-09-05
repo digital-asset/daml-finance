@@ -13,7 +13,7 @@ Asset model
 
 The library’s asset model is the set of contracts that describe the financial rights and obligations that exist between parties. It is composed of instruments, holdings, and accounts.
 
-It is important to note that she economic terms of an asset are separated from the representation of an asset holding. This is to allow centralized management of instruments (e.g. lifecycling), and to allow reuse of instruments and associated logic across different entities (e.g. custodians). It also avoids the data redundancy of replicating instrument data and logic on every holding contract.
+It is important to note that the economic terms of an asset are separated from the representation of an asset holding. This is to allow centralized management of instruments (e.g. lifecycling), and to allow reuse of instruments and associated logic across different entities (e.g. custodians). It also avoids the data redundancy of replicating instrument data and logic on every holding contract.
 
 All asset model interfaces are defined in the ``Daml.Finance.Interface.Asset`` package. Implementations are in ``Daml.Finance.Asset``.
 
@@ -158,7 +158,7 @@ A base account implementation is provided in ``Daml.Finance.Asset``.
 Settlement
 **********
 
-Settlement refers to the execution of holding transfers originating from
+:ref:`Settlement <settlement>` refers to the execution of holding transfers originating from
 a financial transaction.
 
 For instance, an example FX spot transaction involves the transfer of a
@@ -168,14 +168,87 @@ USD-denominated holding.
 The library provides facilities to execute these transfers atomically
 (i.e., within the same Daml transaction) in the package ``Daml.Finance.Interface.Settlement``.
 
-EXPLAIN INSTRUCTABLE, BATCH, INSTRUCTION USING THE FX EXAMPLE
+Step
+====
+
+The FX example transaction above contains two steps:
+
+#. transfer EUR from Alice to Bob
+#. transfer USD from Bob to Alice
+
+They are represented using one ``Step`` each.
+The step defines who is the sender, who is the receiver and what should be transferred (instrument and amount).
+
+Instruction
+===========
+
+A ``Step`` is not sufficient to do a transfer. We also need to know exactly which holding should be used and to which account it should be transferred.
+This is specified in an ``Instruction`` (one for each ``Step``).
+The ``Instruction`` allows the sender to specify which holding to transfer, by exercising the ``Allocate`` choice.
+The receiver can then specify which account should be used, by exercising the ``Approve`` choice.
+
+Batch
+=====
+
+We could execute the transfer of the two instructions above individually, but that would cause
+a problem if one instruction fails and the other one succeeds. Instead, we want to execute them
+simultaneously in one atomic transaction. We can do that by using a ``Batch`` contract.
+
+These settlement concepts are explained in more detail with example code in the :doc:`Settlement tutorial <tutorial/getting-started/settlement>`.
 
 Lifecycling
 ***********
 
-Lifecycling is the evolution of instruments over their lifetime.
+:ref:`Lifecycling <lifecycling>` is the evolution of instruments over their lifetime.
+The library provides a standard mechanism for processing instruments accross asset types.
 
-EXPLAIN THE CONCEPT OF AN INSTRUMENT VERSION
+Various types of events result in cashflows and updated instrument definitions,
+to reflect passed events and cashflows that have already been paid.
 
-It is important to understand that these are two different instruments.
+Events
+======
+
+
+The ``Event`` interface, which is defined in ``Daml.Finance.Interface.Lifecycle.Event`` is
+used to handle different types of events:
+
+Intrinsic
+---------
+
+Intrinsic events are contractual cash flows.
+It is pre-defined in the contract terms exactly what triggers these events, for example:
+
+- A certain date is reached, which results in a coupon payent of a bond. Time-based events are controlled using the ``DateClock`` template (not ledger time).
+- The price of a stock reaches a certain level, resulting in a barrier hit. The relevant stock price is defined in an ``Observable`` template.
+
+Extrinsic
+---------
+
+Extrinsic events, for example corporate actions and elections, are not pre-defined.
+An external choice is exercised in order to trigger these events.
+
+Instrument versions
+===================
+
+Consider a bond instrument which pays a fix coupon once a year. In this case, the
+coupon payment is an intrinsic, time-based event.
+
+When the bond has just been issued, the holder is entitled to all future coupon payments.
+On the payment date of the first coupon, the bond is lifecycled by the issuer. This has
+the following result:
+
+#. The current coupon is paid to the holder of the bond.
+#. The bond is replaced by a new version, which only includes the remaining coupons.
+
+It is important to understand that there are two different instruments: one which includes the current coupon and one which does not.
+
+Effects
+=======
+
+When an event is lifecycled, an ``Effect`` is produced. This is defined in ``Daml.Finance.Interface.Lifecycle.Effect``.
+The ``Effect`` can be settled in order to produce the relevant cash flows and to create the new instrument version (reflecting the remaining cash flows).
+
+
+These lifecycle concepts are explained in more detail with example code in the :doc:`Lifecycling tutorial <tutorial/getting-started/lifecycling>`.
+
 

@@ -9,9 +9,9 @@ import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..), T)
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (qty)
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
-import Daml.Finance.Interface.Settlement.Factory qualified as Factory (Instruct(..))
+import Daml.Finance.Interface.Settlement.Factory qualified as Factory (I, Instruct(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..), I)
-import Daml.Finance.Interface.Settlement.Types (Step(..))
+import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), Step(..))
 import Daml.Finance.Interface.Types.Common (Id(..))
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (AddObservers(..), I, RemoveObservers(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
@@ -57,12 +57,10 @@ run2 : Script ()
 run2 = run False
 
 -- | Cross-custodial payment
--- Dvp of $ 200'000 vs 1'250 shares. The cash settles via the Central Bank,
--- i.e., A -> B1 -> CB -> B2 -> B, and the security via the CSD, i.e.,
--- A <- C1 <- CSD -> C2 <- B.
+-- Dvp of $ 200'000 vs 1'250 shares.
 --
 -- Cash account structure:
---    Central Bank
+--        CB
 --       /  \
 --     B1    B2
 --     /      \
@@ -74,6 +72,15 @@ run2 = run False
 --     C2    C1
 --       \  /
 --       CSD
+--
+-- Assumptions:
+-- 1. The cash settles via intermediary banks B1 and B2, and the Central Bank (CB), i.e., A -> B1 -> CB -> B2 -> B.
+-- 2. The security settles via intermediary custodians C1 and C2, and the Central Security Depository (CSD), i.e., A <- C1 <- CSD -> C2 <- B.
+-- 3. The cash with CB as custodian is settled off ledger, all other cash and securities are settled on ledger.
+-- 4. The CSD does not have to act, rather a direct transfer of a holding (with CSD as custodian) happens from C1 to C2.
+-- 5. Intermediary banks/custodians allocate and approve instructions they have with Alice/Bob by a direct credit and debit of Alice's/Bob's accounts, respectively.
+-- 6. Alice and Bob allocate and approve their instructions by pledging holdings and taking delivery to their accounts, respectively.
+
 run : Bool -> Script ()
 run useDelegatee = script do
   TestParties{..} <- setupParties
@@ -87,23 +94,23 @@ run useDelegatee = script do
   -- Create accounts
   let createAccounts description custodian = mapA (Account.createAccount description [publicParty] accountFactoryCid holdingFactoryCid [] custodian)
   -- cash
-  [bank1OwnCashAccount, aliceCashAccount] <- createAccounts "Cash Account" bank1 [bank1, alice]
-  [bank2OwnCashAccount, bobCashAccount] <- createAccounts "Cash Account" bank2 [bank2, bob]
+  [aliceCashAccount] <- createAccounts "Cash Account" bank1 [alice]
+  [bobCashAccount] <- createAccounts "Cash Account" bank2 [bob]
   [bank1CashAccount, bank2CashAccount] <- createAccounts "Cash Account" cb [bank1, bank2]
   -- asset
-  [csdOwnAccount, custodian1DepoAccount, custodian2DepoAccount] <- createAccounts "Securities Account" csd [csd, custodian1, custodian2]
-  [custodian2OwnDepoAccount, aliceDepoAccount] <- createAccounts "Securities Account" custodian2 [custodian2, alice]
+  [custodian1DepoAccount, custodian2DepoAccount] <- createAccounts "Securities Account" csd [custodian1, custodian2]
+  [aliceDepoAccount] <- createAccounts "Securities Account" custodian2 [alice]
   [custodian1OwnDepoAccount, bobDepoAccount] <- createAccounts "Securities Account" custodian1 [custodian1, bob]
 
   -- Distribute
   -- cash
   now <- getTime
   cashInstrument <- Instrument.originate cb cb "USD" "United States Doller" [] now
-  [aliceCashCid, bank1CashCid, bank2CashCid] <- mapA (Account.credit [publicParty] cashInstrument 200_000.0) [aliceCashAccount, bank1CashAccount, bank2OwnCashAccount]
+  [aliceCashCid] <- mapA (Account.credit [publicParty] cashInstrument 200_000.0) [aliceCashAccount]
 
   -- assets
   assetInstrument <- Instrument.originate csd issuer "SHARE" "Stock" [] now
-  [bobAssetCid, custodian1AssetCid, custodian2AssetCid] <- mapA (Account.credit [publicParty] assetInstrument 1_250.0) [bobDepoAccount, custodian1DepoAccount, custodian2OwnDepoAccount]
+  [bobAssetCid, custodian1AssetCid] <- mapA (Account.credit [publicParty] assetInstrument 1_250.0) [bobDepoAccount, custodian1DepoAccount]
 
   -- Instruct settlement
   let
@@ -120,7 +127,7 @@ run useDelegatee = script do
       , Step with sender = custodian2; receiver = alice; quantity = assetQuantity
       ]
   -- Create settlement factory
-  settlementFactoryCid <- submitMulti [agent] [] do createCmd Factory with provider = agent; observers = empty
+  settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submitMulti [agent] [] do createCmd Factory with provider = agent; observers = empty
 
   -- Instruct settlement
   (batchCid, [aliceInstructionCid, bank1InstructionCid, bank2InstructionCid, bobInstructionCid, custodian1InstructionCid, custodian2InstructionCid]) <-
@@ -144,26 +151,26 @@ run useDelegatee = script do
         Account.submitExerciseInterfaceByKeyCmd @Disclosure.I [delegatee] [] aliceCashAccount Disclosure.RemoveObservers with observersToRemove = observerContext
         pure instructionCid
     else
-      submitMulti [alice] [] do exerciseCmd aliceInstructionCid Instruction.Allocate with transferableCid = aliceCashCid
-  bank1InstructionCid <- submitMulti [bank1] [] do exerciseCmd bank1InstructionCid Instruction.Allocate with transferableCid = bank1CashCid
-  bank2InstructionCid <- submitMulti [bank2] [] do exerciseCmd bank2InstructionCid Instruction.Allocate with transferableCid = bank2CashCid
-  bobInstructionCid <- submitMulti [bob] [] do exerciseCmd bobInstructionCid Instruction.Allocate with transferableCid = bobAssetCid
-  custodian1InstructionCid <- submitMulti [custodian1] [] do exerciseCmd custodian1InstructionCid Instruction.Allocate with transferableCid = custodian1AssetCid
-  custodian2InstructionCid <- submitMulti [custodian2] [] do exerciseCmd custodian2InstructionCid Instruction.Allocate with transferableCid = custodian2AssetCid
+      submitMulti [alice] [] do exerciseCmd aliceInstructionCid Instruction.Allocate with allocation = PLEDGE aliceCashCid
+  bank1InstructionCid <- submitMulti [bank1] [] do exerciseCmd bank1InstructionCid Instruction.Allocate with allocation = SETTLE_OFFLEDGER
+  bank2InstructionCid <- submitMulti [bank2] [] do exerciseCmd bank2InstructionCid Instruction.Allocate with allocation = CREDIT_RECEIVER
+  bobInstructionCid <- submitMulti [bob] [] do exerciseCmd bobInstructionCid Instruction.Allocate with allocation = PLEDGE bobAssetCid
+  custodian1InstructionCid <- submitMulti [custodian1] [] do exerciseCmd custodian1InstructionCid Instruction.Allocate with allocation = PLEDGE custodian1AssetCid
+  custodian2InstructionCid <- submitMulti [custodian2] [] do exerciseCmd custodian2InstructionCid Instruction.Allocate with allocation = CREDIT_RECEIVER
 
   -- Approve instructions
-  aliceInstructionCid <- submitMulti [bank1] [] do exerciseCmd aliceInstructionCid Instruction.Approve with receiverAccount = bank1OwnCashAccount
-  bank1InstructionCid <- submitMulti [bank2] [] do exerciseCmd bank1InstructionCid Instruction.Approve with receiverAccount = bank2CashAccount
-  bank2InstructionCid <- submitMulti [bob] [] do exerciseCmd bank2InstructionCid Instruction.Approve with receiverAccount = bobCashAccount
-  bobInstructionCid <- submitMulti [custodian1] [] do exerciseCmd bobInstructionCid Instruction.Approve with receiverAccount = custodian1OwnDepoAccount
-  custodian1InstructionCid <- submitMulti [custodian2] [] do exerciseCmd custodian1InstructionCid Instruction.Approve with receiverAccount = custodian2DepoAccount
-  custodian2InstructionCid <- submitMulti [alice] [] do exerciseCmd custodian2InstructionCid Instruction.Approve with receiverAccount = aliceDepoAccount
+  aliceInstructionCid <- submitMulti [bank1] [] do exerciseCmd aliceInstructionCid Instruction.Approve with approval = DEBIT_SENDER
+  bank1InstructionCid <- submitMulti [bank2] [] do exerciseCmd bank1InstructionCid Instruction.Approve with approval = SETTLE_OFFLEDGER_ACKNOWLEDGE
+  bank2InstructionCid <- submitMulti [bob] [] do exerciseCmd bank2InstructionCid Instruction.Approve with approval = TAKE_DELIVERY bobCashAccount
+  bobInstructionCid <- submitMulti [custodian1] [] do exerciseCmd bobInstructionCid Instruction.Approve with approval = DEBIT_SENDER
+  custodian1InstructionCid <- submitMulti [custodian2] [] do exerciseCmd custodian1InstructionCid Instruction.Approve with approval = TAKE_DELIVERY custodian2DepoAccount
+  custodian2InstructionCid <- submitMulti [alice] [] do exerciseCmd custodian2InstructionCid Instruction.Approve with approval = TAKE_DELIVERY aliceDepoAccount
 
   -- Settle batch
-  [bank1CashCid, bank2CashCid, bobCashCid, custodian1AssetCid, custodian2AssetCid, aliceAssetCid] <- submitMulti [agent] [publicParty] do exerciseCmd batchCid Batch.Settle
+  [bobCashCid, custodian2AssetCid, aliceAssetCid] <- submitMulti [agent] [publicParty] do exerciseCmd batchCid Batch.Settle
 
   -- Assert state
-  Holding.verifyOwnerOfHolding [(bank1, bank1CashCid), (bank2, bank2CashCid), (bob, bobCashCid), (custodian1, custodian1AssetCid), (custodian2, custodian2AssetCid), (alice, aliceAssetCid)]
+  Holding.verifyOwnerOfHolding [(bob, bobCashCid), (custodian2, custodian2AssetCid), (alice, aliceAssetCid)]
 
   pure ()
 
@@ -194,4 +201,4 @@ template AllocationDelegation
       do
         Some cid : Optional (ContractId Fungible.T) <- fmap coerceContractId <$> exercise (coerceContractId transferableCid : ContractId Disclosure.I) Disclosure.RemoveObservers with observersToRemove = (id, singleton delegatee)
         fungible <- fetch cid
-        exercise instructionCid Instruction.Allocate with transferableCid = coerceContractId cid
+        exercise instructionCid Instruction.Allocate with allocation = PLEDGE $ coerceContractId cid

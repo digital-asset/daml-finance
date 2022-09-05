@@ -1,8 +1,8 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-Getting started : Lifecycling
-###############################
+Lifecycling
+###########
 
 This tutorial describes the :ref:`lifecycle <lifecycling>` flow between two counterparties.
 We will use a bond instrument to illustrate the different steps:
@@ -27,19 +27,19 @@ Creating a fixed-rate bond instrument
 
 We start by defining a fixed rate bond, which pays a 1.1% coupon every year.
 
-.. literalinclude:: ../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/FixedRate.daml
+.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/FixedRate.daml
   :language: daml
   :start-after: -- CREATE_FIXED_RATE_BOND_VARIABLES_BEGIN
   :end-before: -- CREATE_FIXED_RATE_BOND_VARIABLES_END
 
-.. literalinclude:: ../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
+.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
   :language: daml
   :start-after: -- CREATE_FIXED_RATE_BOND_INSTRUMENT_BEGIN
   :end-before: -- CREATE_FIXED_RATE_BOND_INSTRUMENT_END
 
 We also credit the account of an investor:
 
-.. literalinclude:: ../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/FixedRate.daml
+.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/FixedRate.daml
   :language: daml
   :start-after: -- CREDIT_ACCOUNT_FIXED_RATE_BOND_BEGIN
   :end-before: -- CREDIT_ACCOUNT_FIXED_RATE_BOND_END
@@ -56,7 +56,7 @@ regarding when to process events.
 
 We define a clock contract to control the passage of time:
 
-.. literalinclude:: ../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
+.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
   :language: daml
   :start-after: -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_BEGIN
   :end-before: -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_END
@@ -70,7 +70,7 @@ We use the ``Lifecyclable`` interface, which is defined in ``Daml.Finance.Interf
 The issuer of the bond is responsible for initiating the coupon payment,
 by calling ``Lifecycle`` on the coupon date:
 
-.. literalinclude:: ../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
+.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
   :language: daml
   :start-after: -- LIFECYCLE_BOND_BEGIN
   :end-before: -- LIFECYCLE_BOND_END
@@ -90,21 +90,21 @@ Settling the instructions
 In order to process the effect(s) of the lifecycling (in this case: pay the coupon), we need to create settlement instructions.
 We start by creating a settlement factory:
 
-.. literalinclude:: ../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
+.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
   :language: daml
   :start-after: -- CREATE_SETTLEMENT_FACTORY_BOND_BEGIN
   :end-before: -- CREATE_SETTLEMENT_FACTORY_BOND_END
 
 The investor then claims the effect:
 
-.. literalinclude:: ../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
+.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
   :language: daml
   :start-after: -- CLAIM_EFFECT_BOND_BEGIN
   :end-before: -- CLAIM_EFFECT_BOND_END
 
 Finally, the settlement instructions are allocated, approved and then settled.
 
-.. literalinclude:: ../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
+.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
   :language: daml
   :start-after: -- ALLOCATE_APPROVE_SETTLE_INSTRUCTIONS_BOND_BEGIN
   :end-before: -- ALLOCATE_APPROVE_SETTLE_INSTRUCTIONS_BOND_END

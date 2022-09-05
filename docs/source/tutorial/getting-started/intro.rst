@@ -4,22 +4,30 @@
 Getting Started : Introduction
 ##############################
 
+.. toctree::
+   :hidden:
+
+   transfer
+   settlement
+   download-daml-finance
+   lifecycling
+
 Introduction
 ************
 
 This Getting Started section explains how some key concepts of Daml Finance work in practice.
 It combines a step by step description of different workflows with supporting code.
 It will allow you to install relevant sample projects locally and navigate the code.
-Some topics offer smaller, dedictated demo projects, others will introduce you to the main Daml Finance repo.
+Some topics offer smaller, dedicated demo projects, others will introduce you to the main Daml Finance repo.
 
 Next steps
 **********
 
 The :doc:`Transfer <transfer>` page describes accounts, cash instrument, deposit and transfer.
 
-The :doc:`Download Daml Finance <download-daml-finance>` page shows you how to download Daml Finance locally.
-
 The :doc:`Settlement <settlement>` page describes how to do a single transfer and an atomic delivery vs payment.
+
+The :doc:`Download Daml Finance <download-daml-finance>` page shows you how to download Daml Finance locally.
 
 The :doc:`Lifecycling <lifecycling>` page describes the lifecycling of a bond instrument, in particular how to process a coupon payment.
 

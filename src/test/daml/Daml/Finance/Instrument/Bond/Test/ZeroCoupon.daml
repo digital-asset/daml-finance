@@ -11,9 +11,10 @@ import Daml.Finance.Instrument.Bond.Test.Util (lifecycleBond, originateZeroCoupo
 import Daml.Finance.Instrument.Bond.ZeroCoupon qualified as ZeroCoupon (Instrument)
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (K, getKey)
-import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..))
+import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..), I)
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
 import Daml.Finance.Interface.Types.Common (AccountKey, Parties)
 import Daml.Finance.Lifecycle.Rule.Claim (Rule(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
@@ -28,13 +29,13 @@ lifecycleAndVerifyRedemptionEffectsAndSettlement readAs today bondInstrument set
   (bondLifecycleCid2, [effectCid]) <- lifecycleBond readAs today bondInstrument settler issuer []
 
   Some newBondInstrument <- queryContractId @ZeroCoupon.Instrument issuer $ coerceContractId bondLifecycleCid2
-  let newBondInstrumentKey = Instrument.getKey newBondInstrument
+  let newBondInstrumentKey = Instrument.getKey $ toInterface newBondInstrument
 
   -- Create settlement factory
   settlementFactoryCid <- submitMulti [investor] [] do createCmd Factory with provider = investor; observers = empty
 
   -- Claim effect
-  lifecycleClaimRuleCid <- submitMulti [custodian, investor] [] do
+  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [custodian, investor] [] do
     createCmd Rule
       with
         custodian
@@ -53,11 +54,11 @@ lifecycleAndVerifyRedemptionEffectsAndSettlement readAs today bondInstrument set
     [custodianRedemptionInstructionCid] = result.instructionCids
 
   -- Allocate instructions
-  custodianRedemptionInstructionCid <- submitMulti [custodian] [] do exerciseCmd custodianRedemptionInstructionCid Instruction.Allocate with transferableCid = custodianCashRedemptionTransferableCid
+  custodianRedemptionInstructionCid <- submitMulti [custodian] [] do exerciseCmd custodianRedemptionInstructionCid Instruction.Allocate with allocation = PLEDGE custodianCashRedemptionTransferableCid
 
   -- Approve instructions
   custodianCashInstructionCid <- submitMulti [investor] [] do
-    exerciseCmd custodianRedemptionInstructionCid Instruction.Approve with receiverAccount = investorAccount
+    exerciseCmd custodianRedemptionInstructionCid Instruction.Approve with approval = TAKE_DELIVERY  investorAccount
 
   -- Settle batch
   [investorRedemptionTransferableCid] <-

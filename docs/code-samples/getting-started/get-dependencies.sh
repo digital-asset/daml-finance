@@ -6,12 +6,17 @@
 set -eu
 
 # Target Daml Finance version
-version="0.1.1"
+version="0.1.2"
 
 # Daml Finance dependent libraries
 dependencies=( \
-  "Daml.Finance.Asset" \
-  "Daml.Finance.Interface.Asset" \
+  "Daml.Finance.Holding" \
+  "Daml.Finance.Instrument.Base" \
+  "Daml.Finance.Interface.Holding" \
+  "Daml.Finance.Interface.Instrument.Base" \
+  "Daml.Finance.Interface.Settlement" \
+  "Daml.Finance.Interface.Types" \
+  "Daml.Finance.Settlement" \
 )
 
 for dependency in "${dependencies[@]}"; do
@@ -32,4 +37,3 @@ for dependency in "${dependencies[@]}"; do
   fi
 
 done
-

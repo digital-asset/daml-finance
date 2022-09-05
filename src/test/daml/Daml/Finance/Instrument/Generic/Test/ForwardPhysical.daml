@@ -10,10 +10,11 @@ import DA.Map qualified as M (empty, fromList)
 import DA.Set (empty, singleton)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Instrument.Generic.Test.Util (originateGeneric, dateToDateClockTime)
-import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..))
-import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..))
+import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..), I)
+import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I)
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
 import Daml.Finance.Interface.Types.Common (Id(..))
 import Daml.Finance.Lifecycle.Rule.Claim (Rule(..))
 import Daml.Finance.RefData.Time.DateClock (DateClock(..), DateClockUpdateEvent(..), Unit(..))
@@ -86,7 +87,7 @@ run = script do
   settlementFactoryCid <- submitMulti [investor] [] do createCmd Factory with provider = investor; observers = empty
 
   -- Claim effect
-  lifecycleClaimRuleCid <- submitMulti [bank, investor] [] do
+  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [bank, investor] [] do
     createCmd Rule
       with
         custodian = bank
@@ -104,12 +105,12 @@ run = script do
   let [investorCashInstructionCid, bankEquityInstructionCid] = result.instructionCids
 
   -- Allocate instructions
-  bankEquityInstructionCid <- submitMulti [bank] [] do exerciseCmd bankEquityInstructionCid Instruction.Allocate with transferableCid = bankEquityTransferableCid
-  investorCashInstructionCid <- submitMulti [investor] [] do exerciseCmd investorCashInstructionCid Instruction.Allocate with transferableCid = investorCashTransferableCid
+  bankEquityInstructionCid <- submitMulti [bank] [] do exerciseCmd bankEquityInstructionCid Instruction.Allocate with allocation = PLEDGE bankEquityTransferableCid
+  investorCashInstructionCid <- submitMulti [investor] [] do exerciseCmd investorCashInstructionCid Instruction.Allocate with allocation = PLEDGE investorCashTransferableCid
 
   -- Approve instructions
-  investorCashInstructionCid <- submitMulti [bank] [] do exerciseCmd investorCashInstructionCid Instruction.Approve with receiverAccount = bankOwnAccount
-  bankEquityInstructionCid <- submitMulti [investor] [] do exerciseCmd bankEquityInstructionCid Instruction.Approve with receiverAccount = investorAccount
+  investorCashInstructionCid <- submitMulti [bank] [] do exerciseCmd investorCashInstructionCid Instruction.Approve with approval = TAKE_DELIVERY  bankOwnAccount
+  bankEquityInstructionCid <- submitMulti [investor] [] do exerciseCmd bankEquityInstructionCid Instruction.Approve with approval = TAKE_DELIVERY  investorAccount
 
   -- Settle batch
   [bankCashTransferableCid, investorEquityTransferableCid] <-
