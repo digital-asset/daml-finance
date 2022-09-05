@@ -57,13 +57,13 @@ template Batch
                 let holdingCid : ContractId Base.I = coerceContractId senderTransferableCid
                 holding <- fetch holdingCid
                 fetchAccount holding
-                pure [(getAccount holding, instructionId)]
-              _ -> pure []
+                pure $ Some $ (getAccount holding, instructionId)
+              _ -> pure None
             let
               r = case instruction.approval of
-                TAKE_DELIVERY receiverAccount -> [(receiverAccount, instructionId)]
-                _ -> []
-            pure $ s ++ r
+                TAKE_DELIVERY receiverAccount -> Some (receiverAccount, instructionId)
+                _ -> None
+            pure $ catOptionals [s, r]
         -- settle
         let
           settleInstruction instructionId = do
@@ -78,11 +78,11 @@ template Batch
             let usedTypeReps = (\t -> (instruction.step.quantity.unit, interfaceTypeRep t)) <$> catOptionals [allocatedTransferable, settledTransferable]
             pure (transferableCidOpt, usedTypeReps)
         -- execute instruction
-        (transferableCids, usedTypeReps) <- unzip <$> mapA settleInstruction instructionIds
+        (transferableCidOpts, usedTypeReps) <- unzip <$> mapA settleInstruction instructionIds
         -- consistency check
         forA_ (groupOn fst $ concat usedTypeReps) \ts ->
           assertMsg "The template type rep of allocated transferables must be the same for all instructions for the same instrument." $ size (fromList ts) == 1
         -- undisclose accounts
         forA_ accountInstructionIds \(account, id) ->
           Account.exerciseInterfaceByKey @Disclosure.I account settler Disclosure.RemoveObservers with observersToRemove = (show id, singleton settler)
-        pure $ catOptionals transferableCids
+        pure $ catOptionals transferableCidOpts
