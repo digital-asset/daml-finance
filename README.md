@@ -10,6 +10,7 @@ To build this library locally, the following requirements are necessary:
 1. [Daml SDK](https://docs.daml.com/getting-started/installation.html) (2.x)
 2. `make` (3.x)
 3. `yq` (4.x)
+4. `jq` (>1.5)
 
 ## Building
 
