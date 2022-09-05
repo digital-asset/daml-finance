@@ -9,7 +9,7 @@ Introduction
 
 This section explains the different packages in Daml Finance.
 It describes the modules contained in each package.
-It also points to sources for more information, either a tutorial or a test that describes
+It also points to sources that explain how to use the packages, either a tutorial or a test that describes
 how to use the package step-by-step.
 
 
