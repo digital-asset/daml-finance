@@ -3,13 +3,14 @@
 
 set -eu
 
-root_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")"; cd ..; pwd -P)
-echo "root_dir=${root_dir}"
+# Use absolute paths to allow this script to be called from any location
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd -P)
+root_dir=$(cd ${script_dir}; cd ..; pwd -P)
 
 echo "Running package tests..."
 
-## Run tests
-## Util
+# Run tests
+# Util
 daml test --project-root ${root_dir}/package/test/daml/Daml.Finance.Test.Util
 ## Date Utils
 daml test --project-root ${root_dir}/package/test/daml/Daml.Finance.Util.Test
