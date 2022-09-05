@@ -1,11 +1,11 @@
+#!/bin/bash
 # Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 set -eu
 
 # Use absolute paths to allow this script to be called from any location
-script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd -P)
-root_dir=$(cd ${script_dir}; cd ..; pwd -P)
+root_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")"; cd ..; pwd -P)
 
 echo "Running package tests..."
 
