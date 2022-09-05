@@ -9,19 +9,23 @@ script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd -P)
 project_name=$(yq e '.name' ${project}/daml.yaml)
 
 green='\033[0;32m'
+boldGreen='\033[1;92m'
+cyan='\033[0;36m'
+boldWhite='\033[1;97m'
 colour_off='\033[0m'
 
 project_string="Building package - ${project_name}"
 bar=""
 for str in $(seq 1 `echo ${project_string} | wc -c`); do bar+="-"; done
 
-echo -e "\n${green}${bar}${colour_off}"
-echo -e "${green}${project_string}${colour_off}"
-echo -e "${green}${bar}${colour_off}\n"
+echo -e "\n${boldGreen}${bar}${colour_off}"
+echo -e "${boldGreen}${project_string}${colour_off}"
+echo -e "${boldGreen}${bar}${colour_off}\n"
 
+echo -e "${boldWhite}Extracting dependencies for library ${project_name}...${colour_off}\n"
 ${script_dir}/get-dependencies.sh ${project}/daml.yaml
 
-echo "Compiling ${project_name}..."
+echo -e "${boldWhite}Compiling ${project_name}...${colour_off}"
 DAML_PROJECT=${project} daml build
 
-echo -e "\nSuccessfully built package ${project_name}."
+echo -e "\n${cyan}Successfully built package ${project_name}.${colour_off}"

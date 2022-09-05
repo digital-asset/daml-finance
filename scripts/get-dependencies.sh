@@ -17,8 +17,6 @@ project_lib_dir="${project_root_dir}/.lib"
 red='\033[0;31m'
 colour_off='\033[0m'
 
-echo -e "Extracting dependencies for library ${project_name}...\n"
-
 dependencies=($(yq e '.data-dependencies[]' ${daml_yaml_file}))
 if [[ -z ${dependencies:-} ]]; then
   echo "Project ${project_name} has no dependencies. Ignoring..."

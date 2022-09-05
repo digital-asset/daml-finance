@@ -54,9 +54,9 @@ test-all: test test-packages
 .PHONY: clean-all
 clean-all: clean clean-packages
 
-##################################
-# CI (avoids unnecessary builds) #
-##################################
+####################################
+# CI (avoids unnecessary rebuilds) #
+####################################
 .PHONY: ci-build
 ci-build: build build-packages
 
