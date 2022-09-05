@@ -9,6 +9,7 @@ module Daml.Finance.Settlement.Batch
 import DA.Foldable (forA_)
 import DA.Optional (catOptionals)
 import DA.Set (fromList, singleton, size)
+import DA.List (groupOn)
 import DA.Traversable qualified as T
 import Daml.Finance.Interface.Holding.Account qualified as Account (exerciseInterfaceByKey)
 import Daml.Finance.Interface.Holding.Base qualified as Base (I)
@@ -72,10 +73,10 @@ template Batch
             allocatedTransferable <- case instruction.allocation of
               PLEDGE cid -> Some <$> fetch cid
               _ -> pure None
-            executionResult <- exercise instructionCid Instruction.Execute
-            settledTransferable <- T.mapA fetch executionResult
+            transferableCidOpt <- exercise (toInterfaceContractId @Instruction.I instructionCid) Instruction.Execute
+            settledTransferable <- T.mapA fetch transferableCidOpt
             let usedTypeReps = (\t -> (instruction.step.quantity.unit, interfaceTypeRep t)) <$> catOptionals [allocatedTransferable, settledTransferable]
-            pure (executionResult, usedTypeReps)
+            pure (transferableCidOpt, usedTypeReps)
         -- execute instruction
         (transferableCids, usedTypeReps) <- unzip <$> mapA settleInstruction instructionIds
         -- consistency check
@@ -84,4 +85,4 @@ template Batch
         -- undisclose accounts
         forA_ accountInstructionIds \(account, id) ->
           Account.exerciseInterfaceByKey @Disclosure.I account settler Disclosure.RemoveObservers with observersToRemove = (show id, singleton settler)
-        pure $ catOptionals transferableCidOpts
+        pure $ catOptionals transferableCids
