@@ -142,4 +142,3 @@ doc-html: doc-theme doc-code
 .PHONY: doc-clean
 doc-clean: Makefile
 	$(SPHINXBUILD) -M clean "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
-
