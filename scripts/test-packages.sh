@@ -4,6 +4,7 @@
 set -eu
 
 root_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")"; cd ..; pwd -P)
+echo "root_dir=${root_dir}"
 
 echo "Running package tests..."
 
