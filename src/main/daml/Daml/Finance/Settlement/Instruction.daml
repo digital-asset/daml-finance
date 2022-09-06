@@ -6,7 +6,7 @@ module Daml.Finance.Settlement.Instruction where
 import DA.Assert ((===))
 import DA.Set (fromList, insert, singleton)
 import Daml.Finance.Interface.Holding.Account qualified as Account (I, Credit(..), Debit(..), exerciseInterfaceByKey)
-import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (Transfer(..))
+import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
 import Daml.Finance.Interface.Holding.Util (getAccount, getAmount, getInstrument)
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..), HasImplementation, I, View(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), Step)
@@ -58,10 +58,10 @@ template Instruction
       view = Instruction.View with id; step; settler
       allocate Instruction.Allocate{allocation} = do
         assertMsg ("allocation must be new" <> messageSuffix) $ allocation /= this.allocation
-        -- disclose allocation
+        -- verify and disclose allocation
         allocationDisclosed <- case allocation of
           PLEDGE transferableCid -> do
-            transferableCid <- coerceContractId <$> exercise (toInterfaceContractId @Disclosure.I transferableCid) Disclosure.AddObservers with disclosers = singleton step.sender; observersToAdd = (show id, singleton settler)
+            transferableCid : ContractId Transferable.I <- coerceContractId <$> exercise (toInterfaceContractId @Disclosure.I transferableCid) Disclosure.AddObservers with disclosers = singleton step.sender; observersToAdd = (show id, singleton settler)
             transferable <- fetch transferableCid
             accountCid <- Account.exerciseInterfaceByKey @Disclosure.I (getAccount transferable) step.sender Disclosure.AddObservers with disclosers = singleton step.sender; observersToAdd = (show id, singleton settler)
             getAmount transferable === step.quantity.amount
@@ -80,15 +80,15 @@ template Instruction
           _ -> pure ()
         -- update instruction state
         toInterfaceContractId <$> create this with signed = insert step.receiver signed; approval
-      execute = do
+      execute =
         -- execute instruction
         case (allocation, approval) of
           (UNALLOCATED, _) -> abort $ "instruction must be allocated" <> messageSuffix
           (_, UNAPPROVED) -> abort $ "instruction must be approved" <> messageSuffix
           (PLEDGE transferableCid, TAKE_DELIVERY account) -> do
             transferable <- fetch transferableCid
-            transferredCid <- exercise transferableCid Transferable.Transfer with newOwnerAccount = account
-            pure $ Some transferredCid
+            transferableCid <- exercise transferableCid Transferable.Transfer with newOwnerAccount = account
+            Some . coerceContractId <$> exercise (toInterfaceContractId @Disclosure.I transferableCid) Disclosure.AddObservers with disclosers = singleton step.receiver; observersToAdd = (show id, singleton settler)
           (PLEDGE transferableCid, DEBIT_SENDER) -> do
             transferable <- fetch transferableCid
             let senderAccount = getAccount transferable
@@ -97,9 +97,8 @@ template Instruction
             pure None
           (CREDIT_RECEIVER, TAKE_DELIVERY receiverAccount) -> do
             assertMsg ("the custodian of the receiver account must be the sender" <> messageSuffix) $ receiverAccount.custodian == step.sender
-            transferableCid <- coerceContractId <$> Account.exerciseInterfaceByKey @Account.I receiverAccount step.receiver Account.Credit with quantity = step.quantity
-            transferable <- fetch transferableCid
-            pure $ Some transferableCid
+            transferableCid <- Account.exerciseInterfaceByKey @Account.I receiverAccount step.receiver Account.Credit with quantity = step.quantity
+            Some . coerceContractId <$> exercise (toInterfaceContractId @Disclosure.I transferableCid) Disclosure.AddObservers with disclosers = singleton step.receiver; observersToAdd = (show id, singleton settler)
           (CREDIT_RECEIVER, DEBIT_SENDER) -> do
             assertMsg ("sender must be the same party as receiver" <> messageSuffix) $ step.sender == step.receiver
             pure None

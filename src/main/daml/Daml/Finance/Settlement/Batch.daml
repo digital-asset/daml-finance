@@ -7,8 +7,10 @@ module Daml.Finance.Settlement.Batch
   ) where
 
 import DA.Foldable (forA_)
+import DA.List (groupOn)
 import DA.Optional (catOptionals)
-import DA.Set (fromList, singleton)
+import DA.Set (fromList, singleton, size)
+import DA.Traversable qualified as T
 import Daml.Finance.Interface.Holding.Account qualified as Account (exerciseInterfaceByKey)
 import Daml.Finance.Interface.Holding.Base qualified as Base (I)
 import Daml.Finance.Interface.Holding.Util (fetchAccount, getAccount)
@@ -52,25 +54,35 @@ template Batch
             (instructionCid, instruction) <- fetchByKey @Instruction (requestors, instructionId)
             s <- case instruction.allocation of
               PLEDGE senderTransferableCid -> do
-                let holdingCid : ContractId Base.I = coerceContractId senderTransferableCid
-                holding <- fetch holdingCid
+                holding <- fetch $ toInterfaceContractId @Base.I senderTransferableCid
                 fetchAccount holding
-                pure [(getAccount holding, instructionId)]
-              _ -> pure []
+                pure . Some $ (getAccount holding, instructionId)
+              _ -> pure None
             let
               r = case instruction.approval of
-                TAKE_DELIVERY receiverAccount -> [(receiverAccount, instructionId)]
-                _ -> []
-            pure $ s ++ r
+                TAKE_DELIVERY receiverAccount -> Some (receiverAccount, instructionId)
+                _ -> None
+            pure $ catOptionals [s, r]
         -- settle
         let
           settleInstruction instructionId = do
             -- NOTE: ideally we should exerciseByKey (but currently doesn't work for interface choices).
             -- (as a workaround we could proxy the choice in the same contract)
             (instructionCid, instruction) <- fetchByKey @Instruction (requestors, instructionId)
-            exercise (toInterfaceContractId @Instruction.I instructionCid) Instruction.Execute
+            allocatedTransferable <- case instruction.allocation of
+              PLEDGE cid -> Some <$> fetch cid
+              _ -> pure None
+            transferableCidOpt <- exercise (toInterfaceContractId @Instruction.I instructionCid) Instruction.Execute
+            settledTransferable <- T.mapA fetch transferableCidOpt
+            -- undisclose transferable
+            transferableCidOpt <- fmap coerceContractId . join <$> T.mapA (\tCid -> exercise (toInterfaceContractId @Disclosure.I tCid) Disclosure.RemoveObservers with observersToRemove = (show instructionId, singleton settler)) transferableCidOpt
+            let usedTypeRepOpts = fmap (\t -> (instruction.step.quantity.unit, interfaceTypeRep t)) <$> [allocatedTransferable, settledTransferable]
+            pure (transferableCidOpt, usedTypeRepOpts)
         -- execute instruction
-        transferableCidOpts <- mapA settleInstruction instructionIds
+        (transferableCidOpts, usedTypeRepOpts) <- unzip <$> mapA settleInstruction instructionIds
+        -- consistency check
+        forA_ (groupOn fst $ catOptionals . concat $ usedTypeRepOpts) \ts ->
+          assertMsg "The template type rep of allocated transferables must be the same for all instructions for the same instrument." $ size (fromList ts) == 1
         -- undisclose accounts
         forA_ accountInstructionIds \(account, id) ->
           Account.exerciseInterfaceByKey @Disclosure.I account settler Disclosure.RemoveObservers with observersToRemove = (show id, singleton settler)
