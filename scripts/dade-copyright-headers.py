@@ -140,9 +140,9 @@ def process_file(filename, check_only):
   # compare against it. If no copyright header exists or it's different
   # remove the existing one and prepend the new header to the file.
   state='start'
-  index=0      # Current index to copyright notice text when comparing
+  index=0 # Current index to copyright notice text when comparing
   before_header=[] # Lines in the file before possible copyright header
-  after_header=[]  # Lines in the file after the header
+  after_header=[] # Lines in the file after the header
   for line in lines:
     # looking for start comment block
     if state == 'start':

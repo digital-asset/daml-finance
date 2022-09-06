@@ -137,7 +137,7 @@ choice Foo : res
     b : B
   controller actor
   do
-    foo this a b
+    foo a b
 ```
 
 Recall that `arg` is syntactic sugar for `Foo with a; b` when used in the body of the choice.
@@ -163,6 +163,26 @@ Recall that `arg` is syntactic sugar for `Foo with a; b` when used in the body o
         ...
       else do
         ...
+  ```
+
+### Naming convention
+
+- Use the CamlCase naming convention for types, variables, and functions. For example:
+
+  ```haskell
+  data MyOptions =
+      OptionOne
+    | OptionTwo
+    | OptionThree
+  ```
+
+  ```haskell
+  mySum : Decimal -> Decimal -> Decimal
+  mySum a b = a + b
+  ```
+
+  ```haskell
+  myTerm = 3
   ```
 
 ### `let` bindings
