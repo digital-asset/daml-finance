@@ -29,10 +29,20 @@ Core Implementations
     For a description of ``Distribution`` and ``Replacement``, check out the ``src/test/daml/Daml/Finance/Instrument/Equity/Test`` folder. It demonstrates
     how to create and lifecycle a cash dividend, and how to handle corporate actions like mergers and stock splits.
 
-- Daml.Finance.RefData
-    - DateClock
-    - Observation
-    - HolidayCalendar
-- Daml.Finance.Common
-    - Date
-    - Util
+- ``Daml.Finance.RefData``
+
+    This package contains the *implementation* of reference data related workflows. It contains the following modules:
+
+    - :ref:`Time.DateClock <module-daml-finance-refdata-time-dateclock-80226>`: Event signalling the update of a clock. This can trigger the execution of lifecycle rules for some instruments.
+    - :ref:`Observation <module-daml-finance-refdata-observation-94498>`: An implementation of ``Observable`` that explicitly stores time-dependent numerical values (e.g. equity or rate fixings).
+    - :ref:`HolidayCalendar <type-daml-finance-refdata-holidaycalendar-holidaycalendar-89891>`: Holiday calendar of an entity (typically an exchange or a currency).
+
+- ``Daml.Finance.Util``
+
+    This package mainly contains functions related to dates, lists and maps. They are defined in the following modules:
+
+    - :ref:`Date.Calendar <module-daml-finance-util-date-calendar-17588>`: Functions regarding dates and holiday calendars (business vs non-business days).
+    - :ref:`Date.DayCount <module-daml-finance-util-date-daycount-38239>`: Functions to calculate day count fractions according to different conventions.
+    - :ref:`Date.RollConvention <module-daml-finance-util-date-rollconvention-88672>`: Functions to calculate date periods including rolling dates.
+    - :ref:`Date.Schedule <module-daml-finance-util-date-schedule-32303>`: Functions to calculate a periodic schedule, including both adjusted and unadjusted dates.
+    - :ref:`Common <module-daml-finance-util-common-41560>`: Various functions related to lists and maps, which are commonly used in several packages.
