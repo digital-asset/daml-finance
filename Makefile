@@ -46,7 +46,7 @@ clean-packages:
 ###############################
 
 .PHONY: build-all
-test-all: build build-packages
+build-all: build build-packages
 
 .PHONY: test-all
 test-all: test test-packages
