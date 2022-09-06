@@ -20,13 +20,13 @@ The purpose of this document is to describe the procedure to release this librar
        - a new release in GitHub releases;
        - a new tag in GitHub.
    - You can find the `daml-finance` Circle CI's pipeline of executing and running jobs [here](https://app.circleci.com/pipelines/github/DACH-NY/daml-finance).
-5.  Successful releases will be listed [here](https://github.com/DACH-NY/daml-finance/releases).
+5. Successful releases will be listed [here](https://github.com/DACH-NY/daml-finance/releases).
 
 ## Official release versioning
 
 This project will follow Semantic Versioning :
 
-```
+```{}
 Given a version number `MAJOR.MINOR.PATCH`, increment the:
 
 1. MAJOR version when you make incompatible API changes,
@@ -36,24 +36,23 @@ Given a version number `MAJOR.MINOR.PATCH`, increment the:
 
 See [here](https://semver.org/) for further information.
 
-
 ### Pre-release versioning
 
 Due to the underying Haskell tooling which Daml is built upon, versioning is limited to the following regex:
 
-```
+```{}
 ^(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))*$
 ```
 
 For pre-release versioning we cannot use `-ALPHA`, `-SNAPSHOT`, `-RC1`, etc. For example:
 
-```
+```{}
 1.0.0-alpha < 1.0.0-alpha.1 < 1.0.0-alpha.beta < 1.0.0-beta < 1.0.0-beta.2 < 1.0.0-beta.11 < 1.0.0-rc.1 < 1.0.0.
 ```
 
 To overcome this limitation, we will use dates to represent pre-release canditates. For example:
 
-```
+```{}
 1.0.0.20220627.1 < 1.0.0.20220627.2 < 1.0.0.20220628.1 < 1.0.0
 ```
 
