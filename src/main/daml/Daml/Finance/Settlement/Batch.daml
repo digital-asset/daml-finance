@@ -8,7 +8,7 @@ module Daml.Finance.Settlement.Batch
 
 import DA.Foldable (forA_)
 import DA.List (groupOn)
-import DA.Optional (catOptionals, fromSome)
+import DA.Optional (catOptionals)
 import DA.Set (fromList, singleton, size)
 import DA.Traversable qualified as T
 import Daml.Finance.Interface.Holding.Account qualified as Account (exerciseInterfaceByKey)
@@ -75,13 +75,13 @@ template Batch
             transferableCidOpt <- exercise (toInterfaceContractId @Instruction.I instructionCid) Instruction.Execute
             settledTransferable <- T.mapA fetch transferableCidOpt
             -- undisclose transferable
-            transferableCidOpt <- T.mapA (\tCid -> coerceContractId . fromSome <$> exercise (toInterfaceContractId @Disclosure.I tCid) Disclosure.RemoveObservers with observersToRemove = (show instructionId, singleton settler)) transferableCidOpt
-            let usedTypeReps = (\t -> (instruction.step.quantity.unit, interfaceTypeRep t)) <$> catOptionals [allocatedTransferable, settledTransferable]
-            pure (transferableCidOpt, usedTypeReps)
+            transferableCidOpt <- fmap coerceContractId . join <$> T.mapA (\tCid -> exercise (toInterfaceContractId @Disclosure.I tCid) Disclosure.RemoveObservers with observersToRemove = (show instructionId, singleton settler)) transferableCidOpt
+            let usedTypeRepOpts = fmap (\t -> (instruction.step.quantity.unit, interfaceTypeRep t)) <$> [allocatedTransferable, settledTransferable]
+            pure (transferableCidOpt, usedTypeRepOpts)
         -- execute instruction
-        (transferableCidOpts, usedTypeReps) <- unzip <$> mapA settleInstruction instructionIds
+        (transferableCidOpts, usedTypeRepOpts) <- unzip <$> mapA settleInstruction instructionIds
         -- consistency check
-        forA_ (groupOn fst $ concat usedTypeReps) \ts ->
+        forA_ (groupOn fst $ catOptionals . concat $ usedTypeRepOpts) \ts ->
           assertMsg "The template type rep of allocated transferables must be the same for all instructions for the same instrument." $ size (fromList ts) == 1
         -- undisclose accounts
         forA_ accountInstructionIds \(account, id) ->
