@@ -170,8 +170,8 @@ Recall that `arg` is syntactic sugar for `Foo with a; b` when used in the body o
 - Use the CamlCase naming convention for types, variables, and functions. For example:
 
   ```haskell
-  data MyOptions =
-      OptionOne
+  data MyOptions
+    = OptionOne
     | OptionTwo
     | OptionThree
   ```
