@@ -11,6 +11,8 @@ Core Interfaces
     - :ref:`Factory <module-daml-finance-interface-instrument-base-factory-89800>`: Interface that allows implementing templates to create instruments.
     - :ref:`Instrument <module-daml-finance-interface-instrument-base-instrument-57320>`: Base interface for an instrument. This interface does not define any lifecycling logic.
 
+    Check out the :doc:`Transfer tutorial <../../tutorial/getting-started/transfer>` for an example on how to create a base instrument and use it for a transfer.
+
 - ``Daml.Finance.Interface.Instrument.Bond``
 
     This package contains the *interface* for different bond types, defined in the following modules:
@@ -44,6 +46,8 @@ Core Interfaces
     - :ref:`HasClaims <module-daml-finance-interface-instrument-generic-hasclaims-47920>`: Interface implemented by templates that can be represented as a set of contingent claims.
     - :ref:`Types <module-daml-finance-interface-instrument-generic-types-37112>`: Types related to claims and what is require to represent claims (e.g. Deliverable and Observable.)
 
+    The tutorial :doc:`How to use the Derivative extension to model generic instruments <../../tutorial/instrument-modelling/derivative-extension>` describes how a payoff is defined using ``Contingent Claims`` in practice.
+
 - ``Daml.Finance.Interface.Holding``
 
     This package contains the *interface* and utility functions for holdings and accounts. It has the following modules:
@@ -56,6 +60,9 @@ Core Interfaces
     - :ref:`Lockable <module-daml-finance-interface-holding-lockable-23737>`: An interface respresenting contracts which allow a set of parties to restrict certain actions on a contract.
     - :ref:`Transferable <module-daml-finance-interface-holding-transferable-88121>`: Interface respresenting a contract where ownership can be transferred to other parties.
     - :ref:`Util <module-daml-finance-interface-holding-util-81618>`: Utility functions related to holdings, e.g. getting the account / instrument / owner of a holding.
+
+    The :doc:`Core Concepts <../core-concepts>` page explains the relationship between instruments, holdings and accounts.
+    Check out the :doc:`Transfer tutorial <../../tutorial/getting-started/transfer>` for a description on how to create a holding on an instrument and how to transfer it between accounts.
 
 - Daml.Finance.Interface.Settlement
     - Instruction

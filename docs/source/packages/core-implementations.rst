@@ -10,6 +10,8 @@ Core Implementations
 
     - :ref:`Instrument <module-daml-finance-instrument-base-instrument-53549>`: Base implementation of an Instrument which does not define any lifecycling logic.
 
+    Check out the :doc:`Transfer tutorial <../../tutorial/getting-started/transfer>` for an example on how to create a base instrument and use it for a transfer.
+
 - ``Daml.Finance.Instrument.Bond``
 
     This package contains the *implementation* of different bond types, defined in the following modules:
@@ -41,6 +43,8 @@ Core Implementations
     - :ref:`Factory <module-daml-finance-instrument-generic-factory-42712>`: Factory template for generic instrument creation.
     - :ref:`Instrument <module-daml-finance-instrument-generic-instrument-67364>`: An instrument representing a generic payoff, modelled using ``Contingent Claims``.
 
+    The tutorial :doc:`How to use the Derivative extension to model generic instruments <../../tutorial/instrument-modelling/derivative-extension>` describes how a payoff is defined using ``Contingent Claims`` in practice.
+
 - ``Daml.Finance.Holding``
 
     This package contains the *implementation* and utility functions for holdings and accounts. It has the following modules:
@@ -50,6 +54,9 @@ Core Implementations
     - :ref:`NonFungible <module-daml-finance-holding-nonfungible-86571>`: Implementation of a non-fungible holding, which cannot be split or merged.
     - :ref:`NonTransferable <module-daml-finance-holding-nontransferable-44402>`: Implementation of a non-transferable holding.
     - :ref:`Util <module-daml-finance-holding-util-87323>`: Utility functions related to holdings, e.g. locking a holding.
+
+    The :doc:`Core Concepts <../core-concepts>` page explains the relationship between instruments, holdings and accounts.
+    Check out the :doc:`Transfer tutorial <../../tutorial/getting-started/transfer>` for a description on how to create a holding on an instrument and how to transfer it between accounts.
 
 - Daml.Finance.Settlement
     - Batch
