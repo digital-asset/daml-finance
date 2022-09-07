@@ -50,8 +50,8 @@ virtual environment: run `pipenv install` again in the root folder of the reposi
 
 1. Navigate to the root folder of the repository.
 
-2. Start a local webserver on `http://localhost:8000/` by running `./docs/preview.sh`. In case an
-   old/cached html document is being shown, make sure to refresh your webbrowser.
+2. Start a local web server on `http://localhost:8000/` by running `./docs/preview.sh`. In case an
+   old/cached html document is being shown, make sure to refresh your web browser.
 
 ### If you are doing many changes to the docs
 
