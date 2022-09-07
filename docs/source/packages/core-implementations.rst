@@ -22,11 +22,11 @@ Core Implementations
     This package contains the *implementation* of the components used for settlement. It has the following modules:
 
     - :ref:`Instruction <module-daml-finance-settlement-instruction-87187>`: Used to settle a single settlement `Step`.
-    - :ref:`Factory <module-daml-finance-settlement-factory-257>`: used to create a set of settlement `Instruction`\s, and a `Batch` to atomically settle them.
-    - :ref:`Batch <module-daml-finance-settlement-batch-95573>`: Allows to atomically settle a set of settlement steps.
+    - :ref:`Factory <module-daml-finance-settlement-factory-257>`: Used to create a set of settlement `Instruction`\s, and a `Batch` to atomically settle them.
+    - :ref:`Batch <module-daml-finance-settlement-batch-95573>`: Allows you to atomically settle a set of settlement steps.
 
     The :doc:`Core Concepts <../core-concepts>` page contains an overview of the settlement process and explains the relationship between ``Step``, ``Instruction`` and ``Batch``.
-    Check out the :doc:`Settlement tutorial <../../tutorial/getting-started/settlement>` for a description on how to use settlement workflow in practice.
+    Check out the :doc:`Settlement tutorial <../../tutorial/getting-started/settlement>` for a description on how to implement the settlement workflow in practice.
 
 - ``Daml.Finance.Lifecycle``
 
