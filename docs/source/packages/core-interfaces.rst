@@ -57,11 +57,6 @@ Core Interfaces
     - :ref:`Transferable <module-daml-finance-interface-holding-transferable-88121>`: Interface respresenting a contract where ownership can be transferred to other parties.
     - :ref:`Util <module-daml-finance-interface-holding-util-81618>`: Utility functions related to holdings, e.g. getting the account / instrument / owner of a holding.
 
-- ``Daml.Finance.Interface.Asset (old name - placeholder)``
-    - Holding (purpose, roles, functionality)
-    - Account (^ + keying)
-    - Instrument (^ + keying)
-    - Factories  (^ + visibility)
 - Daml.Finance.Interface.Settlement
     - Instruction
     - Settleable (-> rename to Settlement / Batch?)
