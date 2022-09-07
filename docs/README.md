@@ -27,11 +27,11 @@ Theme is copied from Daml Docs theme.
 
 ### Sass
 
-The `ruby` version of `sass` must be installed: `sudo gem install sass`.
+The `ruby` version of `sass` must be installed: `gem install sass`.
 
 ### Grunt
 
-If grunt is not already installed: `sudo npm install -g grunt-cli`.
+If grunt is not already installed: `npm install -g grunt-cli`.
 
 If you had to install anything new above, but it still does not work, you may have to recreate the
 virtual environment: run `pipenv install` again in the root folder of the repository.
@@ -40,7 +40,7 @@ virtual environment: run `pipenv install` again in the root folder of the reposi
 
 1. Navigate to the root folder of the repository.
 
-2. `make build` to build the Daml Finance `dar`s.
+2. `make build-all` to build the Daml Finance `dar`s.
 
 3. `pipenv shell` to enter the virtual environment.
 
