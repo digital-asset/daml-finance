@@ -20,10 +20,18 @@ Core Interfaces
     The :doc:`Core Concepts <../core-concepts>` page explains the relationship between instruments, holdings and accounts.
     Check out the :doc:`Transfer tutorial <../../tutorial/getting-started/transfer>` for a description on how to create a holding on an instrument and how to transfer it between accounts.
 
-- Daml.Finance.Interface.Settlement
-    - Instruction
-    - Settleable (-> rename to Settlement / Batch?)
-    - Instructable (-> rename to Factory?)
+- ``Daml.Finance.Interface.Settlement``
+
+    This package contains the *interface* for settlement. It has the following modules:
+
+    - :ref:`Instruction <module-daml-finance-interface-settlement-instruction-10970>`: Interface for providing a single instruction to transfer an asset.
+    - :ref:`Factory <module-daml-finance-interface-settlement-factory-75196>`: Interface used to generate settlement instructions.
+    - :ref:`Batch <module-daml-finance-interface-settlement-batch-39188>`: Interface for atomically settling `Transferable`\s.
+    - :ref:`Types <module-daml-finance-interface-settlement-types-44085>`: Types required in the settlement process, e.g. Step, Allocation and Approval.
+
+    The :doc:`Core Concepts <../core-concepts>` page contains an overview of the settlement process and explains the relationship between ``Step``, ``Instruction`` and ``Batch``.
+    Check out the :doc:`Settlement tutorial <../../tutorial/getting-started/settlement>` for a description on how to use settlement workflow in practice.
+
 - ``Daml.Finance.Interface.Lifecycle``
 
     This package contains the *interface* for lifecycle related processes. It contains the following modules:
