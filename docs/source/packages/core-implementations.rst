@@ -17,10 +17,17 @@ Core Implementations
     The :doc:`Core Concepts <../core-concepts>` page explains the relationship between instruments, holdings and accounts.
     Check out the :doc:`Transfer tutorial <../../tutorial/getting-started/transfer>` for a description on how to create a holding on an instrument and how to transfer it between accounts.
 
-- Daml.Finance.Settlement
-    - Batch
-    - Instruction
-    - Factory
+- ``Daml.Finance.Settlement``
+
+    This package contains the *implementation* of the components used for settlement. It has the following modules:
+
+    - :ref:`Instruction <module-daml-finance-settlement-instruction-87187>`: Used to settle a single settlement `Step`.
+    - :ref:`Factory <module-daml-finance-settlement-factory-257>`: used to create a set of settlement `Instruction`\s, and a `Batch` to atomically settle them.
+    - :ref:`Batch <module-daml-finance-settlement-batch-95573>`: Allows to atomically settle a set of settlement steps.
+
+    The :doc:`Core Concepts <../core-concepts>` page contains an overview of the settlement process and explains the relationship between ``Step``, ``Instruction`` and ``Batch``.
+    Check out the :doc:`Settlement tutorial <../../tutorial/getting-started/settlement>` for a description on how to use settlement workflow in practice.
+
 - ``Daml.Finance.Lifecycle``
 
     This package contains the *implementation* of lifecycle related processes. It contains the following modules:
