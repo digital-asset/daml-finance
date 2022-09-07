@@ -4,11 +4,22 @@
 Core Interfaces
 ###############
 
-- Daml.Finance.Interface.Asset
-    - Holding (purpose, roles, functionality)
-    - Account (^ + keying)
-    - Instrument (^ + keying)
-    - Factories  (^ + visibility)
+- ``Daml.Finance.Interface.Holding``
+
+    This package contains the *interface* and utility functions for holdings and accounts. It has the following modules:
+
+    - :ref:`Factory.Account <module-daml-finance-interface-holding-factory-account-66430>`: Interface that allows implementing templates to create accounts.
+    - :ref:`Factory.Holding <module-daml-finance-interface-holding-factory-holding-2450>`: Holding factory contract used to create (credit) and archive (debit) holdings.
+    - :ref:`Account <module-daml-finance-interface-holding-account-93234>`: Interface which represents an established relationship between a provider and an owner.
+    - :ref:`Base <module-daml-finance-interface-holding-base-24195>`: Base interface for a holding.
+    - :ref:`Fungible <module-daml-finance-interface-holding-fungible-63712>`: Interface for a fungible holding, which allows splitting and merging.
+    - :ref:`Lockable <module-daml-finance-interface-holding-lockable-23737>`: An interface respresenting contracts which allow a set of parties to restrict certain actions on a contract.
+    - :ref:`Transferable <module-daml-finance-interface-holding-transferable-88121>`: Interface respresenting a contract where ownership can be transferred to other parties.
+    - :ref:`Util <module-daml-finance-interface-holding-util-81618>`: Utility functions related to holdings, e.g. getting the account / instrument / owner of a holding.
+
+    The :doc:`Core Concepts <../core-concepts>` page explains the relationship between instruments, holdings and accounts.
+    Check out the :doc:`Transfer tutorial <../../tutorial/getting-started/transfer>` for a description on how to create a holding on an instrument and how to transfer it between accounts.
+
 - Daml.Finance.Interface.Settlement
     - Instruction
     - Settleable (-> rename to Settlement / Batch?)

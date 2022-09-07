@@ -33,7 +33,6 @@ Daml Finance Documentation
    Core Interfaces <packages/core-interfaces>
    packages/core-implementations
    packages/asset-specific-extensions
-   packages/experimental-extensions
    packages/upgrading
 
 .. toctree::

@@ -4,10 +4,19 @@
 Core Implementations
 ####################
 
-- Daml.Finance.Asset
-    - Holding (signatory model, implementations)
-    - Account
-    - Factories
+- ``Daml.Finance.Holding``
+
+    This package contains the *implementation* and utility functions for holdings and accounts. It has the following modules:
+
+    - :ref:`Account <module-daml-finance-holding-account-88149>`: A relationship between a custodian and an asset owner. It is referenced by holdings.
+    - :ref:`Fungible <module-daml-finance-holding-fungible-7201>`: Implementation of a fungible holding, including split and merge functionality.
+    - :ref:`NonFungible <module-daml-finance-holding-nonfungible-86571>`: Implementation of a non-fungible holding, which cannot be split or merged.
+    - :ref:`NonTransferable <module-daml-finance-holding-nontransferable-44402>`: Implementation of a non-transferable holding.
+    - :ref:`Util <module-daml-finance-holding-util-87323>`: Utility functions related to holdings, e.g. locking a holding.
+
+    The :doc:`Core Concepts <../core-concepts>` page explains the relationship between instruments, holdings and accounts.
+    Check out the :doc:`Transfer tutorial <../../tutorial/getting-started/transfer>` for a description on how to create a holding on an instrument and how to transfer it between accounts.
+
 - Daml.Finance.Settlement
     - Batch
     - Instruction
