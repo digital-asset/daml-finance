@@ -31,14 +31,17 @@ We give first a quick outline of the settlement process.
 |                                      |                                                                                                                                             |
 +--------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------+
 | 2. Generate settlement instructions  | :ref:`Instructions <type-daml-finance-interface-settlement-instruction-instruction-30569>` are generated for each step.                     |
-|                                      | An instruction is a contract where                                                                                                          |
-|                                      | the sender can specify what holding they wish to send                                                                                       |
-|                                      | and the receiver can specify on which account they wish to receive the holding.                                                             |
+|                                      | An instruction is a contract where the sender can specify its                                                                               |
+|                                      | :ref:`Allocation <type-daml-finance-interface-settlement-types-allocation-46483>` preference for the instruction,                           |
+|                                      | e.g., the matching holding they wish to send,                                                                                               |
+|                                      | and the receiver can specify its                                                                                                            |
+|                                      | :ref:`Approval <type-daml-finance-interface-settlement-types-approval-84286>` preference for the instruction,                               |
+|                                      | e.g., the account they wish to receive the holding to.                                                                                      |
 |                                      |                                                                                                                                             |
 |                                      | The creation of Instructions is done using a                                                                                                |
 |                                      | :ref:`Settlement Factory <type-daml-finance-interface-settlement-factory-factory-31525>` contract.                                          |
 +--------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------+
-| 3. Allocate and approve instructions | For every instruction, the sender allocates a matching holding to it and the receiver specifies a receiving account.                        |
+| 3. Allocate and approve instructions | For every instruction, the sender and receiver specify their allocation and approval preferences, respectively.                             |
 |                                      |                                                                                                                                             |
 |                                      |                                                                                                                                             |
 |                                      |                                                                                                                                             |
@@ -46,8 +49,8 @@ We give first a quick outline of the settlement process.
 |                                      |                                                                                                                                             |
 |                                      |                                                                                                                                             |
 +--------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------+
-| 4. Settle the batch                  | A :ref:`Batch <type-daml-finance-interface-settlement-batch-batch-97497>` contract is used  to settle all instructions atomically           |
-|                                      | (transfering all allocated holdings to the corresponding receiving accounts).                                                               |
+| 4. Settle the batch                  | A :ref:`Batch <type-daml-finance-interface-settlement-batch-batch-97497>` contract is used to settle all instructions atomically according  |
+|                                      | to the specified preferences (e.g., by transfering all allocated holdings to the corresponding receiving accounts).                         |
 |                                      |                                                                                                                                             |
 |                                      | This batch contract is created in step 2, together with the settlement instructions.                                                        |
 |                                      |                                                                                                                                             |
