@@ -4,7 +4,54 @@
 Core Implementations
 ####################
 
-- Daml.Finance.Asset
+- ``Daml.Finance.Instrument.Base``
+
+    This package contains the *implementation* of a basic instrument. It contains the following modules:
+
+    - :ref:`Instrument <module-daml-finance-instrument-base-instrument-53549>`: Base implementation of an Instrument which does not define any lifecycling logic.
+
+- ``Daml.Finance.Instrument.Bond``
+
+    This package contains the *implementation* of different bond types, defined in the following modules:
+
+    - :ref:`FixedRate <module-daml-finance-instrument-bond-fixedrate-44039>`: This template models a fixed rate bond. It pays a fixed coupon rate at the end of every coupon period.
+    - :ref:`FloatingRate <module-daml-finance-instrument-bond-floatingrate-31782>`: This template models a floating rate bond. It pays a floating coupon rate at the end of every coupon period.
+    - :ref:`InflationLinked <module-daml-finance-instrument-bond-inflationlinked-38254>`: This template models an inflation linked bond. It pays an inflation adjusted coupon at the end of every coupon period.
+    - :ref:`ZeroCoupon <module-daml-finance-instrument-bond-zerocoupon-72656>`: This template models a zero coupon bond. It does not pay any coupons, only the redemption amount at maturity.
+    - :ref:`Util <module-daml-finance-instrument-bond-util-70458>`: Utility functions related to creating Contingent Claims for coupons / redemption and bond lifecycling logic.
+
+    Check out the tutorial on :doc:`How to use the Bond extension package <../../tutorial/instrument-modelling/bond-extension>` for a description how to use the bond extension in practice.
+    There is also the tutorial :doc:`How to implement a Contingent Claims-based instrument <../../tutorial/instrument-modelling/contingent-claims-instrument>`, which describes how the claims are defined and how the lifecycle interface is implemented for bonds.
+
+- ``Daml.Finance.Instrument.Equity``
+
+    This package contains the *implementation* for equities. It has the following modules:
+
+    - :ref:`Factory <module-daml-finance-instrument-equity-factory-96899>`: Factory template for instrument creation.
+    - :ref:`Instrument <module-daml-finance-instrument-equity-instrument-69265>`: Instrument representing a common stock.
+
+    For a detailed explanation of the equity extension, check out the ``src/test/daml/Daml/Finance/Instrument/Equity/Test`` folder. It demonstrates how to originate an equity instrument,
+    how to create and lifecycle a cash dividend, and how to handle corporate actions like mergers and stock splits.
+
+- ``Daml.Finance.Instrument.Generic``
+
+    This package contains the *implementation* and types required for generic instruments using ``Contingent Claims``, including lifecycling logic. It contains the following modules:
+
+    - :ref:`Election <module-daml-finance-instrument-generic-election-56972>`: Implementation of Election (e.g. the exercise of an option) and ElectionFactory (to delegate the right to create Elections).
+    - :ref:`Factory <module-daml-finance-instrument-generic-factory-42712>`: Factory template for generic instrument creation.
+    - :ref:`Instrument <module-daml-finance-instrument-generic-instrument-67364>`: An instrument representing a generic derivative, modelled using ``Contingent Claims``.
+
+- ``Daml.Finance.Holding``
+
+    This package contains the *implementation* and utility functions for holdings and accounts. It has the following modules:
+
+    - :ref:`Account <module-daml-finance-holding-account-88149>`: A relationship between a custodian and an asset owner. It is referenced by holdings.
+    - :ref:`Fungible <module-daml-finance-holding-fungible-7201>`: Implementation of a fungible holding, including split and merge functionality.
+    - :ref:`NonFungible <module-daml-finance-holding-nonfungible-86571>`: Implementation of a non-fungible holding, which cannot be split or merged.
+    - :ref:`NonTransferable <module-daml-finance-holding-nontransferable-44402>`: Implementation of a non-transferable holding.
+    - :ref:`Util <module-daml-finance-holding-util-87323>`: Utility functions related to holdings, e.g. locking a holding.
+
+- Daml.Finance.Asset legacy, placeholder
     - Holding (signatory model, implementations)
     - Account
     - Factories
