@@ -4,15 +4,9 @@ The purpose of this document is to describe the procedure to release this librar
 
 ## Release steps
 
-1. Create a new local git branch from the branch you wish to release (ie., `main`), with the branch name beginning with `release`.
-2. As necessary, update the `version` tag of the required packages in [packages](../package/):
-   - Follow the [Official release versioning](#official-release-versioning) for each package version;
-   - For each package version updated, if the package is a `data-dependency` in another package ensure to update the dependency version;
-   - Any changes made in the `release` branch need to be merged back into `main`. If no changes are made, simply delete the branch after releasing.
-3. Run `make build` :
-   - Builds all dar [packages](../package/);
-   - A successful build means the `version` specified in each `daml.yaml` file is valid.
-4. Push your branch to GitHub:
+1. The target branch (eg. `main`) must contain the changes you want to release along with the version to release in the required packages `daml.yaml` file.
+2. Create a new branch either directly on GitHub or locally from the target branch (ie., `main`), with the branch name beginning with `release`. If its a local branch, push to remote.
+3. The CI will pick up the release branch and :
    - If building the project fails, the release workflow will not get triggered;
    - If the build is successful, the release workflow will execute for each package :
      - If the `package_name\version` already exists as a git tag, a release will not be created for that package;
@@ -20,7 +14,7 @@ The purpose of this document is to describe the procedure to release this librar
        - a new release in GitHub releases;
        - a new tag in GitHub.
    - You can find the `daml-finance` Circle CI's pipeline of executing and running jobs [here](https://app.circleci.com/pipelines/github/DACH-NY/daml-finance).
-5. Successful releases will be listed [here](https://github.com/DACH-NY/daml-finance/releases).
+4. Successful releases will be listed [here](https://github.com/DACH-NY/daml-finance/releases).
 
 ## Official release versioning
 

@@ -26,7 +26,7 @@ clean:
 #########################
 
 .PHONY: build-packages
-build-packages:
+build-packages: clean-packages
 	./$(SCRIPTS_DIR)/build-packages.sh
 
 .PHONY: test-packages
@@ -46,10 +46,10 @@ clean-packages:
 ###############################
 
 .PHONY: build-all
-build-all: clean-all build build-packages
+build-all: build build-packages
 
 .PHONY: test-all
-test-all: clean-all test test-packages
+test-all: test test-packages
 
 .PHONY: clean-all
 clean-all: clean clean-packages
@@ -58,7 +58,8 @@ clean-all: clean clean-packages
 # CI (avoids unnecessary rebuilds) #
 ####################################
 .PHONY: ci-build
-ci-build: build build-packages
+ci-build: build
+	./$(SCRIPTS_DIR)/build-packages.sh
 
 .PHONY: ci-test
 ci-test:
