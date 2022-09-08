@@ -1,27 +1,30 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-Tutorial : Introduction
-#######################
+Tutorials : Instrument Modeling
+###############################
 
 .. toctree::
    :hidden:
 
    bond-extension
+   bond-lifecycling
    derivative-extension
    contingent-claims-instrument
    contingent-claims-on-ledger-vs-on-the-fly
 
-Introduction
-************
+Overview
+********
 
-This Tutorial section explains some more advanced topics in more detail.
-It combines a step by step description of different workflows with supporting code.
+This section explains different topics related to modeling instruments using Daml Finance.
+Each tutorial combines a step by step description of different workflows with supporting code.
 
-Next steps
-**********
+Tutorials
+*********
 
 The :doc:`Bond Extension <bond-extension>` tutorial introduces the different types of bonds supported in Daml Finance out of the box.
+
+The :doc:`Bond Lifecycling <bond-lifecycling>` tutorial demonstrates how to lifecycle a simple bond and process coupon payments.
 
 The :doc:`Derivative Extension <derivative-extension>` tutorial shows you how to define your own generic instrument.
 

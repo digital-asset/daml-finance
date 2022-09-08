@@ -9,17 +9,18 @@ The purpose is to demonstrate how multiple holding transfers can be executed ato
 
 We are going to
 
-#. credit a ``EUR`` holding to Alice’s account
-#. credit a ``USD`` holding to Bob’s account
-#. setup an FX transaction to exchange the two holdings
+#. create a new ``TOKEN`` instrument
+#. credit a token holding to Alice’s account
+#. setup a delivery-vs-payment (DvP) transaction to exchange the two holdings
 #. settle this transaction atomically
 
-This examples builds on the previous tutorial showcasing a simple transfer from Alice to Bob.
+This example builds on the previous :doc:`Transfer <transfer>` tutorial script such that the same
+accounts and existing holdings can be used.
 
-Overview of the Settlement process
+Overview of the settlement process
 **********************************
 
-We give first a quick outline of the settlement process.
+We first give a quick outline of the settlement process.
 
 +--------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------+
 | 1. Define steps to be settled        | Two (or more) parties need to first agree on a set of :ref:`steps <type-daml-finance-interface-settlement-types-step-78661>` to be settled. |
@@ -61,11 +62,12 @@ We give first a quick outline of the settlement process.
 Running the script
 ******************
 
-This tutorial is executed in the ``Settlement`` script.
+The code for this tutorial can be executed via the ``runSettlement`` function in the ``Settlement.daml`` module.
 
-The first part is a repetition of the workflow of the previous tutorial. Only, in this case, two cash instruments are issued instead of just one.
+The first part executes the script from the previous :doc:`Transfer <transfer>` tutorial to arrive at the initial state for this scenario.
+We then create an additional *token* instrument and credit Alice's account with it.
 
-The interesting bit starts once Alice proposes the FX trade to Bob. Before creating the trade proposal, we need to instantiate a :ref:`Settlement Factory <type-daml-finance-interface-settlement-factory-factory-31525>` contract.
+The interesting bit starts once Alice proposes the DvP trade to Bob. Before creating the DvP proposal, we need to instantiate a :ref:`Settlement Factory <type-daml-finance-interface-settlement-factory-factory-31525>` contract.
 
 .. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Settlement.daml
   :language: daml
@@ -74,34 +76,34 @@ The interesting bit starts once Alice proposes the FX trade to Bob. Before creat
 
 This is used to generate settlement instruction from settlement :ref:`steps <type-daml-finance-interface-settlement-types-step-78661>`.
 
-Alice creates an ``FXTradeProposal`` template to propose the exchange of ``EUR`` against ``USD``.
+Alice creates a ``Dvp.Proposal`` template to propose the exchange of the ``TOKEN`` against ``USD``.
 
 .. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Settlement.daml
   :language: daml
-  :start-after: -- FX_PROPOSE_BEGIN
-  :end-before: -- FX_PROPOSE_END
+  :start-after: -- DVP_PROPOSE_BEGIN
+  :end-before: -- DVP_PROPOSE_END
 
 Bob then accepts the proposal, agreeing to the terms of the trade.
 
 .. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Settlement.daml
   :language: daml
-  :start-after: -- FX_ACCEPT_BEGIN
-  :end-before: -- FX_ACCEPT_END
+  :start-after: -- DVP_ACCEPT_BEGIN
+  :end-before: -- DVP_ACCEPT_END
 
 Once the proposal is accepted, three contracts are created:
 
-- an instruction to transfer ``1000 EUR`` from Alice to Bob
+- an instruction to transfer ``10 TOKEN`` from Alice to Bob
 - an instruction to transfer ``1000 USD`` from Bob to Alice
 - a batch contract to settle the two instructions atomically
 
 The workflow to create these contracts makes use of the settlement factory.
 
-.. literalinclude:: ../../../code-samples/getting-started/daml/Workflow/FXTrade.daml
+.. literalinclude:: ../../../code-samples/getting-started/daml/Workflow/DvP.daml
   :language: daml
   :start-after: -- INSTRUCT_BEGIN
   :end-before: -- INSTRUCT_END
 
-As a next step, Alice allocates her ``EUR`` holding to the corresponding instruction. Bob then approves the instruction specifying the receiving account.
+As a next step, Alice allocates her ``TOKEN`` holding to the corresponding instruction. Bob then approves the instruction specifying the receiving account.
 
 .. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Settlement.daml
   :language: daml
@@ -117,17 +119,10 @@ Now that all instructions are fully allocated and approved, they can be finally 
   :start-after: -- SETTLE_BEGIN
   :end-before: -- SETTLE_END
 
-Within the same transaction, Alice receives a ``USD`` holding from Bob in exchange for a ``EUR`` holding.
+Within the same transaction, Alice receives a ``USD`` holding from Bob in exchange for a ``TOKEN`` holding.
 
-Further considerations
-**********************
-
-We now take a look at some aspects of the workflow and try to answer
-some questions that you might be having.
-
-If you are curious to see more use-cases for the library, feel free to
-jump to the next tutorials and come back to this section when you feel
-it is the right time.
+Frequently Asked Questions
+**************************
 
 Why do we need a settlement factory?
 ====================================
@@ -159,11 +154,14 @@ In our example, Alice triggers the final settlement of the transaction (by exerc
 
 In principle, a different settler could be chosen. The choice of a settler is usually quite delicate, as this party acquires visibility on the entire transaction and hence needs to be trusted.
 
-Next steps
-**********
+Summary
+*******
 
-You now know how to define complex transactions and settle them atomically.
+You now know how to define complex transactions and settle them atomically. The main concepts to take away are:
+* A settlement factory is used to instruct settlement for an arbitrary list of steps
+* Instructions are used to collect authorizations, assets to be moved, and means of settlement
+* Batches group together instructions to be settled atomically
 
 In the next tutorial, we will introduce the lifecycling framework of the library, which is used to model the evolution of instruments.
-The concepts of the settlement tutorial will be used to settle payments arising from lifecycling events.
+The concepts introduced in this tutorial will be used to settle payments arising from lifecycle events.
 

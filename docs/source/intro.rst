@@ -23,14 +23,42 @@ comes with Daml packages that cover the following areas:
 
 The main goal of Daml Finance is to decrease time-to-market, and to increase productivity of development teams. Without it, every single customer would have to “reinvent the wheel” to produce the same models required in most financial use cases.
 
-Example use-cases
-*****************
+.. _clone-repo:
 
-- *Synchronized Derivatives Lifecycling*: Atomic, intermediated lifecycling and settlement of cash flows across investors and custodians
-- *Cross-entity Structured Products Issuance*: Atomic, Multi-party issuance across investors, issuer, risk book, treasury
-- *Asset-agnostic Trading Facility*: Generic DvP instructing + immediate, guaranteed settlement
-- *CBDC Sandbox*: RLN-style cash settlement of CBDC and commercial bank / private money
-- *Non-fungible tokens*: Issuance and distribution of NFTs
+How to clone and build the repository
+*************************************
+
+If you want to have a more detailed look in the Daml Finance codebase, you can clone the repository
+locally on your machine. That allows you to navigate the code, both the template definitions
+and the tests.
+
+The tests in particular are useful to show how the library works and how the different
+components interact with each other.
+
+As a pre-requisite, the `Daml SDK <https://docs.daml.com/getting-started/installation.html>`_ needs to be installed on your
+machine.
+
+In order to download `Daml Finance <https://github.com/digital-asset/daml-finance>`_, open a terminal and run:
+
+.. code-block:: shell
+
+   git clone git@github.com:digital-asset/daml-finance.git
+
+This creates a new folder containing `Daml Finance <https://github.com/digital-asset/daml-finance>`_ .
+Navigate to the folder and then run:
+
+.. code-block:: shell
+
+   make build
+
+This downloads any required packages and builds the project.
+You can then run:
+
+.. code-block:: shell
+
+   daml studio
+
+to open the code editor and inspect the code.
 
 Next steps
 **********

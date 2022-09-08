@@ -10,15 +10,9 @@ As an example, we will see how the fixed rate bond instrument is implemented in 
 The goal is that you will learn how to implement your own instrument template, if you need an
 instrument type that is not already implemented in Daml Fincance.
 
-Download the code for the tutorial
-==================================
-
-The code of this tutorial resides in the `Daml Finance <https://github.com/digital-asset/daml-finance>`_ repo.
-You can download it locally by following :doc:`these instructions <../getting-started/download-daml-finance>`.
-
+To follow the script used in this tutorial you can `clone the Daml Finance repository <clone-repo>`_ repository.
 In particular, the file ``src/test/daml/Daml/Finance/Instrument/Bond/Test/FixedRate.daml`` is the starting point
-of this tutorial.
-It also refers to some utility functions in ``src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml``.
+of this tutorial. It also refers to some utility functions in ``src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml``.
 
 Template definition
 ===================

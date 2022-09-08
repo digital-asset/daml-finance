@@ -4,113 +4,138 @@
 Lifecycling
 ###########
 
-This tutorial describes the :ref:`lifecycle <lifecycling>` flow between two counterparties.
-We will use a bond instrument to illustrate the different steps:
+This tutorial introduces the :ref:`lifecycling <lifecycling>` framework of the library with a simple example.
+The purpose is to demonstrate how lifecycle rules and events can be used to process a dividend payment.
 
-#. Creating a fixed-rate bond instrument
-#. Defining the clock for time-based events
-#. Lifecycling the bond instrument
-#. Settling the instructions
+We are going to
 
-Download the code for the tutorial
-**********************************
+#. create a new version of the token instrument
+#. create the required lifecycle rules
+#. create a distribution event
+#. process the event to produce the effects from the distribution
+#. instruct settlement by presenting a token holding
+#. settling the resulting batch atomically
 
-The code of this tutorial resides in the `Daml Finance <https://github.com/digital-asset/daml-finance>`_ repo.
-You can download it locally by following :doc:`these instructions <download-daml-finance>`.
+This example builds on the previous :doc:`Settlement <settlement>` tutorial script such that the same
+accounts and existing holdings can be used.
 
-In particular, the file ``src/test/daml/Daml/Finance/Instrument/Bond/Test/FixedRate.daml`` is the starting point
-of this tutorial.
-It also refers to some utility functions in ``src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml``.
+Overview of the lifecycle process
+*********************************
 
-Creating a fixed-rate bond instrument
-*************************************
+We first give a high-level outline of the lifecycle process.
 
-We start by defining a fixed rate bond, which pays a 1.1% coupon every year.
++-------------------------------------------------+-----------------------------------------------------------------------------------------+
+| 1. Create a lifecycle rule                      | A lifecycle rule implements the logic to calculate effects for a given lifecycle event. |
+|                                                 | In our example we create a distribution rule to handle the dividend event on our token. |
+|                                                 |                                                                                         |
++-------------------------------------------------+-----------------------------------------------------------------------------------------+
+| 2. Create a lifecycle event                     | The lifecycle event refers to the *target instrument* the event applies to. Holdings on |
+|                                                 | this instrument can then be used to claim the resulting lifecycle effect.               |
+|                                                 |                                                                                         |
++-------------------------------------------------+-----------------------------------------------------------------------------------------+
+| 4. Process the event through the lifecycle rule | The lifecycle rule contains the business logic to derive the lifecycle effects          |
+|                                                 | resulting from a concrete event. The effect describes the per-unit holding transfers    |
+|                                                 | that are to be settled between a custodian and the owner of a holding.                  |
+|                                                 |                                                                                         |
++-------------------------------------------------+-----------------------------------------------------------------------------------------+
+| 4. Claim the effect using a holding             | The claim rule is used to claim the effects resulting from a lifecycle event using a    |
+|                                                 | holding on the target instrument. The result is a set of settlement instructions and    |
+|                                                 | corresponding batch to be settled between the custodian and owner of the holding        |
+|                                                 |                                                                                         |
++-------------------------------------------------+-----------------------------------------------------------------------------------------+
 
-.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/FixedRate.daml
+Running the script
+******************
+
+The code for this tutorial can be executed via the ``runLifecycling`` function in the ``Lifecycling.daml`` module.
+
+The first part executes the script from the previous :doc:`Settlement <settlement>` tutorial to arrive at the initial state for this scenario.
+We then create a new version of the *token* instrument, which is required for defining the distribution event. A clock is created as a required
+input to the distribution rule, to determine if the event is due to be processed.
+
+Next, we create two lifecycle rule:
+
+.. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Lifecycling.daml
   :language: daml
-  :start-after: -- CREATE_FIXED_RATE_BOND_VARIABLES_BEGIN
-  :end-before: -- CREATE_FIXED_RATE_BOND_VARIABLES_END
+  :start-after: -- LIFECYCLE_RULES_BEGIN
+  :end-before: -- LIFECYCLE_RULES_END
 
-.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
+* The :ref:`Distribution Rule <type-daml-finance-interface-settlement-batch-batch-97497>` defines the business logic to calculate the resulting
+  lifecycle effect from a given distribution event. It is signed by the `Bank` as a provider.
+* The :ref:`Claim Rule <type-daml-finance-interface-settlement-batch-batch-97497>` allows a holder of the target instrument to claim the effect
+  resulting from the distribution event. By presenting their holding they can instruct the settlement of the holding transfers described in the effect.
+
+Then we create a distribution event describing the terms of the dividend to be payed.
+
+.. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Lifecycling.daml
   :language: daml
-  :start-after: -- CREATE_FIXED_RATE_BOND_INSTRUMENT_BEGIN
-  :end-before: -- CREATE_FIXED_RATE_BOND_INSTRUMENT_END
+  :start-after: -- CREATE_EVENT_BEGIN
+  :end-before: -- CREATE_EVENT_END
 
-We also credit the account of an investor:
+We can now process the distribution event using the distribution rule.
 
-.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/FixedRate.daml
+.. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Lifecycling.daml
   :language: daml
-  :start-after: -- CREDIT_ACCOUNT_FIXED_RATE_BOND_BEGIN
-  :end-before: -- CREDIT_ACCOUNT_FIXED_RATE_BOND_END
+  :start-after: -- LIFECYCLE_EVENT_BEGIN
+  :end-before: -- LIFECYCLE_EVENT_END
 
+The result of this is an effect describing the per-unit asset movements to be executed for token holders. Each holder can now present their holding
+to *claim* the effect and instruct settlement of the associated entitlements.
 
-Defining the clock for time-based events
-****************************************
-
-Since the bond pays a coupon on a yearly basis, we talk about a time-based event.
-The requirement to pay the coupon is governed by actual time.
-However, in a trading and settlement system, it is useful to be able to control
-the time variable, in order to simulate previous/future payments, or to have some flexibility
-regarding when to process events.
-
-We define a clock contract to control the passage of time:
-
-.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
+.. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Lifecycling.daml
   :language: daml
-  :start-after: -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_BEGIN
-  :end-before: -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_END
+  :start-after: -- CLAIM_EVENT_BEGIN
+  :end-before: -- CLAIM_EVENT_END
 
+As a side-effect of claiming the effect the presented holding is exchanged for the new token version. This is to prevent a holder from claiming a
+given effect twice.
 
-Lifecycling the bond instrument
-*******************************
+In our example of a cash dividend only a single instruction is generated: the movement of cash from the bank to
+the token holder. This instruction along with its batch is now settled the usual way, as described in the previous :doc:`Settlement <settlement>` tutorial.
 
-We use the ``Lifecyclable`` interface, which is defined in ``Daml.Finance.Interface.Lifecycle.Lifecyclable``.
-
-The issuer of the bond is responsible for initiating the coupon payment,
-by calling ``Lifecycle`` on the coupon date:
-
-.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
+.. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Lifecycling.daml
   :language: daml
-  :start-after: -- LIFECYCLE_BOND_BEGIN
-  :end-before: -- LIFECYCLE_BOND_END
+  :start-after: -- EFFECT_SETTLEMENT_BEGIN
+  :end-before: -- EFFECT_SETTLEMENT_END
 
-This internally uses the ``Event`` interface, which is defined in ``Daml.Finance.Interface.Lifecycle.Event``. In our case, the event
-is a clock event, since the coupon is defined by the passage of time.
+Note that the bank in this case does not actually transfer the cash from another account, but simply credits Bob's account by using the ``CreditReceiver``
+allocation type. In a real-world dividend scenario one would additionally model the flow of funds from the issuer to the bank using the same lifecycle
+process as described above.
 
-The ``effectCids`` will contain the effect(s) of the lifecycling, in this case a coupon payment.
-If there is nothing to lifecycle, for example because there is no coupon to be paid today, ``effectCids`` would be empty.
-The ``Effect`` interface is defined in ``Daml.Finance.Interface.Lifecycle.Effect``.
+Frequently Asked Questions
+**************************
 
+Which party should create and sign the lifecycle rules and events?
+==================================================================
 
+In the simplified scenario for this tutorial we have used the bank as both the *issuer* and *depository* for the instruments involved. In a real-world case
+instruments and their corresponding lifecycle rules and events would be maintained by an actual issuer, with the depository acting as a 3rd-party trust anchor.
 
-Settling the instructions
-*************************
+Which parties typically take which actions in the lifecycle workflow?
+=====================================================================
 
-In order to process the effect(s) of the lifecycling (in this case: pay the coupon), we need to create settlement instructions.
-We start by creating a settlement factory:
+The lifecycle interfaces governing the process leave the controllers of the various choices in the process up to the implementation.
+* Typically, we would expect the issuer of an instrument to be responsible to generate lifecycle events (for example, announcing dividends or stock splits).
+* Lifecycle rules on the other hand are often controlled by 3rd-party calculation agents.
+* The claiming of lifecycle effects in by default the responsability of the owner of a holding. If instead the owner wants to delegate this responsability to their custodian they can do so via a delegation contract.
+* The party executing settlement can be chosen as well, as described in the previous tutorial on :doc:`Settlement <settlement>`.
 
-.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
-  :language: daml
-  :start-after: -- CREATE_SETTLEMENT_FACTORY_BOND_BEGIN
-  :end-before: -- CREATE_SETTLEMENT_FACTORY_BOND_END
+Can an instrument act as its own lifecycle rule?
+================================================
 
-The investor then claims the effect:
+Yes, an instrument can implement the ``Lifecycle`` interface directly such that the lifecycle rules are contained within the instrument itself. An example
+for this can be found in the implementation for generic instruments. There are, however, advantages to separating this logic out into rule contracts:
+* Keeping lifecycle rules in a different package from your instruments allows you to independently upgrade or patch them without affecting your live
+instruments.
+* Having separate rules allows to change the lifecycle properties of an instrument dynamically at runtime. For example, an instrument can initially be created
+without support for doing asset distributions. Then, at a later point the issuer might decide to start paying dividends. They can now simply add a
+distribution rule to the running system to enables this new lifecycle event for their instrument without affecting the actual live instrument itself (and
+therefore all the holdings on it)
 
-.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
-  :language: daml
-  :start-after: -- CLAIM_EFFECT_BOND_BEGIN
-  :end-before: -- CLAIM_EFFECT_BOND_END
+Summary
+*******
 
-Finally, the settlement instructions are allocated, approved and then settled.
-
-.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
-  :language: daml
-  :start-after: -- ALLOCATE_APPROVE_SETTLE_INSTRUCTIONS_BOND_BEGIN
-  :end-before: -- ALLOCATE_APPROVE_SETTLE_INSTRUCTIONS_BOND_END
-
-This is the result of the settlement:
-  - The investor receives cash for the coupon.
-  - The investor receives a new version of the bond instrument, which excludes today's coupon (it only contains future coupons and the redemption amount).
-  - The issuer receives the original version of the bond instrument, which can be archived.
-
+You have now learned how to use lifecycle rules and events to describe the behavior of an instrument. The key concepts to take away are:
+* Lifecycle events represent different ways of how an instrument can evolve
+* A lifecycle rule contains logic to calculate the effects an event has on an instrument and its holdings.
+* A claim rule is used to instruct settlement for a given effect using a holding

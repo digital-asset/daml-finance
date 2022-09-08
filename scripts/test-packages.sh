@@ -5,7 +5,7 @@
 set -eu
 
 # Use absolute paths to allow this script to be called from any location
-root_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")"; cd ..; pwd -P)
+root_dir=$(cd "$(dirname $0)"; cd ..; pwd -P)
 
 echo "Running package tests..."
 

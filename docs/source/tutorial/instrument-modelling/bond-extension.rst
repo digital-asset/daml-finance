@@ -4,12 +4,7 @@
 How to use the Bond extension package
 #####################################
 
-Download the code for the tutorial
-**********************************
-
-The code of this tutorial resides in the `Daml Finance <https://github.com/digital-asset/daml-finance>`_ repo.
-You can download it locally by following :doc:`these instructions <../getting-started/download-daml-finance>`.
-
+To follow the script used in this tutorial you can `clone the Daml Finance repository <clone-repo>`_ repository.
 In particular, the Bond test folder ``src/test/daml/Daml/Finance/Instrument/Bond/Test/`` is the starting point
 of this tutorial.
 
@@ -147,25 +142,27 @@ Finally, we create the zero coupon bond instrument:
   :end-before: -- CREATE_ZERO_COUPON_BOND_INSTRUMENT_END
 
 
+Frequently Asked Questions
+**************************
 
-How to trade and transfer a bond
-********************************
+How do I transfer or trade a bond?
+==================================
 
 When you have created a holding on a bond instrument this can be transfered to another party.
-This is described in :doc:`Getting Started: Transfer <../getting-started/transfer>`.
+This is described in the :doc:`Getting Started: Transfer <../getting-started/transfer>` tutorial.
 
 In order to trade a bond (transfer it in exchange for cash) you can also initiate a delivery versus payment with atomic settlement.
-This is described in :doc:`Getting Started: Settlement <../getting-started/settlement>`.
+This is described in the :doc:`Getting Started: Settlement <../getting-started/settlement>` tutorial.
 
-How to process coupon payments
-******************************
+How do I process coupon payments for a bond?
+============================================
 
 On the coupon payment date, the issuer will need to lifecycle the bond.
 This will result in a lifecycle effect for the coupon, which can be cash settled.
-This is described in detail in :doc:`Getting Started: Lifecycling <../getting-started/lifecycling>`.
+This is described in detail in the :doc:`Bond Lifecycling <bond-lifecycling>` tutorial.
 
-How to redeem a bond
-********************
+How do I redeem a bond?
+=======================
 
 On the redemption date, both the last coupon and the redemption amount with be paid.
 This is processed in the same way as a single coupon payment described above.
