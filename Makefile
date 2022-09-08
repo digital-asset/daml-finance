@@ -58,7 +58,8 @@ clean-all: clean clean-packages
 # CI (avoids unnecessary rebuilds) #
 ####################################
 .PHONY: ci-build
-ci-build: build build-packages
+ci-build: build
+	./$(SCRIPTS_DIR)/build-packages.sh
 
 .PHONY: ci-test
 ci-test:
