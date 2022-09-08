@@ -9,8 +9,8 @@ script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd -P)
 root_dir=$(cd ${script_dir}; cd ..; pwd -P)
 
 # Remove any existing .lib/ directories from packages
-if [[ -a ${root_dir}/package/*/daml/*/.lib/ ]]; then
-  rm -r ${root_dir}/package/*/daml/*/.lib/ 1> /dev/null 2>&1
+if ls package/*/daml/*/.lib/ 1> /dev/null 2>&1; then
+  rm -r ${root_dir}/package/*/daml/*/.lib/
 fi
 
 ## Build Core

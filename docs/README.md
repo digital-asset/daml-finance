@@ -10,7 +10,8 @@ Theme is copied from Daml Docs theme.
 
 2. Install `pyenv` for Python version management with `brew install pyenv`.
 
-3. Install `pipx` with `brew install pipenv`. This should install the `pipenv` binary for virtual environments management.
+3. Install `pipx` with `brew install pipenv`. This should install the `pipenv` binary for virtual
+   environments management.
 
 4. Navigate to the root folder of the repository.
 
@@ -30,15 +31,16 @@ The `ruby` version of `sass` must be installed: `gem install sass`.
 
 ### Grunt
 
-If grunt is not already installed: `npm install grunt-cli`.
+If grunt is not already installed: `npm install -g grunt-cli`.
 
-If you had to install anything new above, but it still does not work, you may have to recreate the virtual environment: `pipenv install` again.
+If you had to install anything new above, but it still does not work, you may have to recreate the
+virtual environment: run `pipenv install` again in the root folder of the repository.
 
 ## Building the docs
 
 1. Navigate to the root folder of the repository.
 
-2. `make build` to build the Daml Finance `dar`s.
+2. `make build-all` to build the Daml Finance `dar`s.
 
 3. `pipenv shell` to enter the virtual environment.
 
@@ -48,17 +50,21 @@ If you had to install anything new above, but it still does not work, you may ha
 
 1. Navigate to the root folder of the repository.
 
-2. `./docs/preview.sh`
+2. Start a local web server on `http://localhost:8000/` by running `./docs/preview.sh`. In case an
+   old/cached html document is being shown, make sure to refresh your web browser.
 
 ### If you are doing many changes to the docs
 
-It is useful to do the two parts above in two separate terminal windows. That way, you only have to re-run `make doc-html` in the first terminal every time you want to see your changes in the browser. The second terminal window can keep running the web server, which will automatically serve the updated document.
+It is useful to do the two parts above in two separate terminal windows. That way, you only have to
+re-run `make doc-html` in the first terminal every time you want to see your changes in the browser.
+The second terminal window can keep running the web server, which will automatically serve the
+updated document.
 
 ### If you have renamed an .rst file
 
-Unfortunately, if you rename an .rst file seems `make doc-html` does not pick this up.
-It will still build the document structure using old file names / content.
-In order to solve this, first run `make doc-clean` and then `make doc-html` again.
+Unfortunately, if you rename an .rst file it seems `make doc-html` does not pick this up. It will
+still build the document structure using old file names / content. In order to solve this, first
+run `make doc-clean` and then `make doc-html` again.
 
 ### If you change menu names / structure
 
@@ -68,7 +74,8 @@ structure (e.g. introducing sub-sections) or rename a heading (e.g. Tutorial -> 
 
 ## Publishing the docs
 
-The final website is currently hosted on [Github pages](https://digital-asset.github.io/daml-finance/).
+The final website is currently hosted on
+[Github pages](https://digital-asset.github.io/daml-finance/).
 
 In order to update it, you need to
 

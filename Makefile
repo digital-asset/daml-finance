@@ -26,7 +26,7 @@ clean:
 #########################
 
 .PHONY: build-packages
-build-packages: clean-packages
+build-packages:
 	./$(SCRIPTS_DIR)/build-packages.sh
 
 .PHONY: test-packages
@@ -46,10 +46,10 @@ clean-packages:
 ###############################
 
 .PHONY: build-all
-build-all: build build-packages
+build-all: clean-all build build-packages
 
 .PHONY: test-all
-test-all: test test-packages
+test-all: clean-all test test-packages
 
 .PHONY: clean-all
 clean-all: clean clean-packages
