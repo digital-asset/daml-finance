@@ -23,4 +23,5 @@ daml test --project-root ${root_dir}/package/test/daml/Daml.Finance.Instrument.G
 daml test --project-root ${root_dir}/package/test/daml/Daml.Finance.Instrument.Bond.Test
 daml test --project-root ${root_dir}/package/test/daml/Daml.Finance.Instrument.Equity.Test
 
-echo "\nAll tests ran successfully!"
+echo ""
+echo "All tests ran successfully!"
