@@ -13,7 +13,6 @@ to reflect passed events and cashflows that have already been paid.
 Events
 ******
 
-
 The ``Event`` interface, which is defined in ``Daml.Finance.Interface.Lifecycle.Event`` is
 used to handle different types of events:
 
@@ -53,7 +52,4 @@ Effects
 When an event is lifecycled, an ``Effect`` is produced. This is defined in ``Daml.Finance.Interface.Lifecycle.Effect``.
 The ``Effect`` can be settled in order to produce the relevant cash flows and to create the new instrument version (reflecting the remaining cash flows).
 
-
 These lifecycle concepts are also explained with example code in the :doc:`Lifecycling tutorial <../tutorials/getting-started/lifecycling>`.
-
-

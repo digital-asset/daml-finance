@@ -2,8 +2,8 @@
 
 This package contains type and interface definitions used to execute atomic settlement debits / credits / transfers of holdings.
 
-An `Instruction` settles a single `Step` (the transfer of an asset from sender to receiver).
+An `Instruction` is an interface for providing instructions to settle a single `Step` (e.g., the direct transfer of an asset from a sender to a receiver account).
 
-A `Settleable` is a generic interface for contracts that can be settled (typically a single `Instruction` or a batch thereof).
+A `Batch` is an interface for settling multiple `Instruction`s in an atomic action.
 
-An `Instructable` is an interface for contracts that are used to generate `Instruction`s.
+A `Factory` is an interface for creating a `Batch` of `Instruction`s.

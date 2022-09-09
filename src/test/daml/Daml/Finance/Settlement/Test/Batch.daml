@@ -26,27 +26,31 @@ data TestParties = TestParties
       -- ^ Acts as custodian in the respective holdings (for both the cash and equity instrument).
     cb : Party
       -- ^ Depository and issuer of the cash instrument.
-    depository : Party
+    csd : Party
       -- ^ Depository of the equity instrument.
     issuer : Party
       -- ^ Issuer of the equity instrument.
+    buyer : Party
+      -- ^ Buyer of the equity instrument.
+    seller : Party
+      -- ^ Seller of the equity instrument.
 
 -- | DvP via settlement chain and instructions.
--- Bank transfers cash to Issuer in exchange for an equity instrument.
+-- Seller transfers equity to buyer in exchange for cash.
 --
 -- Equity (security) account structure :
 --
 --          Bank
 --         /    \
---      Bank   Issuer
+--     Buyer   Seller
 --
 -- Cash account structure :
 --
 --          Bank
 --         /    \
---      Bank   Issuer
-run : Script ()
-run = script do
+--     Buyer   Seller
+run: Bool -> Script ()
+run settleCashOnLedger = script do
   TestParties{..} <- setupParties
 
   -- Account and holding factory
@@ -54,43 +58,66 @@ run = script do
   holdingFactoryCid <- toInterfaceContractId <$> submitMulti [bank] [] do
     createCmd Fungible.Factory with provider = bank; observers = M.empty
 
-  -- Create accounts
-  [bankAccount, issuerAccount] <- mapA (Account.createAccount "Default Account" [] accountFactoryCid holdingFactoryCid [] bank) [bank, issuer]
-
-  -- Distribute assets
+  -- Originate instruments
   now <- getTime
-  equityInstrument <- Instrument.originate depository issuer "AAPL" "Apple Inc." [] now
-  equityTransferableCid <- Account.credit [] equityInstrument 1_000.0 issuerAccount
+  equityInstrument <- Instrument.originate csd issuer "AAPL" "Apple Inc." [] now
   cashInstrument <- Instrument.originate cb cb "USD" "United States Doller" [] now
-  cashTransferableCid <- Account.credit [] cashInstrument 200_000.0 bankAccount
+
+  -- Custody accounts
+  [buyerCustodyAccount, sellerCustodyAccount] <- mapA (Account.createAccount "Custody Account" [] accountFactoryCid holdingFactoryCid [] bank) [buyer, seller]
+
+  -- Cash accounts
+  [buyerCashAccount, sellerCashAccount] <- mapA (Account.createAccount "Cash Account" [] accountFactoryCid holdingFactoryCid [] bank) [buyer, seller]
+
+  -- Distribute equity
+  equityTransferableCid <- Account.credit [] equityInstrument 1_000.0 sellerCustodyAccount
 
   -- Instruct settlement
   let
     steps =
-      [ Step with sender = issuer; receiver = bank; quantity = Instrument.qty 1_000.0 equityInstrument
-      , Step with sender = bank; receiver = issuer; quantity = Instrument.qty 200_000.0 cashInstrument
+      [ Step with sender = seller; receiver = buyer; quantity = Instrument.qty 1_000.0 equityInstrument
+      , Step with sender = buyer; receiver = seller; quantity = Instrument.qty 200_000.0 cashInstrument
       ]
   settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submitMulti [bank] [] do createCmd Factory with provider = bank; observers = empty
   (batchCid, [equityInstructionCid, cashInstructionCid]) <-
     submitMulti [bank] [] do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = singleton bank; settler = bank; id = Id "APPL 1000@200.0USD"; description = "DVP"; steps
 
-  -- Allocate instructions
-  equityInstructionCid <- submitMulti [issuer] [] do exerciseCmd equityInstructionCid Instruction.Allocate with allocation = Pledge equityTransferableCid
-  cashInstructionCid <- submitMulti [bank] [] do exerciseCmd cashInstructionCid Instruction.Allocate with allocation = Pledge cashTransferableCid
+  -- Allocate and approve equity instruction
+  equityInstructionCid <- submitMulti [seller] [] do exerciseCmd equityInstructionCid Instruction.Allocate with allocation = Pledge equityTransferableCid
+  equityInstructionCid <- submitMulti [buyer] [] do exerciseCmd equityInstructionCid Instruction.Approve with approval = TakeDelivery buyerCustodyAccount
 
-  -- Approve instructions
-  equityInstructionCid <- submitMulti [bank] [] do exerciseCmd equityInstructionCid Instruction.Approve with approval = TakeDelivery bankAccount
-  cashInstructionCid <- submitMulti [issuer] [] do exerciseCmd cashInstructionCid Instruction.Approve with approval = TakeDelivery issuerAccount
+  -- Allocate and approve cash instruction
+  cashInstructionCid <- if settleCashOnLedger
+    then
+      do
+        -- Settle by on-ledger transfer
+        cashTransferableCid <- Account.credit [] cashInstrument 200_000.0 buyerCashAccount
+        cashInstructionCid <- submitMulti [buyer] [] do exerciseCmd cashInstructionCid Instruction.Allocate with allocation = Pledge cashTransferableCid
+        submitMulti [seller] [] do exerciseCmd cashInstructionCid Instruction.Approve with approval = TakeDelivery sellerCashAccount
+    else
+      do
+        -- Settle by off ledger trasnfer
+        cashInstructionCid <- submitMulti [buyer] [] do exerciseCmd cashInstructionCid Instruction.Allocate with allocation = SettleOffLedger
+        submitMulti [seller] [] do exerciseCmd cashInstructionCid Instruction.Approve with approval = SettleOffLedgerAcknowledge
 
   -- Settle batch
-  [equityTransferableCid, cashTransferableCid] <- submitMulti [bank] [] do exerciseCmd batchCid Batch.Settle
+  cids <- submitMulti [bank] [] do exerciseCmd batchCid Batch.Settle
 
   -- Assert state
-  Holding.verifyOwnerOfHolding [(bank, equityTransferableCid), (issuer, cashTransferableCid)]
+  Holding.verifyOwnerOfHolding $ zip [buyer, seller] cids
 
   pure ()
 
+-- | Settle cash using offledger
+run1 : Script ()
+run1 = run True
+
+-- | Settle cash onledger
+run2 : Script ()
+run2 = run False
+
+-- | Settup parties for the scripts
 setupParties : Script TestParties
 setupParties = do
-  [cb, depository, bank, issuer] <- createParties ["CentralBank", "CSD", "Bank", "Issuer"]
-  pure TestParties with cb, depository, bank, issuer
+  [cb, csd, bank, issuer, buyer, seller] <- createParties ["CentralBank", "CentralSecurityDepository", "Bank", "Issuer", "Buyer", "Seller"]
+  pure TestParties with cb, csd, bank, issuer, buyer, seller
