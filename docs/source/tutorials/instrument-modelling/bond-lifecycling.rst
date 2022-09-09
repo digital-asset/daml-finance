@@ -1,8 +1,8 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-Bond Lifecycling
-################
+How to lifecycle a bond instrument
+##################################
 
 This tutorial describes the :ref:`lifecycle <lifecycling>` flow of a bond instrument between two counterparties.
 We will illustrate the following steps:
@@ -12,7 +12,7 @@ We will illustrate the following steps:
 #. Lifecycling the bond instrument
 #. Settling the instructions
 
-To follow the script used in this tutorial you can `clone the Daml Finance repository <clone-repo>`_ repository.
+To follow the script used in this tutorial you can `clone the Daml Finance repository <explore-library>`_ repository.
 In particular, the file ``src/test/daml/Daml/Finance/Instrument/Bond/Test/FixedRate.daml`` is the starting point
 of this tutorial. It also refers to some utility functions in ``src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml``.
 

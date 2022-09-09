@@ -1,8 +1,8 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-Asset-specific Extensions
-#########################
+Instrument Extensions
+#####################
 
 Tokens
 ======
@@ -20,7 +20,7 @@ Tokens
 
     - :ref:`Instrument <module-daml-finance-instrument-base-instrument-53549>`: Base implementation of an Instrument which does not define any lifecycling logic.
 
-    Check out the :doc:`Transfer tutorial <../../tutorial/getting-started/transfer>` for an example on how to create a base instrument and use it for a transfer.
+    Check out the :doc:`Transfer tutorial <../../tutorials/getting-started/transfer>` for an example on how to create a base instrument and use it for a transfer.
 
 Bonds
 =====
@@ -44,8 +44,8 @@ Bonds
     - :ref:`ZeroCoupon <module-daml-finance-instrument-bond-zerocoupon-72656>`: This template models a zero coupon bond. It does not pay any coupons, only the redemption amount at maturity.
     - :ref:`Util <module-daml-finance-instrument-bond-util-70458>`: Utility functions related to creating Contingent Claims for coupons / redemption and bond lifecycling logic.
 
-    Check out the tutorial on :doc:`How to use the Bond extension package <../../tutorial/instrument-modelling/bond-extension>` for a description how to use the bond extension in practice.
-    There is also the tutorial :doc:`How to implement a Contingent Claims-based instrument <../../tutorial/instrument-modelling/contingent-claims-instrument>`, which describes how the claims are defined and how the lifecycle interface is implemented for bonds.
+    Check out the tutorial on :doc:`How to use the Bond extension package <../../tutorials/instrument-modelling/bond-extension>` for a description how to use the bond extension in practice.
+    There is also the tutorial :doc:`How to implement a Contingent Claims-based instrument <../../tutorials/instrument-modelling/contingent-claims-instrument>`, which describes how the claims are defined and how the lifecycle interface is implemented for bonds.
 
 Equity
 ======
@@ -89,4 +89,4 @@ Generic
     - :ref:`Factory <module-daml-finance-instrument-generic-factory-42712>`: Factory template for generic instrument creation.
     - :ref:`Instrument <module-daml-finance-instrument-generic-instrument-67364>`: An instrument representing a generic payoff, modelled using ``Contingent Claims``.
 
-    The tutorial :doc:`How to use the Derivative extension to model generic instruments <../../tutorial/instrument-modelling/derivative-extension>` describes how a payoff is defined using ``Contingent Claims`` in practice.
+    The tutorial :doc:`How to use the Derivative extension to model generic instruments <../../tutorials/instrument-modelling/derivative-extension>` describes how a payoff is defined using ``Contingent Claims`` in practice.

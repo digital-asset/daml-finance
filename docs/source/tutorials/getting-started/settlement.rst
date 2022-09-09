@@ -157,7 +157,7 @@ In principle, a different settler could be chosen. The choice of a settler is us
 Summary
 *******
 
-You now know how to define complex transactions and settle them atomically. The main concepts to take away are:
+You now know how to define complex transactions and settle them atomically. The main points to take away are:
 * A settlement factory is used to instruct settlement for an arbitrary list of steps
 * Instructions are used to collect authorizations, assets to be moved, and means of settlement
 * Batches group together instructions to be settled atomically

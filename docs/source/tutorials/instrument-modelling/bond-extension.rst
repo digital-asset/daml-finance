@@ -4,7 +4,7 @@
 How to use the Bond extension package
 #####################################
 
-To follow the script used in this tutorial you can `clone the Daml Finance repository <clone-repo>`_ repository.
+To follow the script used in this tutorial you can `clone the Daml Finance repository <explore-library>`_ repository.
 In particular, the Bond test folder ``src/test/daml/Daml/Finance/Instrument/Bond/Test/`` is the starting point
 of this tutorial.
 
@@ -12,7 +12,7 @@ How to use the Bond extension in your app
 *****************************************
 
 As explained in the :ref:`Getting Started <structure-of-code-dependencies>` section
-and on the :doc:`Architecture <../../architecture>` page,
+and on the :doc:`Architecture <../../overview/architecture>` page,
 your app should only depend on the interface layer of Daml Finance.
 For bonds this means that you should only include the bond interface package:
 ``Daml.Finance.Interface.Instrument.Bond``.
