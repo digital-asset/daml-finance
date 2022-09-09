@@ -37,9 +37,7 @@ from each other.
 -  ``Daml.Finance.Interface.Lifecycle`` defines interfaces used for
    instrument lifecycling.
 
-In addition to the above, the ``Daml.Finance.Interface.Common`` package
-defines types, interface, and utilities used by other interface
-packages.
+In addition to the above, the ``Daml.Finance.Interface.Types`` package provides types and ``Daml.Finance.Interface.Util`` package defines utilities and interfaces used by other interface packages.
 
 Implementation layer
 ********************
