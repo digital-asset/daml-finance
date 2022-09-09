@@ -45,7 +45,7 @@ Core Interfaces
 
     The :doc:`Lifecycling <../concepts/lifecycling>` page contains an overview of the lifecycle process and explains the relationship between events, lifecycle rules and effects.
     Check out the :doc:`Lifecycling tutorial <../../tutorials/getting-started/lifecycling>` for a description on how lifecycling works in practice.
-    There is also the tutorial :doc:`How to implement a Contingent Claims-based instrument <../../tutorials/instrument-modelling/contingent-claims-instrument>`, which describes how claims are defined, how to use an ``Observable``, and how the ``Lifecycle`` interface is implemented for bonds.
+    There is also the tutorial :doc:`How to implement a Contingent Claims-based instrument <../../tutorials/instrument-modeling/contingent-claims-instrument>`, which describes how claims are defined, how to use an ``Observable``, and how the ``Lifecycle`` interface is implemented for bonds.
 
 - ``Daml.Finance.Interface.Types``
 
