@@ -41,7 +41,7 @@ Core Implementations
     - :ref:`Event.Replacement <module-daml-finance-lifecycle-event-replacement-51859>`: Event contract for the replacement of units of an instrument with a basket of other instruments (e.g. stock merger).
 
     Check out the :doc:`Lifecycling tutorial <../../tutorials/getting-started/lifecycling>` for a description on how lifecycling works in practice, including how to ``Claim`` an ``Effect``.
-    There is also the tutorial :doc:`How to implement a Contingent Claims-based instrument <../../tutorials/instrument-modelling/contingent-claims-instrument>`, which describes how create an ``Effect``.
+    There is also the tutorial :doc:`How to implement a Contingent Claims-based instrument <../../tutorials/instrument-modeling/contingent-claims-instrument>`, which describes how create an ``Effect``.
     For a description of ``Distribution`` and ``Replacement``, check out the ``src/test/daml/Daml/Finance/Instrument/Equity/Test`` folder. It demonstrates
     how to create and lifecycle a cash dividend, and how to handle corporate actions like mergers and stock splits.
 
