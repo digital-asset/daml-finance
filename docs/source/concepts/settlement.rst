@@ -13,6 +13,7 @@ USD-denominated holding.
 
 The library provides facilities to execute these transfers atomically
 (i.e., within the same Daml transaction) in the package ``Daml.Finance.Interface.Settlement``.
+An implementation is provided in ``Daml.Finance.Settlement``.
 
 Step
 ****

@@ -24,27 +24,27 @@ import Daml.Script
 data TestParties = TestParties
   with
     bank1 : Party
-      -- ^ Custodian of Alice's cash holdings.
+      -- ^ Custodian of Buyer's cash holdings.
     bank2 : Party
-      -- ^ Custodian of Bob's cash holdings.
+      -- ^ Custodian of Seller's cash holdings.
     cb : Party
-      -- ^ The Central Bank is the depository and the issuer of the cash instrument. It also acts as custodian for the cash holdings of Bank1 and Bank2.
+      -- ^ The Central Bank is the depository and the issuer of the cash instrument. It also acts as custodian for the cash holdings of Bank 1 and Bank 2.
     csd : Party
-      -- ^ The Central Bank is the depository of the equity instrument. It also acts as custodian for the equity holdings of Custodian1 and Custodian2.
+      -- ^ The Central Security Depository is the depository of the equity instrument. It also acts as custodian for the equity holdings of Custodian 1 and Custodian 2.
     custodian1 : Party
-      -- ^ Custodian of Alice's equity holdings.
+      -- ^ Custodian of Buyer's equity holdings.
     custodian2 : Party
-      -- ^ Custodian of Bob's equity holdings.
+      -- ^ Custodian of Seller's equity holdings.
     issuer : Party
       -- ^ Issuer of the equity instrument.
-    alice : Party
-      -- ^ Sends money to Bob.
-    bob : Party
-      -- ^ Sends shares to Alice.
+    buyer : Party
+      -- ^ Sends money to Seller.
+    seller : Party
+      -- ^ Sends shares to Buyer.
     agent : Party
-      -- ^ Party that requests and executes the settlement of the transaction between Alice and Bob.
+      -- ^ Party that requests and executes the settlement of the transaction between Buyer and Seller.
     delegatee : Party
-      -- ^ Party that is granted the right to allocate Alice's holdings on her behalf.
+      -- ^ Party that is granted the right to allocate Buyer's holdings on her behalf.
     publicParty : Party
       -- ^ The public party. Every party can readAs the public party.
 
@@ -58,29 +58,29 @@ run2 = run False
 
 -- | Cross-custodial payment
 -- Dvp of $ 200'000 vs 1'250 shares.
+-- +------------------------------------------------------+
+-- | Accounts                                             |
+-- +------------------------------+-----------------------+
+-- | structure:                   | used for:             |
+-- +------------------------------+-----------------------+
+-- |        Central Bank          |                       |
+-- |            /  \              | central bank money    |
+-- |     Bank 1      Bank 2       |                       |
+-- |         /        \           | commercial bank money |
+-- |    Buyer          Seller     |                       |
+-- |         \        /           | securities            |
+-- | Custodian 2      Custodian 1 |                       |
+-- |            \   /             | securities            |
+-- |  Central Security Depository |                       |
+-- +------------------------------+-----------------------+
 --
--- Cash account structure:
---        CB
---       /  \
---     B1    B2
---     /      \
---    A        B
---
--- Equity (security) account structure:
---    A        B
---     \      /
---     C2    C1
---       \  /
---       CSD
---
--- Assumptions:
--- 1. The cash settles via intermediary banks B1 and B2, and the Central Bank (CB), i.e., A -> B1 -> CB -> B2 -> B.
--- 2. The security settles via intermediary custodians C1 and C2, and the Central Security Depository (CSD), i.e., A <- C1 <- CSD -> C2 <- B.
--- 3. The cash with CB as custodian is settled off ledger, all other cash and securities are settled on ledger.
--- 4. The CSD does not have to act, rather a direct transfer of a holding (with CSD as custodian) happens from C1 to C2.
--- 5. Intermediary banks/custodians allocate and approve instructions they have with Alice/Bob by a direct credit and debit of Alice's/Bob's accounts, respectively.
--- 6. Alice and Bob allocate and approve their instructions by pledging holdings and taking delivery to their accounts, respectively.
-
+-- Setup and assumptions:
+-- 1. The cash settles via Bank 1 and Bank 2, and the Central Bank (CB), i.e., Buyer -> Bank 1 -> CB -> Bank 2 -> Seller.
+-- 2. The security settles via Custodian 1 and Custodian 2, and the Central Security Depository (CSD), i.e., Buyer <- Custodian 1 <- CSD -> Custodian 2 <- Seller.
+-- 3. The cash with CB as custodian (i.e., Central Bank Money) settles off ledger, all other cash and securities settle on ledger.
+-- 4. The CSD does not need credit/debit its accounts actively, rather this happens as a consequence of transfers of holdings (with CSD as custodian) between Custodian 1 and Custodian 2.
+-- 5. The intermediary banks/custodians allocate and approve their instructions with the Buyer/Seller by a direct credit/debit of the Buyer's/Seller's accounts.
+-- 6. Buyer and Seller allocate and approve their instructions by pledging holdings and taking delivery to their accounts, respectively.
 run : Bool -> Script ()
 run useDelegatee = script do
   TestParties{..} <- setupParties
@@ -94,91 +94,96 @@ run useDelegatee = script do
   -- Create accounts
   let createAccounts description custodian = mapA (Account.createAccount description [publicParty] accountFactoryCid holdingFactoryCid [] custodian)
   -- cash
-  [aliceCashAccount] <- createAccounts "Cash Account" bank1 [alice]
-  [bobCashAccount] <- createAccounts "Cash Account" bank2 [bob]
+  [buyerCashAccount] <- createAccounts "Cash Account" bank1 [buyer]
+  [sellerCashAccount] <- createAccounts "Cash Account" bank2 [seller]
   [bank1CashAccount, bank2CashAccount] <- createAccounts "Cash Account" cb [bank1, bank2]
   -- asset
   [custodian1DepoAccount, custodian2DepoAccount] <- createAccounts "Securities Account" csd [custodian1, custodian2]
-  [aliceDepoAccount] <- createAccounts "Securities Account" custodian2 [alice]
-  [custodian1OwnDepoAccount, bobDepoAccount] <- createAccounts "Securities Account" custodian1 [custodian1, bob]
+  [buyerDepoAccount] <- createAccounts "Securities Account" custodian2 [buyer]
+  [custodian1OwnDepoAccount, sellerDepoAccount] <- createAccounts "Securities Account" custodian1 [custodian1, seller]
 
   -- Distribute
   -- cash
   now <- getTime
   cashInstrument <- Instrument.originate cb cb "USD" "United States Doller" [] now
-  [aliceCashCid] <- mapA (Account.credit [publicParty] cashInstrument 200_000.0) [aliceCashAccount]
+  [buyerCashCid] <- mapA (Account.credit [publicParty] cashInstrument 200_000.0) [buyerCashAccount]
 
   -- assets
   assetInstrument <- Instrument.originate csd issuer "SHARE" "Stock" [] now
-  [bobAssetCid, custodian1AssetCid] <- mapA (Account.credit [publicParty] assetInstrument 1_250.0) [bobDepoAccount, custodian1DepoAccount]
+  [sellerAssetCid, custodian1AssetCid] <- mapA (Account.credit [publicParty] assetInstrument 1_250.0) [sellerDepoAccount, custodian1DepoAccount]
 
   -- Instruct settlement
   let
     cashQuantity = Instrument.qty 200_000.0 cashInstrument
     assetQuantity = Instrument.qty 1_250.0 assetInstrument
     steps =
-      [ -- Payment
-        Step with sender = alice; receiver = bank1; quantity = cashQuantity
+      [ -- Payment route
+        Step with sender = buyer; receiver = bank1; quantity = cashQuantity
       , Step with sender = bank1; receiver = bank2; quantity = cashQuantity
-      , Step with sender = bank2; receiver = bob; quantity = cashQuantity
-        -- Delivery
-      , Step with sender = bob; receiver = custodian1; quantity = assetQuantity
+      , Step with sender = bank2; receiver = seller; quantity = cashQuantity
+        -- Delivery route
+      , Step with sender = seller; receiver = custodian1; quantity = assetQuantity
       , Step with sender = custodian1; receiver = custodian2; quantity = assetQuantity
-      , Step with sender = custodian2; receiver = alice; quantity = assetQuantity
+      , Step with sender = custodian2; receiver = buyer; quantity = assetQuantity
       ]
   -- Create settlement factory
   settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submitMulti [agent] [] do createCmd Factory with provider = agent; observers = empty
 
   -- Instruct settlement
-  (batchCid, [aliceInstructionCid, bank1InstructionCid, bank2InstructionCid, bobInstructionCid, custodian1InstructionCid, custodian2InstructionCid]) <-
+  (batchCid, [buyerInstructionCid, bank1InstructionCid, bank2InstructionCid, sellerInstructionCid, custodian1InstructionCid, custodian2InstructionCid]) <-
     submitMulti [agent] [] do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = singleton agent; settler = agent; id = Id "SHARE 200000.0@160.0USD DVP"; description = "Crosspayment"; steps
 
-  -- Allocate instructions
-  aliceInstructionCid <-
+  -- Allocate and approve instructions
+  buyerInstructionCid <-
     if useDelegatee then
       do
         -- delegate
-        delegationCid <- submitMulti [alice] [] do createCmd AllocationDelegation with delegator = alice; delegatee
+        delegationCid <- submitMulti [buyer] [] do createCmd AllocationDelegation with delegator = buyer; delegatee
         -- disclose
         -- TODO: use explicit disclosure (once available)
         let observerContext = ("delegation123", singleton delegatee)
-        aliceCashCid : ContractId Transferable.I <- coerceContractId <$> submitMulti [alice] [] do exerciseCmd (coerceContractId aliceCashCid : ContractId Disclosure.I) Disclosure.AddObservers with disclosers = singleton alice; observersToAdd = observerContext
-        aliceInstructionCid : ContractId Instruction.I <- coerceContractId <$> submitMulti [alice] [] do exerciseCmd (coerceContractId aliceInstructionCid : ContractId Disclosure.I) Disclosure.AddObservers with disclosers = singleton alice; observersToAdd = observerContext
-        Account.submitExerciseInterfaceByKeyCmd @Disclosure.I [alice] [] aliceCashAccount Disclosure.AddObservers with disclosers = singleton alice; observersToAdd = observerContext
-        -- allocate (on behalf of alice)
-        instructionCid <- submitMulti [delegatee] [] do exerciseCmd delegationCid OnBehalfAllocation with id = observerContext._1; instructionCid = aliceInstructionCid; transferableCid = aliceCashCid
+        buyerCashCid : ContractId Transferable.I <- coerceContractId <$> submitMulti [buyer] [] do exerciseCmd (coerceContractId buyerCashCid : ContractId Disclosure.I) Disclosure.AddObservers with disclosers = singleton buyer; observersToAdd = observerContext
+        buyerInstructionCid : ContractId Instruction.I <- coerceContractId <$> submitMulti [buyer] [] do exerciseCmd (coerceContractId buyerInstructionCid : ContractId Disclosure.I) Disclosure.AddObservers with disclosers = singleton buyer; observersToAdd = observerContext
+        Account.submitExerciseInterfaceByKeyCmd @Disclosure.I [buyer] [] buyerCashAccount Disclosure.AddObservers with disclosers = singleton buyer; observersToAdd = observerContext
+        -- allocate (on behalf of buyer)
+        instructionCid <- submitMulti [delegatee] [] do exerciseCmd delegationCid OnBehalfAllocation with id = observerContext._1; instructionCid = buyerInstructionCid; transferableCid = buyerCashCid
         -- undisclose
-        Account.submitExerciseInterfaceByKeyCmd @Disclosure.I [alice] [] aliceCashAccount Disclosure.RemoveObservers with disclosers = singleton alice; observersToRemove = observerContext
+        Account.submitExerciseInterfaceByKeyCmd @Disclosure.I [buyer] [] buyerCashAccount Disclosure.RemoveObservers with disclosers = singleton buyer; observersToRemove = observerContext
         pure instructionCid
     else
-      submitMulti [alice] [] do exerciseCmd aliceInstructionCid Instruction.Allocate with allocation = Pledge aliceCashCid
-  bank1InstructionCid <- submitMulti [bank1] [] do exerciseCmd bank1InstructionCid Instruction.Allocate with allocation = SettleOffledger
+      submitMulti [buyer] [] do exerciseCmd buyerInstructionCid Instruction.Allocate with allocation = Pledge buyerCashCid
+  buyerInstructionCid <- submitMulti [bank1] [] do exerciseCmd buyerInstructionCid Instruction.Approve with approval = DebitSender
+  bank2InstructionCid <- submitMulti [seller] [] do exerciseCmd bank2InstructionCid Instruction.Approve with approval = TakeDelivery sellerCashAccount
   bank2InstructionCid <- submitMulti [bank2] [] do exerciseCmd bank2InstructionCid Instruction.Allocate with allocation = CreditReceiver
-  bobInstructionCid <- submitMulti [bob] [] do exerciseCmd bobInstructionCid Instruction.Allocate with allocation = Pledge bobAssetCid
+  bank1InstructionCid <- submitMulti [bank1] [] do exerciseCmd bank1InstructionCid Instruction.Allocate with allocation = SettleOffLedger
+  bank1InstructionCid <- submitMulti [bank2] [] do exerciseCmd bank1InstructionCid Instruction.Approve with approval = SettleOffLedgerAcknowledge
+  sellerInstructionCid <- submitMulti [seller] [] do exerciseCmd sellerInstructionCid Instruction.Allocate with allocation = Pledge sellerAssetCid
+  sellerInstructionCid <- submitMulti [custodian1] [] do exerciseCmd sellerInstructionCid Instruction.Approve with approval = DebitSender
   custodian1InstructionCid <- submitMulti [custodian1] [] do exerciseCmd custodian1InstructionCid Instruction.Allocate with allocation = Pledge custodian1AssetCid
-  custodian2InstructionCid <- submitMulti [custodian2] [] do exerciseCmd custodian2InstructionCid Instruction.Allocate with allocation = CreditReceiver
-
-  -- Approve instructions
-  aliceInstructionCid <- submitMulti [bank1] [] do exerciseCmd aliceInstructionCid Instruction.Approve with approval = DebitSender
-  bank1InstructionCid <- submitMulti [bank2] [] do exerciseCmd bank1InstructionCid Instruction.Approve with approval = SettleOffledgerAcknowledge
-  bank2InstructionCid <- submitMulti [bob] [] do exerciseCmd bank2InstructionCid Instruction.Approve with approval = TakeDelivery bobCashAccount
-  bobInstructionCid <- submitMulti [custodian1] [] do exerciseCmd bobInstructionCid Instruction.Approve with approval = DebitSender
   custodian1InstructionCid <- submitMulti [custodian2] [] do exerciseCmd custodian1InstructionCid Instruction.Approve with approval = TakeDelivery custodian2DepoAccount
-  custodian2InstructionCid <- submitMulti [alice] [] do exerciseCmd custodian2InstructionCid Instruction.Approve with approval = TakeDelivery aliceDepoAccount
+  -- Can't settle batch before all `Instruction`s have been allocated and approved
+  submitMultiMustFail [agent] [publicParty] do exerciseCmd batchCid Batch.Settle
+  custodian2InstructionCid <- submitMulti [custodian2] [] do exerciseCmd custodian2InstructionCid Instruction.Allocate with allocation = CreditReceiver
+  -- Buyer approves her instrcution with an incompatible approval
+  custodian2InstructionCid <- submitMulti [buyer] [] do exerciseCmd custodian2InstructionCid Instruction.Approve with approval = SettleOffLedgerAcknowledge
+  -- Settlement of batch must fail due to the incompatible approval
+  submitMultiMustFail [agent] [publicParty] do exerciseCmd batchCid Batch.Settle
+  -- Buyer approves her instruction with a compatible approval
+  custodian2InstructionCid <- submitMulti [buyer] [] do exerciseCmd custodian2InstructionCid Instruction.Approve with approval = TakeDelivery buyerDepoAccount
 
   -- Settle batch
-  [bobCashCid, custodian2AssetCid, aliceAssetCid] <- submitMulti [agent] [publicParty] do exerciseCmd batchCid Batch.Settle
+  [sellerCashCid, custodian2AssetCid, buyerAssetCid] <- submitMulti [agent] [publicParty] do exerciseCmd batchCid Batch.Settle
 
   -- Assert state
-  Holding.verifyOwnerOfHolding [(bob, bobCashCid), (custodian2, custodian2AssetCid), (alice, aliceAssetCid)]
+  Holding.verifyOwnerOfHolding [(seller, sellerCashCid), (custodian2, custodian2AssetCid), (buyer, buyerAssetCid)]
 
   pure ()
 
 setupParties : Script TestParties
 setupParties = do
-  [cb, csd, bank1, bank2, custodian2, custodian1, issuer, alice, bob, agent, delegatee, publicParty] <-
-    createParties ["CentralBank", "CSD", "Bank1", "Bank2", "custodian2", "custodian1", "Issuer", "Alice", "Bob", "Agent", "Delegatee", "PublicParty"]
-  pure TestParties with cb; csd; bank1; bank2; custodian2; custodian1; issuer; alice; bob; agent; delegatee; publicParty
+  [cb, csd, bank1, bank2, custodian2, custodian1, issuer, buyer, seller, agent, delegatee, publicParty] <-
+    createParties ["CentralBank", "CSD", "Bank 1", "Bank 2", "Custodian 2", "Custodian 1", "Issuer", "Buyer", "Seller", "Agent", "Delegatee", "PublicParty"]
+  pure TestParties with cb; csd; bank1; bank2; custodian2; custodian1; issuer; buyer; seller; agent; delegatee; publicParty
 
 -- | Grants the `delegatee` the right to allocate holdings on behalf of the `delegator`
 template AllocationDelegation
