@@ -1,0 +1,143 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Bond.InterestRateSwap where
+
+import DA.Set (singleton)
+import Daml.Finance.Instrument.Bond.Util
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (GetCid(..), HasImplementation, I, K, R, View(..), createReference, disclosureUpdateReference)
+import Daml.Finance.Interface.Instrument.Bond.InterestRateSwap qualified as InterestRateSwap (Create(..), Factory, HasImplementation, Remove(..), View(..))
+import Daml.Finance.Interface.Instrument.Generic.HasClaims qualified as HasClaims (I, View(..))
+import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..), View(..))
+import Daml.Finance.Interface.Types.Common (Id(..), InstrumentKey(..), Observers)
+import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
+import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..))
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
+import Prelude hiding (key)
+
+-- | Type synonym for `Instrument`.
+type T = Instrument
+
+instance Instrument.HasImplementation T
+
+-- | This template models a floating rate bond.
+-- It pays a floating coupon rate at the end of every coupon period.
+-- This consists of a reference rate (observed at the beginning of the coupon period) plus a coupon spread.
+-- For example: 3M Euribor + 0.5%.
+template Instrument
+  with
+    depository : Party
+      -- ^ The depository of the instrument.
+    issuer : Party
+      -- ^ The issuer of the instrument.
+    --issuerPaysFix : Bool
+    --  -- ^ The issuer of the instrument.
+    id : Id
+      -- ^ An identifier of the instrument.
+    version : Text
+      -- ^ The instrument's version.
+    description : Text
+      -- ^ A description of the instrument.
+    referenceRateId : Text
+      -- ^ The floating rate reference ID. For example, in case of "3M Euribor + 0.5%" this should be a valid reference to the "3M Euribor" reference rate.
+    fixRate : Decimal
+      -- ^ The floating rate coupon spread. For example, in case of "3M Euribor + 0.5%" this should be 0.005.
+    periodicSchedule : PeriodicSchedule
+      -- ^ The schedule for the periodic coupon payments.
+    holidayCalendarIds : [Text]
+      -- ^ The identifier of the holiday calendar to be used for the coupon schedule.
+    calendarDataProvider : Party
+      -- ^ The reference data provider to use for the holiday calendar.
+    dayCountConvention : DayCountConventionEnum
+      -- ^ The day count convention used to calculate day count fractions. For example: Act360.
+    currency : Instrument.K
+      -- ^ The currency of the bond. For example, if the bond pays in USD this should be a USD cash instrument.
+    observers : Observers
+      -- ^ The observers of the instrument.
+    lastEventTimestamp : Time
+      -- ^ (Market) time of the last recorded lifecycle event. If no event has occurred yet, the time of creation should be used.
+  where
+    signatory depository, issuer
+    observer Disclosure.flattenObservers observers
+
+    let instrumentKey = InstrumentKey with depository; issuer; id; version
+
+    interface instance HasClaims.I for Instrument where
+      view = HasClaims.View with acquisitionTime = dateToDateClockTime periodicSchedule.effectiveDate
+      getClaims = do
+        -- get the initial claims tree (as of the bond's acquisition time)
+        schedule <- rollCouponSchedule periodicSchedule holidayCalendarIds issuer calendarDataProvider
+        let
+          useAdjustedDatesForDcf = True
+        nettedFixedAndFloatingClaims <- createFixedAndFloatingInterestRateSwapClaims schedule periodicSchedule useAdjustedDatesForDcf fixRate dayCountConvention currency referenceRateId
+        --floatingClaims <- createFloatingRateCouponClaims schedule periodicSchedule useAdjustedDatesForDcf 0.0 dayCountConvention currency referenceRateId
+        --fixClaims <- createFixRateCouponClaims schedule periodicSchedule useAdjustedDatesForDcf (-couponSpread) dayCountConvention currency
+        --fixClaims <- createFixRateCouponClaims schedule periodicSchedule useAdjustedDatesForDcf couponSpread dayCountConvention currency
+        --pure $ mconcat [floatingClaims, fixClaims]
+        --pure $ mconcat [floatingClaims]
+        --pure $ mconcat [fixClaims]
+        pure $ mconcat [nettedFixedAndFloatingClaims]
+
+    interface instance Instrument.I for Instrument where
+      asDisclosure = toInterface @Disclosure.I this
+      view = Instrument.View with depository; issuer; id; version; description; validAsOf = lastEventTimestamp
+      getKey = instrumentKey
+
+    interface instance Lifecycle.I for Instrument where
+      view = Lifecycle.View with lifecycler = issuer
+      evolve Lifecycle.Evolve{ruleName; settler; eventCid; clockCid; observableCids} self =
+        case ruleName of
+          "Time" -> processClockUpdate settler eventCid clockCid self this observableCids
+          other -> abort $ "Unknown lifecycle rule " <> other
+
+    interface instance Disclosure.I for Instrument where
+      view = Disclosure.View with disclosureControllers = singleton $ singleton issuer; observers
+      setObservers Disclosure.SetObservers{newObservers} = do
+        cid <- toInterfaceContractId <$> create this with observers = newObservers
+        Instrument.disclosureUpdateReference newObservers instrumentKey cid
+      archive' self = archive (coerceContractId self : ContractId Instrument)
+
+instance InterestRateSwap.HasImplementation Factory
+-- | Factory template for instrument creation.
+template Factory
+  with
+    provider : Party
+      -- ^ The factory's provider.
+    observers : Observers
+      -- ^ The factory's observers.
+  where
+    signatory provider
+    observer Disclosure.flattenObservers observers
+
+    interface instance InterestRateSwap.Factory for Factory where
+      asDisclosure = toInterface @Disclosure.I this
+      view = InterestRateSwap.View with provider
+      create' InterestRateSwap.Create{instrument; description; referenceRateId; fixRate; periodicSchedule; holidayCalendarIds; calendarDataProvider; dayCountConvention; currency; lastEventTimestamp; observers} = do
+        cid <- toInterfaceContractId <$> create Instrument
+          with
+            depository = instrument.depository
+            issuer = instrument.issuer
+            id = instrument.id
+            version = instrument.version
+            description
+            referenceRateId
+            fixRate
+            periodicSchedule
+            holidayCalendarIds
+            calendarDataProvider
+            dayCountConvention
+            currency
+            lastEventTimestamp
+            observers
+        Instrument.createReference instrument.depository cid
+        pure cid
+      remove InterestRateSwap.Remove{instrument} = do
+        (refCid, ref) <- fetchByKey @Instrument.R instrument
+        instrumentCid <- exercise refCid Instrument.GetCid with viewer = instrument.depository
+        archive $ fromInterfaceContractId @Instrument instrumentCid
+        archive refCid
+
+    interface instance Disclosure.I for Factory where
+      view = Disclosure.View with disclosureControllers = singleton $ singleton provider; observers
+      setObservers Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
+      archive' self = archive (coerceContractId self : ContractId Instrument)
