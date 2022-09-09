@@ -21,7 +21,7 @@ There are two main benefits from using the library in your application:
 * Application composability
 
    Building your application on Daml Finance makes it compatible with other platforms in the
-   wider ecosystem. By using a shared library assets become "mobile" allowing them to be used seamlessly
+   wider ecosystem. By using a shared library assets become "mobile", allowing them to be used seamlessly
    across application boundaries without the need for translation or integration layers. A
    Daml Finance-based asset that is, for example, originated in a bond issuance application can be used
    in the context of a secondary market trading application that is also built on Daml Finance.
@@ -45,7 +45,7 @@ Daml Finance optimizes for the following aspects:
 * Extensibility
 
    Various extension points allow for customization and extension of the library as required. If a provided
-   implementation does not fulfil the requirements it is straigh-forward to provide a custom extension.
+   implementation does not fulfil the requirements it is straightforward to provide a custom extension.
 
 Scope
 *****

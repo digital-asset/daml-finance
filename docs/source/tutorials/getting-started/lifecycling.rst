@@ -40,7 +40,7 @@ We first give a high-level outline of the lifecycle process.
 +-------------------------------------------------+-----------------------------------------------------------------------------------------+
 | 4. Claim the effect using a holding             | The claim rule is used to claim the effects resulting from a lifecycle event using a    |
 |                                                 | holding on the target instrument. The result is a set of settlement instructions and    |
-|                                                 | corresponding batch to be settled between the custodian and owner of the holding        |
+|                                                 | corresponding batch to be settled between the custodian and owner of the holding.       |
 |                                                 |                                                                                         |
 +-------------------------------------------------+-----------------------------------------------------------------------------------------+
 
@@ -78,7 +78,7 @@ Next, we create two lifecycle rules:
 * The :ref:`Claim Rule <module-daml-finance-lifecycle-rule-claim-99318>` allows a holder of the target instrument to claim the effect
   resulting from the distribution event. By presenting their holding they can instruct the settlement of the holding transfers described in the effect.
 
-We then create a distribution event describing the terms of the dividend to be payed.
+We then create a distribution event describing the terms of the dividend to be paid.
 
 .. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Lifecycling.daml
   :language: daml
@@ -131,7 +131,7 @@ The lifecycle interfaces governing the process leave the controllers of the vari
 
 * Typically, we would expect the issuer of an instrument to be responsible to generate lifecycle events (for example, announcing dividends or stock splits).
 * Lifecycle rules on the other hand are often controlled by 3rd-party calculation agents.
-* The claiming of lifecycle effects in by default the responsability of the owner of a holding. If instead the owner wants to delegate this responsability to their custodian they can do so via a delegation contract.
+* The claiming of lifecycle effects is by default the responsibility of the owner of a holding. If instead the owner wants to delegate this responsibility to their custodian they can do so via a delegation contract.
 * The party executing settlement can be chosen as well, as described in the previous tutorial on :doc:`Settlement <settlement>`.
 
 Can an instrument act as its own lifecycle rule?
@@ -141,7 +141,7 @@ Yes, an instrument can implement the ``Lifecycle`` interface directly such that 
 for this can be found in the implementation for generic instruments. There are, however, advantages to separating this logic out into rule contracts:
 
 * Keeping lifecycle rules in a different package from your instruments allows you to independently upgrade or patch them without affecting your live instruments.
-* Having separate rules allows to change the lifecycle properties of an instrument dynamically at runtime. For example, an instrument can initially be created without support for doing asset distributions. Then, at a later point the issuer might decide to start paying dividends. They can now simply add a distribution rule to the running system to enables this new lifecycle event for their instrument without affecting the actual live instrument itself (or any holdings on it).
+* Having separate rules allows to change the lifecycle properties of an instrument dynamically at runtime. For example, an instrument can initially be created without support for doing asset distributions. Then, at a later point the issuer might decide to start paying dividends. They can now simply add a distribution rule to the running system to enable this new lifecycle event for their instrument without affecting the actual live instrument itself (or any holdings on it).
 
 Summary
 *******

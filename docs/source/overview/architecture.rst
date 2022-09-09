@@ -68,7 +68,7 @@ Other packages
 **************
 
 The ``Daml.Finance.Util`` package provides a set of pure utility
-functions for date manipulation.
+functions mainly for date manipulation.
 
 Extension packages
 ==================
