@@ -18,7 +18,7 @@ test: build
 
 .PHONY: clean
 clean:
-	-rm -r .lib/
+	-rm -rf .lib/
 	daml clean
 
 #########################
@@ -79,7 +79,7 @@ ci-local: clean-all ci-build ci-test ci-validate
 
 .PHONY: clean-cache
 clean-cache:
-	-rm -r .cache
+	-rm -rf .cache
 
 #####################
 # Copyright headers #

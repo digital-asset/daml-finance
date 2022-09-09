@@ -5,7 +5,7 @@
 set -eu
 
 # Use absolute paths to allow this script to be called from any location
-script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd -P)
+script_dir=$(cd "$(dirname $0)"; pwd -P)
 root_dir=$(cd ${script_dir}; cd ..; pwd -P)
 
 # Remove any existing .lib/ directories from packages

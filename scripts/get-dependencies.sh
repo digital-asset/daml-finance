@@ -8,7 +8,7 @@ daml_yaml_file=$1
 project_name=$(yq e '.name' ${daml_yaml_file})
 
 # Use absolute paths to allow this script to be called from any location
-root_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")"; cd ..; pwd -P)
+root_dir=$(cd "$(dirname $0)"; cd ..; pwd -P)
 cache_dir="${root_dir}/.cache"
 package_root_dir="${root_dir}/package/*/daml"
 project_root_dir=$(cd "$(dirname "${daml_yaml_file}")"; pwd -P)

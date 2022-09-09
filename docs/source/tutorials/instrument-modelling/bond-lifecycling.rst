@@ -1,26 +1,20 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-Lifecycling
-###########
+How to lifecycle a bond instrument
+##################################
 
-This tutorial describes the :ref:`lifecycle <lifecycling>` flow between two counterparties.
-We will use a bond instrument to illustrate the different steps:
+This tutorial describes the :ref:`lifecycle <lifecycling>` flow of a bond instrument between two counterparties.
+We will illustrate the following steps:
 
 #. Creating a fixed-rate bond instrument
 #. Defining the clock for time-based events
 #. Lifecycling the bond instrument
 #. Settling the instructions
 
-Download the code for the tutorial
-**********************************
-
-The code of this tutorial resides in the `Daml Finance <https://github.com/digital-asset/daml-finance>`_ repo.
-You can download it locally by following :doc:`these instructions <download-daml-finance>`.
-
+To follow the script used in this tutorial you can `clone the Daml Finance repository <explore-library>`_ repository.
 In particular, the file ``src/test/daml/Daml/Finance/Instrument/Bond/Test/FixedRate.daml`` is the starting point
-of this tutorial.
-It also refers to some utility functions in ``src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml``.
+of this tutorial. It also refers to some utility functions in ``src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml``.
 
 Creating a fixed-rate bond instrument
 *************************************

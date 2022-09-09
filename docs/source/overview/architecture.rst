@@ -10,8 +10,8 @@ between the different packages.
 Daml Finance consists of a set of ``.dar`` packages that can be divided
 into two layers:
 
--  an **interface layer** representing its public, stable API
--  an **implementation layer** providing a set of standard template
+-  an *interface layer* representing its public, stable API
+-  an *implementation layer* providing a set of standard template
    implementations
 
 Each package in the implementation layer only depends on packages of the
@@ -48,13 +48,13 @@ The implementation layer defines concrete template definitions
 implementing the interfaces defined in the interface layer. These are
 the objects that are ultimately stored on the ledger.
 
-For instance, ``Daml.Finance.Asset`` defines a concrete implementation
+For instance, ``Daml.Finance.Holding`` defines a concrete implementation
 of a :ref:`transferable <transferability>`, :ref:`fungible <fungibility>` holding. This template implements
-interfaces defined in ``Daml.Finance.Interface.Asset``.
+interfaces defined in ``Daml.Finance.Interface.Holding``.
 
 The implementation layer consists of the following packages
 
--  ``Daml.Finance.Asset`` defines default implementations for holdings,
+-  ``Daml.Finance.Holding`` defines default implementations for holdings,
    accounts and instruments.
 -  ``Daml.Finance.Settlement`` defines templates for settlement
    instructions and arbitrary batched settlements.
@@ -67,8 +67,8 @@ The implementation layer consists of the following packages
 Other packages
 **************
 
-The ``Daml.Finance.Common`` package provides a set of pure utility
-functions. These are useful for e.g., date manipulation.
+The ``Daml.Finance.Util`` package provides a set of pure utility
+functions mainly for date manipulation.
 
 Extension packages
 ==================
@@ -87,7 +87,7 @@ that these implementations will support customer applications and
 shorten their time-to-market significantly.
 
 How to use the library
-#############################
+**********************
 
 Users are expected to build their application such that it only depends
 on packages of the interface layer.
@@ -104,9 +104,9 @@ coupling to an implementation is not problematic, as these are
 considered one-time actions.
 
 The image below depicts the dependency graph of an example customer
-application using Daml Finance. The :doc:`Getting Started <tutorial/getting-started/intro>` examples showcase this dependency pattern.
+application using Daml Finance. The :doc:`Getting Started <../tutorials/getting-started/intro>` examples showcase this dependency pattern.
 
-.. image:: images/customer_integration_example.png
+.. image:: ../images/customer_integration_example.png
 
 Extension Points
 ****************

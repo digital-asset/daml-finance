@@ -1,7 +1,7 @@
 # Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-root_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")"; cd ..; pwd -P)
+root_dir=$(cd "$(dirname $0)"; cd ..; pwd -P)
 
 # Remove .lib directories in packages
 echo "Removing .lib/ directories in all packages"

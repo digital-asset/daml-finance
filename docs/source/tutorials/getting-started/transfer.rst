@@ -68,7 +68,7 @@ initiate / accept patterns to
 - make a deposit to the account
 - execute a holding transfer
 
-The ``FXTrade`` workflow will be used in the next tutorial, so please ignore that one for now.
+The ``DvP`` workflow will be used in the next tutorial, so please ignore that one for now.
 
 Files in the ``Workflows`` folder depend only on interface packages of ``daml-finance``
 (the ones that start with ``Daml.Finance.Interface.*``), as you can see from
@@ -114,7 +114,7 @@ to ``Credit`` and ``Debit`` holdings.
   :end-before: -- CREATE_HOLDING_FACTORY_END
 
 This factory contract can be used to create ``Fungible`` holdings, which
-are defined in ``Daml.Finance.Asset.Fungible`` and are
+are defined in ``Daml.Finance.Holding.Fungible`` and are
 :ref:`fungible <fungibility>`, as well as
 :ref:`transferable <transferability>`.
 
@@ -139,8 +139,8 @@ case). Authorization is collected using an initiate / accept pattern.
 
 Bob’s account is created in a similar fashion.
 
-Issuing the cash instrument
-===========================
+Creating the cash instrument
+============================
 
 In order to credit Alice’s account with some cash, we first need
 to introduce a cash ``Instrument`` in our model.
@@ -195,15 +195,8 @@ then accepts the request.
 You notice that here we make explicit use of the fact that Alice can ``readAs`` the public party.
 This is needed as, in order to complete the transfer, visibility on the receiving account's holding factory is required.
 
-Further considerations
-**********************
-
-We now take a look at some aspects of the workflow and try to answer
-some questions that you might be having.
-
-If you are curious to see more use-cases for the library, feel free to
-jump to the next tutorials and come back to this section when you feel
-it is the right time.
+Frequently Asked Questions
+**************************
 
 How does the ``Transfer`` workflow work?
 ========================================
@@ -271,7 +264,7 @@ You might be wondering why we use account factories and holding factories
 instead of creating an ``Account`` or ``Holding`` directly.
 
 This is done to avoid having to reference
-``Daml.Finance.Asset`` directly in user workflows (and hence simplify
+``Daml.Finance.Holding`` directly in user workflows (and hence simplify
 upgrading procedures).
 
 This is based on the assumption that there are very few factory
@@ -311,11 +304,15 @@ Modify the original code, such that
 In order to do that, you can leverage the fact that ``Account`` implements the :ref:`Disclosure <type-daml-finance-interface-util-disclosure-disclosure-97052>` interface.
 This interface exposes the ``AddObservers`` and ``RemoveObservers`` choices, which can be used to disclose / undisclose Bob's account contract to Alice.
 
-Next steps
-**********
+Summary
+*******
 
-You now know how to setup basic accounts, holdings and instruments.
-You also learned how to perform a simple transfer.
+You now know how to setup basic accounts, holdings and instruments. You also learned how to perform a simple transfer. The key concepts to take away are:
 
-However, transfers typically happen within a larger financial transaction.
-The next tutorial will show you how to create such a transaction and how to settle all transfers therein atomically.
+* Holdings represent the ownership of a financial instrument at a custodian
+* Instruments define the economic terms of a financial contract
+* Accounts ensure that only known parties can obtain ownership
+* Factories are used to create the respective contracts without having to depend on implementation packages
+* Transfers change ownership of a holding
+
+sOwnership transfers typically happen within a larger financial transaction. The next tutorial will show you how to create such a transaction and how to settle it atomically.

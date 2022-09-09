@@ -14,8 +14,8 @@ Core Implementations
     - :ref:`NonTransferable <module-daml-finance-holding-nontransferable-44402>`: Implementation of a non-transferable holding.
     - :ref:`Util <module-daml-finance-holding-util-87323>`: Utility functions related to holdings, e.g. locking a holding.
 
-    The :doc:`Core Concepts <../core-concepts>` page explains the relationship between instruments, holdings and accounts.
-    Check out the :doc:`Transfer tutorial <../../tutorial/getting-started/transfer>` for a description on how to create a holding on an instrument and how to transfer it between accounts.
+    The :doc:`Asset Model <../concepts/asset-model>` page explains the relationship between instruments, holdings, and accounts.
+    Check out the :doc:`Transfer tutorial <../../tutorials/getting-started/transfer>` for a description on how to create a holding on an instrument and how to transfer it between accounts.
 
 - ``Daml.Finance.Settlement``
 
@@ -25,8 +25,8 @@ Core Implementations
     - :ref:`Factory <module-daml-finance-settlement-factory-257>`: Used to create a set of settlement `Instruction`\s, and a `Batch` to atomically settle them.
     - :ref:`Batch <module-daml-finance-settlement-batch-95573>`: Allows you to atomically settle a set of settlement steps.
 
-    The :doc:`Core Concepts <../core-concepts>` page contains an overview of the settlement process and explains the relationship between ``Step``, ``Instruction`` and ``Batch``.
-    Check out the :doc:`Settlement tutorial <../../tutorial/getting-started/settlement>` for a description on how to implement the settlement workflow in practice.
+    The :doc:`Settlement <../concepts/settlement>` page contains an overview of the settlement process and explains the relationship between ``Step``, ``Instruction`` and ``Batch``.
+    Check out the :doc:`Settlement tutorial <../../tutorials/getting-started/settlement>` for a description on how to implement the settlement workflow in practice.
 
 - ``Daml.Finance.Lifecycle``
 
@@ -40,8 +40,8 @@ Core Implementations
     - :ref:`Event.Distribution <module-daml-finance-lifecycle-event-distribution-17302>`: Event contract for the distribution of units of an instrument for each unit of a target instrument (e.g. share or cash dividends).
     - :ref:`Event.Replacement <module-daml-finance-lifecycle-event-replacement-51859>`: Event contract for the replacement of units of an instrument with a basket of other instruments (e.g. stock merger).
 
-    Check out the :doc:`Lifecycling tutorial <../../tutorial/getting-started/lifecycling>` for a description on how lifecycling works in practice, including how to ``Claim`` an ``Effect``.
-    There is also the tutorial :doc:`How to implement a Contingent Claims-based instrument <../../tutorial/instrument-modelling/contingent-claims-instrument>`, which describes how create an ``Effect``.
+    Check out the :doc:`Lifecycling tutorial <../../tutorials/getting-started/lifecycling>` for a description on how lifecycling works in practice, including how to ``Claim`` an ``Effect``.
+    There is also the tutorial :doc:`How to implement a Contingent Claims-based instrument <../../tutorials/instrument-modelling/contingent-claims-instrument>`, which describes how create an ``Effect``.
     For a description of ``Distribution`` and ``Replacement``, check out the ``src/test/daml/Daml/Finance/Instrument/Equity/Test`` folder. It demonstrates
     how to create and lifecycle a cash dividend, and how to handle corporate actions like mergers and stock splits.
 
