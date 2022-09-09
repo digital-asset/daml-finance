@@ -17,8 +17,8 @@ We are going to
 This example builds on the previous :doc:`Transfer <transfer>` tutorial script such that the same
 accounts and existing holdings can be used.
 
-Overview of the settlement process
-**********************************
+Overview of the process
+***********************
 
 We first give a quick outline of the settlement process.
 
@@ -158,6 +158,7 @@ Summary
 *******
 
 You now know how to define complex transactions and settle them atomically. The main points to take away are:
+
 * A settlement factory is used to instruct settlement for an arbitrary list of steps
 * Instructions are used to collect authorizations, assets to be moved, and means of settlement
 * Batches group together instructions to be settled atomically
