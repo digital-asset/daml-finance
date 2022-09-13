@@ -111,7 +111,7 @@ originateInterestRateSwap depository issuer label description observers lastEven
   createReference cid depository issuer observers
 
 lifecycleInstrument : [Party] -> Date -> Instrument.K -> Party -> Party -> [ContractId Observable.I] -> Script (ContractId Lifecycle.I, [ContractId Effect.I])
-lifecycleInstrument readAs today bondInstrument settler issuer observableCids = do
+lifecycleInstrument readAs today instrument settler issuer observableCids = do
   -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_BEGIN
   -- create clock and clock update event
   let clock = DateClock with u = Unit today; id = Id (show today); provider = issuer; observers = M.empty
@@ -120,24 +120,25 @@ lifecycleInstrument readAs today bondInstrument settler issuer observableCids = 
   -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_END
 
   -- LIFECYCLE_BOND_BEGIN
-  -- Try to lifecycle bond
-  (bondLifecycleCid2, effectCids) <- Instrument.submitExerciseInterfaceByKeyCmd @Lifecycle.I [issuer] readAs bondInstrument
+  -- Try to lifecycle instrument
+  (lifecycleCid, effectCids) <- Instrument.submitExerciseInterfaceByKeyCmd @Lifecycle.I [issuer] readAs instrument
     Lifecycle.Evolve with settler; eventCid = clockEventCid; observableCids; ruleName = "Time"; clockCid
   -- LIFECYCLE_BOND_END
 
-  pure (bondLifecycleCid2, effectCids)
+  pure (lifecycleCid, effectCids)
 
 verifyNoLifecycleEffects : [Party] -> Date -> Instrument.K -> Party -> Party -> [ContractId Observable.I] -> Script ()
-verifyNoLifecycleEffects readAs today bondInstrument settler issuer observableCids = do
-  (bondLifecycleCid2, effectCids) <- lifecycleInstrument readAs today bondInstrument settler issuer observableCids
+verifyNoLifecycleEffects readAs today instrument settler issuer observableCids = do
+  (bondLifecycleCid2, effectCids) <- lifecycleInstrument readAs today instrument settler issuer observableCids
   assertMsg ("There should be no lifecycle effects on " <> show today) (null effectCids)
 
+-- | Verify a coupon payment of a bond (excluding the last date, which also includes a redemption amount).
 lifecycleAndVerifyCouponEffectsAndSettlement : [Party] -> Date -> Instrument.K -> Party -> Party -> Party -> ContractId Transferable.I -> ContractId Transferable.I -> AccountKey -> AccountKey -> [(Text, Set Parties)] -> Party -> [ContractId Observable.I] -> Script (Instrument.K, ContractId Transferable.I)
-lifecycleAndVerifyCouponEffectsAndSettlement readAs today bondInstrument settler issuer investor investorBondTransferableCid custodianCashTransferableCid custodianAccount investorAccount obs custodian observableCids = do
-  (bondLifecycleCid, [effectCid]) <- lifecycleInstrument readAs today bondInstrument settler issuer observableCids
+lifecycleAndVerifyCouponEffectsAndSettlement readAs today instrument settler issuer investor investorBondTransferableCid custodianCashTransferableCid custodianAccount investorAccount obs custodian observableCids = do
+  (lifecycleCid, [effectCid]) <- lifecycleInstrument readAs today instrument settler issuer observableCids
 
   newBondInstrumentKey <- submitMulti [issuer] [] do
-    Instrument.toKey <$> exerciseCmd @Instrument.I (coerceContractId bondLifecycleCid) Instrument.GetView with viewer = issuer
+    Instrument.toKey <$> exerciseCmd @Instrument.I (coerceContractId lifecycleCid) Instrument.GetView with viewer = issuer
 
   -- CREATE_SETTLEMENT_FACTORY_BOND_BEGIN
   -- Create settlement factory
@@ -183,12 +184,13 @@ lifecycleAndVerifyCouponEffectsAndSettlement readAs today bondInstrument settler
 
   pure (newBondInstrumentKey, coerceContractId investorBondHoldingCid)
 
+-- | Verify the last coupon payment and settlement amount of a bond.
 lifecycleAndVerifyRedemptionEffectsAndSettlement : [Party] -> Date -> Instrument.K -> Party -> Party -> Party -> ContractId Transferable.I -> ContractId Transferable.I -> ContractId Transferable.I -> AccountKey -> AccountKey -> [(Text, Set Parties)] -> Party -> [ContractId Observable.I] -> Script Instrument.K
-lifecycleAndVerifyRedemptionEffectsAndSettlement readAs today bondInstrument settler issuer investor investorBondTransferableCid custodianCashCouponTransferableCid custodianCashRedemptionTransferableCid custodianAccount investorAccount obs custodian observableCids = do
-  (bondLifecycleCid, [effectCid]) <- lifecycleInstrument readAs today bondInstrument settler issuer observableCids
+lifecycleAndVerifyRedemptionEffectsAndSettlement readAs today instrument settler issuer investor investorBondTransferableCid custodianCashCouponTransferableCid custodianCashRedemptionTransferableCid custodianAccount investorAccount obs custodian observableCids = do
+  (lifecycleCid, [effectCid]) <- lifecycleInstrument readAs today instrument settler issuer observableCids
 
   newBondInstrumentKey <- submitMulti [issuer] [] do
-    Instrument.toKey <$> exerciseCmd @Instrument.I (coerceContractId bondLifecycleCid) Instrument.GetView with viewer = issuer
+    Instrument.toKey <$> exerciseCmd @Instrument.I (coerceContractId lifecycleCid) Instrument.GetView with viewer = issuer
 
   -- Create settlement factory
   settlementFactoryCid <- submitMulti [investor] [] do createCmd Factory with provider = investor; observers = empty
@@ -230,6 +232,7 @@ lifecycleAndVerifyRedemptionEffectsAndSettlement readAs today bondInstrument set
 
   pure newBondInstrumentKey
 
+-- | Verify the payments from the first payment date of an interest rate swap.
 lifecycleAndVerifySwapPaymentEffectsAndSettlement : [Party] -> Date -> Instrument.K -> Party -> Party -> Party -> ContractId Transferable.I -> ContractId Transferable.I -> ContractId Transferable.I -> AccountKey -> AccountKey -> [(Text, Set Parties)] -> Party -> [ContractId Observable.I] -> Script (Instrument.K, ContractId Transferable.I)
 lifecycleAndVerifySwapPaymentEffectsAndSettlement readAs today swapInstrument settler issuer investor investorSwapTransferableCid investorCashTransferableFixLegCid custodianCashTransferableFloatingLegCid custodianAccount investorAccount obs custodian observableCids = do
   (swapLifecycleCid, [effectCid]) <- lifecycleInstrument readAs today swapInstrument settler issuer observableCids
@@ -278,6 +281,7 @@ lifecycleAndVerifySwapPaymentEffectsAndSettlement readAs today swapInstrument se
 
   pure (newSwapInstrumentKey, coerceContractId investorSwapHoldingCid)
 
+-- | Verify the payments from the second (also last) payment date of an interest rate swap.
 lifecycleAndVerifySecondSwapPaymentEffects : [Party] -> Date -> Instrument.K -> Party -> Party -> Party -> ContractId Transferable.I -> ContractId Transferable.I -> ContractId Transferable.I -> AccountKey -> AccountKey -> [(Text, Set Parties)] -> Party -> [ContractId Observable.I] -> Script (Instrument.K)
 lifecycleAndVerifySecondSwapPaymentEffects readAs today swapInstrument settler issuer investor investorSwapTransferableCid investorCashTransferableFixLegCid custodianCashTransferableFloatingLegCid custodianAccount investorAccount obs custodian observableCids = do
   (swapLifecycleCid, [effectCid]) <- lifecycleInstrument readAs today swapInstrument settler issuer observableCids

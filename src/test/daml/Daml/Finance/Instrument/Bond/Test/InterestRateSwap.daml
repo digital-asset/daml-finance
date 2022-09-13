@@ -22,12 +22,12 @@ import Daml.Script
 -- Calculate interest rate payment on an interest rate swap, including lifecycling and creation of new instrument version
 run : Script ()
 run = script do
-  [depository, custodian, issuer, investor, calendarDataProvider, settler, provider, publicParty] <-
-    createParties ["CSD", "Custodian", "Issuer", "Investor", "Calendar Data Provider", "Settler", "Provider", "PublicParty"]
+  [custodian, issuer, investor, calendarDataProvider, publicParty] <-
+    createParties ["Custodian", "Issuer", "Investor", "Calendar Data Provider", "PublicParty"]
 
   -- Account and holding factory
   let pp = [("FactoryProvider", singleton $ singleton publicParty)]
-  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory provider pp
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory custodian pp
   holdingFactoryCid <- toInterfaceContractId <$> submitMulti [custodian] [] do
     createCmd Fungible.Factory with provider = custodian; observers = M.fromList pp
 
@@ -37,7 +37,7 @@ run = script do
   -- Distribute commercial-bank cash
   now <- getTime
   let pp = [("PublicParty", singleton $ singleton publicParty)]
-  cashInstrumentCid <- Instrument.originate depository issuer "USD" "US Dollars" pp now
+  cashInstrumentCid <- Instrument.originate custodian issuer "USD" "US Dollars" pp now
 
   -- Create and distribute swap
   -- Fix vs floating interest rate swap: Libor 3M vs 2.01% p.a. payment every 3M
@@ -81,22 +81,22 @@ run = script do
   investorSwapTransferableCid <- Account.credit [publicParty] swapInstrument principalAmount investorAccount
 
   -- One day before the first payment date: try to lifecycle and verify that there are no lifecycle effects.
-  verifyNoLifecycleEffects [publicParty] (subtractDays firstPaymentDate 1) swapInstrument settler issuer [observableCid]
+  verifyNoLifecycleEffects [publicParty] (subtractDays firstPaymentDate 1) swapInstrument custodian issuer [observableCid]
 
   -- First payment date: Lifecycle and verify that there are lifecycle effects for fix and floating payments.
   investorCashForFixPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid firstFixPaymentAmount investorAccount
   custodianCashForFloatingPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid firstFloatingPaymentAmount custodianAccount
-  (swapInstrumentAfterFirstPayment, investorSwapTransferableCid) <- lifecycleAndVerifySwapPaymentEffectsAndSettlement [publicParty] firstPaymentDate swapInstrument settler issuer investor investorSwapTransferableCid investorCashForFixPaymentTransferableCid custodianCashForFloatingPaymentTransferableCid custodianAccount investorAccount pp custodian [observableCid]
+  (swapInstrumentAfterFirstPayment, investorSwapTransferableCid) <- lifecycleAndVerifySwapPaymentEffectsAndSettlement [publicParty] firstPaymentDate swapInstrument custodian issuer investor investorSwapTransferableCid investorCashForFixPaymentTransferableCid custodianCashForFloatingPaymentTransferableCid custodianAccount investorAccount pp custodian [observableCid]
 
   -- One day after the first payment date: try to lifecycle and verify that there are no lifecycle effects.
-  verifyNoLifecycleEffects [publicParty] (addDays firstPaymentDate 1) swapInstrumentAfterFirstPayment settler issuer [observableCid]
+  verifyNoLifecycleEffects [publicParty] (addDays firstPaymentDate 1) swapInstrumentAfterFirstPayment custodian issuer [observableCid]
 
   -- One day before expiry: try to lifecycle and verify that there are no lifecycle effects.
-  verifyNoLifecycleEffects [publicParty] (subtractDays maturityDate 1) swapInstrumentAfterFirstPayment settler issuer [observableCid]
+  verifyNoLifecycleEffects [publicParty] (subtractDays maturityDate 1) swapInstrumentAfterFirstPayment custodian issuer [observableCid]
 
   -- Lifecycle on the second payment date, which is also the expiry date. Verify that there are lifecycle effects for fix and floating payments.
   investorCashForFixPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid secondFixPaymentAmount investorAccount
   custodianCashForFloatingPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid secondFloatingPaymentAmount custodianAccount
-  lifecycleAndVerifySecondSwapPaymentEffects [publicParty] maturityDate swapInstrumentAfterFirstPayment settler issuer investor investorSwapTransferableCid investorCashForFixPaymentTransferableCid custodianCashForFloatingPaymentTransferableCid custodianAccount investorAccount pp custodian [observableCid]
+  lifecycleAndVerifySecondSwapPaymentEffects [publicParty] maturityDate swapInstrumentAfterFirstPayment custodian issuer investor investorSwapTransferableCid investorCashForFixPaymentTransferableCid custodianCashForFloatingPaymentTransferableCid custodianAccount investorAccount pp custodian [observableCid]
 
   pure ()
