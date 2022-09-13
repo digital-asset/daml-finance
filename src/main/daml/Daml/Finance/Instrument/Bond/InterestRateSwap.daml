@@ -20,7 +20,7 @@ type T = Instrument
 
 instance Instrument.HasImplementation T
 
--- | This template models a floating rate bond.
+-- | This template models an interest rate swap.
 -- It pays a floating coupon rate at the end of every coupon period.
 -- This consists of a reference rate (observed at the beginning of the coupon period) plus a coupon spread.
 -- For example: 3M Euribor + 0.5%.
@@ -30,8 +30,6 @@ template Instrument
       -- ^ The depository of the instrument.
     issuer : Party
       -- ^ The issuer of the instrument.
-    --issuerPaysFix : Bool
-    --  -- ^ The issuer of the instrument.
     id : Id
       -- ^ An identifier of the instrument.
     version : Text
@@ -40,6 +38,8 @@ template Instrument
       -- ^ A description of the instrument.
     referenceRateId : Text
       -- ^ The floating rate reference ID. For example, in case of "3M Euribor + 0.5%" this should be a valid reference to the "3M Euribor" reference rate.
+    issuerPaysFix : Bool
+      -- ^ Indicate whether the issuer of the instrument pays the fix or the floating leg of the swap.
     fixRate : Decimal
       -- ^ The floating rate coupon spread. For example, in case of "3M Euribor + 0.5%" this should be 0.005.
     periodicSchedule : PeriodicSchedule
@@ -51,7 +51,7 @@ template Instrument
     dayCountConvention : DayCountConventionEnum
       -- ^ The day count convention used to calculate day count fractions. For example: Act360.
     currency : Instrument.K
-      -- ^ The currency of the bond. For example, if the bond pays in USD this should be a USD cash instrument.
+      -- ^ The currency of the swap. For example, if the swap pays in USD this should be a USD cash instrument.
     observers : Observers
       -- ^ The observers of the instrument.
     lastEventTimestamp : Time
@@ -65,18 +65,15 @@ template Instrument
     interface instance HasClaims.I for Instrument where
       view = HasClaims.View with acquisitionTime = dateToDateClockTime periodicSchedule.effectiveDate
       getClaims = do
-        -- get the initial claims tree (as of the bond's acquisition time)
+        -- get the initial claims tree (as of the swap's acquisition time)
         schedule <- rollCouponSchedule periodicSchedule holidayCalendarIds issuer calendarDataProvider
         let
           useAdjustedDatesForDcf = True
-        nettedFixedAndFloatingClaims <- createFixedAndFloatingInterestRateSwapClaims schedule periodicSchedule useAdjustedDatesForDcf fixRate dayCountConvention currency referenceRateId
-        --floatingClaims <- createFloatingRateCouponClaims schedule periodicSchedule useAdjustedDatesForDcf 0.0 dayCountConvention currency referenceRateId
-        --fixClaims <- createFixRateCouponClaims schedule periodicSchedule useAdjustedDatesForDcf (-couponSpread) dayCountConvention currency
-        --fixClaims <- createFixRateCouponClaims schedule periodicSchedule useAdjustedDatesForDcf couponSpread dayCountConvention currency
-        --pure $ mconcat [floatingClaims, fixClaims]
-        --pure $ mconcat [floatingClaims]
-        --pure $ mconcat [fixClaims]
-        pure $ mconcat [nettedFixedAndFloatingClaims]
+          fixLegWeight = if issuerPaysFix then 1.0 else -1.0
+          floatingLegWeight = -fixLegWeight
+        fixClaims <- createFixRateCouponClaims schedule periodicSchedule useAdjustedDatesForDcf fixRate fixLegWeight dayCountConvention currency
+        floatingClaims <- createFloatingRateCouponClaims schedule periodicSchedule useAdjustedDatesForDcf 0.0 floatingLegWeight dayCountConvention currency referenceRateId
+        pure $ mconcat [fixClaims, floatingClaims]
 
     interface instance Instrument.I for Instrument where
       asDisclosure = toInterface @Disclosure.I this
@@ -112,11 +109,12 @@ template Factory
     interface instance InterestRateSwap.Factory for Factory where
       asDisclosure = toInterface @Disclosure.I this
       view = InterestRateSwap.View with provider
-      create' InterestRateSwap.Create{instrument; description; referenceRateId; fixRate; periodicSchedule; holidayCalendarIds; calendarDataProvider; dayCountConvention; currency; lastEventTimestamp; observers} = do
+      create' InterestRateSwap.Create{instrument; description; referenceRateId; issuerPaysFix; fixRate; periodicSchedule; holidayCalendarIds; calendarDataProvider; dayCountConvention; currency; lastEventTimestamp; observers} = do
         cid <- toInterfaceContractId <$> create Instrument
           with
             depository = instrument.depository
             issuer = instrument.issuer
+            issuerPaysFix
             id = instrument.id
             version = instrument.version
             description

@@ -52,13 +52,13 @@ prepareAndTagClaims claim tag = do
 
 -- FIXED_RATE_BOND_COUPON_CLAIMS_BEGIN
 -- | Calculate a fix coupon amount for each coupon date and create claims.
-createFixRateCouponClaims : Applicative f => [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> DayCountConventionEnum -> Deliverable -> f [TaggedClaim]
-createFixRateCouponClaims schedule periodicSchedule useAdjustedDatesForDcf couponRate dayCountConvention cashInstrumentCid = do
+createFixRateCouponClaims : Applicative f => [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Decimal -> DayCountConventionEnum -> Deliverable -> f [TaggedClaim]
+createFixRateCouponClaims schedule periodicSchedule useAdjustedDatesForDcf couponRate weightMultiplier dayCountConvention cashInstrumentCid = do
   let
     couponDatesAdjusted = map (.adjustedEndDate) schedule
     couponAmounts = map (\p -> couponRate * (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency)) schedule
-    couponClaims = zipWith (\d a -> when (TimeGte $ d) $ scale (Const a) $ one cashInstrumentCid) couponDatesAdjusted couponAmounts
-  prepareAndTagClaims couponClaims "Fix Coupon"
+    couponClaims = zipWith (\d a -> when (TimeGte $ d) $ scale (Const weightMultiplier * Const a) $ one cashInstrumentCid) couponDatesAdjusted couponAmounts
+  prepareAndTagClaims couponClaims "Fix rate payment"
 -- FIXED_RATE_BOND_COUPON_CLAIMS_END
 
 -- FLOATING_RATE_BOND_COUPON_CLAIMS_BEGIN
@@ -66,33 +66,21 @@ createFixRateCouponClaims schedule periodicSchedule useAdjustedDatesForDcf coupo
 -- The floating rate is always observed on the first day of each coupon period and used for the corresponding payment on the last day of that coupon period.
 -- This means that the calculation agent needs to provide such an Observable, irrespective of
 -- the kind of reference rate used (e.g. a forward looking LIBOR or a backward looking SOFR-COMPOUND).
-createFloatingRateCouponClaims : Applicative f => [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> DayCountConventionEnum -> Deliverable -> Observable -> f [TaggedClaim]
-createFloatingRateCouponClaims schedule periodicSchedule useAdjustedDatesForDcf couponSpread dayCountConvention cashInstrumentCid referenceRateId = do
+createFloatingRateCouponClaims : Applicative f => [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Decimal -> DayCountConventionEnum -> Deliverable -> Observable -> f [TaggedClaim]
+createFloatingRateCouponClaims schedule periodicSchedule useAdjustedDatesForDcf couponSpread weightMultiplier dayCountConvention cashInstrumentCid referenceRateId = do
   let
     couponClaims = map (\p ->
-      when (TimeGte $ p.adjustedStartDate) $ scale ((Observe referenceRateId + Const couponSpread) * (Const (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency))) $
+      when (TimeGte $ p.adjustedStartDate) $ scale (Const weightMultiplier * (Observe referenceRateId + Const couponSpread) * (Const (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency))) $
       when (TimeGte $ p.adjustedEndDate) $ one cashInstrumentCid) schedule
-  prepareAndTagClaims couponClaims "Floating Coupon"
+  prepareAndTagClaims couponClaims "Floating rate payment"
 -- FLOATING_RATE_BOND_COUPON_CLAIMS_END
-
--- | Calculate netted fixed vs floating amount for interest rate swap payments and create claims.
--- The floating rate is always observed on the first day of each coupon period and used for the corresponding payment on the last day of that coupon period.
--- This means that the calculation agent needs to provide such an Observable, irrespective of
--- the kind of reference rate used (e.g. a forward looking LIBOR or a backward looking SOFR-COMPOUND).
-createFixedAndFloatingInterestRateSwapClaims : Applicative f => [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> DayCountConventionEnum -> Deliverable -> Observable -> f [TaggedClaim]
-createFixedAndFloatingInterestRateSwapClaims schedule periodicSchedule useAdjustedDatesForDcf couponSpread dayCountConvention cashInstrumentCid referenceRateId = do
-  let
-    couponClaims = map (\p ->
-      when (TimeGte $ p.adjustedStartDate) $ scale ((Const (-1.0)) * (Observe referenceRateId - Const couponSpread) * (Const (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency))) $
-      when (TimeGte $ p.adjustedEndDate) $ one cashInstrumentCid) schedule
-  prepareAndTagClaims couponClaims "Floating Coupon"
 
 -- FIXED_RATE_BOND_REDEMPTION_CLAIM_BEGIN
 -- | Create a redemption claim.
 createRedemptionClaim : Applicative f => Deliverable -> Date -> f [TaggedClaim]
 createRedemptionClaim cashInstrumentCid maturityDate = do
   let redemptionClaim = [when (TimeGte $ maturityDate) $ one cashInstrumentCid]
-  prepareAndTagClaims redemptionClaim "Redemption"
+  prepareAndTagClaims redemptionClaim "Redemption payment"
 -- FIXED_RATE_BOND_REDEMPTION_CLAIM_END
 
 -- | HIDE
