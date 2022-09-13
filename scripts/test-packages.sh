@@ -5,7 +5,7 @@
 set -eu
 
 # Use absolute paths to allow this script to be called from any location
-root_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")"; cd ..; pwd -P)
+root_dir=$(cd "$(dirname $0)"; cd ..; pwd -P)
 
 echo "Running package tests..."
 
@@ -23,4 +23,5 @@ daml test --project-root ${root_dir}/package/test/daml/Daml.Finance.Instrument.G
 daml test --project-root ${root_dir}/package/test/daml/Daml.Finance.Instrument.Bond.Test
 daml test --project-root ${root_dir}/package/test/daml/Daml.Finance.Instrument.Equity.Test
 
-echo "\nAll tests ran successfully!"
+echo ""
+echo "All tests ran successfully!"

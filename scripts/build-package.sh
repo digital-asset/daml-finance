@@ -5,7 +5,7 @@
 set -eu
 
 project=$1
-script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd -P)
+script_dir=$(cd "$(dirname $0)"; pwd -P)
 project_name=$(yq e '.name' ${project}/daml.yaml)
 
 green='\033[0;32m'

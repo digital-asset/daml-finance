@@ -82,6 +82,6 @@ In order to update it, you need to
 - build the docs from the desired branch as outlined above
 - copy the content of `docs/build/html` to a temporary folder `temp`
 - switch to the `github-pages` branch
-- delete the content of the `docs` folder, except for the `.nojekyll` file
-- copy the content of `temp` into `docs`
-- commit and push to remote
+- delete the content of the `docs` folder, except for the `.nojekyll` file (e.g. go to the docs folder and run `find . ! -name .nojekyll -delete`)
+- copy the content of `temp` into `docs` (notice the difference in folder structure: in the `main` branch the html files are located in `docs/build/html`, but in the `github-pages` branch the html files must be in `docs`)
+- commit and push to remote (wait a minute or so before reloading the [Github pages](https://digital-asset.github.io/daml-finance/)

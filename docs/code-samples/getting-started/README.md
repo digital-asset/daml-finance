@@ -1,9 +1,11 @@
 # Code Samples - Getting Started
 
-This folder contains a getting-started daml project which is being referrenced by the docs.
-In order to build the project:
+Note - This project is currently an Early Access 'Alpha' feature (see [here](https://docs.daml.com/support/status-definitions.html) for more information).
 
-1. First update the version and data-dependecies in the `daml.yaml` file.
-2. Update the version and dependent libraries in the `get-dependencies.sh` file.
-3. Run `./get-dependencies` from the root folder of the project to download the data dependencies from github (alternatively, build the packages in the main project then copy-paste the corresponding built dars from `../../../.dars` to `./lib/`).
-4. Run `daml build`.
+This project contains the source code used in the getting-started tutorials.
+
+Before opening Visual Studio Code you should run `./get-dependencies` to download the required Daml packages.
+
+You can then open Daml Studio by running `daml studio`, or build the project using `daml build`.
+
+To run the project, run `daml start` (which also builds the project).

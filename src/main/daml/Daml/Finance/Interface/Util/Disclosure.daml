@@ -5,8 +5,7 @@ module Daml.Finance.Interface.Util.Disclosure where
 
 import DA.Map qualified as M (delete, insert, lookup, toList)
 import DA.Optional (fromOptional)
-import DA.Set (Set, delete, empty, insert, null, member)
-import DA.Set qualified as S (fromList, toList)
+import DA.Set qualified as S (Set, delete, empty, insert, null, member, fromList, toList)
 import DA.Traversable qualified as T (mapA)
 import Daml.Finance.Interface.Types.Common (Observers, Parties)
 import Prelude hiding (null)
@@ -20,7 +19,7 @@ type V = View
 -- | View for `Disclosure`.
 data View = View
   with
-    disclosureControllers : Set Parties
+    disclosureControllers : S.Set Parties
       -- ^ Disjunction choice controllers.
     observers : Observers
       -- ^ Observers with context.
@@ -53,7 +52,7 @@ interface Disclosure where
         -- ^ Observers to set for this contract. This overrides the existing observers.
     controller disclosers
     do
-      assertMsg "controller must be authorized to SetObservers" $ disclosers `member` (view this).disclosureControllers
+      assertMsg "controller must be authorized to SetObservers" $ disclosers `S.member` (view this).disclosureControllers
       setObservers this arg
 
   choice AddObservers : ContractId Disclosure
@@ -65,10 +64,10 @@ interface Disclosure where
         -- ^ Observer context to add to a contract.
     controller disclosers
     do
-      assertMsg "controller must be authorized to AddObservers" $ disclosers `member` (view this).disclosureControllers
+      assertMsg "controller must be authorized to AddObservers" $ disclosers `S.member` (view this).disclosureControllers
       let
-        elem = fromOptional empty (M.lookup observersToAdd._1 (view @Disclosure this).observers)
-        value = insert observersToAdd._2 elem
+        elem = fromOptional S.empty (M.lookup observersToAdd._1 (view @Disclosure this).observers)
+        value = S.insert observersToAdd._2 elem
         newObservers = M.insert observersToAdd._1 value ((view this).observers)
       setObservers this (SetObservers with disclosers; newObservers)
 
@@ -76,17 +75,23 @@ interface Disclosure where
     -- ^ Remove an observer context from the existing observers.
     -- Any party can undisclose itself. None is returned if no update is needed.
     with
+      disclosers : Parties
+        -- ^ Party calling this choice.
       observersToRemove : (Text, Parties)
         -- ^ Observer context to remove.
-    controller observersToRemove._2
+    controller disclosers
     do
+      assertMsg "controller must be authorized to RemoveObservers when removing other parties"
+        $ disclosers == snd observersToRemove || disclosers `S.member` (view this).disclosureControllers
+
       let observers = (view this).observers
+
       fromOptional None <$> T.mapA
         (\elem -> do
           let
-            elem' = delete observersToRemove._2 elem
+            elem' = S.delete observersToRemove._2 elem
             newObservers = (
-              if (null elem') then
+              if (S.null elem') then
                 M.delete observersToRemove._1
               else
                 M.insert observersToRemove._1 elem')

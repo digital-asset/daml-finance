@@ -5,7 +5,7 @@
 set -eu
 
 package_root_dir=$1
-script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd -P)
+script_dir=$(cd "$(dirname $0)"; pwd -P)
 root_dir=$(cd ${script_dir}; cd ..; pwd -P)
 
 package_name=$(yq e '.name' ${package_root_dir}/daml.yaml)

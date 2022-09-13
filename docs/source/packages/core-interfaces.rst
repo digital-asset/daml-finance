@@ -17,8 +17,8 @@ Core Interfaces
     - :ref:`Transferable <module-daml-finance-interface-holding-transferable-88121>`: Interface respresenting a contract where ownership can be transferred to other parties.
     - :ref:`Util <module-daml-finance-interface-holding-util-81618>`: Utility functions related to holdings, e.g. getting the account / instrument / owner of a holding.
 
-    The :doc:`Core Concepts <../core-concepts>` page explains the relationship between instruments, holdings and accounts.
-    Check out the :doc:`Transfer tutorial <../../tutorial/getting-started/transfer>` for a description on how to create a holding on an instrument and how to transfer it between accounts.
+    The :doc:`Asset Model <../concepts/asset-model>` page explains the relationship between instruments, holdings, and accounts.
+    Check out the :doc:`Transfer tutorial <../../tutorials/getting-started/transfer>` for a description on how to create a holding on an instrument and how to transfer it between accounts.
 
 - ``Daml.Finance.Interface.Settlement``
 
@@ -29,8 +29,8 @@ Core Interfaces
     - :ref:`Batch <module-daml-finance-interface-settlement-batch-39188>`: Interface for atomically settling `Transferable`\s.
     - :ref:`Types <module-daml-finance-interface-settlement-types-44085>`: Types required in the settlement process, e.g. Step, Allocation and Approval.
 
-    The :doc:`Core Concepts <../core-concepts>` page contains an overview of the settlement process and explains the relationship between ``Step``, ``Instruction`` and ``Batch``.
-    Check out the :doc:`Settlement tutorial <../../tutorial/getting-started/settlement>` for a description on how to use settlement workflow in practice.
+    The :doc:`Settlement <../concepts/settlement>` page contains an overview of the settlement process and explains the relationship between steps, instructions, and batches.
+    Check out the :doc:`Settlement tutorial <../../tutorials/getting-started/settlement>` for a description on how to use settlement workflow in practice.
 
 - ``Daml.Finance.Interface.Lifecycle``
 
@@ -43,8 +43,9 @@ Core Interfaces
     - :ref:`Rule.Claim <module-daml-finance-interface-lifecycle-rule-claim-6739>`: Interface for contracts that allow holders to claim an ``Effect`` and generate settlement instructions.
     - :ref:`Rule.Lifecycle <module-daml-finance-interface-lifecycle-rule-lifecycle-50431>`: Interface implemented by instruments that can be lifecycled.
 
-    Check out the :doc:`Lifecycling tutorial <../../tutorial/getting-started/lifecycling>` for a description on how lifecycling works in practice.
-    There is also the tutorial :doc:`How to implement a Contingent Claims-based instrument <../../tutorial/instrument-modelling/contingent-claims-instrument>`, which describes how claims are defined, how to use an ``Observable``, and how the ``Lifecycle`` interface is implemented for bonds.
+    The :doc:`Lifecycling <../concepts/lifecycling>` page contains an overview of the lifecycle process and explains the relationship between events, lifecycle rules and effects.
+    Check out the :doc:`Lifecycling tutorial <../../tutorials/getting-started/lifecycling>` for a description on how lifecycling works in practice.
+    There is also the tutorial :doc:`How to implement a Contingent Claims-based instrument <../../tutorials/instrument-modeling/contingent-claims-instrument>`, which describes how claims are defined, how to use an ``Observable``, and how the ``Lifecycle`` interface is implemented for bonds.
 
 - ``Daml.Finance.Interface.Types``
 
