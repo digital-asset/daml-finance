@@ -32,10 +32,12 @@ daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.RefData
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Generic
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Bond
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Equity
+daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Swap
 # Implementations
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Instrument.Generic
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Instrument.Bond
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Instrument.Equity
+daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Instrument.Swap
 
 ## Clean Tests
 # Util
@@ -49,3 +51,4 @@ daml clean --project-root ${root_dir}/package/test/daml/Daml.Finance.RefData.Tes
 daml clean --project-root ${root_dir}/package/test/daml/Daml.Finance.Instrument.Generic.Test
 daml clean --project-root ${root_dir}/package/test/daml/Daml.Finance.Instrument.Bond.Test
 daml clean --project-root ${root_dir}/package/test/daml/Daml.Finance.Instrument.Equity.Test
+daml clean --project-root ${root_dir}/package/test/daml/Daml.Finance.Instrument.Swap.Test
