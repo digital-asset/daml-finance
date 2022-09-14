@@ -3,11 +3,10 @@
 
 module Daml.Finance.Interface.Util.Disclosure where
 
-import DA.Map qualified as M (delete, insert, lookup, toList)
+import DA.Map qualified as M (insert, lookup, values)
 import DA.Optional (fromOptional)
-import DA.Set qualified as S (Set, delete, empty, insert, null, member, fromList, toList)
-import DA.Traversable qualified as T (mapA)
-import Daml.Finance.Interface.Types.Common (Observers, Parties)
+import DA.Set qualified as S (difference, empty, isSubsetOf, union)
+import Daml.Finance.Interface.Types.Common (PartiesMap, Parties)
 import Prelude hiding (null)
 
 -- | Type synonym for `Disclosure`.
@@ -19,9 +18,9 @@ type V = View
 -- | View for `Disclosure`.
 data View = View
   with
-    disclosureControllers : S.Set Parties
+    disclosureControllers : Parties
       -- ^ Disjunction choice controllers.
-    observers : Observers
+    observers : PartiesMap
       -- ^ Observers with context.
   deriving (Eq, Ord, Show)
 
@@ -48,11 +47,11 @@ interface Disclosure where
     with
       disclosers : Parties
         -- ^ Party calling this choice.
-      newObservers : Observers
+      newObservers : PartiesMap
         -- ^ Observers to set for this contract. This overrides the existing observers.
     controller disclosers
     do
-      assertMsg "controller must be authorized to SetObservers" $ disclosers `S.member` (view this).disclosureControllers
+      assertMsg "controller must be authorized to SetObservers" $ disclosers `S.isSubsetOf` (view this).disclosureControllers
       setObservers this arg
 
   choice AddObservers : ContractId Disclosure
@@ -64,11 +63,13 @@ interface Disclosure where
         -- ^ Observer context to add to a contract.
     controller disclosers
     do
-      assertMsg "controller must be authorized to AddObservers" $ disclosers `S.member` (view this).disclosureControllers
+      assertMsg "controller must be authorized to AddObservers" $ disclosers `S.isSubsetOf` (view this).disclosureControllers
       let
-        elem = fromOptional S.empty (M.lookup observersToAdd._1 (view @Disclosure this).observers)
-        value = S.insert observersToAdd._2 elem
-        newObservers = M.insert observersToAdd._1 value ((view this).observers)
+        key = fst observersToAdd
+        curObservers = (view this).observers
+        curParties = fromOptional S.empty $ M.lookup key curObservers
+        value = curParties `S.union` snd observersToAdd
+        newObservers = M.insert key value curObservers
       setObservers this (SetObservers with disclosers; newObservers)
 
   nonconsuming choice RemoveObservers : Optional (ContractId Disclosure)
@@ -82,36 +83,29 @@ interface Disclosure where
     controller disclosers
     do
       assertMsg "controller must be authorized to RemoveObservers when removing other parties"
-        $ disclosers == snd observersToRemove || disclosers `S.member` (view this).disclosureControllers
+        $ disclosers == snd observersToRemove || disclosers `S.isSubsetOf` (view this).disclosureControllers
 
-      let observers = (view this).observers
+      let
+        key = fst observersToRemove
+        curObservers = (view this).observers
 
-      fromOptional None <$> T.mapA
-        (\elem -> do
+      case M.lookup key curObservers of
+        Some parties -> do
           let
-            elem' = S.delete observersToRemove._2 elem
-            newObservers = (
-              if (S.null elem') then
-                M.delete observersToRemove._1
-              else
-                M.insert observersToRemove._1 elem')
-              observers
-          if (observers == newObservers) then
-            pure None
-          else do
-            archive' this (coerceContractId self : ContractId Disclosure)
-            Some <$> setObservers this (SetObservers with disclosers = observersToRemove._2; newObservers)
-       ) (M.lookup observersToRemove._1 observers)
+            updatedParties = parties `S.difference` snd observersToRemove
+            newObservers = M.insert key updatedParties curObservers
+          archive' this (coerceContractId self : ContractId Disclosure)
+          Some <$> setObservers this SetObservers with disclosers; newObservers
+        None -> pure None
 
 -- | Type constraint for requiring templates to implement `Disclosure`.
 type Implementation t = HasToInterface t I
 class (Implementation t) => HasImplementation t
 instance HasImplementation I
 
--- | Flattens observers into a `Set Party` for usage in template definitions. For example:
+-- | Flattens observers which use the `PartiesMap` into a `Set Party` for usage in template definitions. For example:
 -- ```
 -- observer $ flattenObservers observers
 -- ```
-flattenObservers : Observers -> Parties
-flattenObservers (observers : Observers) =
-  S.fromList $ concatMap (\t -> concatMap S.toList (S.toList t._2)) (M.toList observers)
+flattenObservers : PartiesMap -> Parties
+flattenObservers = mconcat . M.values
