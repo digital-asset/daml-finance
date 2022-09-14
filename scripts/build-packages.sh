@@ -34,10 +34,12 @@ ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.RefDat
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Generic
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Bond
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Equity
+${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Swap
 # Implementations
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Instrument.Generic
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Instrument.Bond
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Instrument.Equity
+${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Instrument.Swap
 
 # Copy package dars into a dedicated folder
 if [[ -d ${root_dir}/.dars ]]; then
@@ -58,6 +60,7 @@ ${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.RefDat
 ${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Instrument.Generic.Test
 ${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Instrument.Bond.Test
 ${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Instrument.Equity.Test
+${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Instrument.Swap.Test
 
 boldCyan='\033[1;96m'
 colour_off='\033[0m'
