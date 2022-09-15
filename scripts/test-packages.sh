@@ -17,7 +17,7 @@ daml test --project-root ${root_dir}/package/test/daml/Daml.Finance.Util.Test
 ## Core
 daml test --project-root ${root_dir}/package/test/daml/Daml.Finance.Holding.Test
 daml test --project-root ${root_dir}/package/test/daml/Daml.Finance.Settlement.Test
-daml test --project-root ${root_dir}/package/test/daml/Daml.Finance.RefData.Test
+daml test --project-root ${root_dir}/package/test/daml/Daml.Finance.Data.Test
 ## Extensions
 daml test --project-root ${root_dir}/package/test/daml/Daml.Finance.Instrument.Generic.Test
 daml test --project-root ${root_dir}/package/test/daml/Daml.Finance.Instrument.Bond.Test
