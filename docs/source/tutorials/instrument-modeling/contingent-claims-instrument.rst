@@ -54,7 +54,7 @@ In the above example, we see that the redemption claim depends on the currency a
 
 We will now create a ``Contingent Claims`` representation of the actual redemption claim:
 
-.. literalinclude:: ../../../../src/main/daml/Daml/Finance/Instrument/Bond/Util.daml
+.. literalinclude:: ../../../../src/main/daml/Daml/Finance/Instrument/Generic/Util.daml
   :language: daml
   :start-after: -- FIXED_RATE_BOND_REDEMPTION_CLAIM_BEGIN
   :end-before: -- FIXED_RATE_BOND_REDEMPTION_CLAIM_END
@@ -67,7 +67,7 @@ We need to take a schedule of adjusted coupon dates and the day count convention
 
 Here is how we create the ``Contingent Claims`` representation of the coupons:
 
-.. literalinclude:: ../../../../src/main/daml/Daml/Finance/Instrument/Bond/Util.daml
+.. literalinclude:: ../../../../src/main/daml/Daml/Finance/Instrument/Generic/Util.daml
   :language: daml
   :start-after: -- FIXED_RATE_BOND_COUPON_CLAIMS_BEGIN
   :end-before: -- FIXED_RATE_BOND_COUPON_CLAIMS_END
@@ -90,7 +90,7 @@ consistent with the lifecycle mechanism.
 
 This is all done in the ``processClockUpdate`` function. We will now break it apart to describe the steps in more detail:
 
-.. literalinclude:: ../../../../src/main/daml/Daml/Finance/Instrument/Bond/Util.daml
+.. literalinclude:: ../../../../src/main/daml/Daml/Finance/Instrument/Generic/Util.daml
   :language: daml
   :start-after: -- BOND_PROCESS_CLOCK_UPDATE_INITAL_CLAIMS_BEGIN
   :end-before: -- BOND_PROCESS_CLOCK_UPDATE_INITAL_CLAIMS_END
@@ -100,7 +100,7 @@ This represents the bond as of inception.
 By keeping track of ``lastEventTimestamp`` (in our case: the last time a coupon was paid),
 we can "fast forward" to the remaining claims of the instrument:
 
-.. literalinclude:: ../../../../src/main/daml/Daml/Finance/Instrument/Bond/Util.daml
+.. literalinclude:: ../../../../src/main/daml/Daml/Finance/Instrument/Generic/Util.daml
   :language: daml
   :start-after: -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_FASTFORWARD_BEGIN
   :end-before: -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_FASTFORWARD_END
@@ -108,7 +108,7 @@ we can "fast forward" to the remaining claims of the instrument:
 Finally, we can lifecycle the instrument as of the current time (as descibed by the Clock template).
 If there is a lifecycle effect (for example a coupon), we will create an Effect for it, which can then be settled.
 
-.. literalinclude:: ../../../../src/main/daml/Daml/Finance/Instrument/Bond/Util.daml
+.. literalinclude:: ../../../../src/main/daml/Daml/Finance/Instrument/Generic/Util.daml
   :language: daml
   :start-after: -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_BEGIN
   :end-before: -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_END
@@ -132,7 +132,7 @@ In the instrument definition, we need an identifier for the reference rate:
 
 In the claims definition, we can then use ``Observe`` to refer to the value of the reference rate:
 
-.. literalinclude:: ../../../../src/main/daml/Daml/Finance/Instrument/Bond/Util.daml
+.. literalinclude:: ../../../../src/main/daml/Daml/Finance/Instrument/Generic/Util.daml
   :language: daml
   :start-after: -- FLOATING_RATE_BOND_COUPON_CLAIMS_BEGIN
   :end-before: -- FLOATING_RATE_BOND_COUPON_CLAIMS_END

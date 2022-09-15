@@ -22,6 +22,7 @@ daml test --project-root ${root_dir}/package/test/daml/Daml.Finance.Data.Test
 daml test --project-root ${root_dir}/package/test/daml/Daml.Finance.Instrument.Generic.Test
 daml test --project-root ${root_dir}/package/test/daml/Daml.Finance.Instrument.Bond.Test
 daml test --project-root ${root_dir}/package/test/daml/Daml.Finance.Instrument.Equity.Test
+daml test --project-root ${root_dir}/package/test/daml/Daml.Finance.Instrument.Swap.Test
 
 echo ""
 echo "All tests ran successfully!"

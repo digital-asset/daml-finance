@@ -30,9 +30,11 @@ ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Dat
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Generic
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Bond
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Equity
+${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Swap
 # Implementations
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Instrument.Generic
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Instrument.Bond
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Instrument.Equity
+${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Instrument.Swap
 
 echo -e "\nAll packages are valid!"
