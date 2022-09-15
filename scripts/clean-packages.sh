@@ -14,7 +14,7 @@ rm -r ${root_dir}/.dars 1> /dev/null 2>&1
 # Interfaces
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Types
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Util
-daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Util
+daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Data
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Holding
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Base
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Settlement
@@ -25,7 +25,7 @@ daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Holding
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Settlement
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Lifecycle
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Instrument.Base
-daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.RefData
+daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Data
 
 ## Clean Extensions
 # Interfaces
@@ -44,7 +44,7 @@ daml clean --project-root ${root_dir}/package/test/daml/Daml.Finance.Test.Util
 daml clean --project-root ${root_dir}/package/test/daml/Daml.Finance.Util.Test
 daml clean --project-root ${root_dir}/package/test/daml/Daml.Finance.Holding.Test
 daml clean --project-root ${root_dir}/package/test/daml/Daml.Finance.Settlement.Test
-daml clean --project-root ${root_dir}/package/test/daml/Daml.Finance.RefData.Test
+daml clean --project-root ${root_dir}/package/test/daml/Daml.Finance.Data.Test
 # Extensions
 daml clean --project-root ${root_dir}/package/test/daml/Daml.Finance.Instrument.Generic.Test
 daml clean --project-root ${root_dir}/package/test/daml/Daml.Finance.Instrument.Bond.Test

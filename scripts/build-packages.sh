@@ -17,6 +17,7 @@ fi
 # Interfaces
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Types
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Util
+${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Data
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Holding
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Base
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Settlement
@@ -27,7 +28,7 @@ ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Holdin
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Settlement
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Lifecycle
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Instrument.Base
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.RefData
+${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Data
 
 ## Build Extensions
 # Interfaces
@@ -53,7 +54,7 @@ ${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Test.U
 ${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Util.Test
 ${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Holding.Test
 ${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Settlement.Test
-${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.RefData.Test
+${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Data.Test
 # Extensions
 ${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Instrument.Generic.Test
 ${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Instrument.Bond.Test
