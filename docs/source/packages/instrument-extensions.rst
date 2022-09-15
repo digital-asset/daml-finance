@@ -46,6 +46,21 @@ Bonds
     Check out the tutorial on :doc:`How to use the Bond extension package <../../tutorials/instrument-modeling/bond-extension>` for a description how to use the bond extension in practice.
     There is also the tutorial :doc:`How to implement a Contingent Claims-based instrument <../../tutorials/instrument-modeling/contingent-claims-instrument>`, which describes how the claims are defined and how the lifecycle interface is implemented for bonds.
 
+Swaps
+=====
+
+- ``Daml.Finance.Interface.Instrument.Swap``
+
+    This package contains the *interface* for different types of swaps. It contains the following modules:
+
+    - :ref:`InterestRate <type-daml-finance-interface-instrument-swap-interestrate-factory-50882>`: Interface that allows implementing templates to create interest rate swaps.
+
+- ``Daml.Finance.Instrument.Swap``
+
+    This package contains the *implementation* of different types of swaps. It contains the following modules:
+
+    - :ref:`InterestRate <type-daml-finance-instrument-swap-interestrate-factory-7433>`: This template models an interest rate swap. It pays a fix vs floating interest rate at the end of every payment period.
+
 Equity
 ======
 
