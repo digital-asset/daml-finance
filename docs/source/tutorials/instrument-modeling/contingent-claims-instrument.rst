@@ -39,8 +39,8 @@ Here is a high level implementation of HasClaims:
 
 .. literalinclude:: ../../../../src/main/daml/Daml/Finance/Instrument/Bond/FixedRate.daml
   :language: daml
-  :start-after: -- FIXED_RATE_BOND_HASCLAIMS_BEGIN
-  :end-before: -- FIXED_RATE_BOND_HASCLAIMS_END
+  :start-after: -- FIXED_RATE_BOND_CLAIMS_BEGIN
+  :end-before: -- FIXED_RATE_BOND_CLAIMS_END
 
 First, we create a coupon schedule, which depends on the coupon dates and a holiday calendar.
 This is then used to create the actual coupon claims.

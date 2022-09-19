@@ -20,6 +20,7 @@ ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interf
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Data
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Holding
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Base
+${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Claims
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Settlement
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Lifecycle
 # Implementations

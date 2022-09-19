@@ -17,6 +17,7 @@ daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.U
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Data
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Holding
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Base
+daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Claims
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Settlement
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Lifecycle
 # Implementations
