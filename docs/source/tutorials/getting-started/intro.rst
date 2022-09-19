@@ -19,7 +19,10 @@ executing the following command:
 
 .. code-block:: shell
 
-   daml new --template=quickstart-finance
+   daml new quickstart-finance --template=quickstart-finance
+   cd quickstart-finance
+   ./get-dependencies.sh
+   daml studio
 
 The following tutorials are available:
 

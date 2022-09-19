@@ -27,7 +27,7 @@ The following is a suggested learning path to get productive quickly:
 #. Read up on the :doc:`background, purpose, and intended usage <overview/intro>` of the library
 #. Explore the `Daml Finance Reference Application <https://github.com/digital-asset/daml-finance-app>`_
 
-If you are missing content from the documentation, have feedback on the library, or need any help using it, don't hesitate to <open an issue> on the repository.
+If you are missing content from the documentation, have feedback on the library, or need any help using it, don't hesitate to `open an issue <https://github.com/digital-asset/daml-finance/issues>`_ on the repository.
 
 .. toctree::
    :maxdepth: 0
