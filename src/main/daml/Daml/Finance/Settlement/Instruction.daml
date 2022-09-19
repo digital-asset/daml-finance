@@ -6,9 +6,9 @@ module Daml.Finance.Settlement.Instruction where
 import DA.Assert ((===))
 import DA.Set (fromList, insert, singleton)
 import DA.Tuple (fst3)
-import Daml.Finance.Interface.Holding.Account qualified as Account (I, Credit(..), Debit(..), disclose, exerciseInterfaceByKey)
+import Daml.Finance.Interface.Holding.Account qualified as Account (I, Credit(..), Debit(..), disclose, exerciseInterfaceByKey, undisclose)
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
-import Daml.Finance.Interface.Holding.Util (disclose, getAccount, getAmount, getInstrument)
+import Daml.Finance.Interface.Holding.Util (disclose, getAccount, getAmount, getInstrument, undisclose)
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..), HasImplementation, I, View(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), Step)
 import Daml.Finance.Interface.Types.Common (Id(..), Parties, PartiesMap)
@@ -52,7 +52,9 @@ template Instruction
     let
       messageSuffix = " / instruction id = " <> show id
       discloseA discloser = Account.disclose (show tradeId, singleton settler) discloser (singleton discloser)
+      undiscloseA discloser = Account.undisclose (show tradeId, singleton settler) discloser (singleton discloser)
       discloseT discloser cid = disclose @Transferable.I (show tradeId, singleton settler) discloser (singleton discloser) cid
+      undiscloseT discloser cid = undisclose @Transferable.I (show tradeId, singleton settler) (singleton discloser) cid
 
     interface instance Disclosure.I for Instruction where
       view = Disclosure.View with disclosureControllers = fromList [step.sender, step.receiver]; observers
@@ -64,6 +66,13 @@ template Instruction
       view = Instruction.View with id; step; settler
       allocate Instruction.Allocate{allocation} = do
         assertMsg ("allocation must be new" <> messageSuffix) $ allocation /= this.allocation
+        -- clean up if previously allocated
+        otCid <- case this.allocation of
+          Pledge transferableCid -> do
+            transferable <- fetch transferableCid
+            undiscloseA step.sender (getAccount transferable)
+            undiscloseT step.sender transferableCid
+          a -> pure None
         -- verify and disclose allocation
         allocationDisclosed <- case allocation of
           Pledge transferableCid -> do
@@ -75,9 +84,14 @@ template Instruction
             pure $ Pledge transferableCid
           a -> pure a
         -- update instruction state
-        toInterfaceContractId <$> create this with allocation = allocationDisclosed; signed = insert step.sender signed
+        cid <- toInterfaceContractId <$> create this with allocation = allocationDisclosed; signed = insert step.sender signed
+        pure (cid, otCid)
       approve Instruction.Approve{approval} = do
         assertMsg ("approval must be new" <> messageSuffix) $ approval /= this.approval
+        -- clean up if previously approved
+        case this.approval of
+          TakeDelivery receiverAccount -> undiscloseA step.sender receiverAccount
+          a -> pure None
         -- disclose approval
         case approval of
           TakeDelivery receiverAccount -> do
