@@ -6,12 +6,12 @@ module Daml.Finance.Instrument.Generic.Instrument where
 import DA.Date (toDateUTC)
 import DA.Set (fromList, singleton)
 import DA.Text (sha256)
+import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, View(..), getClaims)
+import Daml.Finance.Interface.Claims.Types (C, TaggedClaim(..))
+import Daml.Finance.Interface.Claims.Util (isZero')
+import Daml.Finance.Interface.Claims.Util.Lifecycle (electionEvent, lifecycle, splitPending, timeEvent)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (HasImplementation, I, R, View(..), createReference, disclosureUpdateReference, getKey)
 import Daml.Finance.Interface.Instrument.Generic.Election qualified as Election (ApplyElection(..), Exercisable(..), ExercisableHasImplementation, ExercisableView(..), getElectionTime)
-import Daml.Finance.Interface.Instrument.Generic.HasClaims qualified as HasClaims (I, View(..), getClaims)
-import Daml.Finance.Interface.Instrument.Generic.Types (C, taggedClaim)
-import Daml.Finance.Interface.Instrument.Generic.Util.Claims (isZero')
-import Daml.Finance.Interface.Instrument.Generic.Util.Claims.Lifecycle (electionEvent, lifecycle, splitPending, timeEvent)
 import Daml.Finance.Interface.Lifecycle.Clock qualified as Clock (I)
 import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (I)
 import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I)
@@ -59,9 +59,9 @@ template Instrument
 
     let instrumentKey = InstrumentKey with depository; issuer; id; version
 
-    interface instance HasClaims.I for Instrument where
-      view = HasClaims.View with acquisitionTime
-      getClaims = pure [taggedClaim "Generic" this.claims]
+    interface instance Claim.I for Instrument where
+      view = Claim.View with acquisitionTime
+      getClaims = pure [TaggedClaim with tag = "Generic"; claim = this.claims]
 
     interface instance Instrument.I for Instrument where
       asDisclosure = toInterface @Disclosure.I this
@@ -88,7 +88,7 @@ template Instrument
       applyElection Election.ApplyElection{clockCid; electionCid; observableCids; settler} self = do
         currentTime <- toUTCTime <$> fetch clockCid
         election <- fetch electionCid
-        instrumentClaim <- HasClaims.getClaims $ toInterface @HasClaims.I this
+        instrumentClaim <- Claim.getClaims $ toInterface @Claim.I this
         let
           v = view election
           electionTime = Election.getElectionTime election
@@ -135,7 +135,7 @@ template Instrument
 processClockUpdate : Party -> ContractId Event.I -> ContractId Clock.I -> ContractId Lifecycle.I -> Instrument -> [ContractId Observable.I] -> Update (ContractId Lifecycle.I, [ContractId Effect.I])
 processClockUpdate settler eventCid _ self instrument observableCids = do
   v <- view <$> fetch eventCid
-  claims <- HasClaims.getClaims $ toInterface @HasClaims.I instrument
+  claims <- Claim.getClaims $ toInterface @Claim.I instrument
   (remaining, pending) <- lifecycle observableCids (toInterface instrument) [timeEvent v.eventTime]
   if remaining == claims && null pending then
     pure (self, [])
