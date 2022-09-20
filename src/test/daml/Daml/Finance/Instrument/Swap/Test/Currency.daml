@@ -4,23 +4,20 @@
 module Daml.Finance.Instrument.Swap.Test.Currency where
 
 import DA.Date
-import DA.Map qualified as M (empty, fromList)
+import DA.Map qualified as M (fromList)
 import DA.Set (singleton)
+import Daml.Finance.Data.Reference.HolidayCalendar
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
-import Daml.Finance.Instrument.Generic.Util
 import Daml.Finance.Instrument.Swap.Test.Util
-import Daml.Finance.Interface.Types.Common (Id(..))
 import Daml.Finance.Interface.Types.Date.Calendar
 import Daml.Finance.Interface.Types.Date.DayCount
 import Daml.Finance.Interface.Types.Date.RollConvention
-import Daml.Finance.Data.Reference.HolidayCalendar
-import Daml.Finance.Data.Observable.Observation (Observation(..))
 import Daml.Finance.Test.Util.Account qualified as Account (createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
 import Daml.Script
 
--- Calculate interest rate payment on an interest rate swap, including lifecycling and creation of new instrument version
+-- Calculate interest rate payments on a currency swap, including lifecycling and creation of new instrument version
 run : Script ()
 run = script do
   [custodian, issuer, investor, calendarDataProvider, publicParty] <-
@@ -42,7 +39,7 @@ run = script do
   foreignCashInstrumentCid <- Instrument.originate custodian issuer "EUR" "Euro" observers now
 
   -- Create and distribute swap
-  -- Fix vs floating interest rate swap: Libor 3M vs 2.01% p.a. payment every 3M
+  -- Fix vs fix currency swap: 3% p.a. in USD vs 2% p.a. in EUR, payment every 3M
   let
     issueDate = date 2019 Jan 16
     firstPaymentDate = date 2019 Feb 15
@@ -75,13 +72,13 @@ run = script do
       calendar = cal
       observers = M.fromList pp
 
-  swapInstrument <- originateCurrencySwap custodian issuer "SwapTest1" "Interest rate swap" pp now issueDate holidayCalendarId calendarDataProvider firstPaymentDate maturityDate dayCountConvention businessDayConvention baseRate foreignRate paymentPeriod paymentPeriodMultiplier cashInstrumentCid foreignCashInstrumentCid fxRate issuerPaysBase
+  swapInstrument <- originateCurrencySwap custodian issuer "SwapTest1" "Currency swap" pp now issueDate holidayCalendarId calendarDataProvider firstPaymentDate maturityDate dayCountConvention businessDayConvention baseRate foreignRate paymentPeriod paymentPeriodMultiplier cashInstrumentCid foreignCashInstrumentCid fxRate issuerPaysBase
   investorSwapTransferableCid <- Account.credit [publicParty] swapInstrument principalAmount investorAccount
 
   -- One day before the first payment date: try to lifecycle and verify that there are no lifecycle effects.
   verifyNoLifecycleEffects [publicParty] (subtractDays firstPaymentDate 1) swapInstrument custodian issuer []
 
-  -- First payment date: Lifecycle and verify that there are lifecycle effects for fix and floating payments.
+  -- First payment date: Lifecycle and verify that there are lifecycle effects for base currency and foreign currency payments.
   investorCashForBasePaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid firstBasePaymentAmount investorAccount
   custodianCashForForeignPaymentTransferableCid <- Account.credit [publicParty] foreignCashInstrumentCid firstForeignPaymentAmount custodianAccount
   (swapInstrumentAfterFirstPayment, investorSwapTransferableCid) <- lifecycleAndVerifySwapPaymentEffectsAndSettlement [publicParty] firstPaymentDate swapInstrument custodian issuer investor investorSwapTransferableCid investorCashForBasePaymentTransferableCid custodianCashForForeignPaymentTransferableCid custodianAccount investorAccount observers custodian []
@@ -92,7 +89,7 @@ run = script do
   -- One day before expiry: try to lifecycle and verify that there are no lifecycle effects.
   verifyNoLifecycleEffects [publicParty] (subtractDays maturityDate 1) swapInstrumentAfterFirstPayment custodian issuer []
 
-  -- Lifecycle on the second payment date, which is also the expiry date. Verify that there are lifecycle effects for fix and floating payments.
+  -- Lifecycle on the second payment date, which is also the expiry date. Verify that there are lifecycle effects for base currency and foreign currency payments.
   investorCashForBasePaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid secondBasePaymentAmount investorAccount
   custodianCashForForeignPaymentTransferableCid <- Account.credit [publicParty] foreignCashInstrumentCid secondForeignPaymentAmount custodianAccount
   lifecycleAndVerifyFinalSwapPaymentEffects [publicParty] maturityDate swapInstrumentAfterFirstPayment custodian issuer investor investorSwapTransferableCid investorCashForBasePaymentTransferableCid custodianCashForForeignPaymentTransferableCid custodianAccount investorAccount observers custodian []
