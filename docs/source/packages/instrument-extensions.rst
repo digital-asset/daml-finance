@@ -88,12 +88,8 @@ Generic
 
     This package contains the *interface* and types required for generic instruments using ``Contingent Claims``, including lifecycling logic. It contains the following modules:
 
-    - :ref:`Util.Claims.Lifecycle <module-daml-finance-interface-instrument-generic-util-claims-lifecycle-66560>`: Defines different types of events and how to lifecycle them.
-    - :ref:`Util.Claims <module-daml-finance-interface-instrument-generic-util-claims-70604>`: Contains utility functions for claims, e.g. checking content of a claim and converting claim time.
     - :ref:`Election <module-daml-finance-interface-instrument-generic-election-94835>`: Interface implemented by templates that represents a (claim-based) election.
     - :ref:`Factory <module-daml-finance-interface-instrument-generic-factory-11761>`: Interface that allows implementing templates to create generic instruments.
-    - :ref:`HasClaims <module-daml-finance-interface-instrument-generic-hasclaims-47920>`: Interface implemented by templates that can be represented as a set of contingent claims.
-    - :ref:`Types <module-daml-finance-interface-instrument-generic-types-37112>`: Types related to claims and what is require to represent claims (e.g. Deliverable and Observable.)
 
 - ``Daml.Finance.Instrument.Generic``
 

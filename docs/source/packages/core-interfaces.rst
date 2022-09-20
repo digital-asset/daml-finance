@@ -39,7 +39,6 @@ Core Interfaces
     - :ref:`Event <module-daml-finance-interface-lifecycle-event-43586>`: Interface for a lifecycle event, for example that a bond will pay a coupon on a given date.
     - :ref:`Effect <module-daml-finance-interface-lifecycle-effect-16050>`: Interface for contracts exposing effects of lifecycling processes, e.g. the payment resulting from a bond coupon.
     - :ref:`Clock <module-daml-finance-interface-lifecycle-clock-75180>`: Interface for a clock that is used to control time-based events.
-    - :ref:`Observable <module-daml-finance-interface-lifecycle-observable-3374>`: Inferface to inspect numerical values (e.g. a stock price or an interest rate) required when processing a lifecycle rule.
     - :ref:`Rule.Claim <module-daml-finance-interface-lifecycle-rule-claim-6739>`: Interface for contracts that allow holders to claim an ``Effect`` and generate settlement instructions.
     - :ref:`Rule.Lifecycle <module-daml-finance-interface-lifecycle-rule-lifecycle-50431>`: Interface implemented by instruments that can be lifecycled.
 
@@ -57,6 +56,21 @@ Core Interfaces
     - :ref:`Date.RollConvention <module-daml-finance-interface-types-date-rollconvention-76363>`: Types to define date periods and how to roll dates.
     - :ref:`Date.Schedule <module-daml-finance-interface-types-date-schedule-61944>`: Types to define a periodic schedule with a specified frequency, including how to specify stub periods.
     - :ref:`Common <module-daml-finance-interface-types-common-24625>`: Various types related to keys, observers, parties, identifiers and quantities, which are commonly used in several packages.
+
+- ``Daml.Finance.Interface.Claims``
+
+    This package contains the *interface* for Contingent Claims based instruments. It contains the following modules :
+
+    - :ref:`Claim <module-daml-finance-interface-claims-claim-82866>`: Interface implemented by templates that can be represented as a set of contingent claims.
+    - :ref:`Types <module-daml-finance-interface-claims-types-95967>`: Types related to claims and what is require to represent claims (e.g. Deliverable and Observable.)
+    - :ref:`Util <module-daml-finance-interface-claims-util-28409>`: Contains utility functions for claims, e.g. checking content of a claim and converting claim time.
+    - :ref:`Util.Lifecycle <module-daml-finance-interface-claims-util-lifecycle-60221>`: Defines different types of events and how to lifecycle them.
+
+- ``Daml.Finance.Interface.Data``
+
+    This package contains the *interface* for inspecting numerical values, used for lifecycling instruments. It contains the following module:
+
+    - :ref:`Observable <module-daml-finance-interface-data-observable-1199>`: Inferface to inspect numerical values (e.g. a stock price or an interest rate) required when processing a lifecycle rule.
 
 - ``Daml.Finance.Interface.Util``
 
