@@ -4,14 +4,15 @@
 module Daml.Finance.Holding.Test.NonTransferable where
 
 import DA.Map qualified as M (empty)
-import DA.Set (singleton)
+import DA.Set (fromList, singleton)
 import Daml.Finance.Holding.NonTransferable qualified as NonTransferable (Factory(..))
 import Daml.Finance.Holding.Test.Common (TestInitialState(..), TestParties(..), setupInitialState, setupParties)
 import Daml.Finance.Interface.Holding.Account qualified as Account (Debit(..), I)
 import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (I, Split(..))
 import Daml.Finance.Interface.Holding.Lockable qualified as Lockable (Acquire(..), I, LockType(..), Release(..))
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
-import Daml.Finance.Test.Util.Account qualified as Account (submitExerciseInterfaceByKeyCmd, submitMustFailExerciseInterfaceByKeyCmd)
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, AddObservers(..), RemoveObservers(..))
+import Daml.Finance.Test.Util.Account qualified as Account (submitExerciseInterfaceByKeyCmd, submitMustFailExerciseInterfaceByKeyCmd, verifyAccountDisclosureContexts)
 import Daml.Script
 
 run : Script ()
@@ -65,7 +66,31 @@ run = script do
   -- Unlock the final lock
   lockableCid <- submitMulti [locker] [] do exerciseCmd lockableCid Lockable.Release with context = "Lock 1"
 
+  -- Disclose (under different contexts)
+  cid <- submitMulti [issuer] [] do exerciseCmd (toInterfaceContractId @Disclosure.I lockableCid) Disclosure.AddObservers with disclosers = singleton issuer, observersToAdd = ("context-1", fromList [locker, locker2])
+  cid <- submitMulti [issuer] [] do exerciseCmd cid Disclosure.AddObservers with disclosers = singleton issuer, observersToAdd = ("context-2", fromList [locker, locker2])
+
+  -- Undisclose (under different contexts)
+  -- issuer can remove
+  Some cid <- submitMulti [issuer] [] do exerciseCmd (toInterfaceContractId @Disclosure.I cid) Disclosure.RemoveObservers with disclosers = singleton issuer, observersToRemove = ("context-1", fromList [locker, locker2])
+  -- no update necessary
+  None <- submitMulti [issuer] [] do exerciseCmd (toInterfaceContractId @Disclosure.I cid) Disclosure.RemoveObservers with disclosers = singleton issuer, observersToRemove = ("context-1", fromList [locker, locker2])
+  -- removing observers from context-2
+  -- unauthorized party can't remove
+  submitMultiMustFail [custodian] [] do exerciseCmd (toInterfaceContractId @Disclosure.I cid) Disclosure.RemoveObservers with disclosers = singleton custodian, observersToRemove = ("context-2", fromList [locker, locker2])
+  -- locker can't remove locker 2
+  submitMultiMustFail [locker] [] do exerciseCmd (toInterfaceContractId @Disclosure.I cid) Disclosure.RemoveObservers with disclosers = singleton locker, observersToRemove = ("context-2", fromList [locker2])
+  -- locker can remove itself
+  Some cid <- submitMulti [locker] [] do exerciseCmd (toInterfaceContractId @Disclosure.I cid) Disclosure.RemoveObservers with disclosers = singleton locker, observersToRemove = ("context-2", fromList [locker])
+  -- removing observers from context-3
+  -- locker2 removes itself
+  Some cid <- submitMulti [locker2] [] do exerciseCmd (toInterfaceContractId @Disclosure.I cid) Disclosure.RemoveObservers with disclosers = singleton locker2, observersToRemove = ("context-2", fromList [locker2])
+  -- trying to remove from non-existent context
+  None <- submitMulti [issuer] [] do exerciseCmd (toInterfaceContractId @Disclosure.I cid) Disclosure.RemoveObservers with disclosers = singleton issuer, observersToRemove = ("non-existing context", fromList [locker, locker2])
+  -- all
+  Account.verifyAccountDisclosureContexts M.empty issuer
+
   -- Debit asset
-  Account.submitExerciseInterfaceByKeyCmd @Account.I [custodian, issuer] [] issuerAccount (Account.Debit with holdingCid = toInterfaceContractId lockableCid)
+  Account.submitExerciseInterfaceByKeyCmd @Account.I [custodian, issuer] [] issuerAccount (Account.Debit with holdingCid = coerceContractId cid)
 
   pure ()
