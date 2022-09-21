@@ -4,6 +4,7 @@
 module Daml.Finance.Settlement.Instruction where
 
 import DA.Assert ((===))
+import DA.Functor (($>))
 import DA.Set (fromList, insert, isSubsetOf, singleton)
 import DA.Tuple (fst3)
 import Daml.Finance.Interface.Holding.Account qualified as Account (I, Credit(..), Debit(..), disclose, exerciseInterfaceByKey, undisclose)
@@ -13,6 +14,7 @@ import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (A
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), Step)
 import Daml.Finance.Interface.Types.Common (Id(..), Parties, PartiesMap)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
+import DA.Action (when)
 
 -- | Type synonym for `Instruction`.
 type T = Instruction
@@ -110,22 +112,22 @@ template Instruction
             transferable <- fetch transferableCid
             let senderAccount = getAccount transferable
             transferableCid <- exercise transferableCid Transferable.Transfer with newOwnerAccount = receiverAccount
-            if undiscloseSenderAccount then do undiscloseA senderAccount; pure () else pure ()
-            if undiscloseReceiverAccount then do undiscloseA receiverAccount; pure () else pure ()
-            -- disclose to the actors (such that they can get the templateTypeRep in the Batch)
+            when undiscloseSenderAccount $ undiscloseA senderAccount $> ()
+            when undiscloseReceiverAccount $ undiscloseA receiverAccount $> ()
+            -- disclose to actors (such that they can get the TemplateTypeRep in the Batch)
             Some <$> discloseT step.receiver actors transferableCid
           (Pledge transferableCid, DebitSender) -> do
             transferable <- fetch transferableCid
             let senderAccount = getAccount transferable
             assertMsg ("the custodian of the transferable must be the receiver" <> messageSuffix) $ senderAccount.custodian == step.receiver
             accountCid <- Account.exerciseInterfaceByKey @Account.I senderAccount step.sender Account.Debit with holdingCid = coerceContractId transferableCid
-            if undiscloseSenderAccount then do undiscloseA senderAccount; pure () else pure ()
+            when undiscloseSenderAccount $ undiscloseA senderAccount $> ()
             pure None
           (CreditReceiver, TakeDelivery receiverAccount) -> do
             assertMsg ("the custodian of the receiver account must be the sender" <> messageSuffix) $ receiverAccount.custodian == step.sender
             transferableCid : ContractId Transferable.I <- coerceContractId <$> Account.exerciseInterfaceByKey @Account.I receiverAccount step.receiver Account.Credit with quantity = step.quantity
-            if undiscloseReceiverAccount then do undiscloseA receiverAccount; pure () else pure ()
-            -- disclose to the actors (such that they can get the templateTypeRep in the Batch)
+            when undiscloseReceiverAccount $ undiscloseA receiverAccount $> ()
+            -- disclose to actors (such that they can get the TemplateTypeRep in the Batch)
             Some <$> discloseT step.receiver actors transferableCid
           (CreditReceiver, DebitSender) -> do
             assertMsg ("sender must be the same party as receiver" <> messageSuffix) $ step.sender == step.receiver

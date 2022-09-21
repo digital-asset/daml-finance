@@ -51,11 +51,11 @@ template Batch
     interface instance Batch.I for Batch where
       view = Batch.View with id; description; settlers; steps
       settle Batch.Settle{actors} = do
-        (_, ts) <- foldr
+        (_, instructionsWithDisclosureInfo) <- foldr
           (\(step, instructionId) acc ->
             do
               (previousAccounts, l) <- acc
-              -- get sender and receiver accounts (iff any)
+              -- get sender and receiver accounts (if any)
               (instructionCid, instruction) <- fetchByKey @Instruction (requestors, id, instructionId)
               oSenderAccount <- case instruction.allocation of
                 Pledge senderTransferableCid -> do
@@ -69,32 +69,26 @@ template Batch
                   _ -> None
               -- in case the same account is used multiple times, only keep the last
               let
-                removeDuplicate oAccount sAccounts = case oAccount of
-                  Some account -> if member account sAccounts
-                    then (sAccounts, None)
-                    else (insert account sAccounts, oAccount)
-                  None -> (sAccounts, oAccount)
-                (previousAccounts', oSenderAccount') = removeDuplicate oSenderAccount previousAccounts
-                (previousAccounts'', oReceiverAccount') = removeDuplicate oReceiverAccount previousAccounts'
-              pure (previousAccounts'', (instructionId, oSenderAccount', oReceiverAccount') :: l)
+                removeDuplicate accounts oAccount = optional (accounts, False) (\account -> if member account accounts then (accounts, False) else (insert account accounts, True)) oAccount
+                (previousAccounts', undiscloseSenderAccount) = removeDuplicate previousAccounts oSenderAccount
+                (previousAccounts'', undiscloseReceiverAccount) = removeDuplicate previousAccounts' oReceiverAccount
+              pure (previousAccounts'', (instructionId, undiscloseSenderAccount, undiscloseReceiverAccount) :: l)
           ) (pure (empty, [])) stepsWithInstructionId
         -- settle
         let
-          settleInstruction (instructionId, oSenderAccount, oReceiverAccount) = do
-            -- NOTE: ideally we should exerciseByKey (but currently doesn't work for interface choices).
-            -- (as a workaround we could proxy the choice in the same contract)
+          settleInstruction (instructionId, undiscloseSenderAccount, undiscloseReceiverAccount) = do
             (instructionCid, instruction) <- fetchByKey @Instruction (requestors, id, instructionId)
             allocatedTransferable <- case instruction.allocation of
               Pledge cid -> Some <$> fetch cid
               _ -> pure None
-            transferableCidOpt <- exercise (toInterfaceContractId @Instruction.I instructionCid) Instruction.Execute with actors; undiscloseSenderAccount = isSome oSenderAccount; undiscloseReceiverAccount = isSome oReceiverAccount
+            transferableCidOpt <- exercise (toInterfaceContractId @Instruction.I instructionCid) Instruction.Execute with actors; undiscloseSenderAccount; undiscloseReceiverAccount
             settledTransferable <- T.mapA fetch transferableCidOpt
             -- undisclose transferable
             transferableCidOpt <- T.mapA (\tCid -> fromOptional tCid <$> undiscloseT actors tCid) transferableCidOpt
             let usedTypeRepOpts = fmap (\t -> (instruction.step.quantity.unit, interfaceTypeRep t)) <$> [allocatedTransferable, settledTransferable]
             pure (transferableCidOpt, usedTypeRepOpts)
         -- execute instructions
-        (transferableCidOpts, usedTypeRepOpts) <- unzip <$> mapA settleInstruction ts
+        (transferableCidOpts, usedTypeRepOpts) <- unzip <$> mapA settleInstruction instructionsWithDisclosureInfo
         -- consistency check
         forA_ (groupOn fst $ catOptionals . concat $ usedTypeRepOpts) \ts ->
           assertMsg "The template type rep of allocated transferables must be the same for all instructions for the same instrument." $ size (fromList ts) == 1
