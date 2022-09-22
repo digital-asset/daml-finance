@@ -5,9 +5,10 @@ module Daml.Finance.Instrument.Swap.ForeignExchange where
 
 import DA.Set (singleton)
 import Daml.Finance.Instrument.Generic.Util
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (GetCid(..), HasImplementation, I, K, R, View(..), createReference, disclosureUpdateReference)
 import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, View(..))
-import Daml.Finance.Interface.Instrument.Swap.ForeignExchange qualified as ForeignExchange (Create(..), Factory, HasImplementation, Remove(..), View(..))
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (GetCid(..), I, K, R, View(..), createReference, disclosureUpdateReference)
+import Daml.Finance.Interface.Instrument.Swap.Factory.ForeignExchange qualified as ForeignExchange (Create(..), Factory, HasImplementation, Remove(..), View(..))
+import Daml.Finance.Interface.Instrument.Swap.Instrument qualified as SwapInstrument (HasImplementation, I, View(..))
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..), View(..))
 import Daml.Finance.Interface.Types.Common (Id(..), InstrumentKey(..), PartiesMap)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
@@ -16,7 +17,7 @@ import Prelude hiding (key)
 -- | Type synonym for `Instrument`.
 type T = Instrument
 
-instance Instrument.HasImplementation T
+instance SwapInstrument.HasImplementation T
 
 -- | This template models a foreign exchange swap (FX Swap).
 -- It has two legs: an initial FX transaction and a final FX transaction.
@@ -45,9 +46,9 @@ template Instrument
       -- ^ The first payment date of the swap.
     maturityDate : Date
       -- ^ The final payment date of the swap.
-    baseCurrency : Instrument.K
+    baseCurrency : BaseInstrument.K
       -- ^ The base currency of the swap, which will be exchanged to another (foreign) currency on the first payment date. For example, in case of USD this should be a USD cash instrument.
-    foreignCurrency : Instrument.K
+    foreignCurrency : BaseInstrument.K
       -- ^ The foreign currency of the swap. For example, in case of EUR this should be a EUR cash instrument.
     observers : PartiesMap
       -- ^ The observers of the instrument.
@@ -57,7 +58,9 @@ template Instrument
     signatory depository, issuer
     observer Disclosure.flattenObservers observers
 
-    let instrumentKey = InstrumentKey with depository; issuer; id; version
+    let
+      instrumentKey = InstrumentKey with depository; issuer; id; version
+      baseView = BaseInstrument.View with depository; issuer; id; version; description; validAsOf = lastEventTimestamp
 
     interface instance Claim.I for Instrument where
       view = Claim.View with acquisitionTime = dateToDateClockTime issueDate
@@ -69,10 +72,14 @@ template Instrument
         foreignCurrencyFinalPayment <- createFxLegPrincipalClaim (-1.0) finalFxRate foreignCurrency maturityDate
         pure $ mconcat [baseCurrencyFirstPayment, foreignCurrencyFirstPayment, baseCurrencyFinalPayment, foreignCurrencyFinalPayment]
 
-    interface instance Instrument.I for Instrument where
+    interface instance BaseInstrument.I for Instrument where
       asDisclosure = toInterface @Disclosure.I this
-      view = Instrument.View with depository; issuer; id; version; description; validAsOf = lastEventTimestamp
+      view = baseView
       getKey = instrumentKey
+
+    interface instance SwapInstrument.I for Instrument where
+      asBaseInstrument = toInterface @BaseInstrument.I this
+      view = SwapInstrument.View with baseView
 
     interface instance Lifecycle.I for Instrument where
       view = Lifecycle.View with lifecycler = issuer
@@ -85,7 +92,7 @@ template Instrument
       view = Disclosure.View with disclosureControllers = singleton issuer; observers
       setObservers Disclosure.SetObservers{newObservers} = do
         cid <- toInterfaceContractId <$> create this with observers = newObservers
-        Instrument.disclosureUpdateReference newObservers instrumentKey cid
+        BaseInstrument.disclosureUpdateReference newObservers instrumentKey cid
       archive' self = archive (coerceContractId self : ContractId Instrument)
 
 instance ForeignExchange.HasImplementation Factory
@@ -120,11 +127,11 @@ template Factory
             foreignCurrency
             lastEventTimestamp
             observers
-        Instrument.createReference instrument.depository cid
+        BaseInstrument.createReference instrument.depository cid
         pure cid
       remove ForeignExchange.Remove{instrument} = do
-        (refCid, ref) <- fetchByKey @Instrument.R instrument
-        instrumentCid <- exercise refCid Instrument.GetCid with viewer = instrument.depository
+        (refCid, ref) <- fetchByKey @BaseInstrument.R instrument
+        instrumentCid <- exercise refCid BaseInstrument.GetCid with viewer = instrument.depository
         archive $ fromInterfaceContractId @Instrument instrumentCid
         archive refCid
 

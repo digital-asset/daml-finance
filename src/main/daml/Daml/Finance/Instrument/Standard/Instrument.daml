@@ -1,19 +1,20 @@
 -- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
-module Daml.Finance.Instrument.Base.Instrument where
+module Daml.Finance.Instrument.Standard.Instrument where
 
 import DA.Set (singleton)
-import Daml.Finance.Interface.Instrument.Base.Factory qualified as InstrumentFactory (Create(..), F, HasImplementation, Remove(..), View(..))
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (GetCid(..), HasImplementation, I, R, View(..), createReference, disclosureUpdateReference)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (GetCid(..), I, R, View(..), createReference, disclosureUpdateReference)
+import Daml.Finance.Interface.Instrument.Standard.Factory qualified as Factory (Create(..), F, HasImplementation, Remove(..), View(..))
+import Daml.Finance.Interface.Instrument.Standard.Instrument qualified as StandardInstrument (HasImplementation, I, View(..))
 import Daml.Finance.Interface.Types.Common (Id, InstrumentKey(..), PartiesMap)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
 
 -- | Type synonym for `Instrument`.
 type T = Instrument
 
-instance Instrument.HasImplementation T
--- | Base implementation of an Instrument which does not define any lifecycling logic.
+instance StandardInstrument.HasImplementation T
+-- | Standard implementation of an Instrument which does not define any lifecycling logic.
 template Instrument
   with
     depository : Party
@@ -26,29 +27,35 @@ template Instrument
       -- ^ A textual instrument version.
     description : Text
       -- ^ A description of the instrument.
-    observers : PartiesMap
-      -- ^ Observers.
     validAsOf : Time
       -- ^ Timestamp as of which the instrument is valid. This usually coincides with the timestamp of the event that creates the instrument. It usually does not coincide with ledger time.
+    observers : PartiesMap
+      -- ^ Observers.
   where
     signatory depository, issuer
     observer Disclosure.flattenObservers observers
 
-    let instrumentKey = InstrumentKey with depository; issuer; id; version
+    let
+      instrumentKey = InstrumentKey with depository; issuer; id; version
+      baseView = BaseInstrument.View with depository; issuer; id; validAsOf; description; version
 
-    interface instance Instrument.I for Instrument where
+    interface instance BaseInstrument.I for Instrument where
       asDisclosure = toInterface @Disclosure.I this
-      view = Instrument.View with depository; issuer; id; validAsOf; description; version
+      view = baseView
       getKey = instrumentKey
+
+    interface instance StandardInstrument.I for Instrument where
+      asBaseInstrument = toInterface @BaseInstrument.I this
+      view = StandardInstrument.View with baseView
 
     interface instance Disclosure.I for Instrument where
       view = Disclosure.View with disclosureControllers = singleton issuer; observers
       setObservers Disclosure.SetObservers{newObservers} = do
         cid <- toInterfaceContractId <$> create this with observers = newObservers
-        Instrument.disclosureUpdateReference newObservers instrumentKey cid
+        BaseInstrument.disclosureUpdateReference newObservers instrumentKey cid
       archive' self = archive (coerceContractId self : ContractId Instrument)
 
-instance InstrumentFactory.HasImplementation Factory
+instance Factory.HasImplementation Factory
 -- | Factory template for instrument creation.
 template Factory
   with
@@ -60,17 +67,17 @@ template Factory
     signatory provider
     observer Disclosure.flattenObservers observers
 
-    interface instance InstrumentFactory.F for Factory where
+    interface instance Factory.F for Factory where
       asDisclosure = toInterface @Disclosure.I this
-      view = InstrumentFactory.View with provider
-      create' InstrumentFactory.Create{instrument; validAsOf; observers; description} = do
+      view = Factory.View with provider
+      create' Factory.Create{instrument; validAsOf; observers; description} = do
         cid <- toInterfaceContractId <$>
           create Instrument with depository = instrument.depository; issuer = instrument.issuer; id = instrument.id; version = instrument.version; description; validAsOf; observers
-        Instrument.createReference instrument.depository cid
+        BaseInstrument.createReference instrument.depository cid
         pure cid
-      remove InstrumentFactory.Remove{instrument} = do
-        (refCid, ref) <- fetchByKey @Instrument.R instrument
-        instrumentCid <- exercise refCid Instrument.GetCid with viewer = instrument.depository
+      remove Factory.Remove{instrument} = do
+        (refCid, ref) <- fetchByKey @BaseInstrument.R instrument
+        instrumentCid <- exercise refCid BaseInstrument.GetCid with viewer = instrument.depository
         archive $ fromInterfaceContractId @Instrument instrumentCid
         archive refCid
 
