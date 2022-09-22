@@ -23,16 +23,17 @@ ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Uti
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Holding
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Settlement
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Lifecycle
-${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Instrument.Base
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Data
 
 ## Validate Extensions
 # Interfaces
+${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Standard
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Generic
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Bond
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Equity
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Swap
 # Implementations
+${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Instrument.Standard
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Instrument.Generic
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Instrument.Bond
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Instrument.Equity
