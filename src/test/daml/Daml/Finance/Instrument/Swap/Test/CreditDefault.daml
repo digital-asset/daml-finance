@@ -49,20 +49,19 @@ run = script do
     defaultProbabilityReferenceId = "TSLA-DEFAULT-PROB"
     recoveryRateReferenceId = "TSLA-RECOVERY-RATE"
     issuerPaysFix = False
-    fixRate : Decimal = 0.0201
+    fixRate = 0.0201
     paymentPeriod = M
     paymentPeriodMultiplier = 3
     dayCountConvention = Act360
     businessDayConvention = ModifiedFollowing
-    firstFixPaymentAmount : Decimal= 1675.0
-    secondFixPaymentAmount : Decimal= 4969.1667
-    creditEventPaymentAmount : Decimal= 400000.0
-    principalAmount : Decimal= 1_000_000.0
+    firstFixPaymentAmount = 1675.0
+    creditEventPaymentAmount = 400000.0
+    principalAmount = 1_000_000.0
     creditEventDate = date 2019 Mar 15
-    probIfNoCreditEvent : Decimal = 0.2
-    probIfCreditEvent : Decimal = 1.0
-    recoveryRate : Decimal = 0.6
-    defaultProbabilityObservations = M.fromList [(dateToDateClockTime (subtractDays firstPaymentDate 1), probIfNoCreditEvent), (dateToDateClockTime firstPaymentDate, probIfNoCreditEvent), (dateToDateClockTime (addDays firstPaymentDate 1), probIfNoCreditEvent), (dateToDateClockTime creditEventDate, probIfCreditEvent)]
+    probIfNoCreditEvent = 0.2
+    probIfCreditEvent = 1.0
+    recoveryRate = 0.6
+    defaultProbabilityObservations = M.fromList [(dateToDateClockTime (subtractDays firstPaymentDate 1), probIfNoCreditEvent), (dateToDateClockTime firstPaymentDate, probIfNoCreditEvent), (dateToDateClockTime (addDays firstPaymentDate 1), probIfNoCreditEvent), (dateToDateClockTime creditEventDate, probIfCreditEvent), (dateToDateClockTime maturityDate, probIfNoCreditEvent)]
     recoveryRateObservations = M.fromList [(dateToDateClockTime issueDate, recoveryRate), (dateToDateClockTime firstPaymentDate, recoveryRate), (dateToDateClockTime creditEventDate, recoveryRate)]
     holidayCalendarId = ["USD"]
     cal =
@@ -104,5 +103,86 @@ run = script do
 
   -- One day after credit event date: try to lifecycle and verify that the instrument has automatically expired.
   -- TODO: implement this after having included expire logic (of Until nodes) somewhere in the lifecycle process.
+
+  pure ()
+
+-- Calculate interest rate payment on an interest rate swap, including lifecycling and creation of new instrument version
+runNoCreditEvent : Script ()
+runNoCreditEvent = script do
+  [custodian, issuer, investor, calendarDataProvider, publicParty] <-
+    createParties ["Custodian", "Issuer", "Investor", "Calendar Data Provider", "PublicParty"]
+
+  -- Account and holding factory
+  let fp = [("FactoryProvider", singleton publicParty)]
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory custodian fp
+  holdingFactoryCid <- toInterfaceContractId <$> submitMulti [custodian] [] do
+    createCmd Fungible.Factory with provider = custodian; observers = M.fromList fp
+
+  -- Create accounts
+  [custodianAccount, investorAccount] <- mapA (Account.createAccount "Default Account" [publicParty] accountFactoryCid holdingFactoryCid [] custodian) [custodian, investor]
+
+  -- Distribute commercial-bank cash
+  now <- getTime
+  let observers = [("PublicParty", singleton publicParty)]
+  cashInstrumentCid <- Instrument.originate custodian issuer "USD" "US Dollars" observers now
+
+  -- Create and distribute swap
+  -- Fix vs floating interest rate swap: Libor 3M vs 2.01% p.a. payment every 3M
+  let
+    issueDate = date 2019 Jan 16
+    firstPaymentDate = date 2019 Feb 15
+    maturityDate = date 2019 May 15
+    defaultProbabilityReferenceId = "TSLA-DEFAULT-PROB"
+    recoveryRateReferenceId = "TSLA-RECOVERY-RATE"
+    issuerPaysFix = False
+    fixRate = 0.0201
+    paymentPeriod = M
+    paymentPeriodMultiplier = 3
+    dayCountConvention = Act360
+    businessDayConvention = ModifiedFollowing
+    firstFixPaymentAmount = 1675.0
+    secondFixPaymentAmount = 4969.1667
+    principalAmount = 1_000_000.0
+    probIfNoCreditEvent = 0.2
+    defaultProbabilityObservations = M.fromList [(dateToDateClockTime (subtractDays firstPaymentDate 1), probIfNoCreditEvent), (dateToDateClockTime firstPaymentDate, probIfNoCreditEvent), (dateToDateClockTime (addDays firstPaymentDate 1), probIfNoCreditEvent), (dateToDateClockTime maturityDate, probIfNoCreditEvent), (dateToDateClockTime (addDays maturityDate 1), probIfNoCreditEvent)]
+    holidayCalendarId = ["USD"]
+    cal =
+      HolidayCalendarData with
+        id = "USD"
+        weekend = [Saturday, Sunday]
+        holidays = [date 2019 Dec 19]
+
+  -- A reference data provider publishes the holiday calendar on the ledger
+  calendarCid <- submitMulti [calendarDataProvider] [] do
+    createCmd HolidayCalendar with
+      agency = calendarDataProvider
+      entity = cal.id
+      calendar = cal
+      observers = M.fromList fp
+
+  observableDefaultProbabilityCid <- coerceContractId <$> submitMulti [issuer] [] do createCmd Observation with provider = issuer; id = Id defaultProbabilityReferenceId; observations = defaultProbabilityObservations; observers = M.empty
+  let observableCids = [observableDefaultProbabilityCid]
+
+  swapInstrument <- originateCreditDefaultSwap custodian issuer "SwapTest1" "Credit default swap" fp now issueDate holidayCalendarId calendarDataProvider firstPaymentDate maturityDate dayCountConvention businessDayConvention fixRate paymentPeriod paymentPeriodMultiplier cashInstrumentCid defaultProbabilityReferenceId recoveryRateReferenceId issuerPaysFix
+  investorSwapTransferableCid <- Account.credit [publicParty] swapInstrument principalAmount investorAccount
+
+  let settlers = singleton custodian
+
+  -- One day before the first payment date: try to lifecycle and verify that there are no lifecycle effects.
+  verifyNoLifecycleEffects [publicParty] (subtractDays firstPaymentDate 1) swapInstrument settlers issuer observableCids
+
+  -- First payment date: Lifecycle and verify that there are lifecycle effects for the fix payment.
+  investorCashForFixPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid firstFixPaymentAmount investorAccount
+  (swapInstrumentAfterFirstPayment, investorSwapTransferableCid) <- lifecycleAndVerifyCreditDefaultSwapPaymentEffectsAndSettlement [publicParty] firstPaymentDate swapInstrument settlers issuer investor investorSwapTransferableCid investorCashForFixPaymentTransferableCid custodianAccount investorAccount observers custodian observableCids
+
+  -- One day after the first payment date: try to lifecycle and verify that there are no lifecycle effects.
+  verifyNoLifecycleEffects [publicParty] (addDays firstPaymentDate 1) swapInstrumentAfterFirstPayment settlers issuer observableCids
+
+  -- Second payment date: Lifecycle and verify that there are lifecycle effects for the fix payment.
+  investorCashForFixPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid secondFixPaymentAmount investorAccount
+  (swapInstrumentAfterSecondPayment, investorSwapTransferableCid) <- lifecycleAndVerifyCreditDefaultSwapPaymentEffectsAndSettlement [publicParty] maturityDate swapInstrumentAfterFirstPayment settlers issuer investor investorSwapTransferableCid investorCashForFixPaymentTransferableCid custodianAccount investorAccount observers custodian observableCids
+
+  -- One day after the maturity: try to lifecycle and verify that there are no lifecycle effects.
+  verifyNoLifecycleEffects [publicParty] (addDays maturityDate 1) swapInstrumentAfterSecondPayment settlers issuer observableCids
 
   pure ()
