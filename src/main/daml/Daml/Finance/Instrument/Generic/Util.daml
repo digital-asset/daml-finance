@@ -3,7 +3,7 @@
 
 module Daml.Finance.Instrument.Generic.Util where
 
-import ContingentClaims.Claim (Claim(..), Inequality(..), one, scale, when)
+import ContingentClaims.Claim (Claim(..), Inequality(..), one, scale, when, until)
 import ContingentClaims.Observation (Observation(..))
 import DA.Date
 import DA.Record (HasField)
@@ -61,6 +61,26 @@ createFixRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf coup
     couponClaims = zipWith (\d a -> when (TimeGte $ d) $ scale (Const weightMultiplier * Const a) $ one cashInstrumentCid) couponDatesAdjusted couponAmounts
   prepareAndTagClaims couponClaims "Fix rate payment"
 -- FIXED_RATE_BOND_COUPON_CLAIMS_END
+
+-- | Calculate a fix rate amount (if a credit event has not yet happened) for each payment date and create claims.
+createConditionalCreditFixRatePaymentClaims : Applicative f => [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Decimal -> DayCountConventionEnum -> Deliverable -> Observable -> f [TaggedClaim]
+createConditionalCreditFixRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf couponRate weightMultiplier dayCountConvention cashInstrumentCid defaultProbabilityReferenceId = do
+  let
+    creditEvent = Lte (Const 1.0, Observe defaultProbabilityReferenceId)
+    couponDatesAdjusted = map (.adjustedEndDate) schedule
+    couponAmounts = map (\p -> couponRate * (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency)) schedule
+    couponClaims = zipWith (\d a -> until creditEvent $ when (TimeGte $ d) $ scale (Const weightMultiplier * Const a) $ one cashInstrumentCid) couponDatesAdjusted couponAmounts
+  prepareAndTagClaims couponClaims "Fix rate payment (unless credit event has occurred)"
+
+-- | Calculate a (1-recoveryRate) payment if a credit event just happened and create claims.
+createCreditEventPaymentClaims : Applicative f => Decimal -> Deliverable -> Observable -> Observable -> Date -> f [TaggedClaim]
+createCreditEventPaymentClaims weightMultiplier cashInstrumentCid defaultProbabilityReferenceId recoveryRateReferenceId issueDate = do
+  let
+    creditEvent = Lte (Const 1.0, Observe defaultProbabilityReferenceId)
+    payoff = scale (Const weightMultiplier * (Const 1.0 - Observe recoveryRateReferenceId)) $ one cashInstrumentCid
+    creditEventClaims = [until creditEvent $ when (TimeGte $ issueDate) $ when creditEvent $ payoff]
+    -- todo: add check that instrument is not expired (passed expiry date)
+  prepareAndTagClaims creditEventClaims "Credit event payment"
 
 -- FLOATING_RATE_BOND_COUPON_CLAIMS_BEGIN
 -- | Calculate a floating rate amount for each payment date and create claims.
@@ -137,6 +157,7 @@ processClockUpdate settler eventCid _ self instrument observableCids = do
   -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_BEGIN
   -- Lifecycle
   (remaining, pending) <- lifecycleClaims observableCids acquisitionTime claims [timeEvent v.eventTime]
+  debug remaining
   let (consumed, produced) = splitPending pending
   if remaining == claims && null pending then
     pure (self, [])
