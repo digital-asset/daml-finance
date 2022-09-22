@@ -5,7 +5,7 @@ module Daml.Finance.Instrument.Bond.Test.ZeroCoupon where
 
 import DA.Date
 import DA.Map qualified as M (fromList)
-import DA.Set (empty, singleton)
+import DA.Set (empty, singleton, toList)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Instrument.Bond.Test.Util (lifecycleInstrument, originateZeroCouponBond, verifyNoLifecycleEffects)
 import Daml.Finance.Instrument.Bond.ZeroCoupon qualified as ZeroCoupon (Instrument)
@@ -24,9 +24,10 @@ import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
 import Daml.Script
 
-lifecycleAndVerifyRedemptionEffectsAndSettlement : [Party] -> Date -> Instrument.K -> Party -> Party -> Party -> ContractId Transferable.I -> ContractId Transferable.I -> AccountKey -> AccountKey -> [(Text, Parties)] -> Party -> Script Instrument.K
-lifecycleAndVerifyRedemptionEffectsAndSettlement readAs today bondInstrument settler issuer investor investorBondTransferableCid custodianCashRedemptionTransferableCid custodianAccount investorAccount obs custodian = do
-  (bondLifecycleCid2, [effectCid]) <- lifecycleInstrument readAs today bondInstrument settler issuer []
+-- | Utility function for lifecycling and verifying redemption effects and settlement.
+lifecycleAndVerifyRedemptionEffectsAndSettlement : [Party] -> Date -> Instrument.K -> Parties -> Party -> Party -> ContractId Transferable.I -> ContractId Transferable.I -> AccountKey -> AccountKey -> [(Text, Parties)] -> Party -> Script Instrument.K
+lifecycleAndVerifyRedemptionEffectsAndSettlement readAs today bondInstrument settlers issuer investor investorBondTransferableCid custodianCashRedemptionTransferableCid custodianAccount investorAccount obs custodian = do
+  (bondLifecycleCid2, [effectCid]) <- lifecycleInstrument readAs today bondInstrument settlers issuer []
 
   Some newBondInstrument <- queryContractId @ZeroCoupon.Instrument issuer $ coerceContractId bondLifecycleCid2
   let newBondInstrumentKey = Instrument.getKey $ toInterface newBondInstrument
@@ -41,7 +42,7 @@ lifecycleAndVerifyRedemptionEffectsAndSettlement readAs today bondInstrument set
         custodian
         owner = investor
         claimers = singleton investor
-        settler
+        settlers
         factoryCid = toInterfaceContractId settlementFactoryCid
 
   result <- submitMulti [investor] readAs do
@@ -61,7 +62,7 @@ lifecycleAndVerifyRedemptionEffectsAndSettlement readAs today bondInstrument set
 
   -- Settle batch
   [investorRedemptionTransferableCid] <-
-    submitMulti [settler] readAs do exerciseCmd result.batchCid Batch.Settle
+    submitMulti (toList settlers) readAs do exerciseCmd result.batchCid Batch.Settle with actors = settlers
 
   -- Assert state
   Holding.verifyOwnerOfHolding [(investor, investorRedemptionTransferableCid)]
@@ -73,6 +74,7 @@ run : Script ()
 run = script do
   [depository, custodian, issuer, investor, settler, provider, publicParty] <-
     createParties ["CSD", "Custodian", "Issuer", "Investor", "Settler", "Provider", "PublicParty"]
+  let settlers = singleton settler
 
   -- Account and holding factory
   let fp = [("FactoryProvider", singleton publicParty)]
@@ -101,13 +103,13 @@ run = script do
   investorBondTransferableCid <- Account.credit [publicParty] bondInstrument redemptionAmount investorAccount
 
   -- One day before expiry: try to lifecycle and verify that there are no lifecycle effects.
-  verifyNoLifecycleEffects [publicParty] (subtractDays maturityDate 1) bondInstrument settler issuer []
+  verifyNoLifecycleEffects [publicParty] (subtractDays maturityDate 1) bondInstrument settlers issuer []
 
   -- Lifecycle on the expriy date. Verify that there is a lifecycle effect for the redemption amount
   custodianCashForRedemptionTransferableCid <- Account.credit [publicParty] cashInstrumentCid redemptionAmount custodianAccount
-  bondInstrumentAfterRedemption <- lifecycleAndVerifyRedemptionEffectsAndSettlement [publicParty] maturityDate bondInstrument settler issuer investor investorBondTransferableCid custodianCashForRedemptionTransferableCid custodianAccount investorAccount observers custodian
+  bondInstrumentAfterRedemption <- lifecycleAndVerifyRedemptionEffectsAndSettlement [publicParty] maturityDate bondInstrument settlers issuer investor investorBondTransferableCid custodianCashForRedemptionTransferableCid custodianAccount investorAccount observers custodian
 
   -- One day after expiry: try to lifecycle and verify that there are no lifecycle effects.
-  verifyNoLifecycleEffects [publicParty] (addDays maturityDate 1) bondInstrumentAfterRedemption settler issuer []
+  verifyNoLifecycleEffects [publicParty] (addDays maturityDate 1) bondInstrumentAfterRedemption settlers issuer []
 
   pure ()

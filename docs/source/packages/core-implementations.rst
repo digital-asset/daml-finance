@@ -34,6 +34,7 @@ Core Implementations
 
     - :ref:`Effect <module-daml-finance-lifecycle-effect-1975>`: A contract encoding the *consequences of a lifecycle event* for one unit of the target instrument.
     - :ref:`ElectionEffect <module-daml-finance-lifecycle-electioneffect-99924>`: A contract encoding the *consequences of an election* for one unit of the target instrument.
+    - :ref:`Time.DateClock <module-daml-finance-lifecycle-time-dateclock-55943>`: Event signalling the update of a clock. This can trigger the execution of lifecycle rules for some instruments.
     - :ref:`Rule.Claim <module-daml-finance-lifecycle-rule-claim-99318>`: Rule contract that allows an actor to process/claim effects, returning settlement instructions.
     - :ref:`Rule.Distribution <module-daml-finance-lifecycle-rule-distribution-35531>`: Rule contract that defines the distribution of units of an instrument for each unit of a target instrument (e.g. share or cash dividends).
     - :ref:`Rule.Replacement <module-daml-finance-lifecycle-rule-replacement-6984>`: Rule contract that defines the replacement of units of an instrument with a basket of other instruments (e.g. stock merger).
@@ -45,13 +46,12 @@ Core Implementations
     For a description of ``Distribution`` and ``Replacement``, check out the ``src/test/daml/Daml/Finance/Instrument/Equity/Test`` folder. It demonstrates
     how to create and lifecycle a cash dividend, and how to handle corporate actions like mergers and stock splits.
 
-- ``Daml.Finance.RefData``
+- ``Daml.Finance.Data``
 
-    This package contains the *implementation* of reference data related workflows. It contains the following modules:
+    This package contains the *implementation* of observable or reference data related workflows. It contains the following modules:
 
-    - :ref:`Time.DateClock <module-daml-finance-refdata-time-dateclock-80226>`: Event signalling the update of a clock. This can trigger the execution of lifecycle rules for some instruments.
-    - :ref:`Observation <module-daml-finance-refdata-observation-94498>`: An implementation of ``Observable`` that explicitly stores time-dependent numerical values (e.g. equity or rate fixings).
-    - :ref:`HolidayCalendar <type-daml-finance-refdata-holidaycalendar-holidaycalendar-89891>`: Holiday calendar of an entity (typically an exchange or a currency).
+    - :ref:`Observation <module-daml-finance-data-observable-observation-7524>`: An implementation of ``Observable`` that explicitly stores time-dependent numerical values (e.g. equity or rate fixings).
+    - :ref:`HolidayCalendar <module-daml-finance-data-reference-holidaycalendar-10773>`: Holiday calendar of an entity (typically an exchange or a currency).
 
 - ``Daml.Finance.Util``
 

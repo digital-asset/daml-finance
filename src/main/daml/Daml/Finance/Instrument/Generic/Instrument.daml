@@ -17,7 +17,7 @@ import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (I)
 import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I)
 import Daml.Finance.Interface.Data.Observable qualified as Observable (I)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..), View(..))
-import Daml.Finance.Interface.Types.Common (Id, InstrumentKey(..), PartiesMap)
+import Daml.Finance.Interface.Types.Common (Id, InstrumentKey(..), Parties, PartiesMap)
 import Daml.Finance.Interface.Types.Date.Classes (toUTCTime)
 import Daml.Finance.Interface.Util.Common (verify)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
@@ -70,9 +70,9 @@ template Instrument
 
     interface instance Lifecycle.I for Instrument where
       view = Lifecycle.View with lifecycler = issuer
-      evolve Lifecycle.Evolve{ruleName; settler; eventCid; clockCid; observableCids} self =
+      evolve Lifecycle.Evolve{ruleName; settlers; eventCid; clockCid; observableCids} self =
         case ruleName of
-          "Time" -> processClockUpdate settler eventCid clockCid self this observableCids
+          "Time" -> processClockUpdate settlers eventCid clockCid self this observableCids
           other -> abort $ "Unknown lifecycle rule " <> other
 
     interface instance Disclosure.I for Instrument where
@@ -85,7 +85,7 @@ template Instrument
     interface instance Election.Exercisable for Instrument where
       asLifecycle = toInterface @Lifecycle.I this
       view = Election.ExercisableView with lifecycler = issuer
-      applyElection Election.ApplyElection{clockCid; electionCid; observableCids; settler} self = do
+      applyElection Election.ApplyElection{clockCid; electionCid; observableCids; settlers} self = do
         currentTime <- toUTCTime <$> fetch clockCid
         election <- fetch electionCid
         instrumentClaim <- Claim.getClaims $ toInterface @Claim.I this
@@ -116,7 +116,7 @@ template Instrument
           let (consumed, produced) = splitPending pending
           effectCid <- toInterfaceContractId <$> create ElectionEffect with
             provider = fromList [ this.issuer, this.depository ]
-            settler
+            settlers
             custodian = if v.electorIsOwner then v.counterparty else v.elector
             owner = if v.electorIsOwner then v.elector else v.counterparty
             id = v.id
@@ -132,8 +132,8 @@ template Instrument
 
 -- | HIDE
 -- | Rule to process a clock update event.
-processClockUpdate : Party -> ContractId Event.I -> ContractId Clock.I -> ContractId Lifecycle.I -> Instrument -> [ContractId Observable.I] -> Update (ContractId Lifecycle.I, [ContractId Effect.I])
-processClockUpdate settler eventCid _ self instrument observableCids = do
+processClockUpdate : Parties -> ContractId Event.I -> ContractId Clock.I -> ContractId Lifecycle.I -> Instrument -> [ContractId Observable.I] -> Update (ContractId Lifecycle.I, [ContractId Effect.I])
+processClockUpdate settlers eventCid _ self instrument observableCids = do
   v <- view <$> fetch eventCid
   claims <- Claim.getClaims $ toInterface @Claim.I instrument
   (remaining, pending) <- lifecycle observableCids (toInterface instrument) [timeEvent v.eventTime]
@@ -158,7 +158,7 @@ processClockUpdate settler eventCid _ self instrument observableCids = do
     let (consumed, produced) = splitPending pending
     effectCid <- toInterfaceContractId <$> create Effect with
       provider = fromList [ instrument.issuer, instrument.depository ]
-      settler
+      settlers
       id = v.id
       description = v.description
       targetInstrument = currentKey

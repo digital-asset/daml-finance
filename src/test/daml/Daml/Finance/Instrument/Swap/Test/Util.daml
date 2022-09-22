@@ -4,8 +4,9 @@
 module Daml.Finance.Instrument.Swap.Test.Util where
 
 import DA.Date
+import DA.List (head)
 import DA.Map qualified as M
-import DA.Set (empty, singleton)
+import DA.Set (empty, singleton, toList)
 import Daml.Finance.Instrument.Swap.CreditDefault qualified as CreditDefaultSwap (Instrument(..))
 import Daml.Finance.Instrument.Swap.Currency qualified as CurrencySwap (Instrument(..))
 import Daml.Finance.Instrument.Swap.ForeignExchange qualified as ForeignExchange (Instrument(..))
@@ -103,8 +104,8 @@ originateForeignExchangeSwap depository issuer label description observers lastE
   createReference cid depository issuer observers
 
 -- | Lifecycle the instrument as of this date. This is a general function that can be used for both bonds and swaps.
-lifecycleInstrument : [Party] -> Date -> Instrument.K -> Party -> Party -> [ContractId Observable.I] -> Script (ContractId Lifecycle.I, [ContractId Effect.I])
-lifecycleInstrument readAs today instrument settler issuer observableCids = do
+lifecycleInstrument : [Party] -> Date -> Instrument.K -> Parties -> Party -> [ContractId Observable.I] -> Script (ContractId Lifecycle.I, [ContractId Effect.I])
+lifecycleInstrument readAs today instrument settlers issuer observableCids = do
   -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_BEGIN
   -- create clock and clock update event
   let clock = DateClock with u = Unit today; id = Id (show today); provider = issuer; observers = M.empty
@@ -115,21 +116,21 @@ lifecycleInstrument readAs today instrument settler issuer observableCids = do
   -- LIFECYCLE_BOND_BEGIN
   -- Try to lifecycle instrument
   (lifecycleCid, effectCids) <- Instrument.submitExerciseInterfaceByKeyCmd @Lifecycle.I [issuer] readAs instrument
-    Lifecycle.Evolve with settler; eventCid = clockEventCid; observableCids; ruleName = "Time"; clockCid
+    Lifecycle.Evolve with settlers; eventCid = clockEventCid; observableCids; ruleName = "Time"; clockCid
   -- LIFECYCLE_BOND_END
 
   pure (lifecycleCid, effectCids)
 
 -- | Verify a that there are no lifecycle effects of the instrument on this date. This is a general function that can be used for both bonds and swaps.
-verifyNoLifecycleEffects : [Party] -> Date -> Instrument.K -> Party -> Party -> [ContractId Observable.I] -> Script ()
-verifyNoLifecycleEffects readAs today instrument settler issuer observableCids = do
-  (bondLifecycleCid2, effectCids) <- lifecycleInstrument readAs today instrument settler issuer observableCids
+verifyNoLifecycleEffects : [Party] -> Date -> Instrument.K -> Parties -> Party -> [ContractId Observable.I] -> Script ()
+verifyNoLifecycleEffects readAs today instrument settlers issuer observableCids = do
+  (bondLifecycleCid2, effectCids) <- lifecycleInstrument readAs today instrument settlers issuer observableCids
   assertMsg ("There should be no lifecycle effects on " <> show today) (null effectCids)
 
 -- | Verify the payments from a payment date of an interest rate swap.
-lifecycleAndVerifySwapPaymentEffectsAndSettlement : [Party] -> Date -> Instrument.K -> Party -> Party -> Party -> ContractId Transferable.I -> ContractId Transferable.I -> ContractId Transferable.I -> AccountKey -> AccountKey -> [(Text, Parties)] -> Party -> [ContractId Observable.I] -> Script (Instrument.K, ContractId Transferable.I)
-lifecycleAndVerifySwapPaymentEffectsAndSettlement readAs today swapInstrument settler issuer investor investorSwapTransferableCid investorCashTransferableFixLegCid custodianCashTransferableFloatingLegCid custodianAccount investorAccount obs custodian observableCids = do
-  (swapLifecycleCid, [effectCid]) <- lifecycleInstrument readAs today swapInstrument settler issuer observableCids
+lifecycleAndVerifySwapPaymentEffectsAndSettlement : [Party] -> Date -> Instrument.K -> Parties -> Party -> Party -> ContractId Transferable.I -> ContractId Transferable.I -> ContractId Transferable.I -> AccountKey -> AccountKey -> [(Text, Parties)] -> Party -> [ContractId Observable.I] -> Script (Instrument.K, ContractId Transferable.I)
+lifecycleAndVerifySwapPaymentEffectsAndSettlement readAs today swapInstrument settlers issuer investor investorSwapTransferableCid investorCashTransferableFixLegCid custodianCashTransferableFloatingLegCid custodianAccount investorAccount obs custodian observableCids = do
+  (swapLifecycleCid, [effectCid]) <- lifecycleInstrument readAs today swapInstrument settlers issuer observableCids
 
   newSwapInstrumentKey <- submitMulti [issuer] [] do
     Instrument.toKey <$> exerciseCmd @Instrument.I (coerceContractId swapLifecycleCid) Instrument.GetView with viewer = issuer
@@ -144,7 +145,7 @@ lifecycleAndVerifySwapPaymentEffectsAndSettlement readAs today swapInstrument se
         custodian
         owner = investor
         claimers = singleton investor
-        settler
+        settlers
         factoryCid = toInterfaceContractId settlementFactoryCid
 
   result <- submitMulti [investor] readAs do
@@ -168,7 +169,8 @@ lifecycleAndVerifySwapPaymentEffectsAndSettlement readAs today swapInstrument se
     exerciseCmd custodianCashInstructionFloatingLegCid Instruction.Approve with approval = TakeDelivery investorAccount
 
   -- Settle batch
-  [investorCashTransferableFixLegCid, investorCashTransferableFloatingLegCid] <- submitMulti [settler] readAs do exerciseCmd result.batchCid Batch.Settle
+  let settlerUsed = head $ toList settlers
+  [investorCashTransferableFixLegCid, investorCashTransferableFloatingLegCid] <- submitMulti [settlerUsed] readAs do exerciseCmd result.batchCid Batch.Settle with actors = singleton settlerUsed
 
   -- Assert state
   verifyOwnerOfHolding [(investor, investorSwapHoldingCid), (custodian, toInterfaceContractId investorCashTransferableFixLegCid), (investor, toInterfaceContractId investorCashTransferableFloatingLegCid)]
@@ -176,9 +178,9 @@ lifecycleAndVerifySwapPaymentEffectsAndSettlement readAs today swapInstrument se
   pure (newSwapInstrumentKey, coerceContractId investorSwapHoldingCid)
 
 -- | Verify the payments from the final payment date of an interest rate swap.
-lifecycleAndVerifyFinalSwapPaymentEffects : [Party] -> Date -> Instrument.K -> Party -> Party -> Party -> ContractId Transferable.I -> ContractId Transferable.I -> ContractId Transferable.I -> AccountKey -> AccountKey -> [(Text, Parties)] -> Party -> [ContractId Observable.I] -> Script (Instrument.K)
-lifecycleAndVerifyFinalSwapPaymentEffects readAs today swapInstrument settler issuer investor investorSwapTransferableCid investorCashTransferableFixLegCid custodianCashTransferableFloatingLegCid custodianAccount investorAccount obs custodian observableCids = do
-  (swapLifecycleCid, [effectCid]) <- lifecycleInstrument readAs today swapInstrument settler issuer observableCids
+lifecycleAndVerifyFinalSwapPaymentEffects : [Party] -> Date -> Instrument.K -> Parties -> Party -> Party -> ContractId Transferable.I -> ContractId Transferable.I -> ContractId Transferable.I -> AccountKey -> AccountKey -> [(Text, Parties)] -> Party -> [ContractId Observable.I] -> Script (Instrument.K)
+lifecycleAndVerifyFinalSwapPaymentEffects readAs today swapInstrument settlers issuer investor investorSwapTransferableCid investorCashTransferableFixLegCid custodianCashTransferableFloatingLegCid custodianAccount investorAccount obs custodian observableCids = do
+  (swapLifecycleCid, [effectCid]) <- lifecycleInstrument readAs today swapInstrument settlers issuer observableCids
 
   newSwapInstrumentKey <- submitMulti [issuer] [] do
     Instrument.toKey <$> exerciseCmd @Instrument.I (coerceContractId swapLifecycleCid) Instrument.GetView with viewer = issuer
@@ -193,7 +195,7 @@ lifecycleAndVerifyFinalSwapPaymentEffects readAs today swapInstrument settler is
         custodian
         owner = investor
         claimers = singleton investor
-        settler
+        settlers
         factoryCid = toInterfaceContractId settlementFactoryCid
 
   result <- submitMulti [investor] readAs do
@@ -216,7 +218,8 @@ lifecycleAndVerifyFinalSwapPaymentEffects readAs today swapInstrument settler is
     exerciseCmd custodianCashInstructionFloatingLegCid Instruction.Approve with approval = TakeDelivery investorAccount
 
   -- Settle batch
-  [investorCashTransferableFixLegCid, investorCashTransferableFloatingLegCid] <- submitMulti [settler] readAs do exerciseCmd result.batchCid Batch.Settle
+  let settlerUsed = head $ toList settlers
+  [investorCashTransferableFixLegCid, investorCashTransferableFloatingLegCid] <- submitMulti [settlerUsed] readAs do exerciseCmd result.batchCid Batch.Settle with actors = singleton settlerUsed
 
   pure (newSwapInstrumentKey)
 
