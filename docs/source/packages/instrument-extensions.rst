@@ -17,7 +17,7 @@ Tokens
 
     This package contains the *implementation* of a basic instrument. It contains the following module:
 
-    - :ref:`Instrument <module-daml-finance-instrument-standard-instrument-20341>`: Standard implementation of an Instrument which does not define any lifecycling logic.
+    - :ref:`Instrument <module-daml-finance-instrument-token-instrument-10682>`: Standard implementation of an Instrument which does not define any lifecycling logic.
 
     Check out the :doc:`Transfer tutorial <../../tutorials/getting-started/transfer>` for an example on how to create a base instrument and use it for a transfer.
 
@@ -28,19 +28,19 @@ Bonds
 
     This package contains the *interface* for different bond types, defined in the following modules:
 
-    - :ref:`FixedRate <module-daml-finance-interface-instrument-bond-factory-fixedrate-73080>`: Interface that allows implementing templates to create fixed rate bonds.
-    - :ref:`FloatingRate <module-daml-finance-interface-instrument-bond-factory-floatingrate-43223>`: Interface that allows implementing templates to create floating rate bonds.
-    - :ref:`InflationLinked <module-daml-finance-interface-instrument-bond-factory-inflationlinked-39697>`: Interface that allows implementing templates to create inflation linked bonds.
-    - :ref:`ZeroCoupon <module-daml-finance-interface-instrument-bond-factory-zerocoupon-60229>`: Interface that allows implementing templates to create zero coupon bonds.
+    - :ref:`FixedRate <module-daml-finance-interface-instrument-bond-fixedrate-factory-42532>`: Interface that allows implementing templates to create fixed rate bonds.
+    - :ref:`FloatingRate <module-daml-finance-interface-instrument-bond-floatingrate-factory-53843>`: Interface that allows implementing templates to create floating rate bonds.
+    - :ref:`InflationLinked <module-daml-finance-interface-instrument-bond-inflationlinked-factory-57553>`: Interface that allows implementing templates to create inflation linked bonds.
+    - :ref:`ZeroCoupon <module-daml-finance-interface-instrument-bond-zerocoupon-factory-70433>`: Interface that allows implementing templates to create zero coupon bonds.
 
 - ``Daml.Finance.Instrument.Bond``
 
     This package contains the *implementation* of different bond types, defined in the following modules:
 
-    - :ref:`FixedRate <module-daml-finance-instrument-bond-fixedrate-44039>`: This template models a fixed rate bond. It pays a fixed coupon rate at the end of every coupon period.
-    - :ref:`FloatingRate <module-daml-finance-instrument-bond-floatingrate-31782>`: This template models a floating rate bond. It pays a floating coupon rate at the end of every coupon period.
-    - :ref:`InflationLinked <module-daml-finance-instrument-bond-inflationlinked-38254>`: This template models an inflation linked bond. It pays an inflation adjusted coupon at the end of every coupon period.
-    - :ref:`ZeroCoupon <module-daml-finance-instrument-bond-zerocoupon-72656>`: This template models a zero coupon bond. It does not pay any coupons, only the redemption amount at maturity.
+    - :ref:`FixedRate <module-daml-finance-instrument-bond-fixedrate-instrument-67993>`: This template models a fixed rate bond. It pays a fixed coupon rate at the end of every coupon period.
+    - :ref:`FloatingRate <module-daml-finance-instrument-bond-floatingrate-instrument-98586>`: This template models a floating rate bond. It pays a floating coupon rate at the end of every coupon period.
+    - :ref:`InflationLinked <module-daml-finance-instrument-bond-inflationlinked-instrument-30250>`: This template models an inflation linked bond. It pays an inflation adjusted coupon at the end of every coupon period.
+    - :ref:`ZeroCoupon <module-daml-finance-instrument-bond-zerocoupon-instrument-52804>`: This template models a zero coupon bond. It does not pay any coupons, only the redemption amount at maturity.
 
     Check out the tutorial on :doc:`How to use the Bond extension package <../../tutorials/instrument-modeling/bond-extension>` for a description how to use the bond extension in practice.
     There is also the tutorial :doc:`How to implement a Contingent Claims-based instrument <../../tutorials/instrument-modeling/contingent-claims-instrument>`, which describes how the claims are defined and how the lifecycle interface is implemented for bonds.
@@ -52,13 +52,13 @@ Swaps
 
     This package contains the *interface* for different types of swaps. It contains the following modules:
 
-    - :ref:`InterestRate <type-daml-finance-interface-instrument-swap-factory-interestrate-factory-89002>`: Interface that allows implementing templates to create interest rate swaps.
+    - :ref:`InterestRate <type-daml-finance-interface-instrument-swap-interestrate-factory-factory-25358>`: Interface that allows implementing templates to create interest rate swaps.
 
 - ``Daml.Finance.Instrument.Swap``
 
     This package contains the *implementation* of different types of swaps. It contains the following modules:
 
-    - :ref:`InterestRate <type-daml-finance-instrument-swap-interestrate-factory-7433>`: This template models an interest rate swap. It pays a fix vs floating interest rate at the end of every payment period.
+    - :ref:`InterestRate <type-daml-finance-instrument-swap-interestrate-factory-factory-28673>`: This template models an interest rate swap. It pays a fix vs floating interest rate at the end of every payment period.
 
 Equity
 ======

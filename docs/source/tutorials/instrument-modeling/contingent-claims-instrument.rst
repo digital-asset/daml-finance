@@ -19,7 +19,7 @@ Template definition
 
 We start by defining a new template for the instrument. Here are the first few lines of the fixed rate instrument:
 
-.. literalinclude:: ../../../../src/main/daml/Daml/Finance/Instrument/Bond/FixedRate.daml
+.. literalinclude:: ../../../../src/main/daml/Daml/Finance/Instrument/Bond/FixedRate/Instrument.daml
   :language: daml
   :start-after: -- FIXED_RATE_BOND_TEMPLATE_BEGIN
   :end-before: -- FIXED_RATE_BOND_TEMPLATE_END
@@ -37,7 +37,7 @@ work in a similar way for all instrument types, regardless of their economic ter
 
 Here is a high level implementation of HasClaims:
 
-.. literalinclude:: ../../../../src/main/daml/Daml/Finance/Instrument/Bond/FixedRate.daml
+.. literalinclude:: ../../../../src/main/daml/Daml/Finance/Instrument/Bond/FixedRate/Instrument.daml
   :language: daml
   :start-after: -- FIXED_RATE_BOND_CLAIMS_BEGIN
   :end-before: -- FIXED_RATE_BOND_CLAIMS_END
@@ -125,7 +125,7 @@ In order to do this we introduce the concept of an ``Observable``.
 
 In the instrument definition, we need an identifier for the reference rate:
 
-.. literalinclude:: ../../../../src/main/daml/Daml/Finance/Instrument/Bond/FloatingRate.daml
+.. literalinclude:: ../../../../src/main/daml/Daml/Finance/Instrument/Bond/FloatingRate/Instrument.daml
   :language: daml
   :start-after: -- FLOATING_RATE_BOND_TEMPLATE_UNTIL_REFRATE_BEGIN
   :end-before: -- FLOATING_RATE_BOND_TEMPLATE_UNTIL_REFRATE_END
