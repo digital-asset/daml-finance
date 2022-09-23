@@ -28,16 +28,17 @@ ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Util
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Holding
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Settlement
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Lifecycle
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Instrument.Base
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Data
 
 ## Build Extensions
 # Interfaces
+${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Token
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Generic
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Bond
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Equity
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Swap
 # Implementations
+${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Instrument.Token
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Instrument.Generic
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Instrument.Bond
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Instrument.Equity

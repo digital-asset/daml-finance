@@ -1,0 +1,60 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Bond.FixedRate.Factory where
+
+import DA.Set (singleton)
+import Daml.Finance.Instrument.Bond.FixedRate.Instrument qualified as FixedRate (Instrument(..))
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (GetCid(..), R, createReference)
+import Daml.Finance.Interface.Instrument.Bond.FixedRate.Factory qualified as FixedRate (Create(..), Factory, HasImplementation, Remove(..), View(..))
+import Daml.Finance.Interface.Instrument.Bond.FixedRate.Types (FixedRate(..))
+import Daml.Finance.Interface.Types.Common (PartiesMap)
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
+import Prelude hiding (key)
+
+-- | Type synonym for `Factory`.
+type F = Factory
+
+instance FixedRate.HasImplementation Factory
+-- | Factory template for instrument creation.
+template Factory
+  with
+    provider : Party
+      -- ^ The factory's provider.
+    observers : PartiesMap
+      -- ^ The factory's observers.
+  where
+    signatory provider
+    observer Disclosure.flattenObservers observers
+
+    interface instance FixedRate.Factory for Factory where
+      asDisclosure = toInterface @Disclosure.I this
+      view = FixedRate.View with provider
+      create' FixedRate.Create{fixedRate = FixedRate{instrumentKey; description; couponRate; periodicSchedule; holidayCalendarIds; calendarDataProvider; dayCountConvention; currency; lastEventTimestamp; observers}} = do
+        cid <- toInterfaceContractId <$> create FixedRate.Instrument
+          with
+            depository = instrumentKey.depository
+            issuer = instrumentKey.issuer
+            id = instrumentKey.id
+            version = instrumentKey.version
+            description
+            couponRate
+            periodicSchedule
+            holidayCalendarIds
+            calendarDataProvider
+            dayCountConvention
+            currency
+            lastEventTimestamp
+            observers
+        BaseInstrument.createReference instrumentKey.depository cid
+        pure cid
+      remove FixedRate.Remove{instrumentKey} = do
+        (refCid, ref) <- fetchByKey @BaseInstrument.R instrumentKey
+        instrumentCid <- exercise refCid BaseInstrument.GetCid with viewer = instrumentKey.depository
+        archive $ fromInterfaceContractId @FixedRate.Instrument instrumentCid
+        archive refCid
+
+    interface instance Disclosure.I for Factory where
+      view = Disclosure.View with disclosureControllers = singleton provider; observers
+      setObservers Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
+      archive' self = archive (coerceContractId self : ContractId FixedRate.Instrument)
