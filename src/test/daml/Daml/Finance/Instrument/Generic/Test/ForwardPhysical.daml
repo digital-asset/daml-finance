@@ -6,7 +6,7 @@ module Daml.Finance.Instrument.Generic.Test.ForwardPhysical where
 import ContingentClaims.Claim (Inequality(..), and, give, one, scale, when)
 import ContingentClaims.Observation (Observation(..))
 import DA.Date (addDays, toDateUTC)
-import DA.Map qualified as M (empty, fromList)
+import DA.Map (fromList)
 import DA.Set (empty, singleton, toList)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Instrument.Generic.Test.Util (originateGeneric, dateToDateClockTime)
@@ -15,14 +15,14 @@ import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (E
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
-import Daml.Finance.Interface.Types.Common (Id(..), Parties)
+import Daml.Finance.Interface.Types.Common (Parties)
 import Daml.Finance.Lifecycle.Rule.Claim (Rule(..))
-import Daml.Finance.Lifecycle.Time.DateClock (DateClock(..), DateClockUpdateEvent(..), Unit(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
 import Daml.Finance.Test.Util.Account qualified as Account (createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate, submitExerciseInterfaceByKeyCmd)
+import Daml.Finance.Test.Util.Lifecycle (createClockAndEvent)
 import Daml.Script
 import Prelude hiding (and)
 
@@ -53,7 +53,7 @@ run = script do
   let fp = [("FactoryProvider", singleton publicParty)]
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank fp
   holdingFactoryCid <- toInterfaceContractId <$> submit bank do
-    createCmd Fungible.Factory with provider = bank; observers = M.fromList fp
+    createCmd Fungible.Factory with provider = bank; observers = fromList fp
 
   -- Create accounts
   [bankOwnAccount, investorAccount] <- mapA (Account.createAccount "Default Account" [publicParty] accountFactoryCid holdingFactoryCid [] bank) [bank, investor]
@@ -76,9 +76,7 @@ run = script do
   investorGenericTransferableCid <- Account.credit [publicParty] genericInstrument 1_000.0 investorAccount
 
   -- create clock and clock update event
-  let clock = DateClock with u = Unit maturity; id = Id (show maturity); provider = broker; observers = M.empty
-  clockCid <- toInterfaceContractId <$> submitMulti [broker] [] do createCmd clock
-  clockEventCid <- toInterfaceContractId <$> submitMulti [broker] [] do createCmd DateClockUpdateEvent with id = Id (show maturity); clock
+  (clockCid, clockEventCid) <- createClockAndEvent (singleton broker) maturity empty
 
   -- Lifecycle a generic derivative
   (_, [effectCid]) <- Instrument.submitExerciseInterfaceByKeyCmd @Lifecycle.I [broker] [] genericInstrument Lifecycle.Evolve with settlers; eventCid = clockEventCid; observableCids = []; ruleName = "Time"; clockCid
