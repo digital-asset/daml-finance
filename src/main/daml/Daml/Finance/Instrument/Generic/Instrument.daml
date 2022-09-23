@@ -6,18 +6,19 @@ module Daml.Finance.Instrument.Generic.Instrument where
 import DA.Date (toDateUTC)
 import DA.Set (fromList, singleton)
 import DA.Text (sha256)
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (HasImplementation, I, R, View(..), createReference, disclosureUpdateReference, getKey)
+import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, View(..), getClaims)
+import Daml.Finance.Interface.Claims.Types (C, TaggedClaim(..))
+import Daml.Finance.Interface.Claims.Util (isZero')
+import Daml.Finance.Interface.Claims.Util.Lifecycle (electionEvent, lifecycle, splitPending, timeEvent)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, R, View(..), createReference, disclosureUpdateReference, getKey)
 import Daml.Finance.Interface.Instrument.Generic.Election qualified as Election (ApplyElection(..), Exercisable(..), ExercisableHasImplementation, ExercisableView(..), getElectionTime)
-import Daml.Finance.Interface.Instrument.Generic.HasClaims qualified as HasClaims (I, View(..), getClaims)
-import Daml.Finance.Interface.Instrument.Generic.Types (C, taggedClaim)
-import Daml.Finance.Interface.Instrument.Generic.Util.Claims (isZero')
-import Daml.Finance.Interface.Instrument.Generic.Util.Claims.Lifecycle (electionEvent, lifecycle, splitPending, timeEvent)
+import Daml.Finance.Interface.Instrument.Generic.Instrument qualified as GenericInstrument (HasImplementation, I, View(..))
 import Daml.Finance.Interface.Lifecycle.Clock qualified as Clock (I)
 import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (I)
 import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I)
 import Daml.Finance.Interface.Data.Observable qualified as Observable (I)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..), View(..))
-import Daml.Finance.Interface.Types.Common (Id, InstrumentKey(..), PartiesMap)
+import Daml.Finance.Interface.Types.Common (Id, InstrumentKey(..), Parties, PartiesMap)
 import Daml.Finance.Interface.Types.Date.Classes (toUTCTime)
 import Daml.Finance.Interface.Util.Common (verify)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
@@ -28,7 +29,7 @@ import Prelude hiding (exercise, key)
 -- | Type synonym for `Instrument`.
 type T = Instrument
 
-instance Instrument.HasImplementation T
+instance GenericInstrument.HasImplementation T
 instance Election.ExercisableHasImplementation T
 
 -- | An instrument representing a generic payoff, modelled using the Contingent Claims library.
@@ -59,36 +60,41 @@ template Instrument
 
     let instrumentKey = InstrumentKey with depository; issuer; id; version
 
-    interface instance HasClaims.I for Instrument where
-      view = HasClaims.View with acquisitionTime
-      getClaims = pure [taggedClaim "Generic" this.claims]
+    interface instance Claim.I for Instrument where
+      view = Claim.View with acquisitionTime
+      getClaims = pure [TaggedClaim with tag = "Generic"; claim = this.claims]
 
-    interface instance Instrument.I for Instrument where
+    interface instance BaseInstrument.I for Instrument where
       asDisclosure = toInterface @Disclosure.I this
-      view = Instrument.View with depository; issuer; id; version; description; validAsOf = lastEventTimestamp
+      view = BaseInstrument.View with depository; issuer; id; version; description; validAsOf = lastEventTimestamp
       getKey = instrumentKey
+
+    interface instance GenericInstrument.I for Instrument where
+      asBaseInstrument = toInterface @BaseInstrument.I this
+      asClaim = toInterface @Claim.I this
+      view = GenericInstrument.View with {}
 
     interface instance Lifecycle.I for Instrument where
       view = Lifecycle.View with lifecycler = issuer
-      evolve Lifecycle.Evolve{ruleName; settler; eventCid; clockCid; observableCids} self =
+      evolve Lifecycle.Evolve{ruleName; settlers; eventCid; clockCid; observableCids} self =
         case ruleName of
-          "Time" -> processClockUpdate settler eventCid clockCid self this observableCids
+          "Time" -> processClockUpdate settlers eventCid clockCid self this observableCids
           other -> abort $ "Unknown lifecycle rule " <> other
 
     interface instance Disclosure.I for Instrument where
       view = Disclosure.View with disclosureControllers = singleton issuer; observers
       setObservers Disclosure.SetObservers{newObservers} = do
         cid <- toInterfaceContractId <$> create this with observers = newObservers
-        Instrument.disclosureUpdateReference newObservers instrumentKey cid
+        BaseInstrument.disclosureUpdateReference newObservers instrumentKey cid
       archive' self = archive (coerceContractId self : ContractId Instrument)
 
     interface instance Election.Exercisable for Instrument where
       asLifecycle = toInterface @Lifecycle.I this
       view = Election.ExercisableView with lifecycler = issuer
-      applyElection Election.ApplyElection{clockCid; electionCid; observableCids; settler} self = do
+      applyElection Election.ApplyElection{clockCid; electionCid; observableCids; settlers} self = do
         currentTime <- toUTCTime <$> fetch clockCid
         election <- fetch electionCid
-        instrumentClaim <- HasClaims.getClaims $ toInterface @HasClaims.I this
+        instrumentClaim <- Claim.getClaims $ toInterface @Claim.I this
         let
           v = view election
           electionTime = Election.getElectionTime election
@@ -100,10 +106,10 @@ template Instrument
         else do
           let
             settlementDate = toDateUTC electionTime
-            currentKey = Instrument.getKey $ toInterface this
+            currentKey = BaseInstrument.getKey $ toInterface this
             newKey = currentKey with version = sha256 $ show remaining
             [claim] = fmap (.claim) remaining
-          existingRefCidOpt <- lookupByKey @Instrument.R newKey
+          existingRefCidOpt <- lookupByKey @BaseInstrument.R newKey
           newInstrumentCid <-
             case existingRefCidOpt of
               Some existingRefCid -> do
@@ -111,12 +117,12 @@ template Instrument
                 pure ref.cid
               None -> do
                 instCid <- create this with claims = claim; lastEventTimestamp = electionTime; version = newKey.version
-                Instrument.createReference issuer $ toInterfaceContractId instCid
+                BaseInstrument.createReference issuer $ toInterfaceContractId instCid
                 pure $ toInterfaceContractId instCid
           let (consumed, produced) = splitPending pending
           effectCid <- toInterfaceContractId <$> create ElectionEffect with
             provider = fromList [ this.issuer, this.depository ]
-            settler
+            settlers
             custodian = if v.electorIsOwner then v.counterparty else v.elector
             owner = if v.electorIsOwner then v.elector else v.counterparty
             id = v.id
@@ -132,20 +138,20 @@ template Instrument
 
 -- | HIDE
 -- | Rule to process a clock update event.
-processClockUpdate : Party -> ContractId Event.I -> ContractId Clock.I -> ContractId Lifecycle.I -> Instrument -> [ContractId Observable.I] -> Update (ContractId Lifecycle.I, [ContractId Effect.I])
-processClockUpdate settler eventCid _ self instrument observableCids = do
+processClockUpdate : Parties -> ContractId Event.I -> ContractId Clock.I -> ContractId Lifecycle.I -> Instrument -> [ContractId Observable.I] -> Update (ContractId Lifecycle.I, [ContractId Effect.I])
+processClockUpdate settlers eventCid _ self instrument observableCids = do
   v <- view <$> fetch eventCid
-  claims <- HasClaims.getClaims $ toInterface @HasClaims.I instrument
+  claims <- Claim.getClaims $ toInterface @Claim.I instrument
   (remaining, pending) <- lifecycle observableCids (toInterface instrument) [timeEvent v.eventTime]
   if remaining == claims && null pending then
     pure (self, [])
   else do
     let
       settlementDate = toDateUTC v.eventTime
-      currentKey = Instrument.getKey $ toInterface instrument
+      currentKey = BaseInstrument.getKey $ toInterface instrument
       [claim] = fmap (.claim) remaining
       newKey = currentKey with version = sha256 $ show remaining
-    existingRefCidOpt <- lookupByKey @Instrument.R newKey
+    existingRefCidOpt <- lookupByKey @BaseInstrument.R newKey
     newInstrumentCid <-
       case existingRefCidOpt of
         Some existingRefCid -> do
@@ -153,12 +159,12 @@ processClockUpdate settler eventCid _ self instrument observableCids = do
           pure ref.cid
         None -> do
           instCid <- create instrument with claims = claim; lastEventTimestamp = v.eventTime; version = newKey.version
-          Instrument.createReference instrument.issuer $ toInterfaceContractId instCid
+          BaseInstrument.createReference instrument.issuer $ toInterfaceContractId instCid
           pure $ toInterfaceContractId instCid
     let (consumed, produced) = splitPending pending
     effectCid <- toInterfaceContractId <$> create Effect with
       provider = fromList [ instrument.issuer, instrument.depository ]
-      settler
+      settlers
       id = v.id
       description = v.description
       targetInstrument = currentKey

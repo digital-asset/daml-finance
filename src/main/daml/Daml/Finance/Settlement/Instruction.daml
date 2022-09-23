@@ -4,15 +4,17 @@
 module Daml.Finance.Settlement.Instruction where
 
 import DA.Assert ((===))
-import DA.Set (fromList, insert, singleton)
+import DA.Functor (($>))
+import DA.Set (fromList, insert, isSubsetOf, singleton)
 import DA.Tuple (fst3)
-import Daml.Finance.Interface.Holding.Account qualified as Account (I, Credit(..), Debit(..), disclose, exerciseInterfaceByKey)
+import Daml.Finance.Interface.Holding.Account qualified as Account (I, Credit(..), Debit(..), disclose, exerciseInterfaceByKey, undisclose)
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
-import Daml.Finance.Interface.Holding.Util (disclose, getAccount, getAmount, getInstrument)
-import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..), HasImplementation, I, View(..))
+import Daml.Finance.Interface.Holding.Util (disclose, getAccount, getAmount, getInstrument, undisclose)
+import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..), Execute(..), HasImplementation, I, View(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), Step)
 import Daml.Finance.Interface.Types.Common (Id(..), Parties, PartiesMap)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
+import DA.Action (when)
 
 -- | Type synonym for `Instruction`.
 type T = Instruction
@@ -28,8 +30,8 @@ template Instruction
       -- ^ Parties requesting the settlement.
     signed : Parties
       -- ^ Additional signatories, used to collect authorization.
-    settler : Party
-      -- ^ Party triggering the settlement.
+    settlers : Parties
+      -- ^ Any of the parties can trigger the settlement.
     tradeId : Id
       -- ^ Trade identifier.
     id : Id
@@ -44,15 +46,17 @@ template Instruction
       -- ^ Observers.
   where
     signatory requestors, signed
-    observer step.sender, step.receiver, settler, Disclosure.flattenObservers observers
+    observer step.sender, step.receiver, settlers, Disclosure.flattenObservers observers
 
     key (requestors, tradeId, id) : (Parties, Id, Id)
     maintainer fst3 key
 
     let
       messageSuffix = " / instruction id = " <> show id
-      discloseA discloser = Account.disclose (show tradeId, singleton settler) discloser (singleton discloser)
-      discloseT discloser cid = disclose @Transferable.I (show tradeId, singleton settler) discloser (singleton discloser) cid
+      discloseA account = Account.disclose (show tradeId, settlers) account.owner (singleton account.owner) account
+      undiscloseA account = Account.undisclose (show tradeId, settlers) account.owner (singleton account.owner) account
+      discloseT discloser settlers cid = disclose @Transferable.I (show tradeId, settlers) discloser (singleton discloser) cid
+      undiscloseT discloser settlers cid = undisclose @Transferable.I (show tradeId, settlers) (singleton discloser) cid
 
     interface instance Disclosure.I for Instruction where
       view = Disclosure.View with disclosureControllers = fromList [step.sender, step.receiver]; observers
@@ -61,50 +65,70 @@ template Instruction
 
     interface instance Instruction.I for Instruction where
       asDisclosure = toInterface @Disclosure.I this
-      view = Instruction.View with id; step; settler
+      view = Instruction.View with id; step; settlers
       allocate Instruction.Allocate{allocation} = do
         assertMsg ("allocation must be new" <> messageSuffix) $ allocation /= this.allocation
+        -- clean up if previously allocated
+        otCid <- case this.allocation of
+          Pledge transferableCid -> do
+            transferable <- fetch transferableCid
+            undiscloseA $ getAccount transferable
+            undiscloseT step.sender settlers transferableCid
+          a -> pure None
         -- verify and disclose allocation
         allocationDisclosed <- case allocation of
           Pledge transferableCid -> do
-            transferableCid <- discloseT step.sender transferableCid
+            transferableCid <- discloseT step.sender settlers transferableCid
             transferable <- fetch transferableCid
-            discloseA step.sender (getAccount transferable)
+            discloseA (getAccount transferable)
             getAmount transferable === step.quantity.amount
             getInstrument transferable === step.quantity.unit
             pure $ Pledge transferableCid
           a -> pure a
         -- update instruction state
-        toInterfaceContractId <$> create this with allocation = allocationDisclosed; signed = insert step.sender signed
+        cid <- toInterfaceContractId <$> create this with allocation = allocationDisclosed; signed = insert step.sender signed
+        pure (cid, otCid)
       approve Instruction.Approve{approval} = do
         assertMsg ("approval must be new" <> messageSuffix) $ approval /= this.approval
+        -- clean up if previously approved
+        case this.approval of
+          TakeDelivery receiverAccount -> undiscloseA receiverAccount
+          a -> pure None
         -- disclose approval
         case approval of
           TakeDelivery receiverAccount -> do
-            discloseA step.receiver receiverAccount
+            discloseA receiverAccount
             pure ()
           _ -> pure ()
         -- update instruction state
         toInterfaceContractId <$> create this with signed = insert step.receiver signed; approval
-      execute =
+      execute Instruction.Execute{actors; undiscloseSenderAccount; undiscloseReceiverAccount} = do
+        assertMsg "actors must be subset of settlers" $ isSubsetOf actors settlers
         -- execute instruction
         case (allocation, approval) of
           (Unallocated, _) -> abort $ "instruction must be allocated" <> messageSuffix
           (_, Unapproved) -> abort $ "instruction must be approved" <> messageSuffix
-          (Pledge transferableCid, TakeDelivery account) -> do
+          (Pledge transferableCid, TakeDelivery receiverAccount) -> do
             transferable <- fetch transferableCid
-            transferableCid <- exercise transferableCid Transferable.Transfer with newOwnerAccount = account
-            Some <$> discloseT step.receiver transferableCid
+            let senderAccount = getAccount transferable
+            transferableCid <- exercise transferableCid Transferable.Transfer with newOwnerAccount = receiverAccount
+            when undiscloseSenderAccount $ undiscloseA senderAccount $> ()
+            when undiscloseReceiverAccount $ undiscloseA receiverAccount $> ()
+            -- disclose to actors (such that they can get the TemplateTypeRep in the Batch)
+            Some <$> discloseT step.receiver actors transferableCid
           (Pledge transferableCid, DebitSender) -> do
             transferable <- fetch transferableCid
             let senderAccount = getAccount transferable
             assertMsg ("the custodian of the transferable must be the receiver" <> messageSuffix) $ senderAccount.custodian == step.receiver
             accountCid <- Account.exerciseInterfaceByKey @Account.I senderAccount step.sender Account.Debit with holdingCid = coerceContractId transferableCid
+            when undiscloseSenderAccount $ undiscloseA senderAccount $> ()
             pure None
           (CreditReceiver, TakeDelivery receiverAccount) -> do
             assertMsg ("the custodian of the receiver account must be the sender" <> messageSuffix) $ receiverAccount.custodian == step.sender
             transferableCid : ContractId Transferable.I <- coerceContractId <$> Account.exerciseInterfaceByKey @Account.I receiverAccount step.receiver Account.Credit with quantity = step.quantity
-            Some <$> discloseT step.receiver transferableCid
+            when undiscloseReceiverAccount $ undiscloseA receiverAccount $> ()
+            -- disclose to actors (such that they can get the TemplateTypeRep in the Batch)
+            Some <$> discloseT step.receiver actors transferableCid
           (CreditReceiver, DebitSender) -> do
             assertMsg ("sender must be the same party as receiver" <> messageSuffix) $ step.sender == step.receiver
             pure None

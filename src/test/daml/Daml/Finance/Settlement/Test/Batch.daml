@@ -35,7 +35,7 @@ data TestParties = TestParties
     seller : Party
       -- ^ Seller of the equity instrument.
 
--- | DvP via settlement chain and instructions.
+-- DvP via settlement chain and instructions.
 -- Seller transfers equity to buyer in exchange for cash.
 -- +----------------------------------------+
 -- | Accounts                               |
@@ -60,7 +60,7 @@ run settleCashOnLedger = script do
   -- Originate instruments
   now <- getTime
   equityInstrument <- Instrument.originate csd issuer "AAPL" "Apple Inc." [] now
-  cashInstrument <- Instrument.originate cb cb "USD" "United States Doller" [] now
+  cashInstrument <- Instrument.originate cb cb "USD" "United States Dollar" [] now
 
   -- Custody accounts
   [buyerCustodyAccount, sellerCustodyAccount] <- mapA (Account.createAccount "Custody Account" [] accountFactoryCid holdingFactoryCid [] bank) [buyer, seller]
@@ -79,10 +79,10 @@ run settleCashOnLedger = script do
       ]
   settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submitMulti [bank] [] do createCmd Factory with provider = bank; observers = empty
   (batchCid, [equityInstructionCid, cashInstructionCid]) <-
-    submitMulti [bank] [] do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = singleton bank; settler = bank; id = Id "APPL 1000@200.0USD"; description = "DVP"; steps
+    submitMulti [bank] [] do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = singleton bank; settlers = singleton bank; id = Id "APPL 1000@200.0USD"; description = "DVP"; steps
 
   -- Allocate and approve equity instruction
-  equityInstructionCid <- submitMulti [seller] [] do exerciseCmd equityInstructionCid Instruction.Allocate with allocation = Pledge equityTransferableCid
+  (equityInstructionCid, _) <- submitMulti [seller] [] do exerciseCmd equityInstructionCid Instruction.Allocate with allocation = Pledge equityTransferableCid
   equityInstructionCid <- submitMulti [buyer] [] do exerciseCmd equityInstructionCid Instruction.Approve with approval = TakeDelivery buyerCustodyAccount
 
   -- Allocate and approve cash instruction
@@ -91,16 +91,16 @@ run settleCashOnLedger = script do
       do
         -- Settle by on-ledger transfer
         cashTransferableCid <- Account.credit [] cashInstrument 200_000.0 buyerCashAccount
-        cashInstructionCid <- submitMulti [buyer] [] do exerciseCmd cashInstructionCid Instruction.Allocate with allocation = Pledge cashTransferableCid
+        (cashInstructionCid, _) <- submitMulti [buyer] [] do exerciseCmd cashInstructionCid Instruction.Allocate with allocation = Pledge cashTransferableCid
         submitMulti [seller] [] do exerciseCmd cashInstructionCid Instruction.Approve with approval = TakeDelivery sellerCashAccount
     else
       do
         -- Settle by off ledger trasnfer
-        cashInstructionCid <- submitMulti [buyer] [] do exerciseCmd cashInstructionCid Instruction.Allocate with allocation = SettleOffLedger
+        (cashInstructionCid, _) <- submitMulti [buyer] [] do exerciseCmd cashInstructionCid Instruction.Allocate with allocation = SettleOffLedger
         submitMulti [seller] [] do exerciseCmd cashInstructionCid Instruction.Approve with approval = SettleOffLedgerAcknowledge
 
   -- Settle batch
-  cids <- submitMulti [bank] [] do exerciseCmd batchCid Batch.Settle
+  cids <- submitMulti [bank] [] do exerciseCmd batchCid Batch.Settle with actors = singleton bank
 
   -- Assert state
   let ts = zip [buyer, seller] cids
@@ -109,11 +109,11 @@ run settleCashOnLedger = script do
 
   pure ()
 
--- | Settle cash using offledger
+-- Settles cash by off-ledger means.
 run1 : Script ()
 run1 = run True
 
--- | Settle cash onledger
+-- Settles cash on-ledger.
 run2 : Script ()
 run2 = run False
 

@@ -3,10 +3,8 @@
 
 module Daml.Finance.Settlement.Test.Transfer where
 
-import DA.Assert ((===))
 import DA.Map qualified as M (fromList)
-import DA.Set (empty, singleton)
-import Daml.Finance.Holding.Account qualified as Account (T)
+import DA.Set (empty, fromList, singleton)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (qty)
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
@@ -15,7 +13,7 @@ import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (A
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), Step(..))
 import Daml.Finance.Interface.Types.Common (Id(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
-import Daml.Finance.Test.Util.Account qualified as Account (credit, createAccount, createFactory)
+import Daml.Finance.Test.Util.Account qualified as Account (credit, createAccount, createFactory, verifyAccountDisclosureContexts)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyNoObservers, verifyOwnerOfHolding)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
@@ -37,7 +35,7 @@ data TestParties = TestParties
     publicParty : Party
       -- ^ The public party. Every party can readAs the public party.
 
--- | Transfer of cash between two parties (sender -> receiver) facilitated by an intermediary (bank).
+-- Transfer of cash between two parties (sender -> receiver) facilitated by an intermediary (bank).
 -- +------------------------------------------+
 -- | Accounts                                 |
 -- +------------------+-----------------------+
@@ -62,7 +60,7 @@ run = script do
 
   -- Distribute asset
   now <- getTime
-  cashInstrument <- Instrument.originate cb cb "USD" "United States Doller" [] now
+  cashInstrument <- Instrument.originate cb cb "USD" "United States Dollar" [] now
   transferableCid <- coerceContractId <$> Account.credit [publicParty] cashInstrument 200_000.0 senderAccount
 
   -- Create settlement factory
@@ -70,16 +68,16 @@ run = script do
 
   -- Instruct transfer
   let step = Step with sender; receiver; quantity = Instrument.qty 200_000.0 cashInstrument
-  (batchCid, [cashInstructionCid]) <- submitMulti [bank] [] do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = singleton bank; settler = bank; id = Id "transfer 1"; description = "transfer of 200000.0 USD payment"; steps = [step]
+  (batchCid, [cashInstructionCid]) <- submitMulti [bank] [] do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = singleton bank; settlers = singleton bank; id = Id "transfer 1"; description = "transfer of 200000.0 USD payment"; steps = [step]
 
   -- Allocate instruction
-  cashInstructionCid <- submitMulti [sender] [publicParty] do exerciseCmd cashInstructionCid Instruction.Allocate with allocation = Pledge transferableCid
+  (cashInstructionCid, _) <- submitMulti [sender] [publicParty] do exerciseCmd cashInstructionCid Instruction.Allocate with allocation = Pledge transferableCid
 
   -- Approve instruction
   cashInstructionCid <- submitMulti [receiver] [publicParty] do exerciseCmd cashInstructionCid Instruction.Approve with approval = TakeDelivery receiverAccount
 
   -- Settle batch
-  [cashHoldingCid] <- submitMulti [bank] [publicParty] do exerciseCmd batchCid Batch.Settle
+  [cashHoldingCid] <- submitMulti [bank] [publicParty] do exerciseCmd batchCid Batch.Settle with actors = singleton bank
 
   -- Assert state
   let ts = [(receiver, cashHoldingCid)]
@@ -88,7 +86,7 @@ run = script do
 
   pure ()
 
--- | Multiple transfers can be processed in any order. To achieve this, each
+-- Multiple transfers can be processed in any order. To achieve this, each
 -- transfer process discloses/undiscloses accounts/transferables under
 -- different contexts to not affect eachother. In this test, the same accounts
 -- and parties are used for 3 cash transfers (sender -> receiver facilitated by
@@ -117,7 +115,7 @@ run2 = script do
 
   -- Distribute asset
   now <- getTime
-  cashInstrument <- Instrument.originate cb cb "USD" "United States Doller" [] now
+  cashInstrument <- Instrument.originate cb cb "USD" "United States Dollar" [] now
   transferableCid1 <- coerceContractId <$> Account.credit [publicParty] cashInstrument 100_000.0 senderAccount
   transferableCid2 <- coerceContractId <$> Account.credit [publicParty] cashInstrument 200_000.0 senderAccount
   transferableCid3 <- coerceContractId <$> Account.credit [publicParty] cashInstrument 300_000.0 senderAccount
@@ -133,30 +131,32 @@ run2 = script do
     first = Step with sender; receiver; quantity = Instrument.qty 100_000.0 cashInstrument
     second = Step with sender; receiver; quantity = Instrument.qty 200_000.0 cashInstrument
     third = Step with sender; receiver; quantity = Instrument.qty 300_000.0 cashInstrument
-  (batchCid1, [cashInstructionCid1]) <- submitMulti [bank] [] do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = singleton bank; settler = bank; id = id1; description = "transfer of 100000.0 USD payment"; steps = [first]
+  (batchCid1, [cashInstructionCid1]) <- submitMulti [bank] [] do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = singleton bank; settlers = singleton bank; id = id1; description = "transfer of 100000.0 USD payment"; steps = [first]
   -- the id of the batch must be unique
-  submitMultiMustFail [bank] [] do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = singleton bank; settler = bank; id = id1; description = "transfer of 200000.0 USD payment"; steps = [second]
-  (batchCid2, [cashInstructionCid2]) <- submitMulti [bank] [] do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = singleton bank; settler = bank; id = id2; description = "transfer of 200000.0 USD payment"; steps = [second]
-  (batchCid3, [cashInstructionCid3]) <- submitMulti [bank] [] do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = singleton bank; settler = bank; id = id3; description = "transfer of 300000.0 USD payment"; steps = [third]
-  -- check account observers
-  let
-    verifyAccountDisclosureContexts owner contexts = do
-      [(cid, a)] <- query @Account.T owner
-      let l = fmap (\context -> (show context, singleton bank)) contexts
-      a.observers === M.fromList l
+  submitMultiMustFail [bank] [] do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = singleton bank; settlers = singleton bank; id = id1; description = "transfer of 200000.0 USD payment"; steps = [second]
+  (batchCid2, [cashInstructionCid2]) <- submitMulti [bank] [] do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = singleton bank; settlers = singleton bank; id = id2; description = "transfer of 200000.0 USD payment"; steps = [second]
+  (batchCid3, [cashInstructionCid3]) <- submitMulti [bank] [] do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = singleton bank; settlers = singleton bank; id = id3; description = "transfer of 300000.0 USD payment"; steps = [third]
 
+  let verifyAccountDisclosureContexts owner ids = Account.verifyAccountDisclosureContexts [(M.fromList $ fmap (\id -> (show id, singleton bank)) ids)] owner
+
+  -- check account observers
   verifyAccountDisclosureContexts sender []
   verifyAccountDisclosureContexts receiver []
 
   -- Allocate instruction (in any order)
   -- first
-  cashInstructionCid1 <- submitMulti [sender] [publicParty] do exerciseCmd cashInstructionCid1 Instruction.Allocate with allocation = Pledge transferableCid1
+  (cashInstructionCid1, _) <- submitMulti [sender] [publicParty] do exerciseCmd cashInstructionCid1 Instruction.Allocate with allocation = Pledge transferableCid1
   verifyAccountDisclosureContexts sender [id1]
+  (cashInstructionCid1, Some transferableCid1) <- submitMulti [sender] [publicParty] do exerciseCmd cashInstructionCid1 Instruction.Allocate with allocation = Unallocated
+  verifyAccountDisclosureContexts sender []
+  (cashInstructionCid1, _) <- submitMulti [sender] [publicParty] do exerciseCmd cashInstructionCid1 Instruction.Allocate with allocation = Pledge transferableCid1
+  verifyAccountDisclosureContexts sender [id1]
+
   -- second
-  cashInstructionCid2 <- submitMulti [sender] [publicParty] do exerciseCmd cashInstructionCid2 Instruction.Allocate with allocation = Pledge transferableCid2
+  (cashInstructionCid2, _) <- submitMulti [sender] [publicParty] do exerciseCmd cashInstructionCid2 Instruction.Allocate with allocation = Pledge transferableCid2
   verifyAccountDisclosureContexts sender [id1, id2]
   -- third
-  cashInstructionCid3 <- submitMulti [sender] [publicParty] do exerciseCmd cashInstructionCid3 Instruction.Allocate with allocation = Pledge transferableCid3
+  (cashInstructionCid3, _) <- submitMulti [sender] [publicParty] do exerciseCmd cashInstructionCid3 Instruction.Allocate with allocation = Pledge transferableCid3
   verifyAccountDisclosureContexts sender [id1, id2, id3]
 
   -- Approve instruction (in any order)
@@ -172,20 +172,133 @@ run2 = script do
 
   -- Settle transfers (in any order)
   -- second
-  [cashHoldingCid2] <- submitMulti [bank] [publicParty] do exerciseCmd batchCid2 Batch.Settle
+  [cashHoldingCid2] <- submitMulti [bank] [publicParty] do exerciseCmd batchCid2 Batch.Settle with actors = singleton bank
   verifyAccountDisclosureContexts sender [id1, id3]
   verifyAccountDisclosureContexts receiver [id1, id3]
   -- first
-  [cashHoldingCid1] <- submitMulti [bank] [publicParty] do exerciseCmd batchCid1 Batch.Settle
+  [cashHoldingCid1] <- submitMulti [bank] [publicParty] do exerciseCmd batchCid1 Batch.Settle with actors = singleton bank
   verifyAccountDisclosureContexts sender [id3]
   verifyAccountDisclosureContexts receiver [id3]
   -- third
-  [cashHoldingCid3] <- submitMulti [bank] [publicParty] do exerciseCmd batchCid3 Batch.Settle
+  [cashHoldingCid3] <- submitMulti [bank] [publicParty] do exerciseCmd batchCid3 Batch.Settle with actors = singleton bank
   verifyAccountDisclosureContexts sender []
   verifyAccountDisclosureContexts receiver []
 
   -- Assert state
   let ts = [(receiver, cashHoldingCid1), (receiver, cashHoldingCid2), (receiver, cashHoldingCid3)]
+  Holding.verifyOwnerOfHolding ts
+  Holding.verifyNoObservers ts
+
+  pure ()
+
+-- Transfer of cash between two parties (sender -> receiver) which can be executed by either party.
+-- +------------------------------------------+
+-- | Accounts                                 |
+-- +------------------+-----------------------+
+-- | structure:       | used for:             |
+-- +------------------+-----------------------+
+-- |      Bank        |                       |
+-- |      /  \        | commercial bank money |
+-- | Sender  Receiver |                       |
+-- +------------------+-----------------------+
+run3 : Script ()
+run3 = script do
+  TestParties{..} <- setupParties
+
+  -- Account and holding factory
+  let fp = [("FactoryProvider", singleton publicParty)]
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory provider fp
+  holdingFactoryCid <- toInterfaceContractId <$> submitMulti [publicParty] [] do
+    createCmd Fungible.Factory with provider = publicParty; observers = M.fromList fp
+
+  -- Create accounts
+  [senderAccount, receiverAccount] <- mapA (Account.createAccount "Cash Account" [publicParty] accountFactoryCid holdingFactoryCid [] bank) [sender, receiver]
+
+  -- Distribute asset
+  now <- getTime
+  cashInstrument <- Instrument.originate cb cb "USD" "United States Dollar" [] now
+  transferableCid <- coerceContractId <$> Account.credit [publicParty] cashInstrument 200_000.0 senderAccount
+
+  -- Create settlement factory
+  settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submitMulti [bank] [] do createCmd Factory with provider = bank; observers = singleton publicParty
+
+  -- Instruct transfer
+  let step = Step with sender; receiver; quantity = Instrument.qty 200_000.0 cashInstrument
+  (batchCid, [cashInstructionCid]) <- submitMulti [bank] [] do
+    exerciseCmd settlementFactoryCid Factory.Instruct with
+      instructors = singleton bank; settlers = fromList [sender, receiver]; id = Id "transfer 1"; description = "transfer of 200000.0 USD payment"; steps = [step]
+
+  -- Allocate instruction
+  (cashInstructionCid, _) <- submitMulti [sender] [publicParty] do exerciseCmd cashInstructionCid Instruction.Allocate with allocation = Pledge transferableCid
+
+  -- Approve instruction
+  cashInstructionCid <- submitMulti [receiver] [publicParty] do exerciseCmd cashInstructionCid Instruction.Approve with approval = TakeDelivery receiverAccount
+
+  -- Settle batch
+  -- either sender, receiver or both can settle
+  [cashHoldingCid] <- submitMulti [sender] [publicParty] do exerciseCmd batchCid Batch.Settle with actors = singleton sender
+
+  -- Assert state
+  let ts = [(receiver, cashHoldingCid)]
+  Holding.verifyOwnerOfHolding ts
+  Holding.verifyNoObservers ts
+
+  pure ()
+
+-- Transfer of 2 cash holdings between two parties/accounts (sender -> receiver).
+-- +------------------------------------------+
+-- | Accounts                                 |
+-- +------------------+-----------------------+
+-- | structure:       | used for:             |
+-- +------------------+-----------------------+
+-- |      Bank        |                       |
+-- |      /  \        | commercial bank money |
+-- | Sender  Receiver |                       |
+-- +------------------+-----------------------+
+run4 : Script ()
+run4 = script do
+  TestParties{..} <- setupParties
+
+  -- Account and holding factory
+  let fp = [("FactoryProvider", singleton publicParty)]
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory provider fp
+  holdingFactoryCid <- toInterfaceContractId <$> submitMulti [publicParty] [] do
+    createCmd Fungible.Factory with provider = publicParty; observers = M.fromList fp
+
+  -- Create accounts
+  [senderAccount, receiverAccount] <- mapA (Account.createAccount "Cash Account" [publicParty] accountFactoryCid holdingFactoryCid [] bank) [sender, receiver]
+
+  -- Distribute asset
+  now <- getTime
+  cashInstrument1 <- Instrument.originate cb cb "USD" "United States Dollar" [] now
+  transferableCid1 <- coerceContractId <$> Account.credit [publicParty] cashInstrument1 200_000.0 senderAccount
+  transferableCid2 <- coerceContractId <$> Account.credit [publicParty] cashInstrument1 100_000.0 senderAccount
+
+  -- Create settlement factory
+  settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submitMulti [bank] [] do createCmd Factory with provider = bank; observers = singleton publicParty
+
+  -- Instruct transfer
+  let
+    step1 = Step with sender; receiver; quantity = Instrument.qty 200_000.0 cashInstrument1
+    step2 = Step with sender; receiver; quantity = Instrument.qty 100_000.0 cashInstrument1
+  (batchCid, [cashInstructionCid1, cashInstructionCid2]) <- submitMulti [bank] [] do
+    exerciseCmd settlementFactoryCid Factory.Instruct with
+      instructors = singleton bank; settlers = fromList [sender, receiver]; id = Id "transfer 1"; description = "transfer of 200000.0 USD and 100000.0 CHF payment"; steps = [step1, step2]
+
+  -- Allocate instruction
+  (cashInstructionCid1, _) <- submitMulti [sender] [publicParty] do exerciseCmd cashInstructionCid1 Instruction.Allocate with allocation = Pledge transferableCid1
+  (cashInstructionCid2, _) <- submitMulti [sender] [publicParty] do exerciseCmd cashInstructionCid2 Instruction.Allocate with allocation = Pledge transferableCid2
+
+  -- Approve instruction
+  cashInstructionCid1 <- submitMulti [receiver] [publicParty] do exerciseCmd cashInstructionCid1 Instruction.Approve with approval = TakeDelivery receiverAccount
+  cashInstructionCid2 <- submitMulti [receiver] [publicParty] do exerciseCmd cashInstructionCid2 Instruction.Approve with approval = TakeDelivery receiverAccount
+
+  -- Settle batch
+  -- either sender, receiver or both can settle
+  [cashHoldingCid1, cashHoldingCid2] <- submitMulti [sender] [publicParty] do exerciseCmd batchCid Batch.Settle with actors = singleton sender
+
+  -- Assert state
+  let ts = [(receiver, cashHoldingCid1), (receiver, cashHoldingCid2)]
   Holding.verifyOwnerOfHolding ts
   Holding.verifyNoObservers ts
 

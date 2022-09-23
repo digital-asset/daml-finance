@@ -8,23 +8,24 @@ import ContingentClaims.Financial(european)
 import ContingentClaims.Observation (Observation(..))
 import DA.Assert ((===))
 import DA.Date (addDays, toDateUTC)
+import DA.List (head)
 import DA.Map qualified as M (empty, fromList)
-import DA.Set (empty, singleton)
+import DA.Set (empty, singleton, toList)
 import DA.Text (sha256)
+import Daml.Finance.Data.Observable.Observation (Observation(..))
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..), T)
 import Daml.Finance.Instrument.Generic.Election (CreateElection(..), ElectionFactory(..))
 import Daml.Finance.Instrument.Generic.Test.Util (originateGeneric, dateToDateClockTime, mapClaimToUTCTime)
+import Daml.Finance.Interface.Claims.Types (C, Observable, Deliverable)
 import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (SplitResult(..), I, Split(..))
 import Daml.Finance.Interface.Holding.Util (getAmount, getOwner)
 import Daml.Finance.Interface.Instrument.Generic.Election qualified as Election (Apply(..), I)
-import Daml.Finance.Interface.Instrument.Generic.Types (C, Observable, Deliverable)
 import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..), I)
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
-import Daml.Finance.Interface.Types.Common (Id(..))
+import Daml.Finance.Interface.Types.Common (Id(..), Parties)
 import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
-import Daml.Finance.Data.Observable.Observation (Observation(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
 import Daml.Finance.Test.Util.Account qualified as Account (createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
@@ -49,8 +50,8 @@ data TestParties = TestParties
       -- ^ Owner of the option holding. Chooses to exercise the right of the call option.
     investor2 : Party
       -- ^ Owner of the option holding. Chooses to not exercise the right of the call option.
-    settler : Party
-      -- ^ Triggers the settlement of fully allocated settlement instructions.
+    settlers : Parties
+      -- ^ Any of the parties can trigger the settlement of fully allocated settlement instructions.
     publicParty : Party
       -- ^ The public party. Every party can readAs the public party.
 
@@ -83,7 +84,7 @@ run = script do
   -- Distribute cash
   now <- getTime
   let pp = [("PublicParty", singleton publicParty)]
-  cashInstrumentCid <- Instrument.originate centralBank centralBank "USD" "United States Doller" pp now
+  cashInstrumentCid <- Instrument.originate centralBank centralBank "USD" "United States Dollar" pp now
   bankCashTransferableCid <- Account.credit [publicParty] cashInstrumentCid 25_000.0 bankAccount
 
   -- Create observable for the underlying fixing
@@ -147,7 +148,7 @@ run = script do
     exerciseCmd exerciseOptionCid Election.Apply
       with
         clockCid
-        settler
+        settlers
         observableCids = [observableCid]
 
   -- Create settlement factory
@@ -160,7 +161,7 @@ run = script do
         custodian = bank
         owner = investor1
         claimers = singleton investor1
-        settler
+        settlers
         factoryCid = toInterfaceContractId settlementFactoryCid
 
   -- Cannot claim effect for a different amount than what was elected
@@ -183,13 +184,13 @@ run = script do
   let [bankCashInstructionCid] = result.instructionCids
 
   -- Allocate instructions
-  bankCashInstructionCid <- submitMulti [bank] [publicParty]  do exerciseCmd bankCashInstructionCid Instruction.Allocate with allocation = Pledge bankCashTransferableCid
+  (bankCashInstructionCid, _) <- submitMulti [bank] [publicParty]  do exerciseCmd bankCashInstructionCid Instruction.Allocate with allocation = Pledge bankCashTransferableCid
 
   -- Approve instructions
   bankCashInstructionCid <- submitMulti [investor1] [] do exerciseCmd bankCashInstructionCid Instruction.Approve with approval = TakeDelivery  investor1Account
 
   -- Settle batch
-  [investorCashTransferableCid] <- submitMulti [settler] [publicParty] do exerciseCmd result.batchCid Batch.Settle
+  [investorCashTransferableCid] <- submitMulti (toList settlers) [publicParty] do exerciseCmd result.batchCid Batch.Settle with actors = settlers
 
   -- Assert state
   Some investorCash <- queryContractId @Fungible.T investor1 $ coerceContractId investorCashTransferableCid
@@ -211,7 +212,7 @@ run = script do
     exerciseCmd expireOptionCid Election.Apply
       with
         clockCid
-        settler
+        settlers
         observableCids = [observableCid]
 
   -- Create settlement factory
@@ -223,7 +224,7 @@ run = script do
         custodian = bank
         owner = investor2
         claimers = singleton investor2
-        settler
+        settlers
         factoryCid = toInterfaceContractId settlementFactoryCid
 
   -- Investor 1 cannot claim an effect for an election made by Investor 2
@@ -241,7 +242,7 @@ run = script do
       effectCid
 
   -- Settle (empty) batch
-  submitMulti [settler] [] do exerciseCmd result.batchCid Batch.Settle
+  submitMulti [head $ toList settlers] [] do exerciseCmd result.batchCid Batch.Settle with actors = settlers
 
   pure ()
 
@@ -249,4 +250,4 @@ setupParties : Script TestParties
 setupParties = do
   [bank, broker, centralBank, investor1, investor2, settler, publicParty] <-
     createParties ["Bank", "Broker", "Central Bank", "Investor 1", "Investor 2", "Settler", "PublicParty"]
-  pure $ TestParties with bank; broker; centralBank; investor1; investor2; settler; publicParty
+  pure $ TestParties with bank; broker; centralBank; investor1; investor2; settlers = singleton settler; publicParty

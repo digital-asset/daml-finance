@@ -9,7 +9,7 @@ import DA.Assert ((===))
 import DA.Date (addDays, toDateUTC)
 import DA.Foldable qualified as F (forA_)
 import DA.Map qualified as M (fromList)
-import DA.Set (empty, fromList, singleton)
+import DA.Set (empty, fromList, singleton, toList)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Instrument.Generic.Test.Util (originateGeneric, mapClaimToUTCTime)
 import Daml.Finance.Interface.Holding.Account qualified as Account (K)
@@ -23,7 +23,7 @@ import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), Step)
-import Daml.Finance.Interface.Types.Common (Id(..))
+import Daml.Finance.Interface.Types.Common (Id(..), Parties)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, AddObservers(..))
 import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
 import Daml.Finance.Settlement.Factory (Factory(..), FactoryWithIntermediaries(..), Path(..))
@@ -74,8 +74,8 @@ data TestParties = TestParties
       -- ^ Acts as issuer of the bond instrument. It is also the party tasked with lifecycling of the bond.
     investor : Party
       -- ^ Owner of the bond holding.
-    settler : Party
-      -- ^ Triggers the settlement of fully allocated settlement instructions.
+    settlers : Parties
+      -- ^ Any party of the settlers triggers the settlement of fully allocated settlement instructions.
     publicParty : Party
       -- ^ The public party. Every party can readAs the public party.
 
@@ -105,7 +105,7 @@ run = script do
   -- Distribute central-bank cash
   now <- getTime
   let pp = [("PublicParty", singleton publicParty)]
-  cashInstrument <- BaseInstrument.originate centralBank centralBank "USD" "United States Doller" pp now
+  cashInstrument <- BaseInstrument.originate centralBank centralBank "USD" "United States Dollar" pp now
   issuerCashTransferableCid <- Account.credit [publicParty] cashInstrument 20_000.0 issuerCashAccount
 
   -- CREATE_CC_INSTRUMENT_VARIABLES_BEGIN
@@ -133,7 +133,7 @@ run = script do
   (clockCid, clockEventCid) <- createClockAndEvent (singleton issuer) today empty
 
   -- Lifecycle bond
-  (genericLifecycleCid2, [effectCid]) <- BaseInstrument.submitExerciseInterfaceByKeyCmd @Lifecycle.I [issuer] [] genericInstrument Lifecycle.Evolve with settler; eventCid = clockEventCid; observableCids = []; ruleName = "Time"; clockCid
+  (genericLifecycleCid2, [effectCid]) <- BaseInstrument.submitExerciseInterfaceByKeyCmd @Lifecycle.I [issuer] [] genericInstrument Lifecycle.Evolve with settlers; eventCid = clockEventCid; observableCids = []; ruleName = "Time"; clockCid
 
   -- setup settlement contract between issuer and CSD
   -- Setup settlement contract between issuer and CSD
@@ -176,7 +176,7 @@ run = script do
         custodian = csd
         owner = investor
         claimers = singleton investor
-        settler
+        settlers
         factoryCid = toInterfaceContractId factoryWithIntermediariesCid
 
   result <- submitMulti [investor] [publicParty] do
@@ -190,9 +190,9 @@ run = script do
     [csdCashInstructionCid, bankCashInstructionCid] = result.instructionCids
 
   -- Allocate instructions
-  csdCashInstructionCid <- submitMulti [csd] [] do exerciseCmd csdCashInstructionCid Instruction.Allocate with allocation = Pledge cashHolding
+  (csdCashInstructionCid, _) <- submitMulti [csd] [] do exerciseCmd csdCashInstructionCid Instruction.Allocate with allocation = Pledge cashHolding
   bankOwnCashTransferableCid <- Account.credit [publicParty] cashInstrument 20_000.0 bankOwnCashAccount
-  bankCashInstructionCid <- submitMulti [bank] [] do exerciseCmd bankCashInstructionCid Instruction.Allocate with allocation = Pledge bankOwnCashTransferableCid
+  (bankCashInstructionCid, _) <- submitMulti [bank] [] do exerciseCmd bankCashInstructionCid Instruction.Allocate with allocation = Pledge bankOwnCashTransferableCid
 
   -- Approve instructions
   csdCashInstructionCid <- submitMulti [bank] [] do
@@ -201,7 +201,7 @@ run = script do
     exerciseCmd bankCashInstructionCid Instruction.Approve with approval = TakeDelivery investorCashAccount
 
   -- Settle batch
-  [bankCashTransferableCid, investorCashTransferableCid] <- submitMulti [settler] [publicParty] do exerciseCmd result.batchCid Batch.Settle
+  [bankCashTransferableCid, investorCashTransferableCid] <- submitMulti (toList settlers) [publicParty] do exerciseCmd result.batchCid Batch.Settle with actors = settlers
 
   -- Assert state
   Holding.verifyOwnerOfHolding
@@ -215,7 +215,7 @@ run = script do
 setupParties : Script TestParties
 setupParties = do
   [bank, centralBank, csd, issuer, investor, settler, publicParty] <- createParties ["Bank", "CentralBank", "CSD", "Issuer", "Investor", "Settler", "PublicParty"]
-  pure $ TestParties with bank; centralBank; csd; issuer; investor; settler; publicParty
+  pure $ TestParties with bank; centralBank; csd; issuer; investor; settlers = singleton settler; publicParty
 
 -- | Service template that allows to claim an effect and settle the corresponding transactions atomically.
 template EffectSettlementService
@@ -284,7 +284,7 @@ template EffectSettlementService
             custodian = issuer
             owner = csd
             claimers = singleton csd
-            settler = csd
+            settlers = singleton csd
             factoryCid = toInterfaceContractId settlementFactoryCid
 
         result <- exercise (toInterfaceContractId @Claim.I lifecycleClaimRuleCid) Claim.ClaimEffect with

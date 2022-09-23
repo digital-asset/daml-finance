@@ -20,10 +20,10 @@ run = script do
     createParties ["Custodian", "Issuer", "Investor", "PublicParty"]
 
   -- Account and holding factory
-  let pp = [("FactoryProvider", singleton publicParty)]
-  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory custodian pp
+  let fp = [("FactoryProvider", singleton publicParty)]
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory custodian fp
   holdingFactoryCid <- toInterfaceContractId <$> submitMulti [custodian] [] do
-    createCmd Fungible.Factory with provider = custodian; observers = M.fromList pp
+    createCmd Fungible.Factory with provider = custodian; observers = M.fromList fp
 
   -- Create accounts
   [custodianAccount, investorAccount] <- mapA (Account.createAccount "Default Account" [publicParty] accountFactoryCid holdingFactoryCid [] custodian) [custodian, investor]
@@ -42,32 +42,34 @@ run = script do
     maturityDate = date 2019 May 15
     firstFxRate = 1.1
     finalFxRate = 1.2
-    firstForeignPaymentAmount : Decimal = 1_100_000.0
-    firstBasePaymentAmount : Decimal = 1_000_000.0
-    secondForeignPaymentAmount : Decimal = 1_200_000.0
-    secondBasePaymentAmount : Decimal = 1_000_000.0
+    firstForeignPaymentAmount = 1_100_000.0
+    firstBasePaymentAmount = 1_000_000.0
+    secondForeignPaymentAmount = 1_200_000.0
+    secondBasePaymentAmount = 1_000_000.0
     principalAmount = 1_000_000.0
 
-  swapInstrument <- originateForeignExchangeSwap custodian issuer "SwapTest1" "Foreign exchange swap" pp now issueDate firstPaymentDate maturityDate cashInstrumentCid foreignCashInstrumentCid firstFxRate finalFxRate
+  swapInstrument <- originateForeignExchangeSwap custodian issuer "SwapTest1" "Foreign exchange swap" fp now issueDate firstPaymentDate maturityDate cashInstrumentCid foreignCashInstrumentCid firstFxRate finalFxRate
   investorSwapTransferableCid <- Account.credit [publicParty] swapInstrument principalAmount investorAccount
 
+  let settlers = singleton custodian
+
   -- One day before the first payment date: try to lifecycle and verify that there are no lifecycle effects.
-  verifyNoLifecycleEffects [publicParty] (subtractDays firstPaymentDate 1) swapInstrument custodian issuer []
+  verifyNoLifecycleEffects [publicParty] (subtractDays firstPaymentDate 1) swapInstrument settlers issuer []
 
   -- First payment date: Lifecycle and verify that there are lifecycle effects for the fx payments.
   investorCashForBasePaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid firstBasePaymentAmount investorAccount
   custodianCashForForeignPaymentTransferableCid <- Account.credit [publicParty] foreignCashInstrumentCid firstForeignPaymentAmount custodianAccount
-  (swapInstrumentAfterFirstPayment, investorSwapTransferableCid) <- lifecycleAndVerifySwapPaymentEffectsAndSettlement [publicParty] firstPaymentDate swapInstrument custodian issuer investor investorSwapTransferableCid investorCashForBasePaymentTransferableCid custodianCashForForeignPaymentTransferableCid custodianAccount investorAccount observers custodian []
+  (swapInstrumentAfterFirstPayment, investorSwapTransferableCid) <- lifecycleAndVerifySwapPaymentEffectsAndSettlement [publicParty] firstPaymentDate swapInstrument settlers issuer investor investorSwapTransferableCid investorCashForBasePaymentTransferableCid custodianCashForForeignPaymentTransferableCid custodianAccount investorAccount observers custodian []
 
   -- One day after the first payment date: try to lifecycle and verify that there are no lifecycle effects.
-  verifyNoLifecycleEffects [publicParty] (addDays firstPaymentDate 1) swapInstrumentAfterFirstPayment custodian issuer []
+  verifyNoLifecycleEffects [publicParty] (addDays firstPaymentDate 1) swapInstrumentAfterFirstPayment settlers issuer []
 
   -- One day before expiry: try to lifecycle and verify that there are no lifecycle effects.
-  verifyNoLifecycleEffects [publicParty] (subtractDays maturityDate 1) swapInstrumentAfterFirstPayment custodian issuer []
+  verifyNoLifecycleEffects [publicParty] (subtractDays maturityDate 1) swapInstrumentAfterFirstPayment settlers issuer []
 
   -- Lifecycle on the second payment date, which is also the expiry date. Verify that there are lifecycle effects for the fx payments.
   investorCashForForeignPaymentTransferableCid <- Account.credit [publicParty] foreignCashInstrumentCid secondForeignPaymentAmount investorAccount
   custodianCashForBasePaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid secondBasePaymentAmount custodianAccount
-  lifecycleAndVerifyFinalSwapPaymentEffects [publicParty] maturityDate swapInstrumentAfterFirstPayment custodian issuer investor investorSwapTransferableCid investorCashForForeignPaymentTransferableCid custodianCashForBasePaymentTransferableCid custodianAccount investorAccount observers custodian []
+  lifecycleAndVerifyFinalSwapPaymentEffects [publicParty] maturityDate swapInstrumentAfterFirstPayment settlers issuer investor investorSwapTransferableCid investorCashForForeignPaymentTransferableCid custodianCashForBasePaymentTransferableCid custodianAccount investorAccount observers custodian []
 
   pure ()

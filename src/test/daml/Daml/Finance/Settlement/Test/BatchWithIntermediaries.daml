@@ -4,7 +4,7 @@
 module Daml.Finance.Settlement.Test.BatchWithIntermediaries where
 
 import DA.Map qualified as M (fromList)
-import DA.Set (empty, singleton)
+import DA.Set (empty, fromList, singleton)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (qty)
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
@@ -37,7 +37,7 @@ data TestParties = TestParties
     publicParty : Party
       -- ^ The public party. Every party can readAs the public party.
 
--- | DvP via settlement chain and instructions.
+-- DvP via settlement chain and instructions.
 -- Buyer transfers cash to Seller in exchange for an equity instrument (detained by issuer at depository).
 -- Seller transfers equity to Buyer in exchange for cash.
 -- +------------------------------------------------------+
@@ -81,7 +81,7 @@ run settleWithOwnAccount = script do
   now <- getTime
   equityInstrument <- Instrument.originate csd issuer "AAPL" "Apple Inc." [] now
   equityTransferableCid <- Account.credit [] equityInstrument 1_000.0 sellerSecurityAccount
-  cashInstrument <- Instrument.originate cb cb "USD" "United States Doller" [] now
+  cashInstrument <- Instrument.originate cb cb "USD" "United States Dollar" [] now
   buyerCashTransferableCid <- Account.credit [] cashInstrument 200_000.0 buyerCashAccount
 
   -- Instruct settlement (by first creating a settlement factory with intermediaries from Buyer to Seller)
@@ -101,12 +101,12 @@ run settleWithOwnAccount = script do
       , Step with sender = buyer; receiver = seller; quantity = Instrument.qty 200_000.0 cashInstrument
       ]
   (batchCid, [equityInstructionCid, cashInstruction1Cid, cashInstruction2Cid]) <-
-    submitMulti [buyer] [] do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = singleton buyer; settler = buyer; id = Id "APPL 1000@200.0USD"; description = "DVP"; steps
+    submitMulti [buyer, seller] [] do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = fromList [buyer, seller]; settlers = fromList [buyer, seller]; id = Id "APPL 1000@200.0USD"; description = "DVP"; steps
 
   -- Allocate instructions
-  equityInstructionCid <- submitMulti [seller] [] do exerciseCmd equityInstructionCid Instruction.Allocate with allocation = Pledge equityTransferableCid
-  cashInstruction1Cid <- submitMulti [buyer] [] do exerciseCmd cashInstruction1Cid Instruction.Allocate with allocation = Pledge buyerCashTransferableCid
-  cashInstruction2Cid <-
+  (equityInstructionCid, _) <- submitMulti [seller] [] do exerciseCmd equityInstructionCid Instruction.Allocate with allocation = Pledge equityTransferableCid
+  (cashInstruction1Cid, _) <- submitMulti [buyer] [] do exerciseCmd cashInstruction1Cid Instruction.Allocate with allocation = Pledge buyerCashTransferableCid
+  (cashInstruction2Cid, _) <-
     if settleWithOwnAccount then
       do
         ownCashAccount <- Account.createAccount "Own Cash Account" [] accountFactoryCid holdingFactoryCid [] bank bank
@@ -122,7 +122,7 @@ run settleWithOwnAccount = script do
 
   -- Settle batch
   [equityTransferableCid, bankCashTransferableCid, sellerCashTransferableCid] <-
-    submitMulti [buyer] [publicParty] do exerciseCmd batchCid Batch.Settle
+    submitMulti [buyer] [publicParty] do exerciseCmd batchCid Batch.Settle with actors = singleton buyer
 
   -- Assert state
   let ts = [(buyer, equityTransferableCid), (bank, bankCashTransferableCid), (seller, sellerCashTransferableCid)]
@@ -131,7 +131,7 @@ run settleWithOwnAccount = script do
 
   pure ()
 
--- | Settlement where the Bank allocates its `Instruction` using an "own" account. To be more precise,
+-- Settlement where the Bank allocates its `Instruction` using an "own" account. To be more precise,
 -- the Bank allocates its `Instruction` (between itself and the seller) using cash which it has credited to
 -- an account where the Bank takes the role as both the custodian and the owner (i.e., an IOU to itself).
 -- Although this works, it is more efficient for the Bank to allocate using a direct credit instead (see the following
@@ -139,7 +139,7 @@ run settleWithOwnAccount = script do
 run1 : Script ()
 run1 = run True
 
--- | Settlement where the Bank allocates its `Instruction` with a direct credit to the seller.
+-- Settlement where the Bank allocates its `Instruction` with a direct credit to the seller.
 run2 : Script ()
 run2 = run False
 

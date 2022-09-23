@@ -17,6 +17,7 @@ daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.U
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Data
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Holding
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Base
+daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Claims
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Settlement
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Lifecycle
 # Implementations
@@ -24,16 +25,17 @@ daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Util
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Holding
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Settlement
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Lifecycle
-daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Instrument.Base
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Data
 
 ## Clean Extensions
 # Interfaces
+daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Token
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Generic
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Bond
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Equity
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Swap
 # Implementations
+daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Instrument.Token
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Instrument.Generic
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Instrument.Bond
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Instrument.Equity

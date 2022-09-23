@@ -1,12 +1,15 @@
 -- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
 module Daml.Finance.Holding.NonTransferable where
 
 import DA.Set (delete, insert, null, singleton)
-import Daml.Finance.Interface.Holding.Base qualified as Base (I, HasImplementation, View(..))
+import Daml.Finance.Interface.Holding.Base qualified as Base (I, View(..))
 import Daml.Finance.Interface.Holding.Factory.Holding qualified as HoldingFactory (Create(..), F, HasImplementation(..), Remove(..), View(..))
 import Daml.Finance.Interface.Holding.Lockable qualified as Lockable (Acquire(..), I, Lock(..), LockType(..), Release(..), View(..))
+import Daml.Finance.Interface.Holding.Lockable qualified as NonTransferable (HasImplementation)
 import Daml.Finance.Interface.Holding.Util (getLocker)
 import Daml.Finance.Interface.Types.Common (AccountKey(..), InstrumentKey(..), PartiesMap)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
@@ -18,7 +21,7 @@ type F = Factory
 -- | Type synonym for `NonTransferable`.
 type T = NonTransferable
 
-instance Base.HasImplementation T
+instance NonTransferable.HasImplementation T
 -- | Implementation of a non-transferable holding.
 -- `NonTransferable` implements the interface `Lockable.I` (which requires `Base.I`, and
 -- `Disclosure.I` to be implemented as well).
@@ -47,29 +50,39 @@ template NonTransferable
 
     interface instance Base.I for NonTransferable where
       asDisclosure = toInterface @Disclosure.I this
-      view = Base.View with
-        instrument
-        account = AccountKey with custodian = account.custodian; owner = account.owner; id = account.id
-        amount
+      view = Base.View with instrument; account; amount
 
     interface instance Lockable.I for NonTransferable where
       asHolding = toInterface @Base.I this
       view = Lockable.View with lock
-      acquire Lockable.Acquire{newLocker; context; lockType} = do
-        newLock <- case (lock, lockType) of
-          (Some existingLock, Lockable.Reentrant) -> pure existingLock with context = context `insert` existingLock.context
-          (None, _) -> pure Lockable.Lock with locker = newLocker; context = singleton context; lockType
-          _ -> abort "Contract is already locked."
-        toInterfaceContractId <$> create this with lock = Some newLock
-      release Lockable.Release{context} = do
-        let
-          f currentLock = do
-            let newContext = context `delete` currentLock.context
-            case (currentLock.lockType, null newContext) of
-              (Lockable.Reentrant, False) -> Some currentLock with context = newContext
-              _ -> None
-          releasedLock = lock >>= f
-        toInterfaceContractId <$> create this with lock = releasedLock
+      acquire = acquireImpl @NonTransferable (toInterface @Lockable.I this)
+      release = releaseImpl @NonTransferable (toInterface @Lockable.I this)
+
+-- | Implementation of acquire.
+acquireImpl : forall t. (HasCreate t, DA.Internal.Record.HasField "lock" t (Optional Lockable.Lock), HasFromInterface t Lockable.I, HasToInterface t Lockable.I) => Lockable.I -> Lockable.Acquire -> Update (ContractId Lockable.I)
+acquireImpl lockable Lockable.Acquire{newLocker; context; lockType} =
+  do
+    let v = view lockable
+    newLock <- case (v.lock, lockType) of
+      (Some existingLock, Lockable.Reentrant) -> pure existingLock with context = context `insert` existingLock.context
+      (None, _) -> pure Lockable.Lock with locker = newLocker; context = singleton context; lockType
+      _ -> abort "Contract is already locked."
+    let Some this = fromInterface @t lockable
+    toInterfaceContractId <$> create this with lock = Some newLock
+
+-- | Implementation of release.
+releaseImpl : forall t. (HasCreate t, DA.Internal.Record.HasField "lock" t (Optional Lockable.Lock), HasFromInterface t Lockable.I, HasToInterface t Lockable.I) => Lockable.I -> Lockable.Release -> Update (ContractId Lockable.I)
+releaseImpl lockable Lockable.Release{context} = do
+    let
+      v = view lockable
+      f currentLock = do
+        let newContext = context `delete` currentLock.context
+        case (currentLock.lockType, null newContext) of
+          (Lockable.Reentrant, False) -> Some currentLock with context = newContext
+          _ -> None
+      releasedLock = v.lock >>= f
+    let Some this = fromInterface @t lockable
+    toInterfaceContractId <$> create this with lock = releasedLock
 
 instance HoldingFactory.HasImplementation Factory
 -- | Implementation of the corresponding Holding Factory.
