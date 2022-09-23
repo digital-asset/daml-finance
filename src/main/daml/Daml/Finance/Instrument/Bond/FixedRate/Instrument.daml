@@ -1,14 +1,14 @@
 -- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
-module Daml.Finance.Instrument.Bond.FixedRate where
+module Daml.Finance.Instrument.Bond.FixedRate.Instrument where
 
 import DA.Set (singleton)
 import Daml.Finance.Instrument.Generic.Util
 import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, View(..))
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (GetCid(..), I, K, R, View(..), createReference, disclosureUpdateReference)
-import Daml.Finance.Interface.Instrument.Bond.Factory.FixedRate qualified as FixedRate (Create(..), Factory, HasImplementation, Remove(..), View(..))
-import Daml.Finance.Interface.Instrument.Bond.Instrument qualified as BondInstrument (HasImplementation, I, View(..))
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, K, View(..), disclosureUpdateReference)
+import Daml.Finance.Interface.Instrument.Bond.FixedRate.Instrument qualified as FixedRate (HasImplementation, I, View(..))
+import Daml.Finance.Interface.Instrument.Bond.FixedRate.Types (FixedRate(..))
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..), View(..))
 import Daml.Finance.Interface.Types.Common (Id(..), InstrumentKey(..), PartiesMap)
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
@@ -19,7 +19,7 @@ import Prelude hiding (key)
 -- | Type synonym for `Instrument`.
 type T = Instrument
 
-instance BondInstrument.HasImplementation T
+instance FixedRate.HasImplementation T
 
 -- FIXED_RATE_BOND_TEMPLATE_BEGIN
 -- | This template models a fixed rate bond.
@@ -78,9 +78,9 @@ template Instrument
       view = BaseInstrument.View with depository; issuer; id; version; description; validAsOf = lastEventTimestamp
       getKey = instrumentKey
 
-    interface instance BondInstrument.I for Instrument where
+    interface instance FixedRate.I for Instrument where
       asBaseInstrument = toInterface @BaseInstrument.I this
-      view = BondInstrument.View with currency
+      view = FixedRate.View with fixedRate = FixedRate with instrumentKey; description; couponRate; periodicSchedule; holidayCalendarIds; calendarDataProvider; dayCountConvention; currency; lastEventTimestamp; observers
 
     interface instance Lifecycle.I for Instrument where
       view = Lifecycle.View with lifecycler = issuer
@@ -94,48 +94,4 @@ template Instrument
       setObservers Disclosure.SetObservers{newObservers} = do
         cid <- toInterfaceContractId <$> create this with observers = newObservers
         BaseInstrument.disclosureUpdateReference newObservers instrumentKey cid
-      archive' self = archive (coerceContractId self : ContractId Instrument)
-
-instance FixedRate.HasImplementation Factory
--- | Factory template for instrument creation.
-template Factory
-  with
-    provider : Party
-      -- ^ The factory's provider.
-    observers : PartiesMap
-      -- ^ The factory's observers.
-  where
-    signatory provider
-    observer Disclosure.flattenObservers observers
-
-    interface instance FixedRate.Factory for Factory where
-      asDisclosure = toInterface @Disclosure.I this
-      view = FixedRate.View with provider
-      create' FixedRate.Create{instrument; description; couponRate; periodicSchedule; holidayCalendarIds; calendarDataProvider; dayCountConvention; currency; lastEventTimestamp; observers} = do
-        cid <- toInterfaceContractId <$> create Instrument
-          with
-            depository = instrument.depository
-            issuer = instrument.issuer
-            id = instrument.id
-            version = instrument.version
-            description
-            couponRate
-            periodicSchedule
-            holidayCalendarIds
-            calendarDataProvider
-            dayCountConvention
-            currency
-            lastEventTimestamp
-            observers
-        BaseInstrument.createReference instrument.depository cid
-        pure cid
-      remove FixedRate.Remove{instrument} = do
-        (refCid, ref) <- fetchByKey @BaseInstrument.R instrument
-        instrumentCid <- exercise refCid BaseInstrument.GetCid with viewer = instrument.depository
-        archive $ fromInterfaceContractId @Instrument instrumentCid
-        archive refCid
-
-    interface instance Disclosure.I for Factory where
-      view = Disclosure.View with disclosureControllers = singleton provider; observers
-      setObservers Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
       archive' self = archive (coerceContractId self : ContractId Instrument)
