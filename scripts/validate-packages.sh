@@ -27,7 +27,7 @@ ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Dat
 
 ## Validate Extensions
 # Interfaces
-${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Standard
+${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Token
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Generic
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Bond
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Equity
