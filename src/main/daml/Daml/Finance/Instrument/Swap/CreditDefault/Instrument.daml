@@ -1,14 +1,14 @@
 -- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
-module Daml.Finance.Instrument.Swap.InterestRate.Instrument where
+module Daml.Finance.Instrument.Swap.CreditDefault.Instrument where
 
 import DA.Set (singleton)
 import Daml.Finance.Instrument.Generic.Util
 import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, View(..))
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, K, View(..), disclosureUpdateReference)
-import Daml.Finance.Interface.Instrument.Swap.InterestRate.Instrument qualified as InterestRate (HasImplementation, I, View(..))
-import Daml.Finance.Interface.Instrument.Swap.InterestRate.Types (InterestRate(..))
+import Daml.Finance.Interface.Instrument.Swap.CreditDefault.Instrument qualified as CreditDefaultSwap (HasImplementation, I, View(..))
+import Daml.Finance.Interface.Instrument.Swap.CreditDefault.Types (CreditDefault(..))
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..), View(..))
 import Daml.Finance.Interface.Types.Common (Id(..), InstrumentKey(..), PartiesMap)
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
@@ -19,12 +19,11 @@ import Prelude hiding (key)
 -- | Type synonym for `Instrument`.
 type T = Instrument
 
-instance InterestRate.HasImplementation T
+instance CreditDefaultSwap.HasImplementation T
 
--- | This template models an interest rate swap.
--- It pays a fix vs floating rate at the end of every payment period.
--- The floating leg depends on a reference rate (observed at the beginning of the swap payment period).
--- For example: 3M Euribor vs 2.5% fix.
+-- | This template models a cash-settled credit default swap.
+-- In case of a credit default event it pays (1-recoveryRate), in exchange for a fix rate at the end of every payment period.
+-- For example: 2.5% fix vs (1-recoveryRate) if TSLA defaults on a bond payment
 template Instrument
   with
     depository : Party
@@ -37,12 +36,14 @@ template Instrument
       -- ^ The instrument's version.
     description : Text
       -- ^ A description of the instrument.
-    referenceRateId : Text
-      -- ^ The floating rate reference ID. For example, in case of "3M Euribor vs 2.5% fix" this should be a valid reference to the "3M Euribor" reference rate.
+    defaultProbabilityReferenceId : Text
+      -- ^ The reference ID of the default probability observable. For example, in case of protection against a "TSLA a bond payment default" this should be a valid reference to the "TSLA default probability".
+    recoveryRateReferenceId : Text
+      -- ^ The reference ID of the recovery rate observable. For example, in case of a "TSLA a bond payment default with a 60% recovery rate" this should be a valid reference to the "TSLA bond recovery rate".
     issuerPaysFix : Bool
-      -- ^ Indicate whether the issuer of the instrument pays the fix or the floating leg of the swap.
+      -- ^ Indicate whether the issuer of the instrument pays the fix rate leg or the default protection leg of the swap.
     fixRate : Decimal
-      -- ^ The interest rate of the fix leg. For example, in case of "3M Euribor vs 2.5% fix" this should be 0.025.
+      -- ^ The interest rate of the fix leg. For example, in case of "2.5% fix" this should be 0.025.
     periodicSchedule : PeriodicSchedule
       -- ^ The schedule for the periodic swap payments.
     holidayCalendarIds : [Text]
@@ -70,19 +71,19 @@ template Instrument
         schedule <- rollPaymentSchedule periodicSchedule holidayCalendarIds issuer calendarDataProvider
         let
           useAdjustedDatesForDcf = True
-          issuerPaysFloatingLeg = not issuerPaysFix
-          fixClaims = createFixRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf fixRate issuerPaysFix dayCountConvention currency
-          floatingClaims = createFloatingRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf 0.0 issuerPaysFloatingLeg dayCountConvention currency referenceRateId
-        pure $ [fixClaims, floatingClaims]
+          issuerPaysCreditLeg = not issuerPaysFix
+          fixClaims = createConditionalCreditFixRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf fixRate issuerPaysFix dayCountConvention currency defaultProbabilityReferenceId
+          creditDefaultClaims = createCreditEventPaymentClaims issuerPaysCreditLeg currency defaultProbabilityReferenceId recoveryRateReferenceId periodicSchedule
+        pure $ [fixClaims, creditDefaultClaims]
 
     interface instance BaseInstrument.I for Instrument where
       asDisclosure = toInterface @Disclosure.I this
       view = BaseInstrument.View with depository; issuer; id; version; description; validAsOf = lastEventTimestamp
       getKey = instrumentKey
 
-    interface instance InterestRate.I for Instrument where
+    interface instance CreditDefaultSwap.I for Instrument where
       asBaseInstrument = toInterface @BaseInstrument.I this
-      view = InterestRate.View with interestRate = InterestRate with instrumentKey; description; referenceRateId; issuerPaysFix; fixRate; periodicSchedule; holidayCalendarIds; calendarDataProvider; dayCountConvention; currency; lastEventTimestamp; observers
+      view = CreditDefaultSwap.View with creditDefault = CreditDefault with instrumentKey; description; defaultProbabilityReferenceId; recoveryRateReferenceId; issuerPaysFix; fixRate; periodicSchedule; holidayCalendarIds; calendarDataProvider; dayCountConvention; currency; lastEventTimestamp; observers
 
     interface instance Lifecycle.I for Instrument where
       view = Lifecycle.View with lifecycler = issuer
