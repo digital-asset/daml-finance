@@ -34,12 +34,13 @@ Core Implementations
 
     - :ref:`Effect <module-daml-finance-lifecycle-effect-1975>`: A contract encoding the *consequences of a lifecycle event* for one unit of the target instrument.
     - :ref:`ElectionEffect <module-daml-finance-lifecycle-electioneffect-99924>`: A contract encoding the *consequences of an election* for one unit of the target instrument.
-    - :ref:`Time.DateClock <module-daml-finance-lifecycle-time-dateclock-55943>`: Event signalling the update of a clock. This can trigger the execution of lifecycle rules for some instruments.
+    - :ref:`DateClock <module-daml-finance-lifecycle-dateclock-31311>`: Rule contract that allows an actor to process/claim effects, returning settlement instructions.
     - :ref:`Rule.Claim <module-daml-finance-lifecycle-rule-claim-99318>`: Rule contract that allows an actor to process/claim effects, returning settlement instructions.
     - :ref:`Rule.Distribution <module-daml-finance-lifecycle-rule-distribution-35531>`: Rule contract that defines the distribution of units of an instrument for each unit of a target instrument (e.g. share or cash dividends).
     - :ref:`Rule.Replacement <module-daml-finance-lifecycle-rule-replacement-6984>`: Rule contract that defines the replacement of units of an instrument with a basket of other instruments (e.g. stock merger).
     - :ref:`Event.Distribution <module-daml-finance-lifecycle-event-distribution-17302>`: Event contract for the distribution of units of an instrument for each unit of a target instrument (e.g. share or cash dividends).
     - :ref:`Event.Replacement <module-daml-finance-lifecycle-event-replacement-51859>`: Event contract for the replacement of units of an instrument with a basket of other instruments (e.g. stock merger).
+    - :ref:`Event.DateClock <module-daml-finance-lifecycle-event-dateclock-57483>`: Event signalling the update of a clock. This can trigger the execution of lifecycle rules for some instruments.
 
     Check out the :doc:`Lifecycling tutorial <../../tutorials/getting-started/lifecycling>` for a description on how lifecycling works in practice, including how to ``Claim`` an ``Effect``.
     There is also the tutorial :doc:`How to implement a Contingent Claims-based instrument <../../tutorials/instrument-modeling/contingent-claims-instrument>`, which describes how create an ``Effect``.
