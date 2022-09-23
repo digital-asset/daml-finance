@@ -3,7 +3,7 @@
 
 module Daml.Finance.Instrument.Generic.Util where
 
-import ContingentClaims.Claim (Claim(..), Inequality(..), one, scale, when)
+import ContingentClaims.Claim (Claim(..), Inequality(..), one, scale, when, until)
 import ContingentClaims.Observation (Observation(..))
 import DA.Date
 import DA.Record (HasField)
@@ -46,14 +46,14 @@ rollPaymentSchedule periodicSchedule holidayCalendarIds issuer calendarDataAgenc
   pure $ createSchedule cals periodicSchedule
 
 -- | Convert the claims to UTCTime and tag them.
-prepareAndTagClaims : Applicative f => [Claim Date Decimal Deliverable Observable] -> Text -> f [TaggedClaim]
+prepareAndTagClaims : [Claim Date Decimal Deliverable Observable] -> Text -> TaggedClaim
 prepareAndTagClaims cs tag = do
   let claim = mapClaimToUTCTime $ mconcat cs
-  pure [TaggedClaim with tag; claim]
+  TaggedClaim with tag; claim
 
 -- FIXED_RATE_BOND_COUPON_CLAIMS_BEGIN
 -- | Calculate a fix rate amount for each payment date and create claims.
-createFixRatePaymentClaims : Applicative f => [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Decimal -> DayCountConventionEnum -> Deliverable -> f [TaggedClaim]
+createFixRatePaymentClaims : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Decimal -> DayCountConventionEnum -> Deliverable -> TaggedClaim
 createFixRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf couponRate weightMultiplier dayCountConvention cashInstrumentCid = do
   let
     couponDatesAdjusted = map (.adjustedEndDate) schedule
@@ -62,12 +62,32 @@ createFixRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf coup
   prepareAndTagClaims couponClaims "Fix rate payment"
 -- FIXED_RATE_BOND_COUPON_CLAIMS_END
 
+-- | Calculate a fix rate amount (if a credit event has not yet happened) for each payment date and create claims.
+createConditionalCreditFixRatePaymentClaims : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Decimal -> DayCountConventionEnum -> Deliverable -> Observable -> TaggedClaim
+createConditionalCreditFixRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf couponRate weightMultiplier dayCountConvention cashInstrumentCid defaultProbabilityReferenceId = do
+  let
+    creditEvent = Lte (Const 1.0, Observe defaultProbabilityReferenceId)
+    couponDatesAdjusted = map (.adjustedEndDate) schedule
+    couponAmounts = map (\p -> couponRate * (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency)) schedule
+    couponClaims = zipWith (\d a -> when (TimeGte $ d) $ scale (Const weightMultiplier * Const a) $ one cashInstrumentCid) couponDatesAdjusted couponAmounts
+    couponClaimsUntilCreditEvent = [until creditEvent $ mconcat couponClaims]
+  prepareAndTagClaims couponClaimsUntilCreditEvent "Fix rate payment (unless credit event has occurred)"
+
+-- | Calculate a (1-recoveryRate) payment if a credit event just happened and create claims.
+createCreditEventPaymentClaims : Decimal -> Deliverable -> Observable -> Observable -> PeriodicSchedule -> TaggedClaim
+createCreditEventPaymentClaims weightMultiplier cashInstrumentCid defaultProbabilityReferenceId recoveryRateReferenceId periodicSchedule = do
+  let
+    creditEvent = Lte (Const 1.0, Observe defaultProbabilityReferenceId)
+    payoff = scale (Const weightMultiplier * (Const 1.0 - Observe recoveryRateReferenceId)) $ one cashInstrumentCid
+    creditEventClaims = [when (TimeGte $ periodicSchedule.effectiveDate) $ until (TimeGte $ periodicSchedule.terminationDate) $ when creditEvent payoff]
+  prepareAndTagClaims creditEventClaims "Credit event payment"
+
 -- FLOATING_RATE_BOND_COUPON_CLAIMS_BEGIN
 -- | Calculate a floating rate amount for each payment date and create claims.
 -- The floating rate is always observed on the first day of each payment period and used for the corresponding payment on the last day of that payment period.
 -- This means that the calculation agent needs to provide such an Observable, irrespective of
 -- the kind of reference rate used (e.g. a forward looking LIBOR or a backward looking SOFR-COMPOUND).
-createFloatingRatePaymentClaims : Applicative f => [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Decimal -> DayCountConventionEnum -> Deliverable -> Observable -> f [TaggedClaim]
+createFloatingRatePaymentClaims : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Decimal -> DayCountConventionEnum -> Deliverable -> Observable -> TaggedClaim
 createFloatingRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf floatingRateSpread weightMultiplier dayCountConvention cashInstrumentCid referenceRateId = do
   let
     couponClaims = map (\p ->
@@ -78,14 +98,14 @@ createFloatingRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf
 
 -- FIXED_RATE_BOND_REDEMPTION_CLAIM_BEGIN
 -- | Create a redemption claim.
-createRedemptionClaim : Applicative f => Deliverable -> Date -> f [TaggedClaim]
+createRedemptionClaim : Deliverable -> Date -> TaggedClaim
 createRedemptionClaim cashInstrumentCid maturityDate = do
   let redemptionClaim = [when (TimeGte $ maturityDate) $ one cashInstrumentCid]
   prepareAndTagClaims redemptionClaim "Redemption payment"
 -- FIXED_RATE_BOND_REDEMPTION_CLAIM_END
 
 -- | Create an FX leg claim.
-createFxLegPrincipalClaim : Applicative f => Decimal -> Decimal -> Deliverable -> Date -> f [TaggedClaim]
+createFxLegPrincipalClaim : Decimal -> Decimal -> Deliverable -> Date -> TaggedClaim
 createFxLegPrincipalClaim weightMultiplier fxRateMultiplier cashInstrumentCid valueDate = do
   let fxLegClaim = [when (TimeGte $ valueDate) $ scale (Const weightMultiplier * Const fxRateMultiplier) $ one cashInstrumentCid]
   prepareAndTagClaims fxLegClaim "FX leg payment"
