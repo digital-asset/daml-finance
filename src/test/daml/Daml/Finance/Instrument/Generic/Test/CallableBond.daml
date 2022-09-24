@@ -7,8 +7,8 @@ import ContingentClaims.Claim (and, at, give, one, or, scale, when)
 import ContingentClaims.Observation (Observation(..))
 import DA.Assert ((===))
 import DA.Date as D (Month(..), date)
-import DA.Map (fromList)
-import DA.Set (empty, singleton, toList)
+import DA.Map qualified as M (fromList)
+import DA.Set (empty, fromList, singleton, toList)
 import DA.Time (time)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..), T)
 import Daml.Finance.Instrument.Generic.Election (CreateElection(..), ElectionFactory(..))
@@ -71,7 +71,7 @@ run = script do
   let fp = [("FactoryProvider", singleton publicParty)]
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank fp
   holdingFactoryCid <- toInterfaceContractId <$> submit bank do
-    createCmd Fungible.Factory with provider = bank; observers = fromList fp
+    createCmd Fungible.Factory with provider = bank; observers = M.fromList fp
 
   -- Create accounts
   [bankAccount, investorAccount] <- mapA (Account.createAccount "Default Account" [publicParty] accountFactoryCid holdingFactoryCid [] bank) [bank, investor]
@@ -128,7 +128,7 @@ run = script do
       amount = 1.0
 
   -- Apply election to generate new instrument version + effects
-  (_, [effectCid]) <- submitMulti [issuer] [] do
+  (_, [effectCid]) <- submit issuer do
     exerciseCmd callBondCid Election.Apply
       with
         clockCid
@@ -136,16 +136,15 @@ run = script do
         observableCids = []
 
   -- Create settlement factory
-  settlementFactoryCid <- submitMulti [bank] [] do createCmd Factory with provider = bank; observers = empty
+  settlementFactoryCid <- toInterfaceContractId <$> submit bank do createCmd Factory with provider = bank; observers = empty
 
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [bank, investor] [] do
     createCmd Claim.Rule
       with
-        custodian = bank
-        owner = investor
+        providers = fromList [bank, investor]
         claimers = singleton bank
         settlers
-        factoryCid = toInterfaceContractId settlementFactoryCid
+        settlementFactoryCid
 
   -- Claim effect
   result <- submitMulti [bank] [publicParty] do
@@ -153,6 +152,7 @@ run = script do
       claimer = bank
       holdingCids = [investorGenericTransferableCid]
       effectCid
+      batchId = Id "BondCallSettlement"
 
   let [bankCashInstructionCouponCid, bankCashInstructionPrincipalCid] = result.instructionCids
 

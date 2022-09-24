@@ -4,8 +4,7 @@
 module Daml.Finance.Lifecycle.Rule.Claim where
 
 import DA.Foldable (forA_)
-import DA.Set (fromList, member)
-import DA.Text (sha256)
+import DA.Set (member)
 import Daml.Finance.Interface.Holding.Account qualified as Account (exerciseInterfaceByKey, Debit(..), Credit(..), I)
 import Daml.Finance.Interface.Holding.Util (getAccount, getAmount, getCustodian, getInstrument, getOwner)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (qty)
@@ -13,7 +12,7 @@ import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (CalculationR
 import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimResult(..), ClaimEffect(..), HasImplementation(..), I, View(..))
 import Daml.Finance.Interface.Settlement.Factory qualified as Factory (I, Instruct(..))
 import Daml.Finance.Interface.Settlement.Types (Step(..))
-import Daml.Finance.Interface.Types.Common (Id(..), Parties)
+import Daml.Finance.Interface.Types.Common (Parties)
 
 -- | Type synonym for `Rule`.
 type T = Rule
@@ -23,30 +22,27 @@ instance Claim.HasImplementation Rule
 -- | Rule contract that allows an actor to claim effects, returning settlement instructions.
 template Rule
   with
-    custodian : Party
-      -- ^ Custodian of the holding upon which an effect can be claimed.
-    owner : Party
-      -- ^ Owner of the holding upon which an effect can be claimed.
+    providers : Parties
+      -- ^ Providers of the claim rule. Together with the actors of the `ClaimEffect` choice the authorization requirements to upgrade the holdings being claimed have to be met.
     claimers : Parties
-      -- ^ Parties granted the ability to claim an effect.
-    factoryCid : ContractId Factory.I
-      -- ^ Factory contract used to create a `Batch` of `Instruction`\s.
+      -- ^ Any of the parties can claim an effect.
     settlers : Parties
-      -- ^ Any of the parties can trigger the settlement of the instructions.
+      -- ^ Any of the parties can trigger settlement of the resulting batch.
+    settlementFactoryCid : ContractId Factory.I
+      -- ^ Settlement factory contract used to create a `Batch` of `Instruction`\s.
   where
-    signatory custodian, owner
+    signatory providers
 
     interface instance Claim.I for Rule where
-      view = Claim.View {}
-      claimEffect Claim.ClaimEffect{claimer; holdingCids; effectCid} = do
-        assertMsg "Effect can only be claimed by authorized parties." $ claimer `member` claimers
+      view = Claim.View with providers; claimers; settlers; settlementFactoryCid
+      claimEffect Claim.ClaimEffect{claimer; holdingCids; effectCid; batchId} = do
+        assertMsg "Effect can only be claimed by authorized parties." $ claimer `member` this.claimers
         effectView <- exercise effectCid Effect.GetView with viewer = claimer
         holdings <- mapA fetch holdingCids
         forA_ holdings \h -> do
           assertMsg "The provided holding does not reference the expected instrument." $ getInstrument h == effectView.targetInstrument
-          assertMsg "The settlement rule is missing the signature of the holding custodian" $ getCustodian h == custodian
-          assertMsg "The settlement rule is missing the signature of the holding owner" $ getOwner h == owner
-          -- These checks ^ effectively prevent the holding owner or custodian from single-handedly choosing the settlement vehicle.
+          assertMsg "The settlement rule is missing the signature of a holding custodian" $ getCustodian h `member` providers
+          assertMsg "The settlement rule is missing the signature of a holding owner" $ getOwner h `member` providers
 
         -- Calculate settlement steps
         let
@@ -81,6 +77,5 @@ template Rule
         newInstrumentHoldingCids <- fmap sequence . mapA updateInstrumentHolding $ zip holdings holdingCids
 
         -- Generate settlement instructions for other instruments
-        let id = Id . sha256 $ show effectView.id <> partyToText custodian <> partyToText owner
-        (batchCid, instructionCids) <- exercise factoryCid Factory.Instruct with instructors = fromList [custodian, owner]; settlers; id; description = effectView.description; steps
+        (batchCid, instructionCids) <- exercise settlementFactoryCid Factory.Instruct with instructors = providers; settlers; id = batchId; description = effectView.description; steps
         pure Claim.ClaimResult with newInstrumentHoldingCids; batchCid; instructionCids

@@ -4,8 +4,8 @@
 module Daml.Finance.Instrument.Equity.Test.StockSplit where
 
 import DA.Date (toDateUTC)
-import DA.Map (fromList)
-import DA.Set (singleton)
+import DA.Map qualified as M (fromList)
+import DA.Set (fromList, singleton)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Instrument.Equity.Test.Util (originateEquity)
 import Daml.Finance.Interface.Instrument.Equity.Instrument qualified as Equity (DeclareStockSplit(..), I)
@@ -34,7 +34,7 @@ run = script do
   -- Create factories
   let pp = [("Public", singleton public)]
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory issuer pp
-  holdingFactoryCid <- toInterfaceContractId <$> submit issuer do createCmd Fungible.Factory with provider = issuer; observers = fromList pp
+  holdingFactoryCid <- toInterfaceContractId <$> submit issuer do createCmd Fungible.Factory with provider = issuer; observers = M.fromList pp
   settlementFactoryCid <- toInterfaceContractId <$> submit issuer do createCmd Factory with provider = issuer; observers = singleton public
 
   -- Create accounts
@@ -43,7 +43,12 @@ run = script do
 
   -- Create lifecycle rules
   replacementRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit issuer do createCmd Replacement.Rule with providers = singleton issuer; lifecycler = issuer; observers = singleton public
-  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [issuer, investor] [] do createCmd Claim.Rule with custodian = issuer; owner = investor; claimers = singleton investor; settlers = singleton investor; factoryCid = settlementFactoryCid
+  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [issuer, investor] [] do
+    createCmd Claim.Rule with
+      providers = fromList [issuer, investor]
+      claimers = singleton investor
+      settlers = singleton investor
+      settlementFactoryCid
 
   -- Create clock
   now <- getTime
@@ -70,7 +75,13 @@ run = script do
   (_, [effectCid]) <- submit issuer do exerciseCmd replacementRuleCid Lifecycle.Evolve with ruleName = "Dividend"; settlers = singleton investor; observableCids = []; eventCid = replacementEventCid; clockCid
 
   -- Claim effect
-  result <- submitMulti [investor] [public] do exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with claimer = investor; holdingCids = [investorEquityCid]; effectCid
+  result <- submitMulti [investor] [public] do
+    exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect
+      with
+        claimer = investor
+        holdingCids = [investorEquityCid]
+        effectCid
+        batchId = Id "StockSplitSettlement"
 
   -- Allocate instructions
   let [instructionCid] = result.instructionCids
