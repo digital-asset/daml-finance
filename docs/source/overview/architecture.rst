@@ -25,17 +25,23 @@ interface definitions. These interfaces define the API by which
 implementation packages (containing concrete template definitions) can
 interact with each other.
 
-This layer includes three Daml packages, each grouping related business
+This layer includes several Daml packages, each grouping related business
 functionality. These packages can in principle be used independently
 from each other.
 
--  ``Daml.Finance.Interface.Asset`` defines interfaces for instruments,
-   accounts, and holdings, as well as holding properties such as
-   :ref:`fungibility <fungibility>`, :ref:`transferability <transferability>`, or :ref:`locking <locking>`.
+-  ``Daml.Finance.Interface.Holding`` defines interfaces for holdings,
+   accounts, as well as holding properties such as :ref:`fungibility <fungibility>`,
+   :ref:`transferability <transferability>`, or :ref:`locking <locking>`.
 -  ``Daml.Finance.Interface.Settlement`` defines interfaces for
    settlement instructions and batched settlements.
 -  ``Daml.Finance.Interface.Lifecycle`` defines interfaces used for
    instrument lifecycling.
+-  ``Daml.Finance.Interface.Instrument.*`` contains interfaces used for
+   different instrument types.
+-  ``Daml.Finance.Interface.Claims`` contains interfaces used for
+   contingent-claims based instrument types.
+-  ``Daml.Finance.Interface.Data`` defines interfaces related to reference
+   data.
 
 In addition to the above, the ``Daml.Finance.Interface.Types`` package provides types and ``Daml.Finance.Interface.Util`` package defines utilities and interfaces used by other interface packages.
 
@@ -58,31 +64,13 @@ The implementation layer consists of the following packages
    instructions and arbitrary batched settlements.
 -  ``Daml.Finance.Lifecycle`` defines an implementation of lifecycle
    effects, as well as a rule template to facilitate their settlement.
--  ``Daml.Finance.RefData`` includes templates used to store reference
+-  ``Daml.Finance.Instrument.*`` contains implementations for various
+   instrument types.
+-  ``Daml.Finance.Data`` includes templates used to store reference
    data on the ledger. This data is typically used within the lifeycling
    functionality (e.g. holiday calendars and rate fixings).
-
-Other packages
-**************
-
-The ``Daml.Finance.Util`` package provides a set of pure utility
-functions mainly for date manipulation.
-
-Extension packages
-==================
-
-The library provides a set of **extension packages** modelling
-instruments across a variety of asset classes, and the corresponding
-lifecycle events.
-
-For instance, the ``Daml.Finance.Instrument.Bond`` package defines commonly-used
-fixed income instruments, such as a floating-rate bond.
-
-These models do not have the ambition to fully cover a customer
-application’s requirements, hence they are not considered part of the
-core library, but rather an extension thereof. We are however confident
-that these implementations will support customer applications and
-shorten their time-to-market significantly.
+-  ``Daml.Finance.Util`` package provides a set of pure utility functions
+   mainly for date manipulation.
 
 How to use the library
 **********************
