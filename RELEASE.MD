@@ -13,8 +13,8 @@ The purpose of this document is to describe the procedure to release this librar
      - If the `package_name\version` doesn't exist as a git tag, it will create :
        - a new release in GitHub releases;
        - a new tag in GitHub.
-   - You can find the `daml-finance` Circle CI's pipeline of executing and running jobs [here](https://app.circleci.com/pipelines/github/DACH-NY/daml-finance).
-4. Successful releases will be listed [here](https://github.com/DACH-NY/daml-finance/releases).
+   - You can find the `daml-finance` Circle CI's pipeline of executing and running jobs [here](https://app.circleci.com/pipelines/github/digital-asset/daml-finance).
+4. Successful releases will be listed [here](https://github.com/digital-asset/daml-finance/releases).
 
 ## Official release versioning
 
