@@ -4,7 +4,7 @@
 How to use the Derivative extension to model generic instruments
 ################################################################
 
-To follow the script used in this tutorial you can `clone the Daml Finance repository <explore-library>`_ repository.
+To follow the script used in this tutorial you can `clone the Daml Finance repository <https://github.com/digital-asset/daml-finance>`_.
 In particular, the file ``src/test/daml/Daml/Finance/Instrument/Generic/Test/Intermediated/BondCoupon.daml`` is the starting point
 of this tutorial.
 

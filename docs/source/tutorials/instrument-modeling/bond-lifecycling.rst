@@ -12,7 +12,7 @@ We will illustrate the following steps:
 #. Lifecycling the bond instrument
 #. Settling the instructions
 
-To follow the script used in this tutorial you can `clone the Daml Finance repository <explore-library>`_ repository.
+To follow the script used in this tutorial you can `clone the Daml Finance repository <https://github.com/digital-asset/daml-finance>`_.
 In particular, the file ``src/test/daml/Daml/Finance/Instrument/Bond/Test/FixedRate.daml`` is the starting point
 of this tutorial. It also refers to some utility functions in ``src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml``.
 
