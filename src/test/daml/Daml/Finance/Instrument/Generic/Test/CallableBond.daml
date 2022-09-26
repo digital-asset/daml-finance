@@ -7,8 +7,8 @@ import ContingentClaims.Claim (and, at, give, one, or, scale, when)
 import ContingentClaims.Observation (Observation(..))
 import DA.Assert ((===))
 import DA.Date as D (Month(..), date)
-import DA.Map qualified as M (empty, fromList)
-import DA.Set (empty, singleton, toList)
+import DA.Map qualified as M (fromList)
+import DA.Set (empty, fromList, singleton, toList)
 import DA.Time (time)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..), T)
 import Daml.Finance.Instrument.Generic.Election (CreateElection(..), ElectionFactory(..))
@@ -22,11 +22,11 @@ import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (A
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
 import Daml.Finance.Interface.Types.Common (Id(..), Parties)
 import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
-import Daml.Finance.Lifecycle.Time.DateClock (DateClock(..), Unit(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
 import Daml.Finance.Test.Util.Account qualified as Account (createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
+import Daml.Finance.Test.Util.Lifecycle (createClockAndEvent)
 import Daml.Script
 import Prelude hiding (and, or)
 
@@ -105,8 +105,7 @@ run = script do
       instrument = genericInstrument
 
   -- create clock (defines current time) and set it at the intermediate date
-  let clock = DateClock with u = Unit intermediateDate; id = Id (show intermediateDate); provider = issuer; observers = M.empty
-  clockCid <- toInterfaceContractId <$> submitMulti [issuer] [] do createCmd clock
+  (clockCid, clockEventCid) <- createClockAndEvent (singleton issuer) intermediateDate empty
 
   ---------------------------------
   -- 2. ELECTION : CALL THE BOND --
@@ -129,7 +128,7 @@ run = script do
       amount = 1.0
 
   -- Apply election to generate new instrument version + effects
-  (_, [effectCid]) <- submitMulti [issuer] [] do
+  (_, [effectCid]) <- submit issuer do
     exerciseCmd callBondCid Election.Apply
       with
         clockCid
@@ -137,16 +136,15 @@ run = script do
         observableCids = []
 
   -- Create settlement factory
-  settlementFactoryCid <- submitMulti [bank] [] do createCmd Factory with provider = bank; observers = empty
+  settlementFactoryCid <- toInterfaceContractId <$> submit bank do createCmd Factory with provider = bank; observers = empty
 
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [bank, investor] [] do
     createCmd Claim.Rule
       with
-        custodian = bank
-        owner = investor
+        providers = fromList [bank, investor]
         claimers = singleton bank
         settlers
-        factoryCid = toInterfaceContractId settlementFactoryCid
+        settlementFactoryCid
 
   -- Claim effect
   result <- submitMulti [bank] [publicParty] do
@@ -154,6 +152,7 @@ run = script do
       claimer = bank
       holdingCids = [investorGenericTransferableCid]
       effectCid
+      batchId = Id "BondCallSettlement"
 
   let [bankCashInstructionCouponCid, bankCashInstructionPrincipalCid] = result.instructionCids
 

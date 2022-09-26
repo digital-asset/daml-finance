@@ -5,8 +5,8 @@ module Daml.Finance.Instrument.Bond.Test.Util where
 
 import DA.Date
 import DA.List (head)
-import DA.Map qualified as M (empty, fromList)
-import DA.Set (empty, singleton, toList)
+import DA.Map qualified as M (fromList)
+import DA.Set (empty, fromList, singleton, toList)
 import Daml.Finance.Instrument.Bond.FixedRate.Instrument qualified as FixedRate (Instrument(..))
 import Daml.Finance.Instrument.Bond.FloatingRate.Instrument qualified as FloatingRate (Instrument(..))
 import Daml.Finance.Instrument.Bond.InflationLinked.Instrument qualified as InflationLinked (Instrument(..))
@@ -28,13 +28,12 @@ import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
 import Daml.Finance.Interface.Types.Date.RollConvention (PeriodEnum, RollConventionEnum(..))
 import Daml.Finance.Interface.Types.Date.Schedule (Frequency(..), PeriodicSchedule(..))
 import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
-import Daml.Finance.Lifecycle.Time.DateClock (DateClock(..), DateClockUpdateEvent(..), Unit(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
 import Daml.Finance.Test.Util.Holding (verifyOwnerOfHolding)
 import Daml.Finance.Test.Util.Instrument (createReference)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (submitExerciseInterfaceByKeyCmd)
+import Daml.Finance.Test.Util.Lifecycle (createClockAndEvent)
 import Daml.Script
-import Prelude hiding (lookup)
 
 -- | Create a schedule for periodic payments.
 createPaymentPeriodicSchedule : Date -> [Text] -> BusinessDayConventionEnum -> PeriodEnum -> Int -> Date -> Date -> PeriodicSchedule
@@ -105,9 +104,7 @@ lifecycleInstrument : [Party] -> Date -> Instrument.K -> Parties -> Party -> [Co
 lifecycleInstrument readAs today instrument settlers issuer observableCids = do
   -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_BEGIN
   -- create clock and clock update event
-  let clock = DateClock with u = Unit today; id = Id (show today); provider = issuer; observers = M.empty
-  clockCid <- toInterfaceContractId <$> submitMulti [issuer] [] do createCmd clock
-  clockEventCid <- toInterfaceContractId <$> submitMulti [issuer] [] do createCmd DateClockUpdateEvent with id = Id (show today); clock
+  (clockCid, clockEventCid) <- createClockAndEvent (singleton issuer) today empty
   -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_END
 
   -- LIFECYCLE_BOND_BEGIN
@@ -129,12 +126,12 @@ lifecycleAndVerifyCouponEffectsAndSettlement : [Party] -> Date -> Instrument.K -
 lifecycleAndVerifyCouponEffectsAndSettlement readAs today instrument settlers issuer investor investorBondTransferableCid custodianCashTransferableCid custodianAccount investorAccount obs custodian observableCids = do
   (lifecycleCid, [effectCid]) <- lifecycleInstrument readAs today instrument settlers issuer observableCids
 
-  newBondInstrumentKey <- submitMulti [issuer] [] do
+  newBondInstrumentKey <- submit issuer do
     Instrument.toKey <$> exerciseCmd @Instrument.I (coerceContractId lifecycleCid) Instrument.GetView with viewer = issuer
 
   -- CREATE_SETTLEMENT_FACTORY_BOND_BEGIN
   -- Create settlement factory
-  settlementFactoryCid <- submitMulti [investor] [] do createCmd Factory with provider = investor; observers = empty
+  settlementFactoryCid <- toInterfaceContractId <$> submit investor do createCmd Factory with provider = investor; observers = empty
   -- CREATE_SETTLEMENT_FACTORY_BOND_END
 
   -- CLAIM_EFFECT_BOND_BEGIN
@@ -142,17 +139,17 @@ lifecycleAndVerifyCouponEffectsAndSettlement readAs today instrument settlers is
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [custodian, investor] [] do
     createCmd Claim.Rule
       with
-        custodian
-        owner = investor
+        providers = fromList [custodian, investor]
         claimers = singleton investor
         settlers
-        factoryCid = toInterfaceContractId settlementFactoryCid
+        settlementFactoryCid
 
   result <- submitMulti [investor] readAs do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
       claimer = investor
       holdingCids = [toInterfaceContractId @Base.I investorBondTransferableCid]
       effectCid
+      batchId = Id "CouponSettlement"
   -- CLAIM_EFFECT_BOND_END
 
   -- ALLOCATE_APPROVE_SETTLE_INSTRUCTIONS_BOND_BEGIN
@@ -182,27 +179,27 @@ lifecycleAndVerifyRedemptionEffectsAndSettlement : [Party] -> Date -> Instrument
 lifecycleAndVerifyRedemptionEffectsAndSettlement readAs today instrument settlers issuer investor investorBondTransferableCid custodianCashCouponTransferableCid custodianCashRedemptionTransferableCid custodianAccount investorAccount obs custodian observableCids = do
   (lifecycleCid, [effectCid]) <- lifecycleInstrument readAs today instrument settlers issuer observableCids
 
-  newBondInstrumentKey <- submitMulti [issuer] [] do
+  newBondInstrumentKey <- submit issuer do
     Instrument.toKey <$> exerciseCmd @Instrument.I (coerceContractId lifecycleCid) Instrument.GetView with viewer = issuer
 
   -- Create settlement factory
-  settlementFactoryCid <- submitMulti [investor] [] do createCmd Factory with provider = investor; observers = empty
+  settlementFactoryCid <- toInterfaceContractId <$> submit investor do createCmd Factory with provider = investor; observers = empty
 
   -- Claim effect
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [custodian, investor] [] do
     createCmd Claim.Rule
       with
-        custodian
-        owner = investor
+        providers = fromList [custodian, investor]
         claimers = singleton investor
         settlers
-        factoryCid = toInterfaceContractId settlementFactoryCid
+        settlementFactoryCid
 
   result <- submitMulti [investor] readAs do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
       claimer = investor
       holdingCids = [toInterfaceContractId @Base.I investorBondTransferableCid]
       effectCid
+      batchId = Id "RedemptionSettlement"
 
   let [custodianCouponInstructionCid, custodianRedemptionInstructionCid] = result.instructionCids
 

@@ -22,10 +22,18 @@ make
 
 This will produce individual DAR files for each package in the `.dars` directory.
 
+To test CI locally run the following target:
+
+```script
+make ci-local
+```
+
+To build the documentation follows the steps [here](./docs/README.md).
+
 ## Developing
 
-When developing please adhere to the [style guide](./docs/STYLEGUIDE.md).
+When developing please adhere to the [style guide](./STYLEGUIDE.md).
 
 ## Releasing
 
-To perform a release of this project, please follow the guide [here](./docs/RELEASE.MD).
+To perform a release of this project, please follow the guide [here](./RELEASE.MD).

@@ -5,7 +5,7 @@ module Daml.Finance.Instrument.Equity.Test.Merger where
 
 import DA.Date (toDateUTC)
 import DA.Map qualified as M (fromList)
-import DA.Set (singleton)
+import DA.Set (fromList, singleton)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Instrument.Equity.Test.Util (originateEquity)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (qty)
@@ -18,12 +18,12 @@ import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
 import Daml.Finance.Interface.Types.Common (Id(..))
 import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
 import Daml.Finance.Lifecycle.Rule.Replacement qualified as Replacement (Rule(..))
-import Daml.Finance.Lifecycle.Time.DateClock as Clock (DateClock(..), Unit(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
 import Daml.Finance.Test.Util.Account qualified as Account (createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (submitExerciseInterfaceByKeyCmd)
+import Daml.Finance.Test.Util.Lifecycle (createClockAndEvent)
 import Daml.Script
 
 -- Merger lifecycling and settlement
@@ -44,12 +44,18 @@ run = script do
   investorSecuritiesAccount <- Account.createAccount "Securities Account" [public] accountFactoryCid holdingFactoryCid [] custodian investor
 
   -- Create lifecycle rules
-  replacementRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit merging do createCmd Replacement.Rule with provider = singleton merging; lifecycler = merging; observers = singleton public
-  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [custodian, investor] [] do createCmd Claim.Rule with custodian; owner = investor; claimers = singleton investor; settlers = singleton investor; factoryCid = settlementFactoryCid
+  replacementRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit merging do createCmd Replacement.Rule with providers = singleton merging; lifecycler = merging; observers = singleton public
+  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [custodian, investor] [] do
+    createCmd Claim.Rule
+      with
+        providers = fromList [custodian, investor]
+        claimers = singleton investor
+        settlers = singleton investor
+        settlementFactoryCid
 
   -- Create clock
   now <- getTime
-  clockCid <- toInterfaceContractId <$> submit custodian do createCmd DateClock with u = Unit $ toDateUTC now; id = Id (show now); provider = custodian; observers = M.fromList pp
+  (clockCid, clockEventCid) <- createClockAndEvent (singleton merging) (toDateUTC now) (singleton public)
 
   -- Originate instruments
   mergingInstrument <- originateEquity merging merging "INST-1" "0" "ABC" pp now
@@ -71,7 +77,13 @@ run = script do
   (_, [effectCid]) <- submitMulti [merging] [public] do exerciseCmd replacementRuleCid Lifecycle.Evolve with ruleName = "Merger"; settlers = singleton investor; eventCid = replacementEventCid; observableCids = []; clockCid
 
   -- Claim effect
-  result <- submitMulti [investor] [public] do exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with claimer = investor; holdingCids = [investorEquityCid]; effectCid
+  result <- submitMulti [investor] [public] do
+    exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect
+      with
+        claimer = investor
+        holdingCids = [investorEquityCid]
+        effectCid
+        batchId = Id "MergerSettlement"
 
   -- Allocate instructions
   let [instructionCid] = result.instructionCids

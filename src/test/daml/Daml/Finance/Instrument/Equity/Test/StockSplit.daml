@@ -4,8 +4,8 @@
 module Daml.Finance.Instrument.Equity.Test.StockSplit where
 
 import DA.Date (toDateUTC)
-import DA.Map qualified as M (empty, fromList)
-import DA.Set (singleton)
+import DA.Map qualified as M (fromList)
+import DA.Set (fromList, singleton)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Instrument.Equity.Test.Util (originateEquity)
 import Daml.Finance.Interface.Instrument.Equity.Instrument qualified as Equity (DeclareStockSplit(..), I)
@@ -17,12 +17,12 @@ import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
 import Daml.Finance.Interface.Types.Common (Id(..))
 import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
 import Daml.Finance.Lifecycle.Rule.Replacement qualified as Replacement (Rule(..))
-import Daml.Finance.Lifecycle.Time.DateClock (DateClock(..), Unit(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
 import Daml.Finance.Test.Util.Account qualified as Account (createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (submitExerciseInterfaceByKeyCmd)
+import Daml.Finance.Test.Util.Lifecycle (createClockAndEvent)
 import Daml.Script
 
 -- Stock split lifecycling and settlement
@@ -42,12 +42,17 @@ run = script do
   investorSecuritiesAccount <- Account.createAccount "Securities Account" [public] accountFactoryCid holdingFactoryCid [] issuer investor
 
   -- Create lifecycle rules
-  replacementRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit issuer do createCmd Replacement.Rule with provider = singleton issuer; lifecycler = issuer; observers = singleton public
-  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [issuer, investor] [] do createCmd Claim.Rule with custodian = issuer; owner = investor; claimers = singleton investor; settlers = singleton investor; factoryCid = settlementFactoryCid
+  replacementRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit issuer do createCmd Replacement.Rule with providers = singleton issuer; lifecycler = issuer; observers = singleton public
+  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [issuer, investor] [] do
+    createCmd Claim.Rule with
+      providers = fromList [issuer, investor]
+      claimers = singleton investor
+      settlers = singleton investor
+      settlementFactoryCid
 
   -- Create clock
   now <- getTime
-  clockCid <- toInterfaceContractId <$> submit issuer do createCmd DateClock with u = Unit $ toDateUTC now; id = Id (show now); provider = issuer; observers = M.empty
+  (clockCid, clockEventCid) <- createClockAndEvent (singleton issuer) (toDateUTC now) (singleton public)
 
   -- Originate instruments
   preEquityInstrument <- originateEquity issuer issuer "INST-1" "0" "AAPL" pp now
@@ -70,7 +75,13 @@ run = script do
   (_, [effectCid]) <- submit issuer do exerciseCmd replacementRuleCid Lifecycle.Evolve with ruleName = "Dividend"; settlers = singleton investor; observableCids = []; eventCid = replacementEventCid; clockCid
 
   -- Claim effect
-  result <- submitMulti [investor] [public] do exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with claimer = investor; holdingCids = [investorEquityCid]; effectCid
+  result <- submitMulti [investor] [public] do
+    exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect
+      with
+        claimer = investor
+        holdingCids = [investorEquityCid]
+        effectCid
+        batchId = Id "StockSplitSettlement"
 
   -- Allocate instructions
   let [instructionCid] = result.instructionCids

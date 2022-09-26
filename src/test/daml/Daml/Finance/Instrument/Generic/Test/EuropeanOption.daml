@@ -10,7 +10,7 @@ import DA.Assert ((===))
 import DA.Date (addDays, toDateUTC)
 import DA.List (head)
 import DA.Map qualified as M (empty, fromList)
-import DA.Set (empty, singleton, toList)
+import DA.Set (empty, fromList, singleton, toList)
 import DA.Text (sha256)
 import Daml.Finance.Data.Observable.Observation (Observation(..))
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..), T)
@@ -26,11 +26,11 @@ import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (A
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
 import Daml.Finance.Interface.Types.Common (Id(..), Parties)
 import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
-import Daml.Finance.Lifecycle.Time.DateClock (DateClock(..), Unit(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
 import Daml.Finance.Test.Util.Account qualified as Account (createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
+import Daml.Finance.Test.Util.Lifecycle (createClockAndEvent)
 import Daml.Script
 import Prelude hiding (or)
 
@@ -121,8 +121,7 @@ run = script do
       instrument = genericInstrument
 
   -- create clock (defines current time)
-  let clock = DateClock with u = Unit maturity; id = Id (show maturity); provider = broker; observers = M.empty
-  clockCid <- toInterfaceContractId <$> submitMulti [broker] [] do createCmd clock
+  (clockCid, clockEventCid) <- createClockAndEvent (singleton broker) maturity empty
 
   -----------------------------------------
   -- 1. ELECTION 1 : EXERCISE THE OPTION --
@@ -145,7 +144,7 @@ run = script do
       amount = 500.0
 
   -- Apply election to generate new instrument version + effects
-  (_, [effectCid]) <- submitMulti [broker] [] do
+  (_, [effectCid]) <- submit broker do
     exerciseCmd exerciseOptionCid Election.Apply
       with
         clockCid
@@ -153,17 +152,16 @@ run = script do
         observableCids = [observableCid]
 
   -- Create settlement factory
-  settlementFactoryCid <- submitMulti [investor1] [] do createCmd Factory with provider = investor1; observers = empty
+  settlementFactoryCid <- toInterfaceContractId <$> submit investor1 do createCmd Factory with provider = investor1; observers = empty
 
   -- Claim effect
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [bank, investor1] [] do
     createCmd Claim.Rule
       with
-        custodian = bank
-        owner = investor1
+        providers = fromList [bank, investor1]
         claimers = singleton investor1
         settlers
-        factoryCid = toInterfaceContractId settlementFactoryCid
+        settlementFactoryCid
 
   -- Cannot claim effect for a different amount than what was elected
   submitMultiMustFail [investor1] [publicParty] do
@@ -171,6 +169,7 @@ run = script do
       claimer = investor1
       holdingCids = [toInterfaceContractId investor1GenericTransferableCid]
       effectCid
+      batchId = Id "OptionExerciseSettlement"
 
   -- Split fungible in order to claim with the right amount
   let fungibleCid : ContractId Fungible.I = coerceContractId investor1GenericTransferableCid
@@ -181,6 +180,7 @@ run = script do
       claimer = investor1
       holdingCids = [coerceContractId splitCid]
       effectCid
+      batchId = Id "OptionExerciseSettlement"
 
   let [bankCashInstructionCid] = result.instructionCids
 
@@ -209,7 +209,7 @@ run = script do
       holdingCid = investor2GenericTransferableCid
       amount = 1000.0
 
-  (_, [effectCid]) <- submitMulti [broker] [] do
+  (_, [effectCid]) <- submit broker do
     exerciseCmd expireOptionCid Election.Apply
       with
         clockCid
@@ -217,16 +217,15 @@ run = script do
         observableCids = [observableCid]
 
   -- Create settlement factory
-  settlementFactoryCid <- submitMulti [investor2] [] do createCmd Factory with provider = investor2; observers = empty
+  settlementFactoryCid <- toInterfaceContractId <$> submit investor2 do createCmd Factory with provider = investor2; observers = empty
 
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [bank, investor2] [] do
     createCmd Claim.Rule
       with
-        custodian = bank
-        owner = investor2
+        providers = fromList [bank, investor2]
         claimers = singleton investor2
         settlers
-        factoryCid = toInterfaceContractId settlementFactoryCid
+        settlementFactoryCid
 
   -- Investor 1 cannot claim an effect for an election made by Investor 2
   submitMultiMustFail [investor1] [publicParty] do
@@ -234,6 +233,7 @@ run = script do
       claimer = investor1
       holdingCids = [toInterfaceContractId investor1GenericTransferableCid]
       effectCid
+      batchId = Id "OptionExpirySettlement"
 
   -- Claim effect
   result <- submitMulti [investor2] [publicParty] do
@@ -241,6 +241,7 @@ run = script do
       claimer = investor2
       holdingCids = [toInterfaceContractId investor2GenericTransferableCid]
       effectCid
+      batchId = Id "OptionExpirySettlement"
 
   -- Settle (empty) batch
   submitMulti [head $ toList settlers] [] do exerciseCmd result.batchCid Batch.Settle with actors = settlers

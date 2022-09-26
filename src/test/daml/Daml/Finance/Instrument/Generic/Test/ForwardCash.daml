@@ -7,7 +7,7 @@ import ContingentClaims.Claim (Inequality(..), one, scale, when)
 import ContingentClaims.Observation (Observation(..))
 import DA.Date (addDays, toDateUTC)
 import DA.Map qualified as M (empty, fromList)
-import DA.Set (empty, singleton, toList)
+import DA.Set (empty, fromList, singleton, toList)
 import Daml.Finance.Data.Observable.Observation (Observation(..))
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Instrument.Generic.Test.Util (originateGeneric, dateToDateClockTime)
@@ -18,12 +18,12 @@ import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (A
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
 import Daml.Finance.Interface.Types.Common (Id(..), Parties)
 import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
-import Daml.Finance.Lifecycle.Time.DateClock (DateClock(..), DateClockUpdateEvent(..), Unit(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
 import Daml.Finance.Test.Util.Account qualified as Account (createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate, submitExerciseInterfaceByKeyCmd)
+import Daml.Finance.Test.Util.Lifecycle (createClockAndEvent)
 import Daml.Script
 
 -- | Parties involved in the test script.
@@ -76,31 +76,29 @@ run = script do
   investorGenericTransferableCid <- Account.credit [publicParty] genericInstrument 1_000.0 investorAccount
 
   -- create clock and clock update event
-  let clock = DateClock with u = Unit maturity; id = Id (show maturity); provider = broker; observers = M.empty
-  clockCid <- toInterfaceContractId <$> submitMulti [broker] [] do createCmd clock
-  clockEventCid <- toInterfaceContractId <$> submitMulti [broker] [] do createCmd DateClockUpdateEvent with clock; id = Id (show maturity)
+  (clockCid, clockEventCid) <- createClockAndEvent (singleton broker) maturity empty
 
   -- Lifecycle derivative
   (_, [effectCid]) <- Instrument.submitExerciseInterfaceByKeyCmd @Lifecycle.I [broker] [] genericInstrument Lifecycle.Evolve with settlers; eventCid = clockEventCid; observableCids = [observableCid]; ruleName = "Time"; clockCid
 
   -- Create settlement factory
-  settlementFactoryCid <- submitMulti [investor] [] do createCmd Factory with provider = investor; observers = empty
+  settlementFactoryCid <- toInterfaceContractId <$> submit investor do createCmd Factory with provider = investor; observers = empty
 
   -- Claim effect
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [bank, investor] [] do
     createCmd Claim.Rule
       with
-        custodian = bank
-        owner = investor
+        providers = fromList [bank, investor]
         claimers = singleton investor
         settlers
-        factoryCid = toInterfaceContractId settlementFactoryCid
+        settlementFactoryCid
 
   result <- submitMulti [investor] [publicParty] do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
       claimer = investor
       holdingCids = [coerceContractId investorGenericTransferableCid]
       effectCid
+      batchId = Id "ForwardCashSettlement"
 
   let [bankCashInstructionCid] = result.instructionCids
 

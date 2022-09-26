@@ -8,7 +8,7 @@ import ContingentClaims.Observation (Observation(..))
 import DA.Assert ((===))
 import DA.Date (addDays, toDateUTC)
 import DA.Foldable qualified as F (forA_)
-import DA.Map qualified as M (empty, fromList)
+import DA.Map qualified as M (fromList)
 import DA.Set (empty, fromList, singleton, toList)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Instrument.Generic.Test.Util (originateGeneric, mapClaimToUTCTime)
@@ -26,12 +26,12 @@ import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), St
 import Daml.Finance.Interface.Types.Common (Id(..), Parties)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, AddObservers(..))
 import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
-import Daml.Finance.Lifecycle.Time.DateClock (DateClock(..), DateClockUpdateEvent(..), Unit(..))
 import Daml.Finance.Settlement.Factory (Factory(..), FactoryWithIntermediaries(..), Path(..))
 import Daml.Finance.Test.Util.Account qualified as Account (createAccount, createFactory, credit, submitExerciseInterfaceByKeyCmd)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
 import Daml.Finance.Test.Util.Instrument qualified as BaseInstrument (originate, submitExerciseInterfaceByKeyCmd)
+import Daml.Finance.Test.Util.Lifecycle (createClockAndEvent)
 import Daml.Script
 
 {-
@@ -130,14 +130,11 @@ run = script do
   genericLifecycleCid <- submitMulti [issuer] [] $ exerciseByKeyCmd @BaseInstrument.R genericInstrument BaseInstrument.GetCid with viewer = issuer
 
   -- create clock and clock update event
-  let clock = DateClock with u = Unit today; id = Id (show today); provider = issuer; observers = M.empty
-  clockCid <- toInterfaceContractId <$> submitMulti [issuer] [] do createCmd clock
-  clockEventCid <- toInterfaceContractId <$> submitMulti [issuer] [] do createCmd DateClockUpdateEvent with clock; id = Id (show today)
+  (clockCid, clockEventCid) <- createClockAndEvent (singleton issuer) today empty
 
   -- Lifecycle bond
   (genericLifecycleCid2, [effectCid]) <- BaseInstrument.submitExerciseInterfaceByKeyCmd @Lifecycle.I [issuer] [] genericInstrument Lifecycle.Evolve with settlers; eventCid = clockEventCid; observableCids = []; ruleName = "Time"; clockCid
 
-  -- setup settlement contract between issuer and CSD
   -- Setup settlement contract between issuer and CSD
   -- In order for the workflow to be successful, we need to disclose the CSD's cash account to the Issuer.
   Account.submitExerciseInterfaceByKeyCmd @Disclosure.I [csd] [] csdCashAccount Disclosure.AddObservers with disclosers = singleton csd; observersToAdd = ("Issuer", singleton issuer)
@@ -165,8 +162,8 @@ run = script do
   -- Define settlement routes from CSD to Investor and create batch factory
   let routes = [("USD" , Path with senderPath = [csd, centralBank]; receiverPath = [investor, bank, centralBank])]
 
-  factoryWithIntermediariesCid <- submit csd do
-    createCmd FactoryWithIntermediaries
+  settlementFactoryCid <- submit csd do
+    toInterfaceContractId <$> createCmd FactoryWithIntermediaries
       with
         provider = csd
         paths = M.fromList routes
@@ -175,17 +172,17 @@ run = script do
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [csd, investor] [] do
     createCmd Claim.Rule
       with
-        custodian = csd
-        owner = investor
+        providers = fromList [csd, investor]
         claimers = singleton investor
         settlers
-        factoryCid = toInterfaceContractId factoryWithIntermediariesCid
+        settlementFactoryCid
 
   result <- submitMulti [investor] [publicParty] do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
       claimer = investor
       holdingCids = [investorGenericTransferableCid]
       effectCid
+      batchId = Id "CouponSettlement"
 
   let
     Some [investorGenericTransferableCid] = result.newInstrumentHoldingCids
@@ -283,16 +280,16 @@ template EffectSettlementService
 
         lifecycleClaimRuleCid <- create Claim.Rule
           with
-            custodian = issuer
-            owner = csd
+            providers = fromList [issuer, csd]
             claimers = singleton csd
             settlers = singleton csd
-            factoryCid = toInterfaceContractId settlementFactoryCid
+            settlementFactoryCid = toInterfaceContractId settlementFactoryCid
 
         result <- exercise (toInterfaceContractId @Claim.I lifecycleClaimRuleCid) Claim.ClaimEffect with
           claimer = csd
           holdingCids = [toInterfaceContractId instrumentHoldingCid]
           effectCid
+          batchId = Id "EffectSettlement"
 
         archive settlementFactoryCid
         archive lifecycleClaimRuleCid
