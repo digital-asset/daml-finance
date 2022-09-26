@@ -44,7 +44,7 @@ We start by defining the terms:
 The floating leg depends on a reference rate, which is defined by the *referenceRateId* variable.
 
 The *issuerPaysFix* variable is used to specifiy whether the issuer pays the fix or the floating leg.
-This is not needed for bonds, because the issuer always pays the coupon (fix or floating).
+This is not needed for bonds, because the regular payments are always in one direction (from the issuer to the holder).
 However, in the case of a swap with two counterparties A and B, we need the *issuerPaysFix* variable to specify who pays fix and who pays floating.
 In this example, the issuer pays the floating leg.
 
@@ -78,7 +78,7 @@ Consequently, we need to create two cash instruments:
 
 In the swap template they are referred to as *base currency* and *foreign currency*.
 
-Here is an example of a fix vs fix currency swap: 3% p.a. in USD vs 2% p.a. in EUR, payment every 3M
+Here is an example of a fix vs fix currency swap: 3% p.a. in USD vs 2% p.a. in EUR, payment every 3M:
 
 .. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Swap/Test/Currency.daml
   :language: daml
@@ -105,7 +105,7 @@ Foreign exchange
 ================
 
 Despite the similarities in name, foreign exchange swaps (or FX swaps) are quite different from currency swaps.
-An FX swap does not pay or receive interest rates.
+An FX swap does not pay or receive interest.
 Instead, the two legs define an initial FX transaction and a final FX transaction.
 Each transaction requires an FX rate and a transaction date, which are predetermined between the counterparties.
 
