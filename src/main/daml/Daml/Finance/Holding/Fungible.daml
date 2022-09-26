@@ -6,8 +6,7 @@ module Daml.Finance.Holding.Fungible where
 import DA.Action (foldlA)
 import DA.Assert ((===))
 import DA.Set (singleton)
-import Daml.Finance.Holding.NonFungible (transferImpl)
-import Daml.Finance.Holding.NonTransferable (acquireImpl, releaseImpl)
+import Daml.Finance.Holding.Util (acquireImpl, releaseImpl, transferImpl)
 import Daml.Finance.Interface.Holding.Base qualified as Base (I, View(..))
 import Daml.Finance.Interface.Holding.Factory.Holding qualified as HoldingFactory (Create(..), F, HasImplementation(..), Remove(..), View(..))
 import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (HasImplementation, I, Merge(..), Split(..), SplitResult(..), View(..))
@@ -30,9 +29,9 @@ instance Fungible.HasImplementation T
 -- `Base.I`, and `Disclosure.I` to be implemented as well).
 template Fungible
   with
-    instrument : InstrumentKey
+    instrumentKey : InstrumentKey
       -- ^ The instrument of which units are held.
-    account : AccountKey
+    accountKey : AccountKey
       -- ^ The account at which the holding is held. Defines the holding's owner and custodian.
     amount : Decimal
       -- ^ Number of units.
@@ -41,34 +40,34 @@ template Fungible
     observers : PartiesMap
       -- ^ Observers.
   where
-    signatory account.custodian, account.owner, getLocker this
+    signatory accountKey.custodian, accountKey.owner, getLocker this
     observer Disclosure.flattenObservers observers
 
     ensure amount > 0.0
 
     interface instance Disclosure.I for Fungible where
-      view = Disclosure.View with disclosureControllers = singleton account.owner; observers
+      view = Disclosure.View with disclosureControllers = singleton accountKey.owner; observers
       setObservers Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
       archive' self = archive $ fromInterfaceContractId @Fungible self
 
     interface instance Base.I for Fungible where
       asDisclosure = toInterface @Disclosure.I this
-      view = Base.View with instrument; account; amount
+      view = Base.View with instrumentKey; accountKey; amount
 
     interface instance Lockable.I for Fungible where
       asHolding = toInterface @Base.I this
-      view = Lockable.View with lock
-      acquire = acquireImpl @Fungible (toInterface @Lockable.I this)
-      release = releaseImpl @Fungible (toInterface @Lockable.I this)
+      view = Lockable.View with lock; accountKey; instrumentKey
+      acquire = acquireImpl @Fungible this (toInterface @Lockable.I this)
+      release = releaseImpl @Fungible this (toInterface @Lockable.I this)
 
     interface instance Transferable.I for Fungible where
       asLockable = toInterface @Lockable.I this
-      view = Transferable.View {}
+      view = Transferable.View with accountKey; instrumentKey; amount
       transfer = transferImpl (toInterface @Transferable.I this)
 
     interface instance Fungible.I for Fungible where
       asTransferable = toInterface @Transferable.I this
-      view = Fungible.View with modifiers = singleton account.owner
+      view = Fungible.View with instrumentKey; amount; modifiers = singleton accountKey.owner
       split Fungible.Split{amounts} = do
         let rest = amount - sum amounts
         assertMsg "split quantities are not more than the available amount" $ rest >= 0.0
@@ -80,7 +79,7 @@ template Fungible
           f qty cid = do
             Some (fungibleCid, fungible) <- fetchFromInterface @Fungible cid
             archive fungibleCid
-            instrument === fungible.instrument
+            instrumentKey === fungible.instrumentKey
             pure $ qty + fungible.amount
         tot <- foldlA f amount fungibleCids
         toInterfaceContractId <$> create this with amount = tot
@@ -101,8 +100,8 @@ template Factory
       where
         asDisclosure = toInterface @Disclosure.I this
         view = HoldingFactory.View with provider
-        create' HoldingFactory.Create{instrument; account; amount; observers} =
-          toInterfaceContractId <$> create Fungible with instrument; account; amount; observers; lock = None
+        create' HoldingFactory.Create{instrumentKey; accountKey; amount; observers} =
+          toInterfaceContractId <$> create Fungible with instrumentKey; accountKey; amount; observers; lock = None
         remove HoldingFactory.Remove{actors; holdingCid} = archive $ fromInterfaceContractId @Fungible holdingCid
 
     interface instance Disclosure.I for Factory where
