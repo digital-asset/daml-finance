@@ -27,10 +27,10 @@ Interest rate
 =============
 
 Interest rate swap is the type of swap that shares most similarities with a bond.
-It has two legs: one which pays a fix rate and another one which pays a floating rate at the end of every payment period.
-The floating leg depends on a reference rate.
+It has two legs: one which pays a fix rate and another one which pays a floating rate.
+These rates are paid at the end of every payment period.
 
-As an example we will create a swap instrument paying Libor 3M vs a 2.01% p.a. coupon with a 3M coupon period.
+As an example we will create a swap instrument paying Libor 3M vs a 2.01% p.a. with a 3M payment period.
 This example is taken from ``src/test/daml/Daml/Finance/Instrument/Swap/Test/InterestRate.daml``,
 where all the details are available.
 
@@ -41,10 +41,11 @@ We start by defining the terms:
   :start-after: -- CREATE_INTEREST_RATE_SWAP_VARIABLES_BEGIN
   :end-before: -- CREATE_INTEREST_RATE_SWAP_VARIABLES_END
 
+The floating leg depends on a reference rate, which is defined by the *referenceRateId* variable.
+
 The *issuerPaysFix* variable is used to specifiy whether the issuer pays the fix or the floating leg.
 This is not needed for bonds, because the issuer always pays the coupon (fix or floating).
 However, in the case of a swap with two counterparties A and B, we need the *issuerPaysFix* variable to specify who pays fix and who pays floating.
-
 In this example, the issuer pays the floating leg.
 
 Just as for bonds, we can use these variables to create a :ref:`PeriodicSchedule <constr-daml-finance-interface-types-date-schedule-periodicschedule-99705>`:
@@ -62,7 +63,7 @@ Now that we have defined the terms we can create the swap instrument:
   :end-before: -- CREATE_INTEREST_RATE_SWAP_INSTRUMENT_END
 
 Once the instrument is created, you can book a holding on it using ``Account.credit``.
-Since the issuer pays the floating leg in our example, it means that the owner of the holding receives the floating leg (and pays the fix leg).
+Since the issuer pays the floating leg in our example, the owner of the holding receives the floating leg (and pays the fix leg).
 
 Currency
 ========
@@ -75,7 +76,7 @@ Consequently, we need to create two cash instruments:
   :start-after: -- CREATE_CURRENCY_SWAP_CASH_INSTRUMENTS_BEGIN
   :end-before: -- CREATE_CURRENCY_SWAP_CASH_INSTRUMENTS_END
 
-In the swap template they are referred to as base currency and foreign currency.
+In the swap template they are referred to as *base currency* and *foreign currency*.
 
 Here is an example of a fix vs fix currency swap: 3% p.a. in USD vs 2% p.a. in EUR, payment every 3M
 
@@ -90,7 +91,7 @@ In order to calculate the interest rate payments, a notional is required in each
 The quantity of the holding refers to the notional of the base currency.
 The notional of the foreign currency is defined as the quantity of the holding multiplied by the specified *fxRate*.
 
-Here is how we create the currency swap instrument, using the two currencies we defined above:
+Here is how we create the currency swap instrument, using the two currencies defined above:
 
 .. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Swap/Test/Util.daml
   :language: daml
@@ -106,9 +107,9 @@ Foreign exchange
 Despite the similarities in name, foreign exchange swaps (or FX swaps) are quite different from currency swaps.
 An FX swap does not pay or receive interest rates.
 Instead, the two legs define an initial FX transaction and a final FX transaction.
-The required FX rates and transaction dates are predetermined between the counterparties.
+Each transaction requires an FX rate and a transaction date, which are predetermined between the counterparties.
 
-The FX transactions involve two currencies. In the swap template these are referred to as base currency and a foreign currency.
+The FX transactions involve two currencies. In the swap template these are referred to as *base currency* and *foreign currency*.
 The convention is that the issuer pays the foreign currency in the initial transaction (and receives it in the final transaction).
 
 Here is an example of an USD vs EUR FX swap. First, we define the two cash instruments:
@@ -125,7 +126,7 @@ Then, we define the transaction dates and FX rates:
   :start-after: -- CREATE_FX_SWAP_VARIABLES_BEGIN
   :end-before: -- CREATE_FX_SWAP_VARIABLES_END
 
-The initial FX transaction can happen on the issue date or afterwards. It is defined by the *firstPaymentDate* variable.
+The *firstPaymentDate* variable defines the date of the initial FX transaction. Generally, this is on the issue date or shortly afterwards.
 
 Finally, we create the FX swap instrument:
 
@@ -144,6 +145,8 @@ Credit default
 A credit default swap (CDS) pays a protection amount in case of a credit default event, in exchange for a fix rate at the end of every payment period.
 The protection amount is defined as *1-recoveryRate*.
 
+If a credit event occurs, the swap expires after the protection amount has been paid (i.e. no more rate payments are required afterwards).
+
 Here is an example of a CDS that pays *1-recoveryRate* in the case of a default on TSLA bonds:
 
 .. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Swap/Test/CreditDefault.daml
@@ -151,9 +154,9 @@ Here is an example of a CDS that pays *1-recoveryRate* in the case of a default 
   :start-after: -- CREATE_CREDIT_DEFAULT_SWAP_VARIABLES_BEGIN
   :end-before: -- CREATE_CREDIT_DEFAULT_SWAP_VARIABLES_END
 
-In our example, the issuer pays the fix leg of the swap.
+In our example, the issuer pays the protection leg of the swap.
 
-Two observables are required for a CDS:
+As you can see in this example, two observables are required for a CDS:
 
 #. *defaultProbabilityReferenceId*: The reference ID of the default probability observable. For example, in case of protection against a "TSLA bond payment default" this should be a valid reference to the "TSLA default probability".
 #. *recoveryRateReferenceId*: The reference ID of the recovery rate observable. For example, in case of a "TSLA bond payment default with a 60% recovery rate" this should be a valid reference to the "TSLA bond recovery rate".
@@ -163,10 +166,10 @@ Finally, we create the CDS instrument:
 .. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Swap/Test/Util.daml
   :language: daml
   :start-after: -- CREATE_CREDIT_DEFAULT_SWAP_INSTRUMENT_BEGIN
-  :end-before: -- CREATE_FOREIGN_EXCHANGE_SWAP_INSTRUMENT_END
+  :end-before: -- CREATE_CREDIT_DEFAULT_SWAP_INSTRUMENT_END
 
 Once the instrument is created, you can book a holding on it.
-Since the issuer pays the fix leg, it means that the owner of the holding receives the fix leg (and pays the protection amount in case of a credit default).
+Since the issuer pays the protection leg, it means that the owner of the holding receives the protection leg (and pays the fix leg).
 
 Frequently Asked Questions
 **************************
