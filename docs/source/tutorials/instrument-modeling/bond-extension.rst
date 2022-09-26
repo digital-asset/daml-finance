@@ -4,7 +4,7 @@
 How to use the Bond extension package
 #####################################
 
-To follow the script used in this tutorial you can `clone the Daml Finance repository <explore-library>`_ repository.
+To follow the script used in this tutorial you can `clone the Daml Finance repository <https://github.com/digital-asset/daml-finance>`_.
 In particular, the Bond test folder ``src/test/daml/Daml/Finance/Instrument/Bond/Test/`` is the starting point
 of this tutorial.
 
