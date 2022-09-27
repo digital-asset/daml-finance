@@ -93,6 +93,7 @@ The image below depicts the dependency graph of an example customer
 application using Daml Finance. The :doc:`Getting Started <../tutorials/getting-started/intro>` examples showcase this dependency pattern.
 
 .. image:: ../images/customer_integration_example.png
+   :alt: A flowchart with six boxes: Interface.Asset, Interface.Settlement, Asset, Settlement, Customer model, and Customer initialization script. The Customer model feeds into Interface.Asset and Interface.Settlement. Customer initialization script feeds into Asset and Interface.Asset. Settlement feeds into Interface.Asset and Interface.Settlement. Asset feeds into Interface.Asset. Interface.Settlement feeds into Interface.Asset. Interface.Asset does not have any outgoing arrows.
 
 Extension Points
 ****************
