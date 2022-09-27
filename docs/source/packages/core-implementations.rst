@@ -8,22 +8,22 @@ Core Implementations
 
     This package contains the *implementation* and utility functions for holdings and accounts. It has the following modules:
 
-    - :ref:`Account <module-daml-finance-holding-account-88149>`: A relationship between a custodian and an asset owner. It is referenced by holdings.
-    - :ref:`Fungible <module-daml-finance-holding-fungible-7201>`: Implementation of a fungible holding, including split and merge functionality.
-    - :ref:`NonFungible <module-daml-finance-holding-nonfungible-86571>`: Implementation of a non-fungible holding, which cannot be split or merged.
-    - :ref:`NonTransferable <module-daml-finance-holding-nontransferable-44402>`: Implementation of a non-transferable holding.
-    - :ref:`Util <module-daml-finance-holding-util-87323>`: Utility functions related to holdings, e.g. locking a holding.
+    - :ref:`Account <module-daml-finance-holding-account-88149>`: A relationship between a custodian and an asset owner, referenced by holdings
+    - :ref:`Fungible <module-daml-finance-holding-fungible-7201>`: Implementation of a fungible holding, including split and merge functionality
+    - :ref:`NonFungible <module-daml-finance-holding-nonfungible-86571>`: Implementation of a non-fungible holding, which cannot be split or merged
+    - :ref:`NonTransferable <module-daml-finance-holding-nontransferable-44402>`: Implementation of a non-transferable holding
+    - :ref:`Util <module-daml-finance-holding-util-87323>`: Utility functions related to holdings, e.g. locking a holding
 
     The :doc:`Asset Model <../concepts/asset-model>` page explains the relationship between instruments, holdings, and accounts.
-    Check out the :doc:`Transfer tutorial <../../tutorials/getting-started/transfer>` for a description on how to create a holding on an instrument and how to transfer it between accounts.
+    Check out the :doc:`Transfer tutorial <../../tutorials/getting-started/transfer>` for a description of how to create a holding on an instrument and transfer it between accounts.
 
 - ``Daml.Finance.Settlement``
 
     This package contains the *implementation* of the components used for settlement. It has the following modules:
 
-    - :ref:`Instruction <module-daml-finance-settlement-instruction-87187>`: Used to settle a single settlement `Step`.
-    - :ref:`Factory <module-daml-finance-settlement-factory-257>`: Used to create a set of settlement `Instruction`\s, and a `Batch` to atomically settle them.
-    - :ref:`Batch <module-daml-finance-settlement-batch-95573>`: Allows you to atomically settle a set of settlement steps.
+    - :ref:`Instruction <module-daml-finance-settlement-instruction-87187>`: Used to settle a single settlement `Step`
+    - :ref:`Factory <module-daml-finance-settlement-factory-257>`: Used to create a set of settlement `Instruction`\s, and a `Batch` to atomically settle them
+    - :ref:`Batch <module-daml-finance-settlement-batch-95573>`: Allows you to atomically settle a set of settlement steps
 
     The :doc:`Settlement <../concepts/settlement>` page contains an overview of the settlement process and explains the relationship between ``Step``, ``Instruction`` and ``Batch``.
     Check out the :doc:`Settlement tutorial <../../tutorials/getting-started/settlement>` for a description on how to implement the settlement workflow in practice.
@@ -32,15 +32,15 @@ Core Implementations
 
     This package contains the *implementation* of lifecycle related processes. It contains the following modules:
 
-    - :ref:`Effect <module-daml-finance-lifecycle-effect-1975>`: A contract encoding the *consequences of a lifecycle event* for one unit of the target instrument.
-    - :ref:`ElectionEffect <module-daml-finance-lifecycle-electioneffect-99924>`: A contract encoding the *consequences of an election* for one unit of the target instrument.
-    - :ref:`DateClock <module-daml-finance-lifecycle-dateclock-31311>`: Rule contract that allows an actor to process/claim effects, returning settlement instructions.
-    - :ref:`Rule.Claim <module-daml-finance-lifecycle-rule-claim-99318>`: Rule contract that allows an actor to process/claim effects, returning settlement instructions.
-    - :ref:`Rule.Distribution <module-daml-finance-lifecycle-rule-distribution-35531>`: Rule contract that defines the distribution of units of an instrument for each unit of a target instrument (e.g. share or cash dividends).
-    - :ref:`Rule.Replacement <module-daml-finance-lifecycle-rule-replacement-6984>`: Rule contract that defines the replacement of units of an instrument with a basket of other instruments (e.g. stock merger).
-    - :ref:`Event.Distribution <module-daml-finance-lifecycle-event-distribution-17302>`: Event contract for the distribution of units of an instrument for each unit of a target instrument (e.g. share or cash dividends).
-    - :ref:`Event.Replacement <module-daml-finance-lifecycle-event-replacement-51859>`: Event contract for the replacement of units of an instrument with a basket of other instruments (e.g. stock merger).
-    - :ref:`Event.DateClock <module-daml-finance-lifecycle-event-dateclock-57483>`: Event signalling the update of a clock. This can trigger the execution of lifecycle rules for some instruments.
+    - :ref:`Effect <module-daml-finance-lifecycle-effect-1975>`: A contract encoding the *consequences of a lifecycle event* for one unit of the target instrument
+    - :ref:`ElectionEffect <module-daml-finance-lifecycle-electioneffect-99924>`: A contract encoding the *consequences of an election* for one unit of the target instrument
+    - :ref:`DateClock <module-daml-finance-lifecycle-dateclock-31311>`: Rule contract that allows an actor to process/claim effects, returning settlement instructions
+    - :ref:`Rule.Claim <module-daml-finance-lifecycle-rule-claim-99318>`: Rule contract that allows an actor to process/claim effects, returning settlement instructions
+    - :ref:`Rule.Distribution <module-daml-finance-lifecycle-rule-distribution-35531>`: Rule contract that defines the distribution of units of an instrument for each unit of a target instrument (e.g. share or cash dividends)
+    - :ref:`Rule.Replacement <module-daml-finance-lifecycle-rule-replacement-6984>`: Rule contract that defines the replacement of units of an instrument with a basket of other instruments (e.g. stock merger)
+    - :ref:`Event.Distribution <module-daml-finance-lifecycle-event-distribution-17302>`: Event contract for the distribution of units of an instrument for each unit of a target instrument (e.g. share or cash dividends)
+    - :ref:`Event.Replacement <module-daml-finance-lifecycle-event-replacement-51859>`: Event contract for the replacement of units of an instrument with a basket of other instruments (e.g. stock merger)
+    - :ref:`Event.DateClock <module-daml-finance-lifecycle-event-dateclock-57483>`: Event signalling the update of a clock. This can trigger the execution of lifecycle rules for some instruments
 
     Check out the :doc:`Lifecycling tutorial <../../tutorials/getting-started/lifecycling>` for a description on how lifecycling works in practice, including how to ``Claim`` an ``Effect``.
     There is also the tutorial :doc:`How to implement a Contingent Claims-based instrument <../../tutorials/instrument-modeling/contingent-claims-instrument>`, which describes how create an ``Effect``.
@@ -51,15 +51,15 @@ Core Implementations
 
     This package contains the *implementation* of observable or reference data related workflows. It contains the following modules:
 
-    - :ref:`Observation <module-daml-finance-data-observable-observation-7524>`: An implementation of ``Observable`` that explicitly stores time-dependent numerical values (e.g. equity or rate fixings).
-    - :ref:`HolidayCalendar <module-daml-finance-data-reference-holidaycalendar-10773>`: Holiday calendar of an entity (typically an exchange or a currency).
+    - :ref:`Observation <module-daml-finance-data-observable-observation-7524>`: An implementation of ``Observable`` that explicitly stores time-dependent numerical values (e.g. equity or rate fixings)
+    - :ref:`HolidayCalendar <module-daml-finance-data-reference-holidaycalendar-10773>`: Holiday calendar of an entity (typically an exchange or a currency)
 
 - ``Daml.Finance.Util``
 
     This package mainly contains functions related to dates, lists and maps. They are defined in the following modules:
 
-    - :ref:`Date.Calendar <module-daml-finance-util-date-calendar-17588>`: Functions regarding dates and holiday calendars (business vs non-business days).
-    - :ref:`Date.DayCount <module-daml-finance-util-date-daycount-38239>`: Functions to calculate day count fractions according to different conventions.
-    - :ref:`Date.RollConvention <module-daml-finance-util-date-rollconvention-88672>`: Functions to calculate date periods including rolling dates.
-    - :ref:`Date.Schedule <module-daml-finance-util-date-schedule-32303>`: Functions to calculate a periodic schedule, including both adjusted and unadjusted dates.
-    - :ref:`Common <module-daml-finance-util-common-41560>`: Various functions related to lists and maps, which are commonly used in several packages.
+    - :ref:`Date.Calendar <module-daml-finance-util-date-calendar-17588>`: Functions regarding dates and holiday calendars (business vs non-business days)
+    - :ref:`Date.DayCount <module-daml-finance-util-date-daycount-38239>`: Functions to calculate day count fractions according to different conventions
+    - :ref:`Date.RollConvention <module-daml-finance-util-date-rollconvention-88672>`: Functions to calculate date periods including rolling dates
+    - :ref:`Date.Schedule <module-daml-finance-util-date-schedule-32303>`: Functions to calculate a periodic schedule, including both adjusted and unadjusted dates
+    - :ref:`Common <module-daml-finance-util-common-41560>`: Various functions related to lists and maps, which are commonly used in several packages
