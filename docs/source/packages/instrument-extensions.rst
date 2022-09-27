@@ -13,7 +13,7 @@ Tokens
 
     - :ref:`Instrument <module-daml-finance-interface-instrument-base-instrument-57320>`: Base interface for an instrument. This interface does not define any lifecycling logic.
 
-- ``Daml.Finance.Instrument.Standard``
+- ``Daml.Finance.Instrument.Token``
 
     This package contains the *implementation* of a basic instrument. It contains the following module:
 

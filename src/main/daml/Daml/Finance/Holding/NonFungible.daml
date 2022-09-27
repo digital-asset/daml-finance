@@ -3,20 +3,15 @@
 
 module Daml.Finance.Holding.NonFungible where
 
-import DA.Assert ((===))
 import DA.Set (singleton)
-import Daml.Finance.Holding.NonTransferable (acquireImpl, releaseImpl)
-import Daml.Finance.Holding.Util (reapplyLocks)
-import Daml.Finance.Interface.Holding.Account qualified as Account (Credit(..), I, R, exerciseInterfaceByKey)
+import Daml.Finance.Holding.Util (acquireImpl, releaseImpl, transferImpl)
 import Daml.Finance.Interface.Holding.Base qualified as Base (I, View(..))
 import Daml.Finance.Interface.Holding.Factory.Holding qualified as HoldingFactory (Create(..), F, HasImplementation(..), Remove(..), View(..))
-import Daml.Finance.Interface.Holding.Lockable qualified as Lockable (I, Lock(..), View(..), asHolding)
-import Daml.Finance.Interface.Holding.Transferable qualified as NonFungible(HasImplementation)
-import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..), View(..), asLockable)
+import Daml.Finance.Interface.Holding.Lockable qualified as Lockable (I, Lock(..), View(..))
+import Daml.Finance.Interface.Holding.Transferable qualified as NonFungible (HasImplementation)
+import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, View(..))
 import Daml.Finance.Interface.Holding.Util (getLocker)
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (qty)
 import Daml.Finance.Interface.Types.Common (AccountKey(..), InstrumentKey(..), PartiesMap)
-import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
 import Prelude hiding (null)
 
@@ -59,39 +54,14 @@ template NonFungible
 
     interface instance Lockable.I for NonFungible where
       asHolding = toInterface @Base.I this
-      view = Lockable.View with lock
-      acquire = acquireImpl @NonFungible (toInterface @Lockable.I this)
-      release = releaseImpl @NonFungible (toInterface @Lockable.I this)
+      view = Lockable.View with lock; account; instrument
+      acquire = acquireImpl @NonFungible this (toInterface @Lockable.I this)
+      release = releaseImpl @NonFungible this (toInterface @Lockable.I this)
 
     interface instance Transferable.I for NonFungible where
       asLockable = toInterface @Lockable.I this
-      view = Transferable.View {}
+      view = Transferable.View with account; instrument; amount
       transfer = transferImpl (toInterface @Transferable.I this)
-
--- | Implementatino of the transfer choice.
-transferImpl : Transferable.I -> Transferable.Transfer -> Update (ContractId Transferable.I)
-transferImpl transferable Transferable.Transfer{newOwnerAccount} = do
-  --
-  let
-    l = Transferable.asLockable transferable
-    vL = view l
-    vH = view $ Lockable.asHolding l
-  -- Account sanity checks
-  newAccount <- fetchInterfaceByKey @Account.R newOwnerAccount
-  let vA = view newAccount
-  vA.owner === newOwnerAccount.owner
-  vA.custodian === vH.account.custodian
-  -- Create new holding via Credit
-  newHoldingCid <- coerceContractId <$> Account.exerciseInterfaceByKey @Account.I newOwnerAccount newOwnerAccount.owner Account.Credit
-    with
-      quantity = Instrument.qty vH.amount vH.instrument
-  -- Holding sanity check. This prevents a holding from changing type during a `Transfer` (from e.g., `NonFungible` to `Fungible`)
-  newHolding <- fetch newHoldingCid
-  assertMsg "Sent holding type does not correspond to receiving account holding type" $ interfaceTypeRep newHolding == interfaceTypeRep transferable
-  -- Reapply holding locks
-  coerceContractId <$> case vL.lock of
-    Some lock -> reapplyLocks lock newHoldingCid
-    None -> pure newHoldingCid
 
 instance HoldingFactory.HasImplementation Factory
 -- | Implementation of the corresponding Holding Factory.
