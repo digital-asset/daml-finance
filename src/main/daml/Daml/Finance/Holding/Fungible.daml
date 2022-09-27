@@ -4,15 +4,14 @@
 module Daml.Finance.Holding.Fungible where
 
 import DA.Action (foldlA)
-import DA.Assert ((===))
 import DA.Set (singleton)
 import Daml.Finance.Holding.Util (acquireImpl, releaseImpl, transferImpl)
 import Daml.Finance.Interface.Holding.Base qualified as Base (I, View(..))
 import Daml.Finance.Interface.Holding.Factory.Holding qualified as HoldingFactory (Create(..), F, HasImplementation(..), Remove(..), View(..))
 import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (HasImplementation, I, Merge(..), Split(..), SplitResult(..), View(..))
 import Daml.Finance.Interface.Holding.Lockable qualified as Lockable (I, Lock(..), View(..))
+import Daml.Finance.Interface.Holding.Lockable(getLocker)
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, View(..))
-import Daml.Finance.Interface.Holding.Util (getLocker)
 import Daml.Finance.Interface.Types.Common (AccountKey(..), InstrumentKey(..), PartiesMap)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
 import Prelude hiding (null)
@@ -45,6 +44,8 @@ template Fungible
 
     ensure amount > 0.0
 
+    let transferors = singleton account.owner
+
     interface instance Disclosure.I for Fungible where
       view = Disclosure.View with disclosureControllers = singleton account.owner; observers
       setObservers Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
@@ -62,8 +63,8 @@ template Fungible
 
     interface instance Transferable.I for Fungible where
       asLockable = toInterface @Lockable.I this
-      view = Transferable.View with account; instrument; amount
-      transfer = transferImpl (toInterface @Transferable.I this)
+      view = Transferable.View with account; instrument; amount; transferors
+      transfer = transferImpl
 
     interface instance Fungible.I for Fungible where
       asTransferable = toInterface @Transferable.I this
@@ -79,7 +80,7 @@ template Fungible
           f qty cid = do
             Some (fungibleCid, fungible) <- fetchFromInterface @Fungible cid
             archive fungibleCid
-            instrument === fungible.instrument
+            assertMsg "instrument must match" $ instrument == fungible.instrument
             pure $ qty + fungible.amount
         tot <- foldlA f amount fungibleCids
         toInterfaceContractId <$> create this with amount = tot

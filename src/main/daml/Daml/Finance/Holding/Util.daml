@@ -4,61 +4,49 @@
 module Daml.Finance.Holding.Util
   ( acquireImpl
   , reapplyLocks
+  , releaseAll
   , releaseImpl
   , transferImpl
   ) where
 
-import DA.Assert ((===))
-import DA.Set (delete, insert, null, singleton, toList)
-import Daml.Finance.Interface.Holding.Account qualified as Account (Credit(..), I, R, exerciseInterfaceByKey)
-import Daml.Finance.Interface.Holding.Lockable qualified as Lockable (Acquire(..), I, Lock(..), LockType(..), Release(..), asHolding)
-import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..), asLockable)
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (qty)
+import DA.Action (foldlA)
+import DA.Set qualified as S (delete, fromList, insert, isSubsetOf, null, singleton, toList)
+import Daml.Finance.Interface.Holding.Account qualified as Account (CreditAndDebit(..), I, R, exerciseInterfaceByKey)
+import Daml.Finance.Interface.Holding.Lockable (getLocker)
+import Daml.Finance.Interface.Holding.Lockable qualified as Lockable (Acquire(..), I, Lock(..), LockType(..), Release(..))
+import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
+import Daml.Finance.Interface.Holding.Util (fetchAccount)
 import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey)
 import Prelude hiding (null)
 
 -- | Utility function to reapply holding locks.
-reapplyLocks : Lockable.Lock -> ContractId Lockable.I -> Update (ContractId Lockable.I)
-reapplyLocks lock cid =
-  let
-    apply accM context = do
-      cid <- accM
-      exercise cid Lockable.Acquire with newLocker = lock.locker; context; lockType = lock.lockType
-  in
-    foldl apply (pure cid) (toList lock.context)
+reapplyLocks :  ContractId Lockable.I -> Lockable.Lock -> Update (ContractId Lockable.I)
+reapplyLocks cid lock = foldlA (\acc context -> exercise acc Lockable.Acquire with newLocker = lock.locker; context; lockType = lock.lockType) cid (S.toList lock.context)
+
+-- | Utility function to unlock all holding locks.
+releaseAll : ContractId Lockable.I -> Lockable.Lock -> Update (ContractId Lockable.I)
+releaseAll cid lock = foldlA (\acc context -> exercise acc Lockable.Release with context) cid (S.toList lock.context)
 
 -- | Implementation of transfer for the Transferable interface.
-transferImpl : Transferable.I -> Transferable.Transfer -> Update (ContractId Transferable.I)
-transferImpl transferable Transferable.Transfer{newOwnerAccount} = do
-  --
-  let
-    l = Transferable.asLockable transferable
-    vL = view l
-    vH = view $ Lockable.asHolding l
-  -- Account sanity checks
-  newAccount <- fetchInterfaceByKey @Account.R newOwnerAccount
-  let vA = view newAccount
-  vA.owner === newOwnerAccount.owner
-  vA.custodian === vH.account.custodian
-  -- Create new holding via Credit
-  newHoldingCid <- coerceContractId <$> Account.exerciseInterfaceByKey @Account.I newOwnerAccount newOwnerAccount.owner Account.Credit
-    with
-      quantity = Instrument.qty vH.amount vH.instrument
-  -- Holding sanity check. This prevents a holding from changing type during a `Transfer` (from e.g., `NonFungible` to `Fungible`)
-  newHolding <- fetch newHoldingCid
-  assertMsg "Sent holding type does not correspond to receiving account holding type" $ interfaceTypeRep newHolding == interfaceTypeRep transferable
-  -- Reapply holding locks
-  coerceContractId <$> case vL.lock of
-    Some lock -> reapplyLocks lock newHoldingCid
-    None -> pure newHoldingCid
+transferImpl : forall t. (HasToInterface t Transferable.I) => ContractId t -> Transferable.Transfer -> Update (ContractId Transferable.I)
+transferImpl self Transferable.Transfer{newOwnerAccount; transferApprovers} = do
+  vNewAccount <- view <$> fetchInterfaceByKey @Account.R newOwnerAccount
+  assertMsg "transferApprovers must contain all transfer approvers of the account" $ S.isSubsetOf vNewAccount.transferApprovers transferApprovers
+  let debitTransferableCid = toInterfaceContractId @Transferable.I self
+  transferable <- fetch debitTransferableCid
+  let lockers = getLocker transferable
+  vAccount <- view <$> fetchAccount transferable
+  -- credit and debit (with authorization from custodian and owner)
+  coerceContractId <$> Account.exerciseInterfaceByKey @Account.I newOwnerAccount vAccount.custodian
+    Account.CreditAndDebit with debitTransferableCid; actors = lockers <> S.fromList [vAccount.custodian, vAccount.owner]
 
 -- | Default implementation of `acquire` from the Lockable interface.
 acquireImpl : forall t. (HasCreate t, DA.Internal.Record.HasField "lock" t (Optional Lockable.Lock), HasFromInterface t Lockable.I, HasToInterface t Lockable.I) => t -> Lockable.I -> Lockable.Acquire -> Update (ContractId Lockable.I)
 acquireImpl _ lockable Lockable.Acquire{newLocker; context; lockType} = do
     let v = view lockable
     newLock <- case (v.lock, lockType) of
-      (Some existingLock, Lockable.Reentrant) -> pure existingLock with context = context `insert` existingLock.context
-      (None, _) -> pure Lockable.Lock with locker = newLocker; context = singleton context; lockType
+      (Some existingLock, Lockable.Reentrant) -> pure existingLock with context = context `S.insert` existingLock.context
+      (None, _) -> pure Lockable.Lock with locker = newLocker; context = S.singleton context; lockType
       _ -> abort "Contract is already locked."
     let Some this = fromInterface @t lockable
     toInterfaceContractId <$> create this with lock = Some newLock
@@ -69,8 +57,8 @@ releaseImpl _ lockable Lockable.Release{context} = do
     let
       v = view lockable
       f currentLock = do
-        let newContext = context `delete` currentLock.context
-        case (currentLock.lockType, null newContext) of
+        let newContext = context `S.delete` currentLock.context
+        case (currentLock.lockType, S.null newContext) of
           (Lockable.Reentrant, False) -> Some currentLock with context = newContext
           _ -> None
       releasedLock = v.lock >>= f
