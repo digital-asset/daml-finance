@@ -19,7 +19,7 @@ We are going to
 This example builds on the previous :doc:`Settlement <settlement>` tutorial script such that the same
 accounts and existing holdings can be used.
 
-Overview of the process
+Overview of the Process
 ***********************
 
 We first give a high-level outline of the lifecycle process.
@@ -44,8 +44,8 @@ We first give a high-level outline of the lifecycle process.
 |                                                 |                                                                                         |
 +-------------------------------------------------+-----------------------------------------------------------------------------------------+
 
-Running the script
-******************
+Run the Script
+**************
 
 The code for this tutorial can be executed via the ``runLifecycling`` function in the ``Lifecycling.daml`` module.
 
