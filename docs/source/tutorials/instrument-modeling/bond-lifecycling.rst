@@ -1,7 +1,7 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-How to lifecycle a bond instrument
+How to Lifecycle a Bond Instrument
 ##################################
 
 This tutorial describes the :ref:`lifecycle <lifecycling>` flow of a bond instrument between two counterparties.
@@ -16,8 +16,8 @@ To follow the script used in this tutorial you can `clone the Daml Finance repos
 In particular, the file ``src/test/daml/Daml/Finance/Instrument/Bond/Test/FixedRate.daml`` is the starting point
 of this tutorial. It also refers to some utility functions in ``src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml``.
 
-Creating a fixed-rate bond instrument
-*************************************
+Create a Fixed-Rate Bond Instrument
+***********************************
 
 We start by defining a fixed rate bond, which pays a 1.1% coupon every year.
 
@@ -39,10 +39,10 @@ We also credit the account of an investor:
   :end-before: -- CREDIT_ACCOUNT_FIXED_RATE_BOND_END
 
 
-Defining the clock for time-based events
-****************************************
+Define the Clock for Time-Based Events
+**************************************
 
-Since the bond pays a coupon on a yearly basis, we talk about a time-based event.
+Since the bond pays a coupon on a yearly basis, payment is a time-based event.
 The requirement to pay the coupon is governed by actual time.
 However, in a trading and settlement system, it is useful to be able to control
 the time variable, in order to simulate previous/future payments, or to have some flexibility
@@ -56,8 +56,8 @@ We define a clock contract to control the passage of time:
   :end-before: -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_END
 
 
-Lifecycling the bond instrument
-*******************************
+Lifecycle the Bond Instrument
+*****************************
 
 We use the ``Lifecyclable`` interface, which is defined in ``Daml.Finance.Interface.Lifecycle.Lifecyclable``.
 
@@ -78,8 +78,8 @@ The ``Effect`` interface is defined in ``Daml.Finance.Interface.Lifecycle.Effect
 
 
 
-Settling the instructions
-*************************
+Settle the Instructions
+***********************
 
 In order to process the effect(s) of the lifecycling (in this case: pay the coupon), we need to create settlement instructions.
 We start by creating a settlement factory:
@@ -104,7 +104,7 @@ Finally, the settlement instructions are allocated, approved and then settled.
   :end-before: -- ALLOCATE_APPROVE_SETTLE_INSTRUCTIONS_BOND_END
 
 This is the result of the settlement:
-  - The investor receives cash for the coupon.
-  - The investor receives a new version of the bond instrument, which excludes today's coupon (it only contains future coupons and the redemption amount).
-  - The issuer receives the original version of the bond instrument, which can be archived.
+  - The investor receives cash for the coupon
+  - The investor receives a new version of the bond instrument, which excludes today's coupon (it only contains future coupons and the redemption amount)
+  - The issuer receives the original version of the bond instrument, which can be archived
 

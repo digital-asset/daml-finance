@@ -31,8 +31,8 @@ Instruction
 
 A ``Step`` is not sufficient to do a transfer. We also need to know exactly which holding should be used and to which account it should be transferred.
 This is specified in an ``Instruction`` (one for each ``Step``).
-The ``Instruction`` allows the sender to specify which holding to transfer, by exercising the ``Allocate`` choice.
-The receiver can then specify which account should be used, by exercising the ``Approve`` choice.
+The ``Instruction`` allows the sender to specify which holding to transfer by exercising the ``Allocate`` choice.
+The receiver can then specify which account should be used by exercising the ``Approve`` choice.
 
 Batch
 *****

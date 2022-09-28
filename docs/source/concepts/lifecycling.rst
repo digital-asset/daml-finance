@@ -7,20 +7,20 @@ Lifecycling
 :ref:`Lifecycling <lifecycling>` is the evolution of instruments over their lifetime.
 The library provides a standard mechanism for processing instruments accross asset types.
 
-Various types of events result in cashflows and updated instrument definitions,
-to reflect passed events and cashflows that have already been paid.
+Various types of events result in cash flows and updated instrument definitions,
+to reflect past events and cash flows that have already been paid.
 
 Events
 ******
 
-The ``Event`` interface, which is defined in ``Daml.Finance.Interface.Lifecycle.Event`` is
+The ``Event`` interface, which is defined in ``Daml.Finance.Interface.Lifecycle.Event``, is
 used to handle different types of events:
 
 Intrinsic
 =========
 
 Intrinsic events are contractual cash flows.
-It is pre-defined in the contract terms exactly what triggers these events, for example:
+The contract terms pre-define exactly what triggers these events, for example:
 
 - A certain date is reached, which results in a coupon payent of a bond. Time-based events are controlled using the ``DateClock`` template (not ledger time).
 - The price of a stock reaches a certain level, resulting in a barrier hit. The relevant stock price is defined in an ``Observable`` template.
@@ -29,20 +29,20 @@ Extrinsic
 =========
 
 Extrinsic events, for example corporate actions and elections, are not pre-defined.
-An external choice is exercised in order to trigger these events.
+These events are triggered by exercising an external choice.
 
-Instrument versions
+Instrument Versions
 *******************
 
-Consider a bond instrument which pays a fix coupon once a year. In this case, the
+Consider a bond instrument which pays a fixed coupon once a year. In this case, the
 coupon payment is an intrinsic, time-based event.
 
-When the bond has just been issued, the holder is entitled to all future coupon payments.
+When the bond is issued, the holder is entitled to all future coupon payments.
 On the payment date of the first coupon, the bond is lifecycled by the issuer. This has
 the following result:
 
 #. The current coupon is paid to the holder of the bond.
-#. The bond is replaced by a new version, which only includes the remaining coupons.
+#. The bond is replaced by a new version, which includes only the remaining coupons.
 
 It is important to understand that there are two different instruments: one which includes the current coupon and one which does not.
 

@@ -1,7 +1,7 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-How to implement a Contingent Claims-based instrument
+How to Implement a Contingent Claims-Based Instrument
 #####################################################
 
 In this chapter we will look at how to create a strongly typed instrument, which leverages
@@ -14,7 +14,7 @@ To follow the script used in this tutorial you can `clone the Daml Finance repos
 In particular, the file ``src/test/daml/Daml/Finance/Instrument/Bond/Test/FixedRate.daml`` is the starting point
 of this tutorial. It also refers to some utility functions in ``src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml``.
 
-Template definition
+Template Definition
 ===================
 
 We start by defining a new template for the instrument. Here are the first few lines of the fixed rate instrument:
@@ -27,7 +27,7 @@ We start by defining a new template for the instrument. Here are the first few l
 The ``Contingent Claims`` tree is not part the template. Instead, it will be created
 dynamically, as described in the next sections.
 
-HasClaims interface
+HasClaims Interface
 ===================
 
 In order for the instrument to work with the general Daml Finance lifecycling framework
@@ -47,7 +47,7 @@ This is then used to create the actual coupon claims.
 The redemption claim is also created.
 Finally, the the coupon claims and the redemption claim define the economic terms of the instrument.
 
-How to define the redemption claim
+How to Define the Redemption Claim
 ==================================
 
 In the above example, we see that the redemption claim depends on the currency and the maturity date.
@@ -59,7 +59,7 @@ We will now create a ``Contingent Claims`` representation of the actual redempti
   :start-after: -- FIXED_RATE_BOND_REDEMPTION_CLAIM_BEGIN
   :end-before: -- FIXED_RATE_BOND_REDEMPTION_CLAIM_END
 
-How to define the coupon claims
+How to Define the Coupon Claims
 ===============================
 
 The coupon claims are a bit more complicated to define.
@@ -75,7 +75,7 @@ Here is how we create the ``Contingent Claims`` representation of the coupons:
 For each coupon period we calculate the adjusted end date and the amount of the coupon.
 We then create each coupon claim in a way similar to the redemption claim above.
 
-How the instrument evolves over time
+How the Instrument Evolves Over Time
 ====================================
 
 The bond instrument gives the holder the right to receive future coupons and the redemption amount.
