@@ -223,6 +223,7 @@ In order to fully understand these instructions, we need to keep it mind
 the interface hierarchy used by our holding implementation.
 
 .. image:: ../../images/interface_hierarchy.png
+  :alt: A diagram of the interface heirarchy. From left to right, Disclosure, Holding, Lockable, Transferable, and Fungible are each linked by arrows pointing left. Below is an arrow, also pointing left, labelled Implements.
 
 We use ``coerceContractId`` to convert the ``Holding`` to a
 ``Transferable``. The success of this operation is not guaranteed and
