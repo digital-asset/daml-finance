@@ -185,6 +185,8 @@ Recall that `arg` is syntactic sugar for `Foo with a; b` when used in the body o
   myTerm = 3
   ```
 
+- Use plural 's' when naming `Set Party`.
+
 ### `let` bindings
 
 - Single-line body:
@@ -210,6 +212,22 @@ Recall that `arg` is syntactic sugar for `Foo with a; b` when used in the body o
     a = b
     c = d
   ```
+
+### Flexible controllers
+
+In case of flexible controllers, e.g.,
+
+  ```haskell
+    choice Foo : ()
+      with
+        actor : Party
+        bar : Int
+      controller actor
+      do
+        pure ()
+  ```
+
+we let the `actor : Party` be the first argument of the choice.
 
 ### Functions
 
