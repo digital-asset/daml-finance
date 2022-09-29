@@ -1,15 +1,15 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-Contingent Claims tree on ledger vs on-the-fly creation
+Contingent Claims Tree on Ledger vs On-the-Fly Creation
 #######################################################
 
-Different ways to create and store the Contingent Claims tree
+Different Ways to Create and Store the Contingent Claims Tree
 *************************************************************
 
 We have now seen two different ways of modeling a fixed coupon bond using ``Contingent Claims``:
 
-Explicitly storing the contingent-claims tree on the ledger
+Explicitly Storing the Contingent Claims Tree on the Ledger
 ===========================================================
 
 When we use the :doc:`Derivative extension <derivative-extension>` we create the
@@ -20,7 +20,7 @@ the coupon just paid) supersedes the previous version.
 However, in the event of a change in a holiday calendar (which could be used to define the
 coupon payment dates), the tree will not automatically change.
 
-Calculating the contingent-claims tree on-the-fly
+Calculating the Contingent Claims Tree On-the-Fly
 =================================================
 
 When we create a :doc:`strongly typed bond instrument <contingent-claims-instrument>`
@@ -30,8 +30,8 @@ Consequently, if a holiday calendar changes, this will automatically impact the 
 the next time it is dynamically created.
 
 
-Which is the preferred way?
-***************************
+Which Is Preferred?
+*******************
 
 Both options are possible, this is more a matter of personal preference. They both have
 their pros and cons.

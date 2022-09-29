@@ -20,10 +20,10 @@ We are going to
 We expect the reader to be familiar with the basic building blocks of Daml.
 If that is not the case, a suitable introduction can be found in `this page <https://www.digitalasset.com/developers/learn>`_.
 
-Download the code for the tutorial
+Download the Code for the Tutorial
 **********************************
 
-As a pre-requisite, the `Daml SDK <https://docs.daml.com/getting-started/installation.html>`_ needs to be installed on your
+As a prerequisite, the `Daml SDK <https://docs.daml.com/getting-started/installation.html>`_ needs to be installed on your
 machine.
 
 Open a terminal and run:
@@ -50,8 +50,8 @@ to open the code editor and inspect the code.
 
 .. _structure-of-code-dependencies:
 
-Structure of the code, dependencies
-***********************************
+Structure of the Code and Dependencies
+**************************************
 
 The code includes
 
@@ -84,13 +84,13 @@ implementation packages (in this case, ``Daml.Finance.Holding`` and ``Daml.Finan
 This is not problematic, as the script is meant to be run only once when
 the application is initialized.
 
-Running the Transfer script
-***************************
+Run the Transfer Script
+***********************
 
 Let us now explore the ``Transfer`` script step-by-step.
 
-Creating ``Holding`` and ``Account`` factories
-==============================================
+Create ``Holding`` and ``Account`` Factories
+============================================
 
 The first instruction instantiates an account factory. This is just a
 template that is used by a party (the Bank in this case) to create
@@ -122,8 +122,8 @@ We are adding a so-called *public party* as an observer to the holding factory.
 This is done to ensure that every other party has visibility over this contract, as all parties can `readAs` the public party.
 The reason why this is necessary will come into play at the end of this tutorial.
 
-Opening Alice’s and Bob’s accounts
-==================================
+Open Alice’s and Bob’s Accounts
+===============================
 
 Once the factory templates are setup, we leverage our ``CreateAccount``
 workflow to create accounts at the Bank for Alice and Bob.
@@ -139,8 +139,8 @@ case). Authorization is collected using an initiate / accept pattern.
 
 Bob’s account is created in a similar fashion.
 
-Creating the cash instrument
-============================
+Create the Cash Instrument
+==========================
 
 In order to credit Alice’s account with some cash, we first need
 to introduce a cash ``Instrument`` in our model.
@@ -160,10 +160,10 @@ can claim 1 USD from the custodian of the holding.
 Notice how in this case the Bank acts both as the issuer and depository of the cash instrument. This means that we fully trust the Bank with
 any action concerning the instrument.
 
-Depositing cash on Alice’s account
-==================================
+Deposit Cash in Alice’s Account
+===============================
 
-We can now deposit cash on Alice’s account, using the ``Deposit``
+We can now deposit cash in Alice’s account, using the ``Deposit``
 workflow.
 
 .. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Transfer.daml
@@ -178,8 +178,8 @@ You can imagine that the latter step happens only after Alice has
 showed up at the bank and delivered physical banknotes corresponding to
 the amount of the deposit.
 
-Transferring cash from Alice to Bob
-===================================
+Transfer Cash from Alice to Bob
+===============================
 
 The final step of our ``Setup`` script transfers Alice’s holding to Bob
 using the ``Transfer`` workflow.
@@ -223,6 +223,7 @@ In order to fully understand these instructions, we need to keep it mind
 the interface hierarchy used by our holding implementation.
 
 .. image:: ../../images/interface_hierarchy.png
+  :alt: A diagram of the interface heirarchy. From left to right, Disclosure, Holding, Lockable, Transferable, and Fungible are each linked by arrows pointing left. Below is an arrow, also pointing left, labelled Implements.
 
 We use ``coerceContractId`` to convert the ``Holding`` to a
 ``Transferable``. The success of this operation is not guaranteed and
@@ -274,9 +275,9 @@ Exercises
 *********
 
 There are a couple of improvements to the code that can be implemented as an exercise.
-Giving them a try will help you familiarize yourself with the library and with Daml interfaces.
+They will help you familiarize yourself with the library and with Daml interfaces.
 
-Split the holding to transfer the right amount
+Split the Holding to Transfer the Right Amount
 ==============================================
 
 In the example, Bob requests ``1,000 USD`` from Alice and Alice allocates a holding for exactly the right amount, because the transfer would otherwise fail.
@@ -291,7 +292,7 @@ In the implementation of the ``CashTransferRequest_Accept`` choice
 
 In the last step, you will need to cast the ``Fungible`` to a ``Transferable`` using ``toInterfaceContractId``.
 
-Temporary account Disclosure
+Temporary Account Disclosure
 ============================
 
 There is no reason for Alice to be an observer on Bob's account before the transfer is initiated by Bob (and after the transfer is executed).

@@ -17,7 +17,7 @@ We are going to
 This example builds on the previous :doc:`Transfer <transfer>` tutorial script such that the same
 accounts and existing holdings can be used.
 
-Overview of the process
+Overview of the Process
 ***********************
 
 We first give a quick outline of the settlement process.
@@ -59,8 +59,8 @@ We first give a quick outline of the settlement process.
 |                                      |                                                                                                                                             |
 +--------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------+
 
-Running the script
-******************
+Run the Script
+**************
 
 The code for this tutorial can be executed via the ``runSettlement`` function in the ``Settlement.daml`` module.
 

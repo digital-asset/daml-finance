@@ -1,15 +1,15 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-How to use the Bond extension package
+How to Use the Bond Extension Package
 #####################################
 
 To follow the script used in this tutorial you can `clone the Daml Finance repository <https://github.com/digital-asset/daml-finance>`_.
 In particular, the Bond test folder ``src/test/daml/Daml/Finance/Instrument/Bond/Test/`` is the starting point
 of this tutorial.
 
-How to use the Bond extension in your app
-*****************************************
+How to Use the Bond Extension in Your Application
+*************************************************
 
 As explained in the :ref:`Getting Started <structure-of-code-dependencies>` section
 and on the :doc:`Architecture <../../overview/architecture>` page,
@@ -17,17 +17,17 @@ your app should only depend on the interface layer of Daml Finance.
 For bonds this means that you should only include the bond interface package:
 ``Daml.Finance.Interface.Instrument.Bond``.
 
-Your initialization scripts are an exception to this, since they are only run once when your app is initialized.
-This would create the factories needed. Your app can then create bonds through these factory interfaces.
+Your initialization scripts are an exception, since they are only run once when your app is initialized.
+This creates the necessary factories. Your app can then create bonds through these factory interfaces.
 
-How to create a bond instrument
+How to Create a Bond Instrument
 *******************************
 
 There are different types of bonds, which mainly differ in the way the coupon is defined.
 In order to create a bond instrument you first have to decide what type of bond you need.
 The bond extension package currently supports the following bond types:
 
-Fixed rate
+Fixed Rate
 ==========
 
 Fixed rate bonds pay a constant coupon each coupon period. The coupon is quoted on a yearly basis (per annum, p.a.), but it could be paid more frequently.
@@ -72,7 +72,7 @@ Now that we have defined the terms we can create the bond instrument:
 
 Once the instrument is created, you can book a holding on it using ``Account.credit``.
 
-Floating rate
+Floating Rate
 =============
 
 Floating rate bonds pay a coupon which is determined by a reference rate.
@@ -95,7 +95,7 @@ Here is how we create the floating rate bond instrument:
 The reference rate is observed once at the beginning of each coupon period and used for
 the coupon payment at the end of that period.
 
-Inflation linked
+Inflation Linked
 ================
 
 Inflation linked bonds pay a fixed coupon rate at the end of every coupon period.
@@ -121,7 +121,7 @@ For clarity, this only applies to the redemption amount. The coupons are always 
 This means that in the case of deflation, the coupons would be lower than the specified coupon rate but the original principal would still be redeemed at maturity.
 
 
-Zero coupon
+Zero Coupon
 ===========
 
 A zero coupon bond does not pay any coupons at all.
