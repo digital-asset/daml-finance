@@ -186,9 +186,9 @@ lifecycleAndVerifySwapPaymentEffectsAndSettlement readAs today swapInstrument se
 
   pure (newSwapInstrumentKey, coerceContractId investorSwapHoldingCid)
 
--- | Verify the payments from a payment date of an interest rate swap.
-lifecycleAndVerifyAssetSwapPaymentEffectsAndSettlement2 : [Party] -> Date -> Instrument.K -> Parties -> Party -> Party -> ContractId Transferable.I -> ContractId Transferable.I -> ContractId Transferable.I -> ContractId Transferable.I -> AccountKey -> AccountKey -> [(Text, Parties)] -> Party -> [ContractId Observable.I] -> Script (Instrument.K, ContractId Transferable.I)
-lifecycleAndVerifyAssetSwapPaymentEffectsAndSettlement2 readAs today swapInstrument settlers issuer investor investorSwapTransferableCid investorCashTransferableFixLegCid custodianCashTransferableFloatingLegCid custodianCashTransferableFloatingCorrectionLegCid custodianAccount investorAccount obs custodian observableCids = do
+-- | Verify the payments from a payment date of an asset swap.
+lifecycleAndVerifyAssetSwapPaymentEffectsAndSettlement : [Party] -> Date -> Instrument.K -> Parties -> Party -> Party -> ContractId Transferable.I -> ContractId Transferable.I -> ContractId Transferable.I -> ContractId Transferable.I -> AccountKey -> AccountKey -> [(Text, Parties)] -> Party -> [ContractId Observable.I] -> Script (Instrument.K, ContractId Transferable.I)
+lifecycleAndVerifyAssetSwapPaymentEffectsAndSettlement readAs today swapInstrument settlers issuer investor investorSwapTransferableCid investorCashTransferableFixLegCid custodianCashTransferableAssetLegCid investorCashTransferableAssetCorrectionLegCid custodianAccount investorAccount obs custodian observableCids = do
   (swapLifecycleCid, [effectCid]) <- lifecycleInstrument readAs today swapInstrument settlers issuer observableCids
 
   newSwapInstrumentKey <- submit issuer do
@@ -215,87 +215,33 @@ lifecycleAndVerifyAssetSwapPaymentEffectsAndSettlement2 readAs today swapInstrum
 
   let
     Some [investorSwapHoldingCid] = result.newInstrumentHoldingCids
-    [custodianCashInstructionFixLegCid, custodianCashInstructionFloatingLegCid, custodianCashInstructionFloatingCorrectionLegCid] = result.instructionCids
+    [custodianCashInstructionFixLegCid, investorCashInstructionAssetCorrectionLegCid, custodianCashInstructionAssetLegCid] = result.instructionCids
 
   -- Allocate instructions
   (custodianCashInstructionFixLegCid, _) <- submitMulti [investor] readAs do exerciseCmd custodianCashInstructionFixLegCid Instruction.Allocate with allocation = Pledge investorCashTransferableFixLegCid
-  (custodianCashInstructionFloatingLegCid, _) <- submitMulti [custodian] readAs do exerciseCmd custodianCashInstructionFloatingLegCid Instruction.Allocate with allocation = Pledge custodianCashTransferableFloatingLegCid
-  (custodianCashInstructionFloatingCorrectionLegCid, _) <- submitMulti [custodian] readAs do exerciseCmd custodianCashInstructionFloatingCorrectionLegCid Instruction.Allocate with allocation = Pledge custodianCashTransferableFloatingCorrectionLegCid
+  (custodianCashInstructionAssetLegCid, _) <- submitMulti [custodian] readAs do exerciseCmd custodianCashInstructionAssetLegCid Instruction.Allocate with allocation = Pledge custodianCashTransferableAssetLegCid
+  (investorCashInstructionAssetCorrectionLegCid, _) <- submitMulti [investor] readAs do exerciseCmd investorCashInstructionAssetCorrectionLegCid Instruction.Allocate with allocation = Pledge investorCashTransferableAssetCorrectionLegCid
 
   -- Approve instructions
   investorCashInstructionFixLegCid <- submitMulti [custodian] [] do
     exerciseCmd custodianCashInstructionFixLegCid Instruction.Approve with approval = TakeDelivery custodianAccount
-  custodianCashInstructionFloatingLegCid <- submitMulti [investor] [] do
-    exerciseCmd custodianCashInstructionFloatingLegCid Instruction.Approve with approval = TakeDelivery investorAccount
-  custodianCashInstructionFloatingCorrectionLegCid <- submitMulti [investor] [] do
-    exerciseCmd custodianCashInstructionFloatingCorrectionLegCid Instruction.Approve with approval = TakeDelivery investorAccount
+  custodianCashInstructionAssetLegCid <- submitMulti [investor] [] do
+    exerciseCmd custodianCashInstructionAssetLegCid Instruction.Approve with approval = TakeDelivery investorAccount
+  custodianCashInstructionAssetCorrectionLegCid <- submitMulti [custodian] [] do
+    exerciseCmd investorCashInstructionAssetCorrectionLegCid Instruction.Approve with approval = TakeDelivery custodianAccount
 
   -- Settle batch
   let settlerUsed = head $ toList settlers
-  [investorCashTransferableFixLegCid, investorCashTransferableFloatingLegCid, investorCashTransferableFloatingCorrectionLegCid] <- submitMulti [settlerUsed] readAs do exerciseCmd result.batchCid Batch.Settle with actors = singleton settlerUsed
+  [investorCashTransferableFixLegCid, investorCashTransferableAssetLegCid, investorCashTransferableAssetCorrectionLegCid] <- submitMulti [settlerUsed] readAs do exerciseCmd result.batchCid Batch.Settle with actors = singleton settlerUsed
 
   -- Assert state
-  verifyOwnerOfHolding [(investor, investorSwapHoldingCid), (custodian, toInterfaceContractId investorCashTransferableFixLegCid), (investor, toInterfaceContractId investorCashTransferableFloatingLegCid), (investor, toInterfaceContractId investorCashTransferableFloatingCorrectionLegCid)]
+  verifyOwnerOfHolding [(investor, investorSwapHoldingCid), (custodian, toInterfaceContractId investorCashTransferableFixLegCid), (custodian, toInterfaceContractId investorCashTransferableAssetLegCid), (investor, toInterfaceContractId investorCashTransferableAssetCorrectionLegCid)]
 
   pure (newSwapInstrumentKey, coerceContractId investorSwapHoldingCid)
 
--- | Verify the payments from a payment date of an interest rate swap.
-lifecycleAndVerifyAssetSwapPaymentEffectsAndSettlement3 : [Party] -> Date -> Instrument.K -> Parties -> Party -> Party -> ContractId Transferable.I -> ContractId Transferable.I -> ContractId Transferable.I -> ContractId Transferable.I -> AccountKey -> AccountKey -> [(Text, Parties)] -> Party -> [ContractId Observable.I] -> Script (Instrument.K, ContractId Transferable.I)
-lifecycleAndVerifyAssetSwapPaymentEffectsAndSettlement3 readAs today swapInstrument settlers issuer investor investorSwapTransferableCid investorCashTransferableFixLegCid custodianCashTransferableFloatingLegCid custodianCashTransferableFloatingCorrectionLegCid custodianAccount investorAccount obs custodian observableCids = do
-  (swapLifecycleCid, [effectCid]) <- lifecycleInstrument readAs today swapInstrument settlers issuer observableCids
-
-  newSwapInstrumentKey <- submit issuer do
-    Instrument.toKey <$> exerciseCmd @Instrument.I (coerceContractId swapLifecycleCid) Instrument.GetView with viewer = issuer
-
-  -- Create settlement factory
-  settlementFactoryCid <- toInterfaceContractId <$> submit investor do createCmd Factory with provider = investor; observers = empty
-
-  -- Claim effect
-  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [custodian, investor] [] do
-    createCmd Claim.Rule
-      with
-        providers = fromList [custodian, investor]
-        claimers = singleton investor
-        settlers
-        settlementFactoryCid
-
-  result <- submitMulti [investor] readAs do
-    exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
-      claimer = investor
-      holdingCids = [toInterfaceContractId @Base.I investorSwapTransferableCid]
-      effectCid
-      batchId = Id "InterestSettlement"
-
-  let
-    Some [investorSwapHoldingCid] = result.newInstrumentHoldingCids
-    --[custodianCashInstructionFixLegCid, custodianCashInstructionFloatingLegCid, custodianCashInstructionFloatingCorrectionLegCid] = result.instructionCids
-    [custodianCashInstructionFixLegCid, custodianCashInstructionFloatingCorrectionLegCid, custodianCashInstructionFloatingLegCid] = result.instructionCids
-
-  -- Allocate instructions
-  (custodianCashInstructionFixLegCid, _) <- submitMulti [investor] readAs do exerciseCmd custodianCashInstructionFixLegCid Instruction.Allocate with allocation = Pledge investorCashTransferableFixLegCid
-  (custodianCashInstructionFloatingLegCid, _) <- submitMulti [custodian] readAs do exerciseCmd custodianCashInstructionFloatingLegCid Instruction.Allocate with allocation = Pledge custodianCashTransferableFloatingLegCid
-  (custodianCashInstructionFloatingCorrectionLegCid, _) <- submitMulti [investor] readAs do exerciseCmd custodianCashInstructionFloatingCorrectionLegCid Instruction.Allocate with allocation = Pledge custodianCashTransferableFloatingCorrectionLegCid
-
-  -- Approve instructions
-  investorCashInstructionFixLegCid <- submitMulti [custodian] [] do
-    exerciseCmd custodianCashInstructionFixLegCid Instruction.Approve with approval = TakeDelivery custodianAccount
-  custodianCashInstructionFloatingLegCid <- submitMulti [investor] [] do
-    exerciseCmd custodianCashInstructionFloatingLegCid Instruction.Approve with approval = TakeDelivery investorAccount
-  custodianCashInstructionFloatingCorrectionLegCid <- submitMulti [custodian] [] do
-    exerciseCmd custodianCashInstructionFloatingCorrectionLegCid Instruction.Approve with approval = TakeDelivery custodianAccount
-
-  -- Settle batch
-  let settlerUsed = head $ toList settlers
-  [investorCashTransferableFixLegCid, investorCashTransferableFloatingLegCid, investorCashTransferableFloatingCorrectionLegCid] <- submitMulti [settlerUsed] readAs do exerciseCmd result.batchCid Batch.Settle with actors = singleton settlerUsed
-
-  -- Assert state
-  verifyOwnerOfHolding [(investor, investorSwapHoldingCid), (custodian, toInterfaceContractId investorCashTransferableFixLegCid), (custodian, toInterfaceContractId investorCashTransferableFloatingLegCid), (investor, toInterfaceContractId investorCashTransferableFloatingCorrectionLegCid)]
-
-  pure (newSwapInstrumentKey, coerceContractId investorSwapHoldingCid)
-
--- | Verify the payments from a payment date of an interest rate swap.
+-- | Verify the payments from the final payment date of an asset swap.
 lifecycleAndVerifyFinalAssetSwapPaymentEffects : [Party] -> Date -> Instrument.K -> Parties -> Party -> Party -> ContractId Transferable.I -> ContractId Transferable.I -> ContractId Transferable.I -> ContractId Transferable.I -> AccountKey -> AccountKey -> [(Text, Parties)] -> Party -> [ContractId Observable.I] -> Script (Instrument.K)
-lifecycleAndVerifyFinalAssetSwapPaymentEffects readAs today swapInstrument settlers issuer investor investorSwapTransferableCid investorCashTransferableFixLegCid custodianCashTransferableFloatingLegCid custodianCashTransferableFloatingCorrectionLegCid custodianAccount investorAccount obs custodian observableCids = do
+lifecycleAndVerifyFinalAssetSwapPaymentEffects readAs today swapInstrument settlers issuer investor investorSwapTransferableCid investorCashTransferableFixLegCid custodianCashTransferableAssetLegCid investorCashTransferableAssetCorrectionLegCid custodianAccount investorAccount obs custodian observableCids = do
   (swapLifecycleCid, [effectCid]) <- lifecycleInstrument readAs today swapInstrument settlers issuer observableCids
 
   newSwapInstrumentKey <- submit issuer do
@@ -321,87 +267,26 @@ lifecycleAndVerifyFinalAssetSwapPaymentEffects readAs today swapInstrument settl
       batchId = Id "InterestSettlement"
 
   let
-    --[custodianCashInstructionFixLegCid, custodianCashInstructionFloatingLegCid, custodianCashInstructionFloatingCorrectionLegCid] = result.instructionCids
-    [custodianCashInstructionFixLegCid, custodianCashInstructionFloatingCorrectionLegCid, custodianCashInstructionFloatingLegCid] = result.instructionCids
+    [custodianCashInstructionFixLegCid, custodianCashInstructionAssetCorrectionLegCid, custodianCashInstructionAssetLegCid] = result.instructionCids
 
   -- Allocate instructions
   (custodianCashInstructionFixLegCid, _) <- submitMulti [investor] readAs do exerciseCmd custodianCashInstructionFixLegCid Instruction.Allocate with allocation = Pledge investorCashTransferableFixLegCid
-  (custodianCashInstructionFloatingLegCid, _) <- submitMulti [custodian] readAs do exerciseCmd custodianCashInstructionFloatingLegCid Instruction.Allocate with allocation = Pledge custodianCashTransferableFloatingLegCid
-  (custodianCashInstructionFloatingCorrectionLegCid, _) <- submitMulti [investor] readAs do exerciseCmd custodianCashInstructionFloatingCorrectionLegCid Instruction.Allocate with allocation = Pledge custodianCashTransferableFloatingCorrectionLegCid
+  (custodianCashInstructionAssetLegCid, _) <- submitMulti [custodian] readAs do exerciseCmd custodianCashInstructionAssetLegCid Instruction.Allocate with allocation = Pledge custodianCashTransferableAssetLegCid
+  (investorCashInstructionAssetCorrectionLegCid, _) <- submitMulti [investor] readAs do exerciseCmd custodianCashInstructionAssetCorrectionLegCid Instruction.Allocate with allocation = Pledge investorCashTransferableAssetCorrectionLegCid
 
   -- Approve instructions
   investorCashInstructionFixLegCid <- submitMulti [custodian] [] do
     exerciseCmd custodianCashInstructionFixLegCid Instruction.Approve with approval = TakeDelivery custodianAccount
-  custodianCashInstructionFloatingLegCid <- submitMulti [investor] [] do
-    exerciseCmd custodianCashInstructionFloatingLegCid Instruction.Approve with approval = TakeDelivery investorAccount
-  custodianCashInstructionFloatingCorrectionLegCid <- submitMulti [custodian] [] do
-    exerciseCmd custodianCashInstructionFloatingCorrectionLegCid Instruction.Approve with approval = TakeDelivery custodianAccount
+  custodianCashInstructionAssetLegCid <- submitMulti [investor] [] do
+    exerciseCmd custodianCashInstructionAssetLegCid Instruction.Approve with approval = TakeDelivery investorAccount
+  custodianCashInstructionAssetCorrectionLegCid <- submitMulti [custodian] [] do
+    exerciseCmd investorCashInstructionAssetCorrectionLegCid Instruction.Approve with approval = TakeDelivery custodianAccount
 
   -- Settle batch
   let settlerUsed = head $ toList settlers
-  [investorCashTransferableFixLegCid, investorCashTransferableFloatingLegCid, investorCashTransferableFloatingCorrectionLegCid] <- submitMulti [settlerUsed] readAs do exerciseCmd result.batchCid Batch.Settle with actors = singleton settlerUsed
-
-  -- Assert state
-  --verifyOwnerOfHolding [(investor, investorSwapHoldingCid), (custodian, toInterfaceContractId investorCashTransferableFixLegCid), (custodian, toInterfaceContractId investorCashTransferableFloatingLegCid), (investor, toInterfaceContractId investorCashTransferableFloatingCorrectionLegCid)]
+  [investorCashTransferableFixLegCid, investorCashTransferableAssetLegCid, investorCashTransferableAssetCorrectionLegCid] <- submitMulti [settlerUsed] readAs do exerciseCmd result.batchCid Batch.Settle with actors = singleton settlerUsed
 
   pure (newSwapInstrumentKey)
-
--- | Verify the payments from a payment date of an interest rate swap.
-lifecycleAndVerifyAssetSwapPaymentEffectsAndSettlement : [Party] -> Date -> Instrument.K -> Parties -> Party -> Party -> ContractId Transferable.I -> ContractId Transferable.I -> ContractId Transferable.I -> ContractId Transferable.I -> AccountKey -> AccountKey -> [(Text, Parties)] -> Party -> [ContractId Observable.I] -> Script (Instrument.K, ContractId Transferable.I)
-lifecycleAndVerifyAssetSwapPaymentEffectsAndSettlement readAs today swapInstrument settlers issuer investor investorSwapTransferableCid investorCashTransferableFixLegCid custodianCashTransferableFloatingLegCid investorCashTransferableFloatingCorrectionLegCid custodianAccount investorAccount obs custodian observableCids = do
-  (swapLifecycleCid, [effectCid]) <- lifecycleInstrument readAs today swapInstrument settlers issuer observableCids
-
-  newSwapInstrumentKey <- submit issuer do
-    Instrument.toKey <$> exerciseCmd @Instrument.I (coerceContractId swapLifecycleCid) Instrument.GetView with viewer = issuer
-
-  -- Create settlement factory
-  settlementFactoryCid <- toInterfaceContractId <$> submit investor do createCmd Factory with provider = investor; observers = empty
-
-  -- Claim effect
-  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [custodian, investor] [] do
-    createCmd Claim.Rule
-      with
-        providers = fromList [custodian, investor]
-        claimers = singleton investor
-        settlers
-        settlementFactoryCid
-
-  result <- submitMulti [investor] readAs do
-    exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
-      claimer = investor
-      holdingCids = [toInterfaceContractId @Base.I investorSwapTransferableCid]
-      effectCid
-      batchId = Id "InterestSettlement"
-
-  let
-    Some [investorSwapHoldingCid] = result.newInstrumentHoldingCids
-    --[custodianCashInstructionFixLegCid, custodianCashInstructionFloatingLegCid] = result.instructionCids
-    [custodianCashInstructionFixLegCid, custodianCashInstructionFloatingLegCid, investorCashInstructionFloatingCorrectionLegCid] = result.instructionCids
-
-  -- Allocate instructions
-  (custodianCashInstructionFixLegCid, _) <- submitMulti [investor] readAs do exerciseCmd custodianCashInstructionFixLegCid Instruction.Allocate with allocation = Pledge investorCashTransferableFixLegCid
-  (custodianCashInstructionFloatingLegCid, _) <- submitMulti [custodian] readAs do exerciseCmd custodianCashInstructionFloatingLegCid Instruction.Allocate with allocation = Pledge custodianCashTransferableFloatingLegCid
-  (investorCashInstructionFloatingCorrectionLegCid, _) <- submitMulti [investor] readAs do exerciseCmd investorCashInstructionFloatingCorrectionLegCid Instruction.Allocate with allocation = Pledge investorCashTransferableFloatingCorrectionLegCid
-
-  -- Approve instructions
-  investorCashInstructionFixLegCid <- submitMulti [custodian] [] do
-    exerciseCmd custodianCashInstructionFixLegCid Instruction.Approve with approval = TakeDelivery custodianAccount
-  custodianCashInstructionFloatingLegCid <- submitMulti [investor] [] do
-    exerciseCmd custodianCashInstructionFloatingLegCid Instruction.Approve with approval = TakeDelivery investorAccount
-  investorCashInstructionFloatingCorrectionLegCid <- submitMulti [custodian] [] do
-    exerciseCmd investorCashInstructionFloatingCorrectionLegCid Instruction.Approve with approval = TakeDelivery custodianAccount
-
-
-  -- Settle batch
-  let settlerUsed = head $ toList settlers
-  [investorCashTransferableFixLegCid, investorCashTransferableFloatingLegCid, investorCashTransferableFloatingCorrectionLegCid] <- submitMulti [settlerUsed] readAs do exerciseCmd result.batchCid Batch.Settle with actors = singleton settlerUsed
-
-  debug settlerUsed
-
-  -- Assert state
-  verifyOwnerOfHolding [(investor, investorSwapHoldingCid), (custodian, toInterfaceContractId investorCashTransferableFixLegCid), (investor, toInterfaceContractId investorCashTransferableFloatingLegCid), (custodian, toInterfaceContractId investorCashTransferableFloatingCorrectionLegCid)]
-
-  pure (newSwapInstrumentKey, coerceContractId investorSwapHoldingCid)
 
 -- | Verify the payments from the final payment date of an interest rate swap.
 lifecycleAndVerifyFinalSwapPaymentEffects : [Party] -> Date -> Instrument.K -> Parties -> Party -> Party -> ContractId Transferable.I -> ContractId Transferable.I -> ContractId Transferable.I -> AccountKey -> AccountKey -> [(Text, Parties)] -> Party -> [ContractId Observable.I] -> Script (Instrument.K)

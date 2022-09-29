@@ -19,8 +19,8 @@ import Daml.Finance.Test.Util.Account qualified as Account (createAccount, creat
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
 import Daml.Script
-{-
--- Calculate interest rate payment on an interest rate swap, including lifecycling and creation of new instrument version.
+
+-- Calculate payments on an asset swap, including lifecycling and creation of new instrument version.
 run : Script ()
 run = script do
   [custodian, issuer, investor, calendarDataProvider, publicParty] <-
@@ -41,25 +41,26 @@ run = script do
   cashInstrumentCid <- Instrument.originate custodian issuer "USD" "US Dollars" observers now
 
   -- Create and distribute swap
-  -- Fix vs floating interest rate swap: Libor 3M vs 2.01% p.a. payment every 3M
-  -- CREATE_INTEREST_RATE_SWAP_VARIABLES_BEGIN
+  -- Equity vs fix asset swap: AAPL total return vs 2.01% p.a. payment every 3M
+  -- CREATE_ASSET_SWAP_VARIABLES_BEGIN
   let
     issueDate = date 2019 Jan 16
     firstPaymentDate = date 2019 Feb 15
     maturityDate = date 2019 May 15
-    referenceRateId = "USD/LIBOR/3M"
+    referenceAssetId = "AAPL-CLOSE-ADJ"
     issuerPaysFix = False
     fixRate = 0.0201
     paymentPeriod = M
     paymentPeriodMultiplier = 3
     dayCountConvention = Act360
     businessDayConvention = ModifiedFollowing
-    -- CREATE_INTEREST_RATE_SWAP_VARIABLES_END
+    -- CREATE_ASSET_SWAP_VARIABLES_END
     firstFixPaymentAmount = 1675.0
-    firstFloatingPaymentAmount = 1080156.1777 -- TODO: Correct this
-    firstFloatingCorrectionPaymentAmount = 1_000_000.0 -- TODO: Correct this
+    firstAssetPaymentAmount = 1080156.1777
+    firstAssetCorrectionPaymentAmount = 1_000_000.0
     secondFixPaymentAmount : Decimal = 4969.1667
-    secondFloatingPaymentAmount : Decimal = 1037210.2912 -- TODO: Correct this
+    secondAssetPaymentAmount : Decimal = 1037210.2912
+    secondAssetCorrectionPaymentAmount = 1_000_000.0
     principalAmount = 1_000_000.0
     observations = M.fromList [(dateToDateClockTime (date 2019 Jan 16), 43.54), (dateToDateClockTime (date 2019 Feb 15), 47.03), (dateToDateClockTime (date 2019 May 15), 48.78)]
     holidayCalendarId = ["USD"]
@@ -77,116 +78,20 @@ run = script do
       calendar = cal
       observers = M.fromList fp
 
-  observableCid <- coerceContractId <$> submitMulti [issuer] [] do createCmd Observation with provider = issuer; id = Id referenceRateId; observations; observers = M.empty
+  observableCid <- coerceContractId <$> submitMulti [issuer] [] do createCmd Observation with provider = issuer; id = Id referenceAssetId; observations; observers = M.empty
 
-  swapInstrument <- originateAssetSwap custodian issuer "SwapTest1" "Interest rate swap" fp now issueDate holidayCalendarId calendarDataProvider firstPaymentDate maturityDate dayCountConvention businessDayConvention fixRate paymentPeriod paymentPeriodMultiplier cashInstrumentCid referenceRateId issuerPaysFix
+  swapInstrument <- originateAssetSwap custodian issuer "SwapTest1" "Asset swap" fp now issueDate holidayCalendarId calendarDataProvider firstPaymentDate maturityDate dayCountConvention businessDayConvention fixRate paymentPeriod paymentPeriodMultiplier cashInstrumentCid referenceAssetId issuerPaysFix
   investorSwapTransferableCid <- Account.credit [publicParty] swapInstrument principalAmount investorAccount
 
   -- One day before the first payment date: try to lifecycle and verify that there are no lifecycle effects.
   let settlers = singleton custodian
   verifyNoLifecycleEffects [publicParty] (subtractDays firstPaymentDate 1) swapInstrument settlers issuer [observableCid]
 
-  -- First payment date: Lifecycle and verify that there are lifecycle effects for fix and floating payments.
+  -- First payment date: Lifecycle and verify that there are lifecycle effects for fix rate and asset performance payments.
   investorCashForFixPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid firstFixPaymentAmount investorAccount
-  custodianCashForFloatingPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid firstFloatingPaymentAmount custodianAccount
-  custodianCashForFloatingCorrectionPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid firstFloatingCorrectionPaymentAmount custodianAccount
-  --investorCashForFloatingCorrectionPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid firstFloatingCorrectionPaymentAmount investorAccount
-  --(swapInstrumentAfterFirstPayment, investorSwapTransferableCid) <- lifecycleAndVerifySwapPaymentEffectsAndSettlement [publicParty] firstPaymentDate swapInstrument settlers issuer investor investorSwapTransferableCid investorCashForFixPaymentTransferableCid custodianCashForFloatingPaymentTransferableCid custodianAccount investorAccount observers custodian [observableCid]
-  --(swapInstrumentAfterFirstPayment, investorSwapTransferableCid) <- lifecycleAndVerifyAssetSwapPaymentEffectsAndSettlement2 [publicParty] firstPaymentDate swapInstrument settlers issuer investor investorSwapTransferableCid investorCashForFixPaymentTransferableCid custodianCashForFloatingPaymentTransferableCid custodianAccount investorAccount observers custodian [observableCid]
-  (swapInstrumentAfterFirstPayment, investorSwapTransferableCid) <- lifecycleAndVerifyAssetSwapPaymentEffectsAndSettlement2 [publicParty] firstPaymentDate swapInstrument settlers issuer investor investorSwapTransferableCid investorCashForFixPaymentTransferableCid custodianCashForFloatingPaymentTransferableCid custodianCashForFloatingCorrectionPaymentTransferableCid custodianAccount investorAccount observers custodian [observableCid]
-  --(swapInstrumentAfterFirstPayment, investorSwapTransferableCid) <- lifecycleAndVerifyAssetSwapPaymentEffectsAndSettlement [publicParty] firstPaymentDate swapInstrument settlers issuer investor investorSwapTransferableCid investorCashForFixPaymentTransferableCid custodianCashForFloatingPaymentTransferableCid investorCashForFloatingCorrectionPaymentTransferableCid custodianAccount investorAccount observers custodian [observableCid]
-{-
-  -- One day after the first payment date: try to lifecycle and verify that there are no lifecycle effects.
-  verifyNoLifecycleEffects [publicParty] (addDays firstPaymentDate 1) swapInstrumentAfterFirstPayment settlers issuer [observableCid]
-
-  -- One day before expiry: try to lifecycle and verify that there are no lifecycle effects.
-  verifyNoLifecycleEffects [publicParty] (subtractDays maturityDate 1) swapInstrumentAfterFirstPayment settlers issuer [observableCid]
-
-  -- Lifecycle on the second payment date, which is also the expiry date. Verify that there are lifecycle effects for fix and floating payments.
-  investorCashForFixPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid secondFixPaymentAmount investorAccount
-  custodianCashForFloatingPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid secondFloatingPaymentAmount custodianAccount
-  lifecycleAndVerifyFinalSwapPaymentEffects [publicParty] maturityDate swapInstrumentAfterFirstPayment settlers issuer investor investorSwapTransferableCid investorCashForFixPaymentTransferableCid custodianCashForFloatingPaymentTransferableCid custodianAccount investorAccount observers custodian [observableCid]
- -}
-  pure ()
- -}
-
--- Calculate interest rate payment on an interest rate swap, including lifecycling and creation of new instrument version.
-run : Script ()
-run = script do
-  [custodian, issuer, investor, calendarDataProvider, publicParty] <-
-    createParties ["Custodian", "Issuer", "Investor", "Calendar Data Provider", "PublicParty"]
-
-  -- Account and holding factory
-  let fp = [("FactoryProvider", singleton publicParty)]
-  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory custodian fp
-  holdingFactoryCid <- toInterfaceContractId <$> submitMulti [custodian] [] do
-    createCmd Fungible.Factory with provider = custodian; observers = M.fromList fp
-
-  -- Create accounts
-  [custodianAccount, investorAccount] <- mapA (Account.createAccount "Default Account" [publicParty] accountFactoryCid holdingFactoryCid [] custodian) [custodian, investor]
-
-  -- Distribute commercial-bank cash
-  now <- getTime
-  let observers = [("PublicParty", singleton publicParty)]
-  cashInstrumentCid <- Instrument.originate custodian issuer "USD" "US Dollars" observers now
-
-  -- Create and distribute swap
-  -- Fix vs floating interest rate swap: Libor 3M vs 2.01% p.a. payment every 3M
-  -- CREATE_INTEREST_RATE_SWAP_VARIABLES_BEGIN
-  let
-    issueDate = date 2019 Jan 16
-    firstPaymentDate = date 2019 Feb 15
-    maturityDate = date 2019 May 15
-    referenceRateId = "USD/LIBOR/3M"
-    issuerPaysFix = False
-    fixRate = 0.0201
-    paymentPeriod = M
-    paymentPeriodMultiplier = 3
-    dayCountConvention = Act360
-    businessDayConvention = ModifiedFollowing
-    -- CREATE_INTEREST_RATE_SWAP_VARIABLES_END
-    firstFixPaymentAmount = 1675.0
-    firstFloatingPaymentAmount = 1080156.1777 -- TODO: Correct this
-    firstFloatingCorrectionPaymentAmount = 1_000_000.0 -- TODO: Correct this
-    secondFixPaymentAmount : Decimal = 4969.1667
-    secondFloatingPaymentAmount : Decimal = 1037210.2912 -- TODO: Correct this
-    secondFloatingCorrectionPaymentAmount = 1_000_000.0 -- TODO: Correct this
-    principalAmount = 1_000_000.0
-    observations = M.fromList [(dateToDateClockTime (date 2019 Jan 16), 43.54), (dateToDateClockTime (date 2019 Feb 15), 47.03), (dateToDateClockTime (date 2019 May 15), 48.78)]
-    holidayCalendarId = ["USD"]
-    cal =
-      HolidayCalendarData with
-        id = "USD"
-        weekend = [Saturday, Sunday]
-        holidays = [date 2019 Dec 19]
-
-  -- A reference data provider publishes the holiday calendar on the ledger
-  calendarCid <- submitMulti [calendarDataProvider] [] do
-    createCmd HolidayCalendar with
-      agency = calendarDataProvider
-      entity = cal.id
-      calendar = cal
-      observers = M.fromList fp
-
-  observableCid <- coerceContractId <$> submitMulti [issuer] [] do createCmd Observation with provider = issuer; id = Id referenceRateId; observations; observers = M.empty
-
-  swapInstrument <- originateAssetSwap custodian issuer "SwapTest1" "Interest rate swap" fp now issueDate holidayCalendarId calendarDataProvider firstPaymentDate maturityDate dayCountConvention businessDayConvention fixRate paymentPeriod paymentPeriodMultiplier cashInstrumentCid referenceRateId issuerPaysFix
-  investorSwapTransferableCid <- Account.credit [publicParty] swapInstrument principalAmount investorAccount
-
-  -- One day before the first payment date: try to lifecycle and verify that there are no lifecycle effects.
-  let settlers = singleton custodian
-  verifyNoLifecycleEffects [publicParty] (subtractDays firstPaymentDate 1) swapInstrument settlers issuer [observableCid]
-
-  -- First payment date: Lifecycle and verify that there are lifecycle effects for fix and floating payments.
-  investorCashForFixPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid firstFixPaymentAmount investorAccount
-  custodianCashForFloatingPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid firstFloatingPaymentAmount custodianAccount
-  custodianCashForFloatingCorrectionPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid firstFloatingCorrectionPaymentAmount investorAccount
-  --investorCashForFloatingCorrectionPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid firstFloatingCorrectionPaymentAmount investorAccount
-  --(swapInstrumentAfterFirstPayment, investorSwapTransferableCid) <- lifecycleAndVerifySwapPaymentEffectsAndSettlement [publicParty] firstPaymentDate swapInstrument settlers issuer investor investorSwapTransferableCid investorCashForFixPaymentTransferableCid custodianCashForFloatingPaymentTransferableCid custodianAccount investorAccount observers custodian [observableCid]
-  --(swapInstrumentAfterFirstPayment, investorSwapTransferableCid) <- lifecycleAndVerifyAssetSwapPaymentEffectsAndSettlement2 [publicParty] firstPaymentDate swapInstrument settlers issuer investor investorSwapTransferableCid investorCashForFixPaymentTransferableCid custodianCashForFloatingPaymentTransferableCid custodianAccount investorAccount observers custodian [observableCid]
-  --(swapInstrumentAfterFirstPayment, investorSwapTransferableCid) <- lifecycleAndVerifyAssetSwapPaymentEffectsAndSettlement2 [publicParty] firstPaymentDate swapInstrument settlers issuer investor investorSwapTransferableCid investorCashForFixPaymentTransferableCid custodianCashForFloatingPaymentTransferableCid custodianCashForFloatingCorrectionPaymentTransferableCid custodianAccount investorAccount observers custodian [observableCid]
-  (swapInstrumentAfterFirstPayment, investorSwapTransferableCid) <- lifecycleAndVerifyAssetSwapPaymentEffectsAndSettlement3 [publicParty] firstPaymentDate swapInstrument settlers issuer investor investorSwapTransferableCid investorCashForFixPaymentTransferableCid custodianCashForFloatingPaymentTransferableCid custodianCashForFloatingCorrectionPaymentTransferableCid custodianAccount investorAccount observers custodian [observableCid]
-  --(swapInstrumentAfterFirstPayment, investorSwapTransferableCid) <- lifecycleAndVerifyAssetSwapPaymentEffectsAndSettlement [publicParty] firstPaymentDate swapInstrument settlers issuer investor investorSwapTransferableCid investorCashForFixPaymentTransferableCid custodianCashForFloatingPaymentTransferableCid investorCashForFloatingCorrectionPaymentTransferableCid custodianAccount investorAccount observers custodian [observableCid]
+  custodianCashForAssetPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid firstAssetPaymentAmount custodianAccount
+  investorCashForAssetCorrectionPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid firstAssetCorrectionPaymentAmount investorAccount
+  (swapInstrumentAfterFirstPayment, investorSwapTransferableCid) <- lifecycleAndVerifyAssetSwapPaymentEffectsAndSettlement [publicParty] firstPaymentDate swapInstrument settlers issuer investor investorSwapTransferableCid investorCashForFixPaymentTransferableCid custodianCashForAssetPaymentTransferableCid investorCashForAssetCorrectionPaymentTransferableCid custodianAccount investorAccount observers custodian [observableCid]
 
   -- One day after the first payment date: try to lifecycle and verify that there are no lifecycle effects.
   verifyNoLifecycleEffects [publicParty] (addDays firstPaymentDate 1) swapInstrumentAfterFirstPayment settlers issuer [observableCid]
@@ -194,11 +99,10 @@ run = script do
   -- One day before expiry: try to lifecycle and verify that there are no lifecycle effects.
   verifyNoLifecycleEffects [publicParty] (subtractDays maturityDate 1) swapInstrumentAfterFirstPayment settlers issuer [observableCid]
 
-  -- Lifecycle on the second payment date, which is also the expiry date. Verify that there are lifecycle effects for fix and floating payments.
+  -- Lifecycle on the second payment date, which is also the expiry date. Verify that there are lifecycle effects for fix rate and asset performance payments.
   investorCashForFixPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid secondFixPaymentAmount investorAccount
-  custodianCashForFloatingPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid secondFloatingPaymentAmount custodianAccount
-  custodianCashForFloatingCorrectionPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid secondFloatingCorrectionPaymentAmount investorAccount
-  --lifecycleAndVerifyFinalSwapPaymentEffects [publicParty] maturityDate swapInstrumentAfterFirstPayment settlers issuer investor investorSwapTransferableCid investorCashForFixPaymentTransferableCid custodianCashForFloatingPaymentTransferableCid custodianAccount investorAccount observers custodian [observableCid]
-  lifecycleAndVerifyFinalAssetSwapPaymentEffects [publicParty] maturityDate swapInstrumentAfterFirstPayment settlers issuer investor investorSwapTransferableCid investorCashForFixPaymentTransferableCid custodianCashForFloatingPaymentTransferableCid custodianCashForFloatingCorrectionPaymentTransferableCid custodianAccount investorAccount observers custodian [observableCid]
+  custodianCashForAssetPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid secondAssetPaymentAmount custodianAccount
+  investorCashForAssetCorrectionPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid secondAssetCorrectionPaymentAmount investorAccount
+  lifecycleAndVerifyFinalAssetSwapPaymentEffects [publicParty] maturityDate swapInstrumentAfterFirstPayment settlers issuer investor investorSwapTransferableCid investorCashForFixPaymentTransferableCid custodianCashForAssetPaymentTransferableCid investorCashForAssetCorrectionPaymentTransferableCid custodianAccount investorAccount observers custodian [observableCid]
 
   pure ()
