@@ -12,7 +12,7 @@ module Daml.Finance.Holding.Util
 import DA.Action (foldlA)
 import DA.Set qualified as S (delete, insert, isSubsetOf, null, singleton, toList)
 import Daml.Finance.Interface.Holding.Account qualified as Account (Transfer(..), I, R, exerciseInterfaceByKey)
-import Daml.Finance.Interface.Holding.Lockable (getLocker)
+import Daml.Finance.Interface.Holding.Lockable (getLockers)
 import Daml.Finance.Interface.Holding.Lockable qualified as Lockable (Acquire(..), I, Lock(..), LockType(..), Release(..))
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
 import Daml.Finance.Interface.Holding.Util (fetchAccount)
@@ -21,7 +21,7 @@ import Prelude hiding (null)
 
 -- | Utility function to reapply holding locks.
 reapplyLocks :  ContractId Lockable.I -> Lockable.Lock -> Update (ContractId Lockable.I)
-reapplyLocks cid lock = foldlA (\acc context -> exercise acc Lockable.Acquire with newLocker = lock.locker; context; lockType = lock.lockType) cid (S.toList lock.context)
+reapplyLocks cid lock = foldlA (\acc context -> exercise acc Lockable.Acquire with newLocker = lock.lockers; context; lockType = lock.lockType) cid (S.toList lock.context)
 
 -- | Utility function to unlock all holding locks.
 releaseAll : ContractId Lockable.I -> Lockable.Lock -> Update (ContractId Lockable.I)
@@ -36,7 +36,7 @@ transferImpl self Transferable.Transfer{newOwnerAccount; transferors} = do
   vNewAccount <- view <$> fetchInterfaceByKey @Account.R newOwnerAccount
   assertMsg "transferors must contain all transfer instructors of the sender account" $ S.isSubsetOf vAccount.transferors.instructors transferors
   assertMsg "transferors must contain all transfer approvers of the receiving account" $ S.isSubsetOf vNewAccount.transferors.approvers transferors
-  let lockers = getLocker transferable
+  let lockers = getLockers transferable
   coerceContractId <$> Account.exerciseInterfaceByKey @Account.I newOwnerAccount vAccount.custodian
     Account.Transfer with transferableCid; actors = lockers <> S.singleton vAccount.owner
 
@@ -46,7 +46,7 @@ acquireImpl _ lockable Lockable.Acquire{newLocker; context; lockType} = do
     let v = view lockable
     newLock <- case (v.lock, lockType) of
       (Some existingLock, Lockable.Reentrant) -> pure existingLock with context = context `S.insert` existingLock.context
-      (None, _) -> pure Lockable.Lock with locker = newLocker; context = S.singleton context; lockType
+      (None, _) -> pure Lockable.Lock with lockers = newLocker; context = S.singleton context; lockType
       _ -> abort "Contract is already locked."
     let Some this = fromInterface @t lockable
     toInterfaceContractId <$> create this with lock = Some newLock
