@@ -5,7 +5,7 @@ module Daml.Finance.Holding.Test.Fungible where
 
 import DA.Map qualified as M (fromList)
 import DA.Optional (fromSome)
-import DA.Set (singleton)
+import DA.Set qualified as S (fromList, singleton)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..), T)
 import Daml.Finance.Holding.Test.Common (TestInitialState(..), TestParties(..), setupInitialState, setupParties)
 import Daml.Finance.Interface.Holding.Account qualified as Account (Debit(..), I)
@@ -20,25 +20,25 @@ import Daml.Script
 run : Script ()
 run = script do
   -- Create parties
-  tp@TestParties{custodian; issuer; investor; locker; publicParty} <- setupParties
+  tp@TestParties{custodian; issuer; investor; lockers; publicParty} <- setupParties
 
   -- Initialize state with `Fungible.Factory`
-  TestInitialState {investorAccount; issuerAccount; issuerHoldingCid} <- setupInitialState tp (Fungible.Factory with provider = custodian; observers = M.fromList [("PublicParty", singleton publicParty)])
+  TestInitialState {investorAccount; issuerAccount; issuerHoldingCid} <- setupInitialState tp (Fungible.Factory with provider = custodian; observers = M.fromList [("PublicParty", S.singleton publicParty)]) []
 
   -- Lock asset
-  lockableCid <- submitMulti [issuer, locker] [] do exerciseCmd (coerceContractId issuerHoldingCid : ContractId Lockable.I) Lockable.Acquire with newLocker = singleton locker; context = "Test Lock"; lockType = Lockable.Semaphore
+  lockableCid <- submitMulti [issuer, lockers] [] do exerciseCmd (coerceContractId issuerHoldingCid : ContractId Lockable.I) Lockable.Acquire with newLocker = S.singleton lockers; context = "Test Lock"; lockType = Lockable.Semaphore
 
   -- Cannot split
   submitMultiMustFail [issuer, investor] [] do exerciseCmd (coerceContractId lockableCid : ContractId Fungible.I) Fungible.Split with amounts = [500.0, 250.0]
 
   -- Cannot transfer
-  submitMultiMustFail [issuer, investor] [] do exerciseCmd (coerceContractId lockableCid : ContractId Transferable.I) Transferable.Transfer with newOwnerAccount = investorAccount
+  submitMultiMustFail [issuer, investor] [] do exerciseCmd (coerceContractId lockableCid : ContractId Transferable.I) Transferable.Transfer with actors = S.fromList [issuer, investor]; newOwnerAccount = investorAccount
 
   -- Cannot debit
   Account.submitMustFailExerciseInterfaceByKeyCmd @Account.I [custodian, issuer] [] issuerAccount (Account.Debit with holdingCid = toInterfaceContractId lockableCid)
 
   -- Unlock asset
-  fungibleCid : ContractId Fungible.I <- coerceContractId <$> submitMulti [locker] [] do exerciseCmd lockableCid Lockable.Release with context = "Test Lock"
+  fungibleCid : ContractId Fungible.I <- coerceContractId <$> submitMulti [lockers] [] do exerciseCmd lockableCid Lockable.Release with context = "Test Lock"
 
   -- Attempt to split more than the amount available fails
   submitMultiMustFail [issuer, investor] [] do exerciseCmd fungibleCid Fungible.Split with amounts = [1_000.1]
@@ -90,7 +90,7 @@ run = script do
   Fungible.verifyAmountPreserving [fungible] [fungible']
 
   -- Transfer
-  transferableCid <- submitMulti [issuer, investor] [publicParty] do exerciseCmd (coerceContractId fungibleCid : ContractId Transferable.I) Transferable.Transfer with newOwnerAccount = investorAccount
+  transferableCid <- submitMulti [issuer, investor] [publicParty] do exerciseCmd (coerceContractId fungibleCid : ContractId Transferable.I) Transferable.Transfer with actors = S.fromList [issuer, investor]; newOwnerAccount = investorAccount
 
   -- Assert state
   Holding.verifyOwnerOfHolding [(investor, transferableCid)]
