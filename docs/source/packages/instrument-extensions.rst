@@ -52,6 +52,7 @@ Swaps
 
     This package contains the *interface* for different types of swaps. It contains the following instrument modules:
 
+    - :ref:`Asset <module-daml-finance-interface-instrument-swap-asset-instrument-37258>`: Interface that allows implementing templates to create asset swaps
     - :ref:`CreditDefaultSwap <module-daml-finance-interface-instrument-swap-creditdefault-instrument-27480>`: Interface that allows implementing templates to create credit default swaps
     - :ref:`CurrencySwap <module-daml-finance-interface-instrument-swap-currency-instrument-11782>`: Interface that allows implementing templates to create currency swaps
     - :ref:`ForeignExchange <module-daml-finance-interface-instrument-swap-foreignexchange-instrument-90743>`: Interface that allows implementing templates to create foreign exchange (FX) swaps
@@ -61,6 +62,7 @@ Swaps
 
     This package contains the *implementation* of different types of swaps. It contains the following instrument modules:
 
+    - :ref:`Asset <module-daml-finance-instrument-swap-asset-instrument-28127>`: This template models an asset swap that pays a fixed rate vs the performance of an asset at the end of every payment period
     - :ref:`CreditDefaultSwap <module-daml-finance-instrument-swap-creditdefault-instrument-88725>`: This template models a credit default swap that pays a fixed rate vs *1-recoveryRate* (in case of a credit default event)
     - :ref:`CurrencySwap <module-daml-finance-instrument-swap-currency-instrument-67721>`: This template models a currency swap that pays a fixed vs fixed rate (in different currencies) at the end of every payment period
     - :ref:`ForeignExchange <module-daml-finance-instrument-swap-foreignexchange-instrument-43394>`: This template models a foreign exchange (FX) swap with two legs: an initial FX transaction and a final FX transaction
