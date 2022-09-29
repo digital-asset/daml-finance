@@ -3,18 +3,20 @@
 
 module Daml.Finance.Settlement.Instruction where
 
+import DA.Action (when)
 import DA.Assert ((===))
 import DA.Functor (($>))
-import DA.Set (fromList, insert, isSubsetOf, singleton)
+import DA.Set qualified as S (fromList, insert, intersection, isSubsetOf, member, null, singleton)
 import DA.Tuple (fst3)
-import Daml.Finance.Interface.Holding.Account qualified as Account (I, Credit(..), Debit(..), disclose, exerciseInterfaceByKey, undisclose)
+import Daml.Finance.Interface.Holding.Account qualified as Account (I, Credit(..), Debit(..), R, disclose, exerciseInterfaceByKey, undisclose)
+import Daml.Finance.Interface.Holding.Lockable (getLockers)
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
 import Daml.Finance.Interface.Holding.Util (disclose, getAccount, getAmount, getInstrument, undisclose)
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..), Execute(..), HasImplementation, I, View(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), Step)
 import Daml.Finance.Interface.Types.Common (Id(..), Parties, PartiesMap)
+import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
-import DA.Action (when)
 
 -- | Type synonym for `Instruction`.
 type T = Instruction
@@ -53,20 +55,20 @@ template Instruction
 
     let
       messageSuffix = " / instruction id = " <> show id
-      discloseA account = Account.disclose (show batchId, settlers) account.owner (singleton account.owner) account
-      undiscloseA account = Account.undisclose (show batchId, settlers) account.owner (singleton account.owner) account
-      discloseT discloser settlers cid = disclose @Transferable.I (show batchId, settlers) discloser (singleton discloser) cid
-      undiscloseT discloser settlers cid = undisclose @Transferable.I (show batchId, settlers) (singleton discloser) cid
+      discloseA account = Account.disclose (show batchId, settlers) account.owner (S.singleton account.owner) account
+      undiscloseA account = Account.undisclose (show batchId, settlers) account.owner (S.singleton account.owner) account
+      discloseT discloser settlers cid = disclose @Transferable.I (show batchId, settlers) discloser (S.singleton discloser) cid
+      undiscloseT discloser settlers cid = undisclose @Transferable.I (show batchId, settlers) (S.singleton discloser) cid
 
     interface instance Disclosure.I for Instruction where
-      view = Disclosure.View with disclosureControllers = fromList [step.sender, step.receiver]; observers
+      view = Disclosure.View with disclosureControllers = S.fromList [step.sender, step.receiver]; observers
       setObservers Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
       archive' self = archive (coerceContractId self : ContractId Instruction)
 
     interface instance Instruction.I for Instruction where
       asDisclosure = toInterface @Disclosure.I this
       view = Instruction.View with requestors; settlers; signed; batchId; id; step; allocation; approval
-      allocate Instruction.Allocate{allocation} = do
+      allocate Instruction.Allocate{allocation; actors} = do
         assertMsg ("allocation must be new" <> messageSuffix) $ allocation /= this.allocation
         -- clean up if previously allocated
         otCid <- case this.allocation of
@@ -80,15 +82,21 @@ template Instruction
           Pledge transferableCid -> do
             transferableCid <- discloseT step.sender settlers transferableCid
             transferable <- fetch transferableCid
-            discloseA (getAccount transferable)
+            let senderAccount = getAccount transferable
+            vSenderAccount <- view <$> fetchInterfaceByKey @Account.R senderAccount
+            assertMsg "actors must include transfer instructors" $ S.isSubsetOf vSenderAccount.controllers.instructors actors
+            assertMsg "actors must include lockers" $ S.isSubsetOf (getLockers transferable) actors
+            discloseA senderAccount
             getAmount transferable === step.quantity.amount
             getInstrument transferable === step.quantity.unit
             pure $ Pledge transferableCid
-          a -> pure a
+          a -> do
+            assertMsg "actors must include sender" $ S.member step.sender actors
+            pure a
         -- update instruction state
-        cid <- toInterfaceContractId <$> create this with allocation = allocationDisclosed; signed = insert step.sender signed
+        cid <- toInterfaceContractId <$> create this with allocation = allocationDisclosed; signed = S.insert step.sender signed
         pure (cid, otCid)
-      approve Instruction.Approve{approval} = do
+      approve Instruction.Approve{approval; actors} = do
         assertMsg ("approval must be new" <> messageSuffix) $ approval /= this.approval
         -- clean up if previously approved
         case this.approval of
@@ -97,13 +105,15 @@ template Instruction
         -- disclose approval
         case approval of
           TakeDelivery receiverAccount -> do
+            vReceiverAccount <- view <$> fetchInterfaceByKey @Account.R receiverAccount
             discloseA receiverAccount
-            pure ()
-          _ -> pure ()
+            assertMsg "actors must include transfer approvers" $ S.isSubsetOf vReceiverAccount.controllers.approvers actors
+          _ ->
+            assertMsg "actors must include receiver" $ S.member step.receiver actors
         -- update instruction state
-        toInterfaceContractId <$> create this with signed = insert step.receiver signed; approval
+        toInterfaceContractId <$> create this with signed = S.insert step.receiver signed; approval
       execute Instruction.Execute{actors; undiscloseSenderAccount; undiscloseReceiverAccount} = do
-        assertMsg "actors must be subset of settlers" $ isSubsetOf actors settlers
+        assertMsg "actors must intersect with settlers" $ not $ S.null $ S.intersection actors settlers
         -- execute instruction
         case (allocation, approval) of
           (Unallocated, _) -> abort $ "instruction must be allocated" <> messageSuffix
@@ -111,7 +121,7 @@ template Instruction
           (Pledge transferableCid, TakeDelivery receiverAccount) -> do
             transferable <- fetch transferableCid
             let senderAccount = getAccount transferable
-            transferableCid <- exercise transferableCid Transferable.Transfer with newOwnerAccount = receiverAccount
+            transferableCid <- exercise transferableCid Transferable.Transfer with actors = signed; newOwnerAccount = receiverAccount
             when undiscloseSenderAccount $ undiscloseA senderAccount $> ()
             when undiscloseReceiverAccount $ undiscloseA receiverAccount $> ()
             -- disclose to actors (such that they can get the TemplateTypeRep in the Batch)
