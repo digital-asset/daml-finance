@@ -19,6 +19,7 @@ ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interf
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Util
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Data
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Holding
+${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Account
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Base
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Claims
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Settlement
@@ -26,6 +27,7 @@ ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interf
 # Implementations
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Util
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Holding
+${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Account
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Settlement
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Lifecycle
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Data
@@ -57,6 +59,7 @@ ${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Test.U
 # Core
 ${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Util.Test
 ${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Holding.Test
+${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Account.Test
 ${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Settlement.Test
 ${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Data.Test
 # Extensions

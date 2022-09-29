@@ -6,9 +6,8 @@ Core Implementations
 
 - ``Daml.Finance.Holding``
 
-    This package contains the *implementation* and utility functions for holdings and accounts. It has the following modules:
+    This package contains the *implementation* and utility functions for holdings. It has the following modules:
 
-    - :ref:`Account <module-daml-finance-holding-account-88149>`: A relationship between a custodian and an asset owner, referenced by holdings
     - :ref:`Fungible <module-daml-finance-holding-fungible-7201>`: Implementation of a fungible holding, including split and merge functionality
     - :ref:`NonFungible <module-daml-finance-holding-nonfungible-86571>`: Implementation of a non-fungible holding, which cannot be split or merged
     - :ref:`NonTransferable <module-daml-finance-holding-nontransferable-44402>`: Implementation of a non-transferable holding
@@ -16,6 +15,13 @@ Core Implementations
 
     The :doc:`Asset Model <../concepts/asset-model>` page explains the relationship between instruments, holdings, and accounts.
     Check out the :doc:`Transfer tutorial <../../tutorials/getting-started/transfer>` for a description of how to create a holding on an instrument and transfer it between accounts.
+
+- ``Daml.Finance.Account``
+
+    This package contains the *implementation* and utility functions for accounts. It has the following modules:
+
+    - :ref:`Account <module-daml-finance-account-account-19369>`: A relationship between a custodian and an asset owner, referenced by holdings
+
 
 - ``Daml.Finance.Settlement``
 

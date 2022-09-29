@@ -14,6 +14,7 @@ ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Int
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Util
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Data
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Holding
+${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Account
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Base
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Claims
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Settlement
@@ -21,6 +22,7 @@ ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Int
 # Implementations
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Util
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Holding
+${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Account
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Settlement
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Lifecycle
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Data

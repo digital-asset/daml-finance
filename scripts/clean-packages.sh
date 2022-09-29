@@ -16,6 +16,7 @@ daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.T
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Util
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Data
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Holding
+daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Account
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Base
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Claims
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Settlement
@@ -23,6 +24,7 @@ daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.L
 # Implementations
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Util
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Holding
+daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Account
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Settlement
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Lifecycle
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Data
@@ -47,6 +49,7 @@ daml clean --project-root ${root_dir}/package/test/daml/Daml.Finance.Test.Util
 # Core
 daml clean --project-root ${root_dir}/package/test/daml/Daml.Finance.Util.Test
 daml clean --project-root ${root_dir}/package/test/daml/Daml.Finance.Holding.Test
+daml clean --project-root ${root_dir}/package/test/daml/Daml.Finance.Account.Test
 daml clean --project-root ${root_dir}/package/test/daml/Daml.Finance.Settlement.Test
 daml clean --project-root ${root_dir}/package/test/daml/Daml.Finance.Data.Test
 # Extensions
