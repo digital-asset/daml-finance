@@ -6,11 +6,9 @@ Core Interfaces
 
 - ``Daml.Finance.Interface.Holding``
 
-    This package contains the *interface* and utility functions for holdings and accounts. It has the following modules:
+    This package contains the *interface* and utility functions for holdings. It has the following modules:
 
-    - :ref:`Factory.Account <module-daml-finance-interface-holding-factory-account-66430>`: Interface that allows implementing templates to create accounts
-    - :ref:`Factory.Holding <module-daml-finance-interface-holding-factory-holding-2450>`: Holding factory contract used to create (credit) and archive (debit) holdings
-    - :ref:`Account <module-daml-finance-interface-holding-account-93234>`: Interface which represents an established relationship between a provider and an owner
+    - :ref:`Factory <module-daml-finance-interface-holding-factory-6211>`: Holding factory contract used to create (credit) and archive (debit) holdings
     - :ref:`Base <module-daml-finance-interface-holding-base-24195>`: Base interface for a holding
     - :ref:`Fungible <module-daml-finance-interface-holding-fungible-63712>`: Interface for a fungible holding, which allows splitting and merging
     - :ref:`Lockable <module-daml-finance-interface-holding-lockable-23737>`: An interface respresenting contracts which allow a set of parties to restrict certain actions on a contract
@@ -19,6 +17,13 @@ Core Interfaces
 
     The :doc:`Asset Model <../concepts/asset-model>` page explains the relationship between instruments, holdings, and accounts.
     Check out the :doc:`Transfer tutorial <../../tutorials/getting-started/transfer>` for a description on how to create a holding on an instrument and how to transfer it between accounts.
+
+- ``Daml.Finance.Interface.Account``
+
+     This package contains the *interface* and utility functions for accounts. It has the following modules:
+
+    - :ref:`Factory <module-daml-finance-interface-account-factory-11691>`: Interface that allows implementing templates to create accounts
+    - :ref:`Account <module-daml-finance-interface-account-account-92922>`: Interface which represents an established relationship between a provider and an owner
 
 - ``Daml.Finance.Interface.Settlement``
 
