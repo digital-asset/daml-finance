@@ -4,10 +4,11 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
 -- | We recommend to import this module qualified.
-module Daml.Finance.Interface.Holding.Account where
+module Daml.Finance.Interface.Account.Account where
 
 import Daml.Finance.Interface.Holding.Base qualified as Base (I)
-import Daml.Finance.Interface.Holding.Factory.Holding qualified as Holding (F)
+import Daml.Finance.Interface.Holding.Factory qualified as Holding (F)
+import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I)
 import Daml.Finance.Interface.Types.Common (Id, AccountKey(..), InstrumentKey(..), Parties, PartiesMap, Quantity)
 import Daml.Finance.Interface.Util.Common (exerciseInterfaceByKeyHelper)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (AddObservers(..), GetView(..), I, Implementation, RemoveObservers(..), flattenObservers)
@@ -23,6 +24,15 @@ type R = Reference
 
 -- | Type synonym for `View`.
 type V = View
+
+-- | Parties involved in transfers.
+data Transferors = Transferors
+  with
+    instructors : Parties
+      -- ^ Parties instructing a transfer (outgoing).
+    approvers : Parties
+      -- ^ Parties approving a transfer (incoming).
+  deriving (Eq, Ord, Show)
 
 -- | Exercise interface by key.
 -- This method can be used to exercise a choice on an `Account` given its `AccountKey`.
@@ -50,7 +60,9 @@ data View = View
       -- ^ Human readable description of the account.
     holdingFactoryCid : ContractId Holding.F
       -- ^ Associated holding factory.
-  deriving (Eq, Ord, Show)
+    controllers : Transferors
+      -- ^ Parties controlling transfers.
+  deriving (Eq, Show)
 
 -- | Convert the account's 'View' to its key.
 toKey : View -> AccountKey
@@ -68,6 +80,8 @@ interface Account where
     -- ^ Implementation of the `Credit` choice.
   debit : Debit -> Update ()
     -- ^ Implementation of the `Debit` choice.
+  transfer : Transfer -> Update (ContractId Transferable.I)
+    -- ^ Implementation of the `Transfer` choice.
 
   nonconsuming choice GetView : View
     -- ^ Retrieves the interface view.
@@ -88,13 +102,24 @@ interface Account where
       credit this arg
 
   nonconsuming choice Debit : ()
-    -- ^ Destroys an existing `Holding`.
+    -- ^ Removes an existing `Holding`.
     with
       holdingCid : ContractId Base.I
         -- ^ The `Holding`'s contract id.
     controller (view this).custodian, (view this).owner
     do
       debit this arg
+
+  nonconsuming choice Transfer : ContractId Transferable.I
+    -- ^ Transfers a `Transferable` to this `Account`.
+    with
+      actors : Parties
+        -- ^ Additional controllers of the choice.
+      transferableCid : ContractId Transferable.I
+        -- ^ The `Transferable`'s contract id.
+    controller actors, (view this).controllers.approvers, (view this).custodian
+    do
+      transfer this arg
 
 -- | Type constraint for requiring templates to implement `Account` along with `Disclosure`.
 type Implementation t = (HasToInterface t I, Disclosure.Implementation t)
@@ -111,7 +136,7 @@ template Reference
     accountView : View
       -- ^ The default view for accounts.
     cid : ContractId Account
-      -- ^ The contract id of the account
+      -- ^ The contract id of the account.
     observers : PartiesMap
   where
     signatory accountView.custodian, accountView.owner

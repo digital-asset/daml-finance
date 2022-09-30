@@ -1,7 +1,7 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-How to use the Swap extension package
+How To Use the Swap Extension Package
 #####################################
 
 To follow the script used in this tutorial you can `clone the Daml Finance repository <https://github.com/digital-asset/daml-finance>`_.
@@ -15,7 +15,7 @@ The Swap extension has many similarities with the Bond extension. This tutorial 
 in particular the :doc:`Bond Extension <bond-extension>` and the :doc:`Bond Lifecycling <bond-lifecycling>` tutorials.
 Please check them out before reading the Swap specifics below.
 
-How to create a swap instrument
+How To Create a Swap Instrument
 *******************************
 
 There are different types of swaps, which differ both in the way regular payments are defined and whether notional is
@@ -23,7 +23,7 @@ exchanged.
 In order to create a swap instrument you first have to decide what type of swap you need.
 The swap extension package currently supports the following types of swaps:
 
-Interest rate
+Interest Rate
 =============
 
 Interest rate swap is the type of swap that shares most similarities with a bond.
@@ -101,7 +101,7 @@ Here is how we create the currency swap instrument, using the two currencies def
 Once the instrument is created, you can book a holding on it.
 Since the issuer pays the foreign currency leg in our example, it means that the owner of the holding receives the foreign currency leg (and pays the base currency leg).
 
-Foreign exchange
+Foreign Exchange
 ================
 
 Despite the similarities in name, foreign exchange swaps (or FX swaps) are quite different from currency swaps.
@@ -139,7 +139,7 @@ Once the instrument is created, you can book a holding on it.
 Since the issuer pays the foreign currency in the initial transaction, it means that the owner of the holding receives the foreign currency in the initial transaction.
 In the final transaction the sides are reversed.
 
-Credit default
+Credit Default
 ==============
 
 A credit default swap (CDS) pays a protection amount in case of a credit default event, in exchange for a fix rate at the end of every payment period.
@@ -170,6 +170,43 @@ Finally, we create the CDS instrument:
 
 Once the instrument is created, you can book a holding on it.
 Since the issuer pays the protection leg, it means that the owner of the holding receives the protection leg (and pays the fix leg).
+
+Asset
+=====
+
+An asset swap is a general type of swap with two legs: one which pays a fix rate and another one which pays the performance of an asset.
+It can be used to model:
+
+* equity swaps
+* some types of commodity swaps (of the form *performance vs rate*)
+* other swaps with the same payoff on other asset types.
+
+Here is an example of an asset swap that pays AAPL total return vs 2.01% fix p.a., payment every 3M:
+
+.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Swap/Test/Asset.daml
+  :language: daml
+  :start-after: -- CREATE_ASSET_SWAP_VARIABLES_BEGIN
+  :end-before: -- CREATE_ASSET_SWAP_VARIABLES_END
+
+In our example, the issuer pays the asset leg of the swap.
+
+One observable is required: *referenceAssetId*.
+The template calculates the performance for each payment period using this observable.
+Performance is calculated from the start date to the end date of each payment period.
+The reference asset Observable needs to contain the appropriate type of fixings:
+
+* *unadjusted* fixings in case of a *price return* asset swap
+* *adjusted* fixings in case of a *total return* asset swap
+
+Finally, we create the asset swap instrument:
+
+.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Swap/Test/Util.daml
+  :language: daml
+  :start-after: -- CREATE_ASSET_SWAP_INSTRUMENT_BEGIN
+  :end-before: -- CREATE_ASSET_SWAP_INSTRUMENT_END
+
+Once the instrument is created, you can book a holding on it.
+Since the issuer pays the asset leg, it means that the owner of the holding receives the asset leg (and pays the fix leg).
 
 Frequently Asked Questions
 **************************

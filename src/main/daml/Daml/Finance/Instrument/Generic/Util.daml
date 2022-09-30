@@ -9,15 +9,16 @@ import DA.Date
 import DA.Record (HasField)
 import DA.Set (fromList)
 import DA.Text (sha256)
+import Daml.Finance.Data.Reference.HolidayCalendar (GetCalendar(..), HolidayCalendar, HolidayCalendarKey(..))
 import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, getAcquisitionTime, getClaims)
 import Daml.Finance.Interface.Claims.Types (C, Deliverable, Observable, TaggedClaim(..))
 import Daml.Finance.Interface.Claims.Util (isZero', toTime')
 import Daml.Finance.Interface.Claims.Util.Lifecycle (lifecycle, lifecycleClaims, splitPending, timeEvent)
+import Daml.Finance.Interface.Data.Observable qualified as Observable (I)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (I, createReference, getKey)
 import Daml.Finance.Interface.Lifecycle.Clock qualified as Clock (I)
 import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (I)
 import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I)
-import Daml.Finance.Interface.Data.Observable qualified as Observable (I)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I)
 import Daml.Finance.Interface.Types.Common (Id, Parties)
 import Daml.Finance.Interface.Types.Date.Classes (toUTCTime)
@@ -25,7 +26,6 @@ import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
 import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..), Schedule, SchedulePeriod)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, flattenObservers)
 import Daml.Finance.Lifecycle.Effect (Effect(..))
-import Daml.Finance.Data.Reference.HolidayCalendar (GetCalendar(..), HolidayCalendar, HolidayCalendarKey(..))
 import Daml.Finance.Lifecycle.Types (Unit(..))
 import Daml.Finance.Util.Date.DayCount (calcPeriodDcf)
 import Daml.Finance.Util.Date.Schedule (createSchedule)
@@ -102,6 +102,25 @@ createFloatingRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf
   prepareAndTagClaims [couponClaims] "Floating rate payment"
 -- FLOATING_RATE_BOND_COUPON_CLAIMS_END
 
+-- ASSET_PERFORMANCE_CLAIMS_BEGIN
+-- | Calculate the asset performance for each payment date and create claims.
+-- The performance is calculated using the reference asset from the start date to the end date of each payment period.
+-- The reference asset Observable needs to contain the appropriate type of fixings:
+--   unadjusted fixings in case of a price return asset swap
+--   adjusted fixings in case of a total return asset swap
+createAssetPerformancePaymentClaims : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Bool -> DayCountConventionEnum -> Deliverable -> Observable -> TaggedClaim
+createAssetPerformancePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf issuerPays dayCountConvention cashInstrumentCid referenceAssetId = do
+  let
+    assetClaimAmounts = mconcat $ map (\p ->
+      when (TimeGte $ p.adjustedStartDate) $ scale ((Const 1.0) / (Observe referenceAssetId)) $
+      when (TimeGte $ p.adjustedEndDate) $ scale ((Observe referenceAssetId)) $ one cashInstrumentCid) schedule
+    correctionClaimAmounts = mconcat $ map (\p ->
+      when (TimeGte $ p.adjustedEndDate) $ one cashInstrumentCid) schedule
+    assetClaims = if issuerPays then assetClaimAmounts else give assetClaimAmounts
+    correctionAssetClaims = if issuerPays then give correctionClaimAmounts else correctionClaimAmounts
+  prepareAndTagClaims [assetClaims, correctionAssetClaims] "Asset performance payment"
+-- ASSET_PERFORMANCE_CLAIMS_END
+
 -- FIXED_RATE_BOND_REDEMPTION_CLAIM_BEGIN
 -- | Create an FX adjusted principal claim.
 -- This can be used for both FX swaps (using the appropriate FX rate) and single currency bonds (setting the FX rate to 1.0).
@@ -171,7 +190,7 @@ processClockUpdate settlers eventCid _ self instrument observableCids = do
     newInstrumentCid <- create instrument with lastEventTimestamp = v.eventTime; version = newKey.version
     Instrument.createReference instrument.issuer $ toInterfaceContractId newInstrumentCid
     effectCid <- toInterfaceContractId <$> create Effect with
-      provider = fromList [ currentKey.issuer, currentKey.depository ]
+      providers = fromList [currentKey.issuer, currentKey.depository]
       settlers
       id = v.id
       description = v.description

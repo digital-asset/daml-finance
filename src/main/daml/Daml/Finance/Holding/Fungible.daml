@@ -4,16 +4,14 @@
 module Daml.Finance.Holding.Fungible where
 
 import DA.Action (foldlA)
-import DA.Assert ((===))
 import DA.Set (singleton)
-import Daml.Finance.Holding.NonFungible (transferImpl)
-import Daml.Finance.Holding.NonTransferable (acquireImpl, releaseImpl)
+import Daml.Finance.Holding.Util (acquireImpl, releaseImpl, transferImpl)
 import Daml.Finance.Interface.Holding.Base qualified as Base (I, View(..))
-import Daml.Finance.Interface.Holding.Factory.Holding qualified as HoldingFactory (Create(..), F, HasImplementation(..), Remove(..), View(..))
+import Daml.Finance.Interface.Holding.Factory qualified as HoldingFactory (Create(..), F, HasImplementation(..), Remove(..), View(..))
 import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (HasImplementation, I, Merge(..), Split(..), SplitResult(..), View(..))
 import Daml.Finance.Interface.Holding.Lockable qualified as Lockable (I, Lock(..), View(..))
+import Daml.Finance.Interface.Holding.Lockable(getLockers)
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, View(..))
-import Daml.Finance.Interface.Holding.Util (getLocker)
 import Daml.Finance.Interface.Types.Common (AccountKey(..), InstrumentKey(..), PartiesMap)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
 import Prelude hiding (null)
@@ -41,7 +39,7 @@ template Fungible
     observers : PartiesMap
       -- ^ Observers.
   where
-    signatory account.custodian, account.owner, getLocker this
+    signatory account.custodian, account.owner, getLockers this
     observer Disclosure.flattenObservers observers
 
     ensure amount > 0.0
@@ -57,18 +55,18 @@ template Fungible
 
     interface instance Lockable.I for Fungible where
       asHolding = toInterface @Base.I this
-      view = Lockable.View with lock
-      acquire = acquireImpl @Fungible (toInterface @Lockable.I this)
-      release = releaseImpl @Fungible (toInterface @Lockable.I this)
+      view = Lockable.View with lock; account; instrument
+      acquire = acquireImpl @Fungible this (toInterface @Lockable.I this)
+      release = releaseImpl @Fungible this (toInterface @Lockable.I this)
 
     interface instance Transferable.I for Fungible where
       asLockable = toInterface @Lockable.I this
-      view = Transferable.View {}
-      transfer = transferImpl (toInterface @Transferable.I this)
+      view = Transferable.View with account; instrument; amount
+      transfer = transferImpl
 
     interface instance Fungible.I for Fungible where
       asTransferable = toInterface @Transferable.I this
-      view = Fungible.View with modifiers = singleton account.owner
+      view = Fungible.View with instrument; amount; modifiers = singleton account.owner
       split Fungible.Split{amounts} = do
         let rest = amount - sum amounts
         assertMsg "split quantities are not more than the available amount" $ rest >= 0.0
@@ -80,7 +78,7 @@ template Fungible
           f qty cid = do
             Some (fungibleCid, fungible) <- fetchFromInterface @Fungible cid
             archive fungibleCid
-            instrument === fungible.instrument
+            assertMsg "instrument must match" $ instrument == fungible.instrument
             pure $ qty + fungible.amount
         tot <- foldlA f amount fungibleCids
         toInterfaceContractId <$> create this with amount = tot

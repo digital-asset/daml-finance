@@ -7,14 +7,14 @@ Introduction
 Purpose
 *******
 
-Daml Finance supports the modeling of financial and non-financial use-cases in Daml. It provides
+Daml Finance supports the modeling of financial and non-financial use cases in Daml. It provides
 a standard way to represent assets on Daml ledgers and defines common behaviours and rules.
-There are two main benefits from using the library in your application:
+There are two main benefits to using the library in your application:
 
 * Shortened time-to-market
 
    Implementing basic financial concepts like ownership or economic terms of an asset is a complex
-   and tedious task. By providing common building blocks Daml Finance increases delivery velocity
+   and tedious task. By providing common building blocks, Daml Finance increases delivery velocity
    and shortens the time-to-market when building Daml applications. The rich set of functionality of
    Daml Finance is at your disposal so you don't have to reinvent the wheel.
 
@@ -22,8 +22,8 @@ There are two main benefits from using the library in your application:
 
    Building your application on Daml Finance makes it compatible with other platforms in the
    wider ecosystem. By using a shared library assets become "mobile", allowing them to be used seamlessly
-   across application boundaries without the need for translation or integration layers. A
-   Daml Finance-based asset that is, for example, originated in a bond issuance application can be used
+   across application boundaries without the need for translation or integration layers. For instance, a
+   Daml Finance-based asset that is originated in a bond issuance application can be used
    in the context of a secondary market trading application that is also built on Daml Finance.
 
 Design Goals
@@ -34,17 +34,16 @@ Daml Finance optimizes for the following aspects:
 * Accessibility
 
    The library is designed to have a low barrier for entry. Users familiar with Daml can get started
-   quickly and can leverage the provided functionality easily.
+   quickly and leverage the provided functionality easily.
 
 * Maintainability
 
    Building with Daml Finance decouples your application code from the underlying representation of assets.
-   This allows for the application to evolve without the need to migrate assets from one version to another.
-   The application is decoupled from the assets such that maintenance becomes easier.
+   This allows the application to evolve without the need to migrate assets from one version to another, and makes maintenance easier.
 
 * Extensibility
 
-   Various extension points allow for customization and extension of the library as required. If a provided
+   Various extension points allow customization and extension of the library as required. If an existing
    implementation does not fulfil the requirements it is straightforward to provide a custom extension.
 
 Scope
@@ -57,7 +56,7 @@ The library covers the following areas:
 * Settlement: executing complex transactions involving multiple parties and assets
 * Lifecycling: governing the evolution of financial instruments over their lifetime
 
-Use cases
+Use Cases
 *********
 
 Daml Finance comes with broad asset and workflow capabilities to allow for a variety of use cases to be modeled:
@@ -73,18 +72,18 @@ Daml Finance comes with broad asset and workflow capabilities to allow for a var
 
 .. _explore-library:
 
-Exploring the library
+Exploring the Library
 *********************
 
 If you want to review the Daml Finance codebase in more detail you can clone `the repository <https://github.com/digital-asset/daml-finance>`_
-locally on your machine. This allows you to navigate the code, both the template definitions
+locally on your machine. This allows you to navigate the code, including both the template definitions
 and the tests. In particular the tests are useful to show how the library works and how the different
 components interact with each other.
 
 As a pre-requisite, the `Daml SDK <https://docs.daml.com/getting-started/installation.html>`_ needs to be installed on your
 machine.
 
-In order to download the repository open a terminal and run:
+In order to download the repository, open a terminal and run:
 
 .. code-block:: shell
 
