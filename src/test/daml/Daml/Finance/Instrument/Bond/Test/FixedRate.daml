@@ -9,6 +9,7 @@ import DA.Set (singleton)
 import Daml.Finance.Data.Reference.HolidayCalendar
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Instrument.Bond.Test.Util
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (qty)
 import Daml.Finance.Interface.Types.Date.Calendar
 import Daml.Finance.Interface.Types.Date.DayCount
 import Daml.Finance.Interface.Types.Date.RollConvention
@@ -51,10 +52,8 @@ run = script do
     couponPeriodMultiplier = 12
     dayCountConvention = Act365Fixed
     businessDayConvention = Following
-    -- CREATE_FIXED_RATE_BOND_VARIABLES_END
-    firstCouponAmount = 3586.3014 -- The first coupon is smaller than a regular coupon because the first coupon period is shorter (only 4 months)
-    secondCouponAmount = 11030.137 -- The second coupon is a regular coupon
     redemptionAmount = 1_000_000.0
+    -- CREATE_FIXED_RATE_BOND_VARIABLES_END
     holidayCalendarIds = ["EUR", "EUR2"] -- Test specifying 2 calendars (the union of the two will be used)
     cal =
       HolidayCalendarData with
@@ -91,8 +90,10 @@ run = script do
   verifyNoLifecycleEffects [publicParty] (subtractDays firstCouponDate 1) bondInstrument settlers issuer []
 
   -- First coupon date: Lifecycle and verify that there is an effect for one coupon.
-  custodianCashForCouponTransferableCid <- Account.credit [publicParty] cashInstrumentCid firstCouponAmount custodianAccount
-  (bondInstrumentAfterFirstCoupon, investorBondTransferableCid) <- lifecycleAndVerifyCouponEffectsAndSettlement [publicParty] firstCouponDate bondInstrument settlers issuer investor investorBondTransferableCid custodianCashForCouponTransferableCid custodianAccount investorAccount observers custodian []
+  let
+    expectedConsumedQuantities = []
+    expectedProducedQuantities = [Instrument.qty 0.0035863014 cashInstrumentCid]
+  bondInstrumentAfterFirstCoupon <- lifecycleAndVerifyBondPaymentEffects [publicParty] firstCouponDate bondInstrument settlers issuer investor observers custodian [] expectedConsumedQuantities expectedProducedQuantities
 
   -- One day after the first coupon date: try to lifecycle and verify that there are no lifecycle effects.
   verifyNoLifecycleEffects [publicParty] (addDays firstCouponDate 1) bondInstrumentAfterFirstCoupon settlers issuer []
@@ -100,11 +101,11 @@ run = script do
   -- One day before expiry: try to lifecycle and verify that there are no lifecycle effects.
   verifyNoLifecycleEffects [publicParty] (subtractDays maturityDate 1) bondInstrumentAfterFirstCoupon settlers issuer []
 
-  -- Lifecycle on the expiry date. Verify that there are lifecycle effects for one coupon and the redemption amount
-  custodianCashForCouponTransferableCid <- Account.credit [publicParty] cashInstrumentCid secondCouponAmount custodianAccount
-  custodianCashForRedemptionTransferableCid <- Account.credit [publicParty] cashInstrumentCid redemptionAmount custodianAccount
-
-  bondInstrumentAfterRedemption <- lifecycleAndVerifyRedemptionEffectsAndSettlement [publicParty] maturityDate bondInstrumentAfterFirstCoupon settlers issuer investor investorBondTransferableCid custodianCashForCouponTransferableCid custodianCashForRedemptionTransferableCid custodianAccount investorAccount observers custodian []
+  -- Lifecycle on the expiry date. Verify the lifecycle effects for one coupon and the redemption amount
+  let
+    expectedConsumedQuantities = []
+    expectedProducedQuantities = [(Instrument.qty 0.011030137 cashInstrumentCid), (Instrument.qty 1.0 cashInstrumentCid)]
+  bondInstrumentAfterRedemption <- lifecycleAndVerifyBondPaymentEffects [publicParty] maturityDate bondInstrumentAfterFirstCoupon settlers issuer investor observers custodian [] expectedConsumedQuantities expectedProducedQuantities
 
   -- One day after expiry: try to lifecycle and verify that there are no lifecycle effects.
   verifyNoLifecycleEffects [publicParty] (addDays maturityDate 1) bondInstrumentAfterRedemption settlers issuer []

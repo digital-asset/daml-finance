@@ -8,14 +8,13 @@ import DA.Map qualified as M (empty, fromList)
 import DA.Set (singleton)
 import Daml.Finance.Data.Observable.Observation(Observation(..))
 import Daml.Finance.Data.Reference.HolidayCalendar
-import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Instrument.Bond.Test.Util
 import Daml.Finance.Instrument.Generic.Util
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (qty)
 import Daml.Finance.Interface.Types.Common (Id(..))
 import Daml.Finance.Interface.Types.Date.Calendar
 import Daml.Finance.Interface.Types.Date.DayCount
 import Daml.Finance.Interface.Types.Date.RollConvention
-import Daml.Finance.Test.Util.Account qualified as Account (createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
 import Daml.Script
@@ -29,12 +28,6 @@ run = script do
 
   -- Account and holding factory
   let fp = [("FactoryProvider", singleton publicParty)]
-  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory provider fp
-  holdingFactoryCid <- toInterfaceContractId <$> submitMulti [custodian] [] do
-    createCmd Fungible.Factory with provider = custodian; observers = M.fromList fp
-
-  -- Create accounts
-  [custodianAccount, investorAccount] <- mapA (Account.createAccount "Default Account" [publicParty] accountFactoryCid holdingFactoryCid [] custodian) [custodian, investor]
 
   -- Distribute commercial-bank cash
   now <- getTime
@@ -55,13 +48,9 @@ run = script do
     dayCountConvention = Act365Fixed
     businessDayConvention = Following
   -- CREATE_INFLATION_LINKED_BOND_VARIABLES_END
-    firstCouponAmount = 949.3151 -- The first coupon is smaller than a regular coupon because the first coupon period is shorter (only 1 month)
-    secondCouponAmount = 2950.411 -- The second coupon is a regular coupon
     inflationIndexBaseValue = 200.0
     inflationIndexAtMaturity = 220.0
     observations = M.fromList [(dateToDateClockTime (date 2019 Feb 15), 210.0), (dateToDateClockTime (date 2019 May 15), inflationIndexAtMaturity)]
-    redemptionAmount = 1_000_000.0
-    redemptionAmountInflationAdjusted = max redemptionAmount (inflationIndexAtMaturity / inflationIndexBaseValue * redemptionAmount)
     holidayCalendarId = ["EUR"]
     cal =
       HolidayCalendarData with
@@ -80,14 +69,15 @@ run = script do
   observableCid <- coerceContractId <$> submitMulti [issuer] [] do createCmd Observation with provider = issuer; id = Id inflationIndexId; observations; observers = M.empty
 
   bondInstrument <- originateInflationLinkedBond custodian issuer "BONDTEST1" "Inflation Linked Bond" pp now issueDate holidayCalendarId calendarDataProvider firstCouponDate maturityDate dayCountConvention businessDayConvention couponRate couponPeriod couponPeriodMultiplier cashInstrumentCid inflationIndexId inflationIndexBaseValue
-  investorBondTransferableCid <- Account.credit [publicParty] bondInstrument redemptionAmount investorAccount
 
   -- One day before the first coupon date: try to lifecycle and verify that there are no lifecycle effects.
   verifyNoLifecycleEffects [publicParty] (subtractDays firstCouponDate 1) bondInstrument settlers issuer [observableCid]
 
   -- First coupon date: Lifecycle and verify that there is an effect for one coupon.
-  issuerCashForCouponTransferableCid <- Account.credit [publicParty] cashInstrumentCid firstCouponAmount custodianAccount
-  (bondInstrumentAfterFirstCoupon, investorBondTransferableCid) <- lifecycleAndVerifyCouponEffectsAndSettlement [publicParty] firstCouponDate bondInstrument settlers issuer investor investorBondTransferableCid issuerCashForCouponTransferableCid custodianAccount investorAccount pp custodian [observableCid]
+  let
+    expectedConsumedQuantities = []
+    expectedProducedQuantities = [Instrument.qty 0.0009493151 cashInstrumentCid]
+  bondInstrumentAfterFirstCoupon <- lifecycleAndVerifyBondPaymentEffects [publicParty] firstCouponDate bondInstrument settlers issuer investor pp custodian [observableCid] expectedConsumedQuantities expectedProducedQuantities
 
   -- One day after the first coupon date: try to lifecycle and verify that there are no lifecycle effects.
   verifyNoLifecycleEffects [publicParty] (addDays firstCouponDate 1) bondInstrumentAfterFirstCoupon settlers issuer [observableCid]
@@ -95,10 +85,11 @@ run = script do
   -- One day before expiry: try to lifecycle and verify that there are no lifecycle effects.
   verifyNoLifecycleEffects [publicParty] (subtractDays maturityDate 1) bondInstrumentAfterFirstCoupon settlers issuer [observableCid]
 
-  -- Lifecycle on the expriy date. Verify that there are lifecycle effects for one coupon and the redemption amount
-  custodianCashForCouponTransferableCid <- Account.credit [publicParty] cashInstrumentCid secondCouponAmount custodianAccount
-  custodianCashForRedemptionTransferableCid <- Account.credit [publicParty] cashInstrumentCid redemptionAmountInflationAdjusted custodianAccount
-  bondInstrumentAfterRedemption <- lifecycleAndVerifyRedemptionEffectsAndSettlement [publicParty] maturityDate bondInstrumentAfterFirstCoupon settlers issuer investor investorBondTransferableCid custodianCashForCouponTransferableCid custodianCashForRedemptionTransferableCid custodianAccount investorAccount pp custodian [observableCid]
+  -- Lifecycle on the expriy date. Verify the lifecycle effects for one coupon and the inflation-adjusted redemption amount
+  let
+    expectedConsumedQuantities = []
+    expectedProducedQuantities = [(Instrument.qty 0.002950411 cashInstrumentCid), (Instrument.qty 1.1 cashInstrumentCid)]
+  bondInstrumentAfterRedemption <- lifecycleAndVerifyBondPaymentEffects [publicParty] maturityDate bondInstrumentAfterFirstCoupon settlers issuer investor pp custodian [observableCid] expectedConsumedQuantities expectedProducedQuantities
 
   -- One day after expiry: try to lifecycle and verify that there are no lifecycle effects.
   verifyNoLifecycleEffects [publicParty] (addDays maturityDate 1) bondInstrumentAfterRedemption settlers issuer [observableCid]
