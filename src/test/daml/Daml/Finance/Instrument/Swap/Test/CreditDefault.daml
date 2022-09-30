@@ -6,16 +6,15 @@ module Daml.Finance.Instrument.Swap.Test.CreditDefault where
 import DA.Date
 import DA.Map qualified as M (empty, fromList)
 import DA.Set (singleton)
-import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
+import Daml.Finance.Data.Observable.Observation (Observation(..))
+import Daml.Finance.Data.Reference.HolidayCalendar
 import Daml.Finance.Instrument.Generic.Util
 import Daml.Finance.Instrument.Swap.Test.Util
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (qty)
 import Daml.Finance.Interface.Types.Common (Id(..))
 import Daml.Finance.Interface.Types.Date.Calendar
 import Daml.Finance.Interface.Types.Date.DayCount
 import Daml.Finance.Interface.Types.Date.RollConvention
-import Daml.Finance.Data.Reference.HolidayCalendar
-import Daml.Finance.Data.Observable.Observation (Observation(..))
-import Daml.Finance.Test.Util.Account qualified as Account (createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
 import Daml.Script
@@ -28,12 +27,6 @@ run = script do
 
   -- Account and holding factory
   let fp = [("FactoryProvider", singleton publicParty)]
-  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory custodian fp
-  holdingFactoryCid <- toInterfaceContractId <$> submitMulti [custodian] [] do
-    createCmd Fungible.Factory with provider = custodian; observers = M.fromList fp
-
-  -- Create accounts
-  [custodianAccount, investorAccount] <- mapA (Account.createAccount "Default Account" [publicParty] accountFactoryCid holdingFactoryCid [] custodian) [custodian, investor]
 
   -- Distribute commercial-bank cash
   now <- getTime
@@ -55,9 +48,6 @@ run = script do
     dayCountConvention = Act360
     businessDayConvention = ModifiedFollowing
     -- CREATE_CREDIT_DEFAULT_SWAP_VARIABLES_END
-    firstFixPaymentAmount = 1675.0
-    creditEventPaymentAmount = 400000.0
-    principalAmount = 1_000_000.0
     creditEventDate = date 2019 Mar 15
     probIfNoCreditEvent = 0.2
     probIfCreditEvent = 1.0
@@ -84,23 +74,26 @@ run = script do
   let observableCids = [observableDefaultProbabilityCid, observableRecoveryRateCid]
 
   swapInstrument <- originateCreditDefaultSwap custodian issuer "SwapTest1" "Credit default swap" fp now issueDate holidayCalendarId calendarDataProvider firstPaymentDate maturityDate dayCountConvention businessDayConvention fixRate paymentPeriod paymentPeriodMultiplier cashInstrumentCid defaultProbabilityReferenceId recoveryRateReferenceId issuerPaysFix
-  investorSwapTransferableCid <- Account.credit [publicParty] swapInstrument principalAmount investorAccount
 
   let settlers = singleton custodian
 
   -- One day before the first payment date: try to lifecycle and verify that there are no lifecycle effects.
   verifyNoLifecycleEffects [publicParty] (subtractDays firstPaymentDate 1) swapInstrument settlers issuer observableCids
 
-  -- First payment date: Lifecycle and verify that there are lifecycle effects for the fix payment.
-  investorCashForFixPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid firstFixPaymentAmount investorAccount
-  (swapInstrumentAfterFirstPayment, investorSwapTransferableCid) <- lifecycleAndVerifyCreditDefaultSwapPaymentEffectsAndSettlement [publicParty] firstPaymentDate swapInstrument settlers issuer investor investorSwapTransferableCid investorCashForFixPaymentTransferableCid custodianAccount investorAccount observers custodian observableCids
+  -- First payment date: Lifecycle and verify the lifecycle effects for the fix payment.
+  let
+    expectedConsumedQuantities = [Instrument.qty 0.001675 cashInstrumentCid]
+    expectedProducedQuantities = []
+  swapInstrumentAfterFirstPayment <- lifecycleAndVerifySwapPaymentEffects [publicParty] firstPaymentDate swapInstrument settlers issuer investor observers custodian observableCids expectedConsumedQuantities expectedProducedQuantities
 
   -- One day after the first payment date: try to lifecycle and verify that there are no lifecycle effects.
   verifyNoLifecycleEffects [publicParty] (addDays firstPaymentDate 1) swapInstrumentAfterFirstPayment settlers issuer observableCids
 
   -- Credit event date: Lifecycle and verify that there is a lifecycle effect for the (1-recoveryRate) payment.
-  custodianCashForCreditEventPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid creditEventPaymentAmount custodianAccount
-  lifecycleAndVerifyCreditDefaultFinalSwapPaymentEffects [publicParty] creditEventDate swapInstrumentAfterFirstPayment settlers issuer investor investorSwapTransferableCid custodianCashForCreditEventPaymentTransferableCid custodianAccount investorAccount observers custodian observableCids
+  let
+    expectedConsumedQuantities = []
+    expectedProducedQuantities = [Instrument.qty 0.4 cashInstrumentCid]
+  swapInstrumentAfterSecondPayment <- lifecycleAndVerifySwapPaymentEffects [publicParty] creditEventDate swapInstrumentAfterFirstPayment settlers issuer investor observers custodian observableCids expectedConsumedQuantities expectedProducedQuantities
 
   -- One day after credit event date: try to lifecycle and verify that the instrument has automatically expired.
   -- TODO: implement this after having included expire logic (of Until nodes) somewhere in the lifecycle process.
@@ -115,12 +108,6 @@ runNoCreditEvent = script do
 
   -- Account and holding factory
   let fp = [("FactoryProvider", singleton publicParty)]
-  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory custodian fp
-  holdingFactoryCid <- toInterfaceContractId <$> submitMulti [custodian] [] do
-    createCmd Fungible.Factory with provider = custodian; observers = M.fromList fp
-
-  -- Create accounts
-  [custodianAccount, investorAccount] <- mapA (Account.createAccount "Default Account" [publicParty] accountFactoryCid holdingFactoryCid [] custodian) [custodian, investor]
 
   -- Distribute commercial-bank cash
   now <- getTime
@@ -140,9 +127,6 @@ runNoCreditEvent = script do
     paymentPeriodMultiplier = 3
     dayCountConvention = Act360
     businessDayConvention = ModifiedFollowing
-    firstFixPaymentAmount = 1675.0
-    secondFixPaymentAmount = 4969.1667
-    principalAmount = 1_000_000.0
     probIfNoCreditEvent = 0.2
     defaultProbabilityObservations = M.fromList [(dateToDateClockTime (subtractDays firstPaymentDate 1), probIfNoCreditEvent), (dateToDateClockTime firstPaymentDate, probIfNoCreditEvent), (dateToDateClockTime (addDays firstPaymentDate 1), probIfNoCreditEvent), (dateToDateClockTime maturityDate, probIfNoCreditEvent), (dateToDateClockTime (addDays maturityDate 1), probIfNoCreditEvent)]
     holidayCalendarId = ["USD"]
@@ -164,23 +148,26 @@ runNoCreditEvent = script do
   let observableCids = [observableDefaultProbabilityCid]
 
   swapInstrument <- originateCreditDefaultSwap custodian issuer "SwapTest1" "Credit default swap" fp now issueDate holidayCalendarId calendarDataProvider firstPaymentDate maturityDate dayCountConvention businessDayConvention fixRate paymentPeriod paymentPeriodMultiplier cashInstrumentCid defaultProbabilityReferenceId recoveryRateReferenceId issuerPaysFix
-  investorSwapTransferableCid <- Account.credit [publicParty] swapInstrument principalAmount investorAccount
 
   let settlers = singleton custodian
 
   -- One day before the first payment date: try to lifecycle and verify that there are no lifecycle effects.
   verifyNoLifecycleEffects [publicParty] (subtractDays firstPaymentDate 1) swapInstrument settlers issuer observableCids
 
-  -- First payment date: Lifecycle and verify that there are lifecycle effects for the fix payment.
-  investorCashForFixPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid firstFixPaymentAmount investorAccount
-  (swapInstrumentAfterFirstPayment, investorSwapTransferableCid) <- lifecycleAndVerifyCreditDefaultSwapPaymentEffectsAndSettlement [publicParty] firstPaymentDate swapInstrument settlers issuer investor investorSwapTransferableCid investorCashForFixPaymentTransferableCid custodianAccount investorAccount observers custodian observableCids
+  -- First payment date: Lifecycle and verify the lifecycle effects for the fix payment.
+  let
+    expectedConsumedQuantities = [Instrument.qty 0.001675 cashInstrumentCid]
+    expectedProducedQuantities = []
+  swapInstrumentAfterFirstPayment <- lifecycleAndVerifySwapPaymentEffects [publicParty] firstPaymentDate swapInstrument settlers issuer investor observers custodian observableCids expectedConsumedQuantities expectedProducedQuantities
 
   -- One day after the first payment date: try to lifecycle and verify that there are no lifecycle effects.
   verifyNoLifecycleEffects [publicParty] (addDays firstPaymentDate 1) swapInstrumentAfterFirstPayment settlers issuer observableCids
 
-  -- Second payment date: Lifecycle and verify that there are lifecycle effects for the fix payment.
-  investorCashForFixPaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid secondFixPaymentAmount investorAccount
-  (swapInstrumentAfterSecondPayment, investorSwapTransferableCid) <- lifecycleAndVerifyCreditDefaultSwapPaymentEffectsAndSettlement [publicParty] maturityDate swapInstrumentAfterFirstPayment settlers issuer investor investorSwapTransferableCid investorCashForFixPaymentTransferableCid custodianAccount investorAccount observers custodian observableCids
+  -- Second payment date: Lifecycle and verify the lifecycle effects for the fix payment.
+  let
+    expectedConsumedQuantities = [Instrument.qty 0.0049691667 cashInstrumentCid]
+    expectedProducedQuantities = []
+  swapInstrumentAfterSecondPayment <- lifecycleAndVerifySwapPaymentEffects [publicParty] maturityDate swapInstrumentAfterFirstPayment settlers issuer investor observers custodian observableCids expectedConsumedQuantities expectedProducedQuantities
 
   -- One day after the maturity: try to lifecycle and verify that there are no lifecycle effects.
   verifyNoLifecycleEffects [publicParty] (addDays maturityDate 1) swapInstrumentAfterSecondPayment settlers issuer observableCids
