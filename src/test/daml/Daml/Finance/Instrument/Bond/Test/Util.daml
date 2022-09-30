@@ -140,6 +140,8 @@ lifecycleAndVerifyBondPaymentEffects readAs today instrument settlers issuer inv
   pure newSwapInstrumentKey
 
 -- | Verify a coupon payment of a bond (excluding the last date, which also includes a redemption amount).
+-- Since we have moved to unit tests, this function is mainly kept for the docs.
+-- It contains the code snippets needed for the bond lifecycling tutorial.
 lifecycleAndVerifyCouponEffectsAndSettlement : [Party] -> Date -> Instrument.K -> Parties -> Party -> Party -> ContractId Transferable.I -> ContractId Transferable.I -> AccountKey -> AccountKey -> [(Text, Parties)] -> Party -> [ContractId Observable.I] -> Script (Instrument.K, ContractId Transferable.I)
 lifecycleAndVerifyCouponEffectsAndSettlement readAs today instrument settlers issuer investor investorBondTransferableCid custodianCashTransferableCid custodianAccount investorAccount obs custodian observableCids = do
   (lifecycleCid, [effectCid]) <- lifecycleInstrument readAs today instrument settlers issuer observableCids
@@ -191,52 +193,3 @@ lifecycleAndVerifyCouponEffectsAndSettlement readAs today instrument settlers is
   verifyOwnerOfHolding [(investor, investorBondHoldingCid), (investor, toInterfaceContractId investorCashTransferableCid)]
 
   pure (newBondInstrumentKey, coerceContractId investorBondHoldingCid)
-
--- | Verify the last coupon payment and settlement amount of a bond.
-lifecycleAndVerifyRedemptionEffectsAndSettlement : [Party] -> Date -> Instrument.K -> Parties -> Party -> Party -> ContractId Transferable.I -> ContractId Transferable.I -> ContractId Transferable.I -> AccountKey -> AccountKey -> [(Text, Parties)] -> Party -> [ContractId Observable.I] -> Script Instrument.K
-lifecycleAndVerifyRedemptionEffectsAndSettlement readAs today instrument settlers issuer investor investorBondTransferableCid custodianCashCouponTransferableCid custodianCashRedemptionTransferableCid custodianAccount investorAccount obs custodian observableCids = do
-  (lifecycleCid, [effectCid]) <- lifecycleInstrument readAs today instrument settlers issuer observableCids
-
-  newBondInstrumentKey <- submit issuer do
-    Instrument.toKey <$> exerciseCmd @Instrument.I (coerceContractId lifecycleCid) Instrument.GetView with viewer = issuer
-
-  -- Create settlement factory
-  settlementFactoryCid <- toInterfaceContractId <$> submit investor do createCmd Factory with provider = investor; observers = empty
-
-  -- Claim effect
-  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [custodian, investor] [] do
-    createCmd Claim.Rule
-      with
-        providers = fromList [custodian, investor]
-        claimers = singleton investor
-        settlers
-        settlementFactoryCid
-
-  result <- submitMulti [investor] readAs do
-    exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
-      claimer = investor
-      holdingCids = [toInterfaceContractId @Base.I investorBondTransferableCid]
-      effectCid
-      batchId = Id "RedemptionSettlement"
-
-  let [custodianCouponInstructionCid, custodianRedemptionInstructionCid] = result.instructionCids
-
-  -- Allocate instructions
-  (custodianCouponInstructionCid, _) <- submitMulti [custodian] [] do exerciseCmd custodianCouponInstructionCid Instruction.Allocate with actors = singleton custodian; allocation = Pledge custodianCashCouponTransferableCid
-  (custodianRedemptionInstructionCid, _) <- submitMulti [custodian] [] do exerciseCmd custodianRedemptionInstructionCid Instruction.Allocate with actors = singleton custodian; allocation = Pledge custodianCashRedemptionTransferableCid
-
-  -- Approve instructions
-  custodianBondInstructionCid <- submitMulti [investor] [] do
-    exerciseCmd custodianCouponInstructionCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorAccount
-  custodianCashInstructionCid <- submitMulti [investor] [] do
-    exerciseCmd custodianRedemptionInstructionCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorAccount
-
-  -- Settle batch
-  let settlerUsed = head $ toList settlers
-  [investorCouponTransferableCid, investorRedemptionTransferableCid] <-
-    submitMulti [settlerUsed] readAs do exerciseCmd result.batchCid Batch.Settle with actors = singleton settlerUsed
-
-  -- Assert state
-  verifyOwnerOfHolding [(investor, investorCouponTransferableCid), (investor, investorRedemptionTransferableCid)]
-
-  pure newBondInstrumentKey
