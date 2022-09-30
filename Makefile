@@ -70,8 +70,12 @@ ci-test:
 ci-validate:
 	./$(SCRIPTS_DIR)/validate-packages.sh
 
+.PHONY: ci-docs
+ci-docs:
+	pipenv run make doc-html
+
 .PHONY: ci-local
-ci-local: clean-all ci-build ci-test ci-validate
+ci-local: clean-all ci-build ci-test ci-validate ci-docs
 
 #########
 # Cache #

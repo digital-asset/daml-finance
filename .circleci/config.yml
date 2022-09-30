@@ -9,6 +9,9 @@ executors:
   daml-executor:
     docker:
       - image: cimg/openjdk:11.0
+  docs-executor:
+    docker:
+      - image: cimg/python:3.7-node
 
 commands:
   install_sdk:
@@ -54,7 +57,7 @@ commands:
               exit 1
             fi
   install_gh:
-    description: "Install GitHub Cli"
+    description: Install GitHub Cli
     steps:
       - run:
           name: Install gh
@@ -63,6 +66,16 @@ commands:
             echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
             sudo apt update
             sudo apt install gh
+  install_ruby_sass:
+    description: Install Ruby and Sass
+    steps:
+      - run:
+          name: Install Ruby
+          command: sudo apt-get install ruby-full
+      - run:
+          name: Install Sass
+          command: sudo gem install sass
+
   set_sdk_version:
     description: "Set Daml SDK version environment version"
     steps:
@@ -123,20 +136,21 @@ jobs:
       - install_sdk
       - run:
           name: Build source and packages
-          command: |
-            make ci-build
+          command: make ci-build
       - run:
           name: Execute tests
-          command: |
-            make ci-test
+          command: make ci-test
       - run:
           name: Validate packages
-          command: |
-            make ci-validate
+          command: make ci-validate
       - save_cache:
           paths:
             - .dars
           key: daml-finance-dars-{{ .Revision }}
+      - save_cache:
+          paths:
+            - .daml
+          key: daml-build-{{ .Revision }}
 
   release:
     executor: daml-executor
@@ -149,6 +163,33 @@ jobs:
           keys:
             - daml-finance-dars-{{ .Revision }}
       - run_release
+
+  docs:
+    executor: docs-executor
+    steps:
+      - checkout
+      - run:
+          name: Update package list
+          command: sudo apt-get update
+      - install_ruby_sass
+      - run:
+          name: Install Grunt
+          command: sudo npm install -g grunt-cli
+      - run:
+          name: Install Java JRE
+          command: sudo apt-get install openjdk-11-jre-headless
+      - set_sdk_version
+      - import_gpg_key
+      - install_sdk
+      - restore_cache:
+          keys:
+            - daml-build-{{ .Revision }}
+      - run:
+          name: Install Python dependencies
+          command: pipenv install
+      - run:
+          name: Build docs
+          command: make ci-docs
 
 workflows:
   version: 2
@@ -178,3 +219,6 @@ workflows:
             branches:
               only:
                 - /^(R|r)elease.*$/
+  docs:
+    jobs:
+      - docs
