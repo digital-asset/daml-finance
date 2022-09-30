@@ -4,11 +4,9 @@
 module Daml.Finance.Instrument.Swap.Test.ForeignExchange where
 
 import DA.Date
-import DA.Map qualified as M (fromList)
 import DA.Set (singleton)
-import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Instrument.Swap.Test.Util
-import Daml.Finance.Test.Util.Account qualified as Account (createAccount, createFactory, credit)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (qty)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
 import Daml.Script
@@ -21,16 +19,11 @@ run = script do
 
   -- Account and holding factory
   let fp = [("FactoryProvider", singleton publicParty)]
-  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory custodian fp
-  holdingFactoryCid <- toInterfaceContractId <$> submitMulti [custodian] [] do
-    createCmd Fungible.Factory with provider = custodian; observers = M.fromList fp
-
-  -- Create accounts
-  [custodianAccount, investorAccount] <- mapA (Account.createAccount "Default Account" [publicParty] accountFactoryCid holdingFactoryCid [] custodian) [custodian, investor]
 
   -- Distribute commercial-bank cash
   now <- getTime
   let observers = [("PublicParty", singleton publicParty)]
+
   -- CREATE_FX_SWAP_CASH_INSTRUMENTS_BEGIN
   cashInstrumentCid <- Instrument.originate custodian issuer "USD" "US Dollars" observers now
   foreignCashInstrumentCid <- Instrument.originate custodian issuer "EUR" "Euro" observers now
@@ -43,27 +36,23 @@ run = script do
     issueDate = date 2019 Jan 16
     firstPaymentDate = date 2019 Feb 15
     maturityDate = date 2019 May 15
+    fxRateSameCurrency = 1.0
     firstFxRate = 1.1
     finalFxRate = 1.2
     -- CREATE_FX_SWAP_VARIABLES_END
-    firstForeignPaymentAmount = 1_100_000.0
-    firstBasePaymentAmount = 1_000_000.0
-    secondForeignPaymentAmount = 1_200_000.0
-    secondBasePaymentAmount = 1_000_000.0
-    principalAmount = 1_000_000.0
 
   swapInstrument <- originateForeignExchangeSwap custodian issuer "SwapTest1" "Foreign exchange swap" fp now issueDate firstPaymentDate maturityDate cashInstrumentCid foreignCashInstrumentCid firstFxRate finalFxRate
-  investorSwapTransferableCid <- Account.credit [publicParty] swapInstrument principalAmount investorAccount
 
   let settlers = singleton custodian
 
   -- One day before the first payment date: try to lifecycle and verify that there are no lifecycle effects.
   verifyNoLifecycleEffects [publicParty] (subtractDays firstPaymentDate 1) swapInstrument settlers issuer []
 
-  -- First payment date: Lifecycle and verify that there are lifecycle effects for the fx payments.
-  investorCashForBasePaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid firstBasePaymentAmount investorAccount
-  custodianCashForForeignPaymentTransferableCid <- Account.credit [publicParty] foreignCashInstrumentCid firstForeignPaymentAmount custodianAccount
-  (swapInstrumentAfterFirstPayment, investorSwapTransferableCid) <- lifecycleAndVerifySwapPaymentEffectsAndSettlement [publicParty] firstPaymentDate swapInstrument settlers issuer investor investorSwapTransferableCid investorCashForBasePaymentTransferableCid custodianCashForForeignPaymentTransferableCid custodianAccount investorAccount observers custodian []
+  -- First payment date: Lifecycle and verify the lifecycle effects for the fx payments.
+  let
+    expectedConsumedQuantities = [Instrument.qty fxRateSameCurrency cashInstrumentCid]
+    expectedProducedQuantities = [Instrument.qty firstFxRate foreignCashInstrumentCid]
+  swapInstrumentAfterFirstPayment <- lifecycleAndVerifySwapPaymentEffects [publicParty] firstPaymentDate swapInstrument settlers issuer investor observers custodian [] expectedConsumedQuantities expectedProducedQuantities
 
   -- One day after the first payment date: try to lifecycle and verify that there are no lifecycle effects.
   verifyNoLifecycleEffects [publicParty] (addDays firstPaymentDate 1) swapInstrumentAfterFirstPayment settlers issuer []
@@ -71,9 +60,10 @@ run = script do
   -- One day before expiry: try to lifecycle and verify that there are no lifecycle effects.
   verifyNoLifecycleEffects [publicParty] (subtractDays maturityDate 1) swapInstrumentAfterFirstPayment settlers issuer []
 
-  -- Lifecycle on the second payment date, which is also the expiry date. Verify that there are lifecycle effects for the fx payments.
-  investorCashForForeignPaymentTransferableCid <- Account.credit [publicParty] foreignCashInstrumentCid secondForeignPaymentAmount investorAccount
-  custodianCashForBasePaymentTransferableCid <- Account.credit [publicParty] cashInstrumentCid secondBasePaymentAmount custodianAccount
-  lifecycleAndVerifyFinalSwapPaymentEffects [publicParty] maturityDate swapInstrumentAfterFirstPayment settlers issuer investor investorSwapTransferableCid investorCashForForeignPaymentTransferableCid custodianCashForBasePaymentTransferableCid custodianAccount investorAccount observers custodian []
+  -- Lifecycle on the second payment date, which is also the expiry date. Verify the lifecycle effects for the fx payments.
+  let
+    expectedConsumedQuantities = [Instrument.qty finalFxRate foreignCashInstrumentCid]
+    expectedProducedQuantities = [Instrument.qty fxRateSameCurrency cashInstrumentCid]
+  lifecycleAndVerifySwapPaymentEffects [publicParty] maturityDate swapInstrumentAfterFirstPayment settlers issuer investor observers custodian [] expectedConsumedQuantities expectedProducedQuantities
 
   pure ()
