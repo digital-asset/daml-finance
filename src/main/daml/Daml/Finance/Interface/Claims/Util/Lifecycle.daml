@@ -72,7 +72,37 @@ lifecycleClaims : [ContractId Observable.I]          -- ^ The set of observables
                -> Update ([TaggedClaim], [Pending])  -- ^ The remaining claims and pending payments.
 lifecycleClaims observableCids acquisitionTime claims events = do
   observe <- collectObservables observableCids
-  fmap mconcat . unzip <$> mapA (applyEvents observe acquisitionTime events) claims
+  (remaining, pending) <- fmap mconcat . unzip <$> mapA (applyEvents observe acquisitionTime events) claims
+  debug pending
+
+  let
+    instruments = map (\c -> c.instrument) pending
+  debug instruments
+
+  let
+    uniqueInstruments = dedup instruments
+  debug uniqueInstruments
+
+  let
+  -- 3. For each unique key:
+  --    a) find all occurrences
+  --    b) sum their quantities
+    iSum = map (\e -> (foldl (\acc p -> acc + (if p.instrument == e then p.amount else 0.0)) 0.0 pending)) uniqueInstruments
+  --    c) create new list with this key and quantitySum
+  debug iSum
+
+  let
+    claimTime = acquisitionTime -- todo: fix, use first time of each instrument in pending instead
+    nettedPending = map (\p -> Pending with tag = "netted"; t = claimTime; instrument = p._1; amount = p._2) (zip uniqueInstruments iSum)
+  debug nettedPending
+
+  let
+    --enableNetting = False
+    enableNetting = True
+    pendingUsed = if enableNetting then nettedPending else pending
+
+  pure (remaining, pendingUsed)
+  --pure (remaining, pending)
 
 -- | Lifecycle a claim instrument at specified events.
 lifecycle : [ContractId Observable.I]          -- ^ The set of observables.
@@ -86,26 +116,43 @@ lifecycle observableCids instrument events = do
   -- TODO:
   -- 1. Get all pending events
   (remaining, pending) <- lifecycleClaims observableCids acquisitionTime claims events
+{-
   -- 2. Get all unique keys among the pending events
   debug pending
   let
     instruments = map (\c -> c.instrument) pending
+    --pending1 = head pending
+    --tempTime = pending1.t
   debug instruments
   let
     uniqueInstruments = dedup instruments
   debug uniqueInstruments
   let
-    iSum = map (\e -> (foldl (\acc p -> acc + (if p.instrument == e then p.amount else 0.0)) 0.0 pending)) uniqueInstruments
   -- 3. For each unique key:
   --    a) find all occurrences
   --    b) sum their quantities
+    iSum = map (\e -> (foldl (\acc p -> acc + (if p.instrument == e then p.amount else 0.0)) 0.0 pending)) uniqueInstruments
   --    c) create new list with this key and quantitySum
+
+    --claimTimes = map (\e -> ())
+    claimTime = acquisitionTime -- todo: fix, use first time of each instrument in pending instead
+
+    nettedPending = map (\p -> Pending with tag = "netted"; t = claimTime; instrument = p._1; amount = p._2) (zip uniqueInstruments iSum)
+
   debug iSum
+  debug acquisitionTime
+  debug nettedPending
   debug ""
-  pure (remaining, pending)
   -- 4. Consider implementing a flag netPendingClaims True/False
   --    a) if True: use the netting above
   --    b) if False: use the original pending claims returned by lifecycleClaims
+  let
+    --enableNetting = False
+    enableNetting = True
+    pendingUsed = if enableNetting then nettedPending else pending
+  --pure (remaining, pendingUsed)
+ -}
+  pure (remaining, pending)
 
 -- | HIDE
 -- Fetches all `Observable` contracts and stores them in a `Map` keyed by their `id`. It then returns a function that can be used to query them.
