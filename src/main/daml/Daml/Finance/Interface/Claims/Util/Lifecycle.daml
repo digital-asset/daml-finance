@@ -4,15 +4,15 @@
 module Daml.Finance.Interface.Claims.Util.Lifecycle
   ( electionEvent
   , lifecycle
-  , lifecycleAndNetClaims
   , lifecycleClaims
+  , net
   , splitPending
   , timeEvent
  ) where
 
 import ContingentClaims.Lifecycle qualified as CC (exercise, lifecycle)
 import DA.Either (partitionEithers)
-import DA.List (dedup, sort)
+import DA.List (head, groupOn, sort)
 import DA.Map as M (fromList, lookup)
 import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, getAcquisitionTime, getClaims)
 import Daml.Finance.Interface.Claims.Types (C, Observable, Pending(..), TaggedClaim(..))
@@ -75,22 +75,18 @@ lifecycleClaims observableCids acquisitionTime claims events = do
   observe <- collectObservables observableCids
   fmap mconcat . unzip <$> mapA (applyEvents observe acquisitionTime events) claims
 
--- | Lifecycle a set of claims at specified events.
-lifecycleAndNetClaims : [ContractId Observable.I]          -- ^ The set of observables.
-               -> Time                               -- ^ The input claims' acquisition time.
-               -> [TaggedClaim]                      -- ^ The input claims.
-               -> [Event]                            -- ^ Lifecycle events.
-               -> Update ([TaggedClaim], [Pending])  -- ^ The remaining claims and pending payments.
-lifecycleAndNetClaims observableCids acquisitionTime claims events = do
-  (remaining, pending) <- lifecycleClaims observableCids acquisitionTime claims events
+-- | Net claims that have the same instrument (regardless of tags)
+net : [Pending] -> Time -> [Pending]
+net pending acquisitionTime =
   let
-    uniqueInstruments = dedup $ map (\c -> c.instrument) pending
-    -- For each unique instrument key:
-    --    a) find all occurrences in the pending claims list and sum their amounts
-    instrumentAmountSum = map (\e -> (foldl (\acc p -> acc + (if p.instrument == e then p.amount else 0.0)) 0.0 pending)) uniqueInstruments
-    --    b) create new list of netted claims
-    nettedPending = map (\p -> Pending with tag = "netted from this acquisition time"; t = acquisitionTime; instrument = p._1; amount = p._2) (zip uniqueInstruments instrumentAmountSum)
-  pure (remaining, nettedPending)
+    groupedPending = groupOn (.instrument) pending
+  in
+    map (\p -> Pending with
+        tag = "netted " <> foldl (\acc e -> "|" <> e.tag <> acc) "" p
+        t = (.t) $ head p
+        instrument = (.instrument) $ head p
+        amount = foldl (\acc e -> acc + e.amount) 0.0 p)
+      groupedPending
 
 -- | Lifecycle a claim instrument at specified events.
 lifecycle : [ContractId Observable.I]          -- ^ The set of observables.
