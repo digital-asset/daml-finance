@@ -40,7 +40,7 @@ Core Implementations
 
     - :ref:`Effect <module-daml-finance-lifecycle-effect-1975>`: A contract encoding the *consequences of a lifecycle event* for one unit of the target instrument
     - :ref:`ElectionEffect <module-daml-finance-lifecycle-electioneffect-99924>`: A contract encoding the *consequences of an election* for one unit of the target instrument
-    - :ref:`DateClock <module-daml-finance-lifecycle-dateclock-31311>`: Rule contract that allows an actor to process/claim effects, returning settlement instructions
+    - :ref:`DateClock <module-daml-finance-lifecycle-dateclock-31311>`: A contract specifying what is the current local date. It is used to inject date information in lifecycle processing rules
     - :ref:`Rule.Claim <module-daml-finance-lifecycle-rule-claim-99318>`: Rule contract that allows an actor to process/claim effects, returning settlement instructions
     - :ref:`Rule.Distribution <module-daml-finance-lifecycle-rule-distribution-35531>`: Rule contract that defines the distribution of units of an instrument for each unit of a target instrument (e.g. share or cash dividends)
     - :ref:`Rule.Replacement <module-daml-finance-lifecycle-rule-replacement-6984>`: Rule contract that defines the replacement of units of an instrument with a basket of other instruments (e.g. stock merger)
