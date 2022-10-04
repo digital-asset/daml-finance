@@ -1,0 +1,127 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Account.Test.Controllers where
+
+import DA.Map qualified as M (fromList, toList)
+import DA.Set qualified as S (fromList, singleton)
+import Daml.Finance.Account.Test.Util (ControlledBy(..))
+import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
+import Daml.Finance.Holding.Test.Common (TestInitialState(..), TestParties(..), setupInitialState, setupParties)
+import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
+import Daml.Script
+
+-- | Verify that custodian can transfer.
+custodianControlled : Script ()
+custodianControlled = script do
+  -- Create parties
+  tp@TestParties{custodian; issuer; investor; publicParty} <- setupParties
+
+  -- Initialize state with
+  let pp = M.fromList [("PublicParty", S.singleton publicParty)]
+  TestInitialState {issuerAccount; investorAccount; issuerHoldingCid} <-
+    setupInitialState tp (Fungible.Factory with provider = custodian; observers = pp) [] Custodian
+
+  -- Owners can't transfer.
+  submitMultiMustFail [issuer, investor] [publicParty] do
+    exerciseCmd (coerceContractId issuerHoldingCid : ContractId Transferable.I) Transferable.Transfer
+      with
+        actors = S.fromList [issuer]
+        newOwnerAccount = investorAccount
+
+  -- Custodian can transfer.
+  submitMulti [custodian] [publicParty] do
+    exerciseCmd (coerceContractId issuerHoldingCid : ContractId Transferable.I) Transferable.Transfer
+      with
+        actors = S.fromList [custodian]
+        newOwnerAccount = investorAccount
+
+  pure ()
+
+-- | Verify that owners can transfer.
+ownersControlled : Script ()
+ownersControlled = script do
+  -- Create parties
+  tp@TestParties{custodian; issuer; investor; publicParty} <- setupParties
+
+  -- Initialize state with `NonFungible.Factory`
+  let pp = M.fromList [("PublicParty", S.singleton publicParty)]
+  TestInitialState {issuerAccount; investorAccount; issuerHoldingCid} <-
+    setupInitialState tp (Fungible.Factory with provider = custodian; observers = pp) [] Owners
+
+  -- Custodian can't transfer.
+  submitMultiMustFail [custodian] [publicParty] do
+    exerciseCmd (coerceContractId issuerHoldingCid : ContractId Transferable.I) Transferable.Transfer
+      with
+        actors = S.fromList [custodian]
+        newOwnerAccount = investorAccount
+
+  -- Owners can transfer.
+  submitMulti [issuer, investor] [publicParty] do
+    exerciseCmd (coerceContractId issuerHoldingCid : ContractId Transferable.I) Transferable.Transfer
+      with
+        actors = S.fromList [issuer, investor]
+        newOwnerAccount = investorAccount
+
+  pure ()
+
+-- | Verify that the owner, custodian, and new owner can transfer jointly.
+ownersAndCustodianControlled : Script ()
+ownersAndCustodianControlled = script do
+  -- Create parties
+  tp@TestParties{custodian; issuer; investor; publicParty} <- setupParties
+
+  -- Initialize state with `NonFungible.Factory`
+  let pp = M.fromList [("PublicParty", S.singleton publicParty)]
+  TestInitialState {issuerAccount; investorAccount; issuerHoldingCid} <-
+    setupInitialState tp (Fungible.Factory with provider = custodian; observers = pp) [] OwnersAndCustodian
+
+  -- Owners can't transfer.
+  submitMultiMustFail [issuer, investor] [publicParty] do
+    exerciseCmd (coerceContractId issuerHoldingCid : ContractId Transferable.I) Transferable.Transfer
+      with
+        actors = S.fromList [issuer, investor]
+        newOwnerAccount = investorAccount
+
+  -- Custodian can't transfer.
+  submitMultiMustFail [custodian] [publicParty] do
+    exerciseCmd (coerceContractId issuerHoldingCid : ContractId Transferable.I) Transferable.Transfer
+      with
+        actors = S.fromList [custodian]
+        newOwnerAccount = investorAccount
+
+  -- Owners and Custodian can transfer.
+  submitMulti [custodian, issuer, investor] [publicParty] do
+    exerciseCmd (coerceContractId issuerHoldingCid : ContractId Transferable.I) Transferable.Transfer
+      with
+        actors = S.fromList [custodian, issuer, investor]
+        newOwnerAccount = investorAccount
+
+  pure ()
+
+-- | Verify that the owner can transfer (in its sole discretion).
+ownerOnlyControlled : Script ()
+ownerOnlyControlled = script do
+  -- Create parties
+  tp@TestParties{custodian; issuer; investor; publicParty} <- setupParties
+
+  -- Initialize state with `NonFungible.Factory`
+  let pp = M.fromList [("PublicParty", S.singleton publicParty)]
+  TestInitialState {issuerAccount; investorAccount; issuerHoldingCid} <-
+    setupInitialState tp (Fungible.Factory with provider = custodian; observers = pp) (M.toList pp) OwnerOnly
+
+  -- Custodian can't transfer.
+  submitMultiMustFail [custodian] [publicParty] do
+    exerciseCmd (coerceContractId issuerHoldingCid : ContractId Transferable.I) Transferable.Transfer
+      with
+        actors = S.fromList [custodian]
+        newOwnerAccount = investorAccount
+
+  -- Owner can transfer.
+  submitMulti [issuer] [publicParty] do
+    exerciseCmd (coerceContractId issuerHoldingCid : ContractId Transferable.I) Transferable.Transfer
+      with
+        actors = S.fromList [issuer]
+        newOwnerAccount = investorAccount
+
+  pure ()

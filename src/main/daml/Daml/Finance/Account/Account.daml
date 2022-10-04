@@ -4,16 +4,11 @@
 module Daml.Finance.Account.Account where
 
 import DA.Map qualified as M (empty)
-import DA.Set qualified as S (fromList, isSubsetOf, member, singleton)
-import Daml.Finance.Holding.Util (reapplyLocks, releaseAll)
-import Daml.Finance.Interface.Account.Account qualified as Account (Credit(..), Debit(..), GetCid(..), HasImplementation, I, R, Transfer(..), Transferors(..), View(..), createReference, disclosureUpdateReference, exerciseInterfaceByKey)
+import DA.Set qualified as S (fromList, singleton)
+import Daml.Finance.Account.Util (transferImpl)
+import Daml.Finance.Interface.Account.Account qualified as Account (Credit(..), Debit(..), GetCid(..), HasImplementation, I, R, Controllers(..), View(..), createReference, disclosureUpdateReference)
 import Daml.Finance.Interface.Account.Factory qualified as AccountFactory (Create(..), F, HasImplementation, Remove(..), View(..))
-import Daml.Finance.Interface.Account.Util (getOwner)
-import Daml.Finance.Interface.Holding.Base qualified as Base (I)
 import Daml.Finance.Interface.Holding.Factory qualified as HoldingFactory (Create(..), F, Remove(..))
-import Daml.Finance.Interface.Holding.Lockable (getLockers)
-import Daml.Finance.Interface.Holding.Lockable qualified as Lockable (I)
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (qty)
 import Daml.Finance.Interface.Types.Common (Id, AccountKey(..), PartiesMap)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
 
@@ -28,6 +23,8 @@ template Account
       -- ^ The account provider.
     owner : Party
       -- ^ The account owner.
+    controllers : Account.Controllers
+      -- ^ Controllers of transfers.
     id : Id
       -- ^ Identifier of the account.
     description : Text
@@ -40,9 +37,7 @@ template Account
     signatory custodian, owner
     observer Disclosure.flattenObservers observers
 
-    let
-      account = AccountKey with custodian; owner; id
-      controllers = Account.Transferors with instructors = S.singleton owner; approvers = S.singleton owner
+    let account = AccountKey with custodian; owner; id
 
     interface instance Account.I for Account where
       asDisclosure = toInterface @Disclosure.I this
@@ -57,30 +52,12 @@ template Account
       debit Account.Debit{holdingCid} = do
         vHolding <- view <$> fetch holdingCid
         assertMsg "accounts must match" $ vHolding.account == account
-        exercise holdingFactoryCid HoldingFactory.Remove with actors = S.fromList [account.custodian, account.owner]; holdingCid
-      transfer Account.Transfer{transferableCid; actors} = do
-        let lockableCid = toInterfaceContractId @Lockable.I transferableCid
-        lockable <- fetch lockableCid
-        let
-          vH = view $ toInterface @Base.I lockable
-          vL = view $ toInterface @Lockable.I lockable
-        assertMsg "custodians must be the same" $ vH.account.custodian == custodian
-        assertMsg "actors must contain lockers" $ S.isSubsetOf (getLockers lockable) actors
-        assertMsg "actors must contain the owner (of the provided transferable)" $ S.member (getOwner lockable) actors
-        -- Release all locks
-        transferableCid <- toInterfaceContractId @Base.I <$> optional (pure lockableCid) (releaseAll lockableCid) vL.lock
-        -- Debit holding
-        Account.exerciseInterfaceByKey @Account.I vH.account vH.account.owner Account.Debit with holdingCid = transferableCid
-        -- Credit holding
-        newLockableCid <- coerceContractId <$> Account.exerciseInterfaceByKey @Account.I account owner Account.Credit with quantity = Instrument.qty vH.amount vH.instrument
-        -- Consistency check
-        newLockble <- fetch newLockableCid
-        assertMsg "credited and debited holding types must match" $ interfaceTypeRep newLockble == interfaceTypeRep lockable
-        -- reapply locks
-        coerceContractId <$> optional (pure newLockableCid) (reapplyLocks newLockableCid) vL.lock
+        exercise holdingFactoryCid HoldingFactory.Remove with
+          actors = S.fromList [account.custodian, account.owner]; holdingCid
+      transfer = transferImpl account
 
     interface instance Disclosure.I for Account where
-      view = Disclosure.View with disclosureControllers = S.fromList [owner, custodian]; observers
+      view = Disclosure.View with disclosureControllers = S.fromList [custodian, owner]; observers
       setObservers Disclosure.SetObservers{newObservers} = do
         cid <- create this with observers = newObservers
         Account.disclosureUpdateReference newObservers account (toInterfaceContractId @Account.I cid)
@@ -101,8 +78,8 @@ template Factory
     interface instance AccountFactory.F for Factory where
       asDisclosure = toInterface @Disclosure.I this
       view = AccountFactory.View with provider
-      create' AccountFactory.Create{account; holdingFactoryCid; observers; description} = do
-        cid <- toInterfaceContractId <$> create Account with custodian = account.custodian; owner = account.owner; id = account.id; holdingFactoryCid; observers; description
+      create' AccountFactory.Create{account; holdingFactoryCid; controllers; observers; description} = do
+        cid <- toInterfaceContractId <$> create Account with custodian = account.custodian; owner = account.owner; controllers; id = account.id; holdingFactoryCid; observers; description
         Account.createReference account.custodian cid
         pure cid
       remove AccountFactory.Remove{account} = do

@@ -1,10 +1,11 @@
 -- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
-module Daml.Finance.Account.Test.Transfer where
+module Daml.Finance.Account.Test.Consistency where
 
 import DA.Map qualified as M (fromList)
 import DA.Set qualified as S (singleton)
+import Daml.Finance.Account.Test.Util (ControlledBy(..), setControllers)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Holding.NonFungible qualified as NonFungible (Factory(..))
 import Daml.Finance.Holding.Test.Common (TestInitialState(..), TestParties(..), setupInitialState, setupParties)
@@ -15,18 +16,19 @@ import Daml.Finance.Test.Util.Account qualified as Account (createFactory)
 import Daml.Script
 
 -- | Verify that I cannot transfer a non-fungible holding to a fungible account.
-noCrossTransfer : Script ()
-noCrossTransfer = script do
+consistencyCheck : Script ()
+consistencyCheck = script do
   -- Create parties
   tp@TestParties{custodian; issuer; investor; publicParty} <- setupParties
 
   -- Initialize state with `NonFungible.Factory`
   let pp = M.fromList [("PublicParty", S.singleton publicParty)]
-  TestInitialState {issuerAccount; issuerHoldingCid} <- setupInitialState tp (NonFungible.Factory with provider = custodian; observers = pp) []
+  TestInitialState {issuerAccount; issuerHoldingCid} <- setupInitialState tp (NonFungible.Factory with provider = custodian; observers = pp) [] Owners
 
   -- Create investor account for fungible holdings
   accountFactoryCid <- toInterfaceContractId @Account.F <$> Account.createFactory custodian []
-  holdingFactoryCid <- toInterfaceContractId <$> submit custodian do createCmd Fungible.Factory with provider = custodian; observers = pp
+  holdingFactoryCid <- toInterfaceContractId <$> submit custodian do
+    createCmd Fungible.Factory with provider = custodian; observers = pp
   let
     id = Id $ show investor <> "@" <> show custodian <> "[" <> "Fungible" <> "]"
     investorAccount = AccountKey with custodian; owner = investor; id
@@ -36,6 +38,7 @@ noCrossTransfer = script do
         account = investorAccount
         description = "Fungible Account"
         holdingFactoryCid
+        controllers = setControllers custodian investor Owners
         observers = M.fromList [("Issuer", S.singleton issuer)]
 
   -- Attempt to transfer a non-fungible holding to a fungible holding.
