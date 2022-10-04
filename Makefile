@@ -53,6 +53,7 @@ test-all: test test-packages
 
 .PHONY: clean-all
 clean-all: clean clean-packages
+	pipenv run make doc-clean
 
 ####################################
 # CI (avoids unnecessary rebuilds) #

@@ -190,6 +190,31 @@ jobs:
       - run:
           name: Build docs
           command: make ci-docs
+      - save_cache:
+          paths:
+            - .docs/build
+          key: docs-build-{{ .Revision }}
+
+  assembly:
+    executor: docs-executor
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - docs-build-{{ .Revision }}
+      - run:
+          name: Set target daml prefix
+          command: echo 'export TARGET_SDK_PREFIX=$(yq e '.target-daml-prefix' docs/assembly.yml)' >> $BASH_ENV
+      - run:
+          name: Build assembly
+          command: |
+            echo 'export DOC_SOURCES_TAR=daml-finance-doc-sources-${TARGET_SDK_PREFIX}.tar.gz' >> $BASH_ENV
+            tar cvf ${DOC_SOURCES_TAR} -C docs build/daml-finance.json build/daml-finance-rst source
+      - run:
+          name: Push assembly to Artifactory
+          command: |
+            URL="https://digitalasset.jfrog.io/artifactory/assembly/canton/${TARGET_SDK_PREFIX}/${DOC_SOURCES_TAR}"
+            curl -u "${ARTIFACTORY_USER}:${ARTIFACTORY_PASSWORD}" -sSf -X PUT -T ${DOC_SOURCES_TAR} ${URL}
 
 workflows:
   version: 2
@@ -206,9 +231,9 @@ workflows:
           filters:
             branches:
               ignore:
-                - /^(R|r)elease.*$/  
+                - /^(R|r)elease.*$/
           requires:
-            - build    
+            - build
   build-release:
     jobs:
       - build:
@@ -222,7 +247,7 @@ workflows:
           filters:
             branches:
               only:
-                - /^(R|r)elease.*$/  
+                - /^(R|r)elease.*$/
           requires:
             - build
       - release:
@@ -235,4 +260,31 @@ workflows:
           filters:
             branches:
               only:
-                - /^(R|r)elease.*$/  
+                - /^(R|r)elease.*$/
+  assembly:
+    jobs:
+      - build:
+          context: npn-publish
+          filters:
+            branches:
+              only:
+                - /^(A|a)ssembly.*$/
+      - docs:
+          context: npn-publish
+          filters:
+            branches:
+              only:
+                - /^(A|a)ssembly.*$/
+          requires:
+            - build
+      - hold:
+          type: approval
+          requires:
+            - docs
+      - assembly:
+          filters:
+            branches:
+              only:
+                - /^(A|a)ssembly.*$/
+          requires:
+            - hold
