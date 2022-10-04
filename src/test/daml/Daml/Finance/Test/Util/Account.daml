@@ -9,9 +9,9 @@ import DA.Assert ((===))
 import DA.Foldable (forA_)
 import DA.List (head)
 import DA.Map qualified as M (fromList, toList)
+import DA.Set qualified as S (empty, fromList, singleton)
 import Daml.Finance.Account.Account qualified as Account (Factory(..), T)
-import Daml.Finance.Account.Test.Util (ControlledBy(..), setControllers)
-import Daml.Finance.Interface.Account.Account qualified as Account (GetCid(..), Credit(..), Debit(..), I, R)
+import Daml.Finance.Interface.Account.Account qualified as Account (Controllers(..), GetCid(..), Credit(..), Debit(..), I, R)
 import Daml.Finance.Interface.Account.Factory qualified as Account (Create(..), F)
 import Daml.Finance.Interface.Holding.Base qualified as Base (GetView(..), I)
 import Daml.Finance.Interface.Holding.Factory qualified as Holding (F)
@@ -19,6 +19,27 @@ import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument
 import Daml.Finance.Interface.Types.Common (Id(..), AccountKey(..), Parties, PartiesMap)
 import Daml.Finance.Test.Util.Common (submitExerciseInterfaceByKeyCmdHelper, submitMustFailExerciseInterfaceByKeyCmdHelper)
 import Daml.Script
+
+-- | Options for transfer controllers.
+data ControlledBy
+  = Owners
+    -- ^ Owner controls inbound and outbound transfers.
+  | Custodian
+    -- ^ Custodian controls inbound and outbound transfers
+  | OwnersAndCustodian
+    -- ^ Owners-and-custodian control inbound and outbound transfers.
+  | OwnerOnly
+    -- ^ Owner controls outbound transfers, inbound transfers are auto-approved.
+  deriving (Eq, Show)
+
+-- | Get controllers depending on controlledBy.
+getControllers : Party -> Party -> ControlledBy -> Account.Controllers
+getControllers custodian owner controlledBy =
+  case controlledBy of
+    Owners -> Account.Controllers with instructors = S.singleton owner; approvers = S.singleton owner
+    Custodian -> Account.Controllers with instructors = S.singleton custodian; approvers = S.singleton custodian
+    OwnersAndCustodian -> Account.Controllers with instructors = S.fromList [owner, custodian]; approvers = S.fromList [owner, custodian]
+    OwnerOnly -> Account.Controllers with instructors = S.singleton owner; approvers = S.empty
 
 -- | Create factory for `Account`.
 createFactory : Party -> [(Text, Parties)] -> Script (ContractId Account.Factory)
@@ -30,7 +51,7 @@ createAccount : Text -> [Party] -> ContractId Account.F -> ContractId Holding.F 
 createAccount description readAs factoryCid holdingFactoryCid observers controlledBy custodian owner = do
   let k = AccountKey with custodian; owner; id = Id $ show owner <> "@" <> show custodian <> "/" <> description
   submitMulti [custodian, owner] readAs do
-    exerciseCmd factoryCid Account.Create with account = k; holdingFactoryCid; controllers = setControllers custodian owner controlledBy; observers = M.fromList observers; description
+    exerciseCmd factoryCid Account.Create with account = k; holdingFactoryCid; controllers = getControllers custodian owner controlledBy; observers = M.fromList observers; description
   pure k
 
 -- | Credit an `Account`.
@@ -47,7 +68,7 @@ debit readAs holder holdingCid = do
 
 -- | Verify account disclosure contexts.
 verifyAccountDisclosureContexts : [PartiesMap] -> Party -> Script ()
-verifyAccountDisclosureContexts l owner = do
+verifyAccountDisclosureContexts l owner =
   forA_ l (\pm -> do
       (cid, a) <- head <$> query @Account.T owner
       let l = fmap (\(context, ps) -> (context, ps)) (M.toList pm)
