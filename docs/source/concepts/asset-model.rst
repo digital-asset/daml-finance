@@ -53,7 +53,7 @@ identify the cum-dividend and the ex-dividend share.
 Implementations
 ===============
 
-A base implementation is provided in ``Daml.Finance.Instrument.Base``.
+A base implementation is provided in ``Daml.Finance.Instrument.Token``.
 
 This template does not involve any lifecycling logic and is suitable to
 model contracts that are likely to stay stable, such as currency

@@ -79,7 +79,8 @@ the template implementations used in ``daml-finance`` and, thus, makes it easier
 to upgrade the one without being forced to upgrade the other.
 
 On the other hand, the script in the ``Scripts`` folder depends also on
-implementation packages (in this case, ``Daml.Finance.Holding`` and ``Daml.Finance.Instrument.Base``).
+implementation packages (in this case, ``Daml.Finance.Holding`` and
+``Daml.Finance.Instrument.Token``).
 
 This is not problematic, as the script is meant to be run only once when
 the application is initialized.
@@ -252,8 +253,8 @@ What are accounts used for?
 ===========================
 
 An account is used as the proof of a business relationship between an
-owner and a custodian: Alice is authorized to transfer cash to
-Bob because Bob has a valid account at the Bank.
+owner and a custodian: Alice may transfer cash to Bob because Bob has
+a valid account at the Bank.
 
 This is done to avoid that Alice transfers cash to Charlie
 without Charlie being vetted and acknowledged by the Bank.
@@ -316,4 +317,4 @@ You now know how to setup basic accounts, holdings and instruments. You also lea
 * Factories are used to create the respective contracts without having to depend on implementation packages
 * Transfers change ownership of a holding
 
-sOwnership transfers typically happen within a larger financial transaction. The next tutorial will show you how to create such a transaction and how to settle it atomically.
+Ownership transfers typically happen within a larger financial transaction. The next tutorial will show you how to create such a transaction and how to settle it atomically.
