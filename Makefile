@@ -75,6 +75,10 @@ ci-validate:
 ci-docs:
 	pipenv run make doc-html
 
+.PHONY: ci-assembly
+ci-assembly:
+	./docs/scripts/build-assembly.sh
+
 .PHONY: ci-local
 ci-local: clean-all ci-build ci-test ci-validate ci-docs
 
