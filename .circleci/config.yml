@@ -120,6 +120,50 @@ commands:
       - store_artifacts:
           path: .dars
           destination: daml-finance-dar-${VERSION}
+  run_assembly:
+    description: "Build Assembly for docs.daml.com"
+    steps:
+      - run:
+          name: Build assembly
+          command: |
+            echo 'export ASSEMBLY_VERSION=$(yq e '.version' daml.yaml)' >> $BASH_ENV
+            # make ci-assembly
+      - run:
+          name: Compress and zip assembly
+          command: |
+            echo 'export DOC_SOURCES_TAR=daml-finance-doc-sources-${ASSEMBLY_VERSION}.tar.gz' >> $BASH_ENV && source "$BASH_ENV"
+            tar czvf ${DOC_SOURCES_TAR} -C docs/.assembly .
+      - run:
+          name: Push assembly to Artifactory
+          command: |
+            URL="https://digitalasset.jfrog.io/artifactory/assembly/daml-finance/${ASSEMBLY_VERSION}/${DOC_SOURCES_TAR}"
+            curl -u "${ARTIFACTORY_USER}:${ARTIFACTORY_PASSWORD}" -sSf -X PUT -T ${DOC_SOURCES_TAR} ${URL}
+      - run:
+          name: Tag assembly in GitHub
+          command: |
+            TAG="assembly/${ASSEMBLY_VERSION}"
+            COMMIT=`git rev-parse HEAD`
+            DATE=`date +"%Y-%m-%dT%H:%M:%S%:z"`
+
+            curl \
+              -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+              https://api.github.com/repos/digital-asset/daml-finance/git/tags \
+              -d '{"tag":"'${TAG}'"
+                ,"message":"Assembly build - '${TAG}'"
+                ,"object":"'${COMMIT}'"
+                ,"type":"commit"
+                ,"tagger":{"name":"Brian Weir"
+                  ,"email":"brian.weir@digitalasset.com"
+                  ,"date":"'${DATE}'"}}'
+
+            gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              /repos/digital-asset/daml-finance/git/refs \
+              -f ref='refs/tags/'${TAG}'' \
+              -f sha=''${COMMIT}''
 
 jobs:
   build:
@@ -190,6 +234,20 @@ jobs:
       - run:
           name: Build docs
           command: make ci-docs
+      - save_cache:
+          paths:
+            - docs/build
+          key: docs-build-{{ .Revision }}
+
+  assembly:
+    executor: docs-executor
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - docs-build-{{ .Revision }}
+      - install_gh
+      - run_assembly
 
 workflows:
   version: 2
@@ -201,14 +259,16 @@ workflows:
             branches:
               ignore:
                 - /^(R|r)elease.*$/
+                - /^(A|a)ssembly.*$/
       - docs:
           context: npn-publish
           filters:
             branches:
               ignore:
-                - /^(R|r)elease.*$/  
+                - /^(R|r)elease.*$/
+                - /^(A|a)ssembly.*$/
           requires:
-            - build    
+            - build
   build-release:
     jobs:
       - build:
@@ -222,7 +282,7 @@ workflows:
           filters:
             branches:
               only:
-                - /^(R|r)elease.*$/  
+                - /^(R|r)elease.*$/
           requires:
             - build
       - release:
@@ -235,4 +295,33 @@ workflows:
           filters:
             branches:
               only:
-                - /^(R|r)elease.*$/  
+                - /^(R|r)elease.*$/
+  assembly:
+    jobs:
+      - build:
+          context: npn-publish
+          filters:
+            branches:
+              only:
+                - /^(A|a)ssembly.*$/
+      - docs:
+          context: npn-publish
+          filters:
+            branches:
+              only:
+                - /^(A|a)ssembly.*$/
+          requires:
+            - build
+      - hold:
+          type: approval
+          requires:
+            - docs
+      - assembly:
+          context:
+            - github-fin-eng-context
+          filters:
+            branches:
+              only:
+                - /^(A|a)ssembly.*$/
+          requires:
+            - hold
