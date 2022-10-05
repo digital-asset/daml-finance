@@ -5,13 +5,14 @@ module Daml.Finance.Interface.Claims.Util.Lifecycle
   ( electionEvent
   , lifecycle
   , lifecycleClaims
+  , net
   , splitPending
   , timeEvent
  ) where
 
 import ContingentClaims.Lifecycle qualified as CC (exercise, lifecycle)
 import DA.Either (partitionEithers)
-import DA.List (sort)
+import DA.List (head, groupOn, sort)
 import DA.Map as M (fromList, lookup)
 import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, getAcquisitionTime, getClaims)
 import Daml.Finance.Interface.Claims.Types (C, Observable, Pending(..), TaggedClaim(..))
@@ -73,6 +74,23 @@ lifecycleClaims : [ContractId Observable.I]          -- ^ The set of observables
 lifecycleClaims observableCids acquisitionTime claims events = do
   observe <- collectObservables observableCids
   fmap mconcat . unzip <$> mapA (applyEvents observe acquisitionTime events) claims
+
+-- | Net claims that have the same instrument (regardless of tags).
+net : [Pending] -> [Pending]
+net pending =
+  let
+    groupedPending = groupOn (.instrument) pending
+    createPendingNode p =
+      let
+        (aggregatedTag, aggregatedAmount) = foldl (\acc e -> ("|" <> e.tag <> acc._1, acc._2 + e.amount)) ("", 0.0) p
+      in
+        Pending with
+          tag = "netted " <> aggregatedTag
+          t = (.t) $ head p
+          instrument = (.instrument) $ head p
+          amount = aggregatedAmount
+  in
+    map createPendingNode groupedPending
 
 -- | Lifecycle a claim instrument at specified events.
 lifecycle : [ContractId Observable.I]          -- ^ The set of observables.
