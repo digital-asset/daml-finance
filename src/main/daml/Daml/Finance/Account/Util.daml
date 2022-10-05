@@ -1,0 +1,36 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Account.Util where
+
+import DA.Set qualified as S (isSubsetOf, member)
+import Daml.Finance.Holding.Util (reapplyLocks, releaseAll)
+import Daml.Finance.Interface.Account.Account qualified as Account (Credit(..), CreditAndDebit(..), Debit(..), I, exerciseInterfaceByKey)
+import Daml.Finance.Interface.Account.Util (getOwner)
+import Daml.Finance.Interface.Holding.Base qualified as Base (I)
+import Daml.Finance.Interface.Holding.Lockable (getLockers)
+import Daml.Finance.Interface.Holding.Lockable qualified as Lockable (I)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (qty)
+import Daml.Finance.Interface.Types.Common (AccountKey(..))
+
+-- | Default implementation of `creditAndDebit` from the `Account` interface.
+creditAndDebitImpl : AccountKey -> Account.CreditAndDebit -> Update (ContractId Lockable.I)
+creditAndDebitImpl account Account.CreditAndDebit{lockableCid; actors} = do
+  lockable <- fetch lockableCid
+  let
+    vH = view $ toInterface @Base.I lockable
+    vL = view $ toInterface @Lockable.I lockable
+  assertMsg "custodians must be the same" $ vH.account.custodian == account.custodian
+  assertMsg "actors must contain lockers" $ S.isSubsetOf (getLockers lockable) actors
+  assertMsg "actors must contain the owner (of the provided transferable)" $ S.member (getOwner lockable) actors
+  -- Release all locks
+  transferableCid <- toInterfaceContractId @Base.I <$> optional (pure lockableCid) (releaseAll lockableCid) vL.lock
+  -- Debit holding
+  Account.exerciseInterfaceByKey @Account.I vH.account vH.account.owner Account.Debit with holdingCid = transferableCid
+  -- Credit holding
+  newLockableCid <- coerceContractId <$> Account.exerciseInterfaceByKey @Account.I account account.owner Account.Credit with quantity = Instrument.qty vH.amount vH.instrument
+  -- Consistency check
+  newLockble <- fetch newLockableCid
+  assertMsg "credited and debited holding types must match" $ interfaceTypeRep newLockble == interfaceTypeRep lockable
+  -- reapply locks
+  coerceContractId <$> optional (pure newLockableCid) (reapplyLocks newLockableCid) vL.lock
