@@ -6,6 +6,7 @@ module Daml.Finance.Instrument.Generic.Util where
 import ContingentClaims.Claim (Claim(..), Inequality(..), give, one, scale, when, until)
 import ContingentClaims.Observation (Observation(..))
 import DA.Date
+import DA.Optional (fromSome)
 import DA.Record (HasField)
 import DA.Set (fromList)
 import DA.Text (sha256)
@@ -21,9 +22,11 @@ import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (I)
 import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I)
 import Daml.Finance.Interface.Types.Common (Id, Parties)
+import Daml.Finance.Interface.Types.Date.Calendar (BusinessDayAdjustment(..))
 import Daml.Finance.Interface.Types.Date.Classes (toUTCTime)
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
-import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..), Schedule, SchedulePeriod)
+import Daml.Finance.Interface.Types.Date.Schedule (Frequency(..), PeriodicSchedule(..), Schedule, SchedulePeriod)
+import Daml.Finance.Interface.Types.Fpml
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, flattenObservers)
 import Daml.Finance.Lifecycle.Effect (Effect(..))
 import Daml.Finance.Lifecycle.Types (Unit(..))
@@ -131,6 +134,39 @@ createFxAdjustedPrincipalClaim issuerPays fxRateMultiplier cashInstrumentCid val
     fxLegClaim = if issuerPays then fxLegClaimAmount else give fxLegClaimAmount
   prepareAndTagClaims [fxLegClaim] "Principal payment"
 -- FIXED_RATE_BOND_REDEMPTION_CLAIM_END
+
+-- | Create a schedule for periodic payments.
+createPaymentPeriodicSchedule : SwapStream -> PeriodicSchedule
+createPaymentPeriodicSchedule s = do
+  let
+    periodicSchedule = PeriodicSchedule with
+      businessDayAdjustment =
+        BusinessDayAdjustment with
+          calendarIds = s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessCenters
+          convention = s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessDayConvention
+      effectiveDateBusinessDayAdjustment = None
+      terminationDateBusinessDayAdjustment = None
+      frequency =
+        Frequency with
+          rollConvention = s.calculationPeriodDates.calculationPeriodFrequency.rollConvention
+          period = s.calculationPeriodDates.calculationPeriodFrequency.period
+          periodMultiplier = s.calculationPeriodDates.calculationPeriodFrequency.periodMultiplier
+      effectiveDate = s.calculationPeriodDates.effectiveDate
+      firstRegularPeriodStartDate = s.calculationPeriodDates.firstRegularPeriodStartDate
+      lastRegularPeriodEndDate = s.calculationPeriodDates.lastRegularPeriodEndDate
+      stubPeriodType = None
+      terminationDate = s.calculationPeriodDates.terminationDate
+  periodicSchedule
+
+-- | Create claims from swapStream that describes a fix coupon stream.
+calculateClaimsFromFixSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg currency = do
+  let f = fromSome s.calculationPeriodAmount.calculation.fixedRateSchedule
+  pure $ createFixRatePaymentClaims streamSchedule periodicSchedule useAdjustedDatesForDcf f.initialValue issuerPaysLeg s.calculationPeriodAmount.calculation.dayCountFraction currency
+
+-- | Create claims from swapStream that describes a floating coupon stream.
+calculateClaimsFromFloatingSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg currency = do
+  let f = fromSome s.calculationPeriodAmount.calculation.floatingRateCalculation
+  pure $ createFloatingRatePaymentClaims streamSchedule periodicSchedule useAdjustedDatesForDcf f.spreadSchedule.initialValue issuerPaysLeg s.calculationPeriodAmount.calculation.dayCountFraction currency f.floatingRateIndex
 
 -- | HIDE
 -- Type-class constraint verified by the bond templates.
