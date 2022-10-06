@@ -259,6 +259,12 @@ a valid account at the Bank.
 This is done to avoid that Alice transfers cash to Charlie
 without Charlie being vetted and acknowledged by the Bank.
 
+The account is also used to determine who actually authorizes incoming
+and outgoing transfers. For the account at hand, the owner acts as a
+controller for both incoming and outgoing transfers. For an other
+account, you could for example let the custodian be the controller
+instead.
+
 Why do we need factories?
 =========================
 
