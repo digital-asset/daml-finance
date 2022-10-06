@@ -19,7 +19,7 @@ Tokens
 
     - :ref:`Instrument <module-daml-finance-instrument-token-instrument-10682>`: Standard implementation of an instrument, which does not define any lifecycling logic
 
-    Check out the :doc:`Transfer tutorial <../../tutorials/getting-started/transfer>` for an example on how to create a base instrument and use it for a transfer.
+    Check out the :doc:`Transfer tutorial <../tutorials/getting-started/transfer>` for an example on how to create a base instrument and use it for a transfer.
 
 Bonds
 =====
@@ -42,8 +42,8 @@ Bonds
     - :ref:`InflationLinked <module-daml-finance-instrument-bond-inflationlinked-instrument-30250>`: This template models an inflation linked bond that pays an inflation-adjusted coupon rate at the end of every coupon period
     - :ref:`ZeroCoupon <module-daml-finance-instrument-bond-zerocoupon-instrument-52804>`: This template models a zero coupon bond that does not pay any coupons, only the redemption amount at maturity
 
-    Check out the tutorial on :doc:`How to use the Bond extension package <../../tutorials/instrument-modeling/bond-extension>` for a description how to use the bond extension in practice.
-    There is also the tutorial :doc:`How to implement a Contingent Claims-based instrument <../../tutorials/instrument-modeling/contingent-claims-instrument>`, which describes how the claims are defined and how the lifecycle interface is implemented for bonds.
+    Check out the tutorial on :doc:`How to use the Bond extension package <../tutorials/instrument-modeling/bond-extension>` for a description how to use the bond extension in practice.
+    There is also the tutorial :doc:`How to implement a Contingent Claims-based instrument <../tutorials/instrument-modeling/contingent-claims-instrument>`, which describes how the claims are defined and how the lifecycle interface is implemented for bonds.
 
 Swaps
 =====
@@ -107,4 +107,4 @@ Generic
     - :ref:`Instrument <module-daml-finance-instrument-generic-instrument-67364>`: An instrument representing a generic payoff, modelled using ``Contingent Claims``
     - :ref:`Util <module-daml-finance-instrument-generic-util-13331>`: Utility functions related to creating Contingent Claims for bonds/swaps including lifecycling logic
 
-    The tutorial :doc:`How to use the Derivative extension to model generic instruments <../../tutorials/instrument-modeling/derivative-extension>` describes how a payoff is defined using ``Contingent Claims`` in practice.
+    The tutorial :doc:`How to use the Derivative extension to model generic instruments <../tutorials/instrument-modeling/derivative-extension>` describes how a payoff is defined using ``Contingent Claims`` in practice.
