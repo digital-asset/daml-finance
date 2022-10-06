@@ -87,7 +87,7 @@ This style guide details the formatting and styling of Daml and client-side code
         -- ^ Textual description of the account.
       owner : Party
         -- ^ Party owning this account.
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Show)
   ```
 
 - Add a `viewtype` definition to the interface with the `View` type:
