@@ -3,7 +3,7 @@
 
 module Daml.Finance.Instrument.Swap.Fpml.Instrument where
 
-import DA.Optional (fromSome, isNone, isSome)
+import DA.Optional (isNone, isSome)
 import DA.Set (singleton)
 import Daml.Finance.Instrument.Generic.Util
 import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, View(..))
@@ -12,8 +12,6 @@ import Daml.Finance.Interface.Instrument.Swap.Fpml.Instrument qualified as Fpml 
 import Daml.Finance.Interface.Instrument.Swap.Fpml.Types (Fpml(..), SwapStream)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..), View(..))
 import Daml.Finance.Interface.Types.Common (Id(..), InstrumentKey(..), PartiesMap)
-import Daml.Finance.Interface.Types.Date.Calendar (BusinessDayAdjustment(..))
-import Daml.Finance.Interface.Types.Date.Schedule (Frequency(..), PeriodicSchedule(..))
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
 import Prelude hiding (key)
 
@@ -63,37 +61,6 @@ template Instrument
       getClaims = do
         -- get the initial claims tree (as of the swap's acquisition time)
         let
-          -- | Create a schedule for periodic payments.
-          createPaymentPeriodicSchedule : SwapStream-> PeriodicSchedule
-          createPaymentPeriodicSchedule s = do
-            let
-              periodicSchedule = PeriodicSchedule with
-                businessDayAdjustment =
-                  BusinessDayAdjustment with
-                    calendarIds = s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessCenters
-                    convention = s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessDayConvention
-                effectiveDateBusinessDayAdjustment = None
-                terminationDateBusinessDayAdjustment = None
-                frequency =
-                  Frequency with
-                    rollConvention = s.calculationPeriodDates.calculationPeriodFrequency.rollConvention
-                    period = s.calculationPeriodDates.calculationPeriodFrequency.period
-                    periodMultiplier = s.calculationPeriodDates.calculationPeriodFrequency.periodMultiplier
-                effectiveDate = s.calculationPeriodDates.effectiveDate
-                firstRegularPeriodStartDate = s.calculationPeriodDates.firstRegularPeriodStartDate
-                lastRegularPeriodEndDate = s.calculationPeriodDates.lastRegularPeriodEndDate
-                stubPeriodType = None
-                terminationDate = s.calculationPeriodDates.terminationDate
-            periodicSchedule
-
-          calculateClaimsFromFixSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg = do
-            let f = fromSome s.calculationPeriodAmount.calculation.fixedRateSchedule
-            pure $ createFixRatePaymentClaims streamSchedule periodicSchedule useAdjustedDatesForDcf f.initialValue issuerPaysLeg s.calculationPeriodAmount.calculation.dayCountFraction currency
-
-          calculateClaimsFromFloatingSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg = do
-            let f = fromSome s.calculationPeriodAmount.calculation.floatingRateCalculation
-            pure $ createFloatingRatePaymentClaims streamSchedule periodicSchedule useAdjustedDatesForDcf f.spreadSchedule.initialValue issuerPaysLeg s.calculationPeriodAmount.calculation.dayCountFraction currency f.floatingRateIndex
-
           calculateClaimsFromSwapStream s = do
             let
               c = s.calculationPeriodAmount.calculation
@@ -101,10 +68,9 @@ template Instrument
               useAdjustedDatesForDcf = True
               issuerPaysLeg = (s.payerPartyReference == issuerPartyRef)
             streamSchedule <- rollPaymentSchedule periodicSchedule s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessCenters issuer calendarDataProvider
-            if isSome c.fixedRateSchedule && isNone c.floatingRateCalculation then calculateClaimsFromFixSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg
-            else if isNone c.fixedRateSchedule && isSome c.floatingRateCalculation then calculateClaimsFromFloatingSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg
+            if isSome c.fixedRateSchedule && isNone c.floatingRateCalculation then calculateClaimsFromFixSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg currency
+            else if isNone c.fixedRateSchedule && isSome c.floatingRateCalculation then calculateClaimsFromFloatingSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg currency
             else error "leg type not supported"
-
         mapA calculateClaimsFromSwapStream swapStreams
 
     interface instance BaseInstrument.I for Instrument where
