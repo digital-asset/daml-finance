@@ -46,7 +46,6 @@ getDate = toDateUTC <$> getTime
 setDate = setTime . noon where noon d = time d 12 0 0
 
 -- | This test marks leaves (i.e. `one`/`zero`) with `acquired` if they were reached.
--- It also removes intermediate `when`/`cond` so they are not processed twice, accidentaly.
 testAcquire = script do
   let acquiredF asset = OneF $ "acquired " <> asset
       acquired asset : C = embed $ acquiredF asset
@@ -58,12 +57,29 @@ testAcquire = script do
           process ZeroF = acquiredF "0"
           process other = other
 
+  -- One
   res <- g (one a) t0 t0
   res === acquired a
 
+  -- Zero
   res <- g zero t0 t1
   res === acquired "0"
 
+  -- When
+  res <- g (when (TimeGte t1) (one a)) t0 t0
+  res === when (TimeGte t1) (one a)
+
+  res <- g (when (TimeGte t0) (when (TimeGte t1) (one a))) t0 t1
+  res === when (TimeGte t0) (when (TimeGte t1) (acquired a))
+
+  res <- g (when (TimeGte t1) (when (TimeLte t0) (one a)) ) t0 t1
+  res === when (TimeGte t1) (when (TimeLte t0) (one a))
+
+  res <- g (when (TimeLte t0) (one a)) t0 t1
+  res === when (TimeLte t0) (acquired a)
+    -- ^ acquisition date is taken into account rather than lifecycle date
+
+  -- When + Scale
   res <- g (when (at t1) $ scale two (one a)) t0 t0
   res === when (at t1) (scale two (one a))
 
@@ -71,33 +87,85 @@ testAcquire = script do
   res === when (at t1) (scale two (acquired a))
 
   res <- g (cond (at t1) (one a) (one b)) t0 t0
-  res === acquired b
+  res === cond (at t1) (one a) (acquired b)
 
   res <- g (cond (at t1) (one a) (one b)) t1 t1
-  res === acquired a
-
-{- FIXME: confirm if this test makes sense; it broke when we changed observable with inequality
-  res <- f (when (O.TimeGte t0) (when (O.TimeGte t1) (one a)) ) t1
-  res === (when (O.TimeGte t0) (when (at t1) (one a)) )
--}
+  res === cond (at t1) (acquired a) (one b)
 
   res <- g (when (TimeGte t0) (when (TimeGte t1) (one a))) t0 t1
   res === when (TimeGte t0) (when (TimeGte t1) (acquired a))
 
+  -- Or
   res <- g (one a `or` one b) t0 t0
   res === acquired a `or` acquired b
 
+  -- Anytime
   res <- g (anytime true (one a)) t0 t0
   res === anytime true (acquired a)
 
   res <- g (anytime false (one a)) t0 t0
   res === anytime false (one a)
 
+  -- Until
   res <- g (until false (one a)) t0 t0
   res === until false (acquired a)
 
   res <- g (until true (one a)) t0 t0
-  res === until true (acquired a)
+  res === until true (one a)
+
+  res <- g (until (TimeLte t0) (one a)) t0 t1
+  res === until (TimeLte t0) (one a)
+    -- ^ acquisition date is taken into account rather than lifecycle date
+
+-- | Expire sub-trees that cannot be acquired.
+testExpire = script do
+  let g c acqTime t0 =
+        apoM coalg (acqTime,c)
+        where
+          coalg = fmap Lifecycle.expire' <$> Lifecycle.acquire' observe25 t0
+
+  -- 1. contract acquired too late is worthless
+  res <- g (when (TimeGte t1) (when (TimeLte t0) (one a)) ) t0 t1
+  res === when (TimeGte t1) zero
+
+  -- 2. non-acquired branches of `Cond` nodes are replaced with `Zero`
+  res <- g (cond (at t1) (one a) (one b)) t0 t0
+  res === cond (at t1) zero (one b)
+
+  res <- g (cond (at t1) (one a) (one b)) t1 t1
+  res === cond (at t1) (one a) zero
+
+  -- 3. contract acquired after exercise window has ended is worthless
+  res <- g (anytime (TimeLte t0) (one a)) t1 t1
+  res === zero
+
+  -- 3. contract lifecycled after exercise window has ended is worthless
+  res <- g (anytime (TimeLte t0) (one a)) t0 t1
+  res === zero
+
+  -- 4. sub-trees of `Until` where the predicate is `True` are worthless
+  res <- g (until true (one a)) t0 t0
+  res === zero
+
+  -- 4a. acquisition date is taken into account rather than lifecycle date
+  res <- g (until (TimeLte t0) (one a)) t0 t1
+  res === zero
+
+-- | Replace acquired `When pred c` nodes with `When (TimeGte t) c` when the predicate is non-deterministic.
+-- In this context, "non-deterministic" means that the predicate is of the form `o1 <= o2` for a pair of observations `o1,o2`.
+testFixAcquisitionTime = script do
+  let g c acqTime t0 =
+        apoM coalg (acqTime,c)
+        where
+          coalg = fmap Lifecycle.fixAcquisitionTime' <$> Lifecycle.acquire' observe25 t0
+      o1 = O.pure 1.0
+      o2 = O.pure 2.0
+
+  res <- g (when (o1 <= o2) (one a)) t0 t1
+  res === when (TimeGte t1) (one a)
+
+  res <- g (when (o2 <= o1) (one a)) t0 t1
+  res === when (o2 <= o1) (one a)
 
 -- | This test replaces all leaves with zeros, logging their qty/asset pair into a `Writer`.
 -- It ignores `when/cond` nodes altogether.
@@ -295,17 +363,9 @@ testAmericanPut = script do
   remaining === option
   pending === []
 
-  -- So is expiration before maturity
-  remaining <- Lifecycle.expire observe25 remaining t0 t
-  remaining === option
-
   -- Exercise `anytime`
-  remaining <- Lifecycle.exercise observe25 (bearer, remaining.claim) remaining t0 t
-  remaining === when (TimeGte t) (until (TimeGte $ t2) (payoff `or`  zero))
-
-  -- Exercise `or`
-  remaining <- Lifecycle.exercise observe25 (bearer, payoff) remaining t0 t
-  remaining === when (TimeGte t) (until (TimeGte t2) payoff)
+  remaining <- Lifecycle.exercise observe25 (bearer, payoff) option t0 t
+  remaining === when (TimeGte t1) (when (TimeGte t1) payoff)
 
   Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t0 t
   remaining === zero
@@ -315,27 +375,16 @@ testAmericanPut = script do
   setDate t2
   t <- getDate
 
-  -- Expiration at maturity n.b. this means you must *first* exercise & settle *before* expiring.
-  remaining <- Lifecycle.expire observe25 option t0 t
-  remaining === zero
-
   -- Settlement before exercise has been done is a no-op
   Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 option t0 t
   remaining === option
   pending === []
 
-  -- Trying to exercise inner `or` before `anytime` won't work.
-  remaining <- Lifecycle.exercise observe25 (bearer, payoff) remaining t0 t
-  remaining === option
+  -- Exercise `anytime`
+  remaining <- Lifecycle.exercise observe25 (bearer, payoff) option t0 t
+  remaining === when (TimeGte t1) (when (TimeGte t2) payoff)
 
-  -- You must first exercise the 'outer' `anytime`, and then ...
-  remaining <- Lifecycle.exercise observe25 (bearer, remaining.claim) remaining t0 t
-  remaining === when (TimeGte t) (until (TimeGte $ t2) (payoff `or` zero))
-
-  -- ... the inner `or`.
-  remaining <- Lifecycle.exercise observe25 (bearer, payoff) remaining t0 t
-  remaining === when (TimeGte t) (until (TimeGte $ t2) payoff)
-
+  -- Claim payment
   Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t0 t
   remaining === zero
   pending === [Lifecycle.Pending t 5.0 a]
@@ -345,14 +394,11 @@ testAmericanPut = script do
   t <- getDate
 
   remaining <- Lifecycle.exercise observe25 (bearer, payoff) option t0 t
-  remaining === option -- past maturity; no exercise possible
+  remaining === zero -- past maturity; no exercise possible, contract is worthless
 
-  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t0 t
-  remaining === option
-  pending === []
-
-  remaining <- Lifecycle.expire observe25 remaining t0 t
+  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 option t0 t
   remaining === zero
+  pending === []
 
 -- | Ensure that acquisition time is propagated correctly (deterministic time)
 testFloatingRateNote = script do
@@ -409,6 +455,23 @@ testCondLifecycle = script do
   Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observeDayOfMonth c t0 t0
   remaining === expected
   pending === [Lifecycle.Pending t0 1.0 a]
+
+  pure ()
+
+-- | Ensure that `Until` nodes are lifecycled appropriately
+testUntilNodes = script do
+  let
+    payment = When (TimeGte t1) (One "EUR")
+    claim =
+        Until (TimeGte t1) $ payment
+
+  Lifecycle.Result{pending,remaining} <- Lifecycle.lifecycle observe25 claim t0 t0
+  pending === []
+  remaining === claim
+
+  Lifecycle.Result{pending,remaining} <- Lifecycle.lifecycle observe25 claim t0 t1
+  pending === []
+  remaining === zero
 
   pure ()
 

@@ -7,7 +7,8 @@ module ContingentClaims.Lifecycle (
   , acquire'
   , exercise
   , exercise'
-  , expire
+  , expire'
+  , fixAcquisitionTime'
   , Pending(..)
   , Result(..)
 ) where
@@ -74,44 +75,78 @@ lifecycle spot claim acquisitionTime today
       (lifecycle' spot =<<)
       . lift
       . sequence
-      . fmap (sequence . (Prelude.fst &&& acquire' spot today))
+      . fmap (sequence . (Prelude.fst &&& effectfulAcquire))
+    effectfulAcquire = fmap (expire' . fixAcquisitionTime') <$> acquire' spot today
 
--- | Helper type used to write apomorphisms on a claim. `Left` is used if unfolding shall not continue. Otherwise, `Right` is used.
+-- | Helper type synonym used to write apomorphisms on a claim. `Left` is used if unfolding shall not continue. Otherwise, `Right` is used.
 -- The generic type parameter `x` is the carrier of the R-CoAlgebra (typically the sub-tree as well as some additional information).
 type FE t a o x = F t a o (Either (C t a o) x)
 
--- | Acquired claim (in functor form). The acquisition time is attached to acquired sub-trees.
+-- | Acquired claim (in functor form).
+-- Acquired sub-trees are marked with `Right`, non-acquired sub-trees are marked with `Left`.
+-- The acquisition time is attached to acquired sub-trees.
 type Acquired t a o = FE t a o (t, C t a o)
 
 -- | HIDE
 -- Evaluate observables and skip branches for which predicates don't hold, calculate the acquisition time of the claim's sub-trees.
--- Consume `Cond` nodes, leaving the relevant sub-tree.
--- Replace `When pred c` nodes with `When (TimeGte t) c` if the predicate is non-deterministic and evaluates to True.
 -- This is useless on its own. Composed with other functions, it adds laziness.
 acquire' : (Ord t, Eq a, CanAbort m)
   => (o -> t -> m Decimal)
-  -- ^ function to evaluate observables
+    -- ^ Function to evaluate observables.
   -> t
-  -- ^ the current market time. This is the time up to which observations are known.
+    -- ^ The current market time. This is the time up to which observations are known.
   -> (t, C t a o)
-  -- ^ input claim in functor form and its acquisition time
+    -- ^ Input claim in functor form and its acquisition time.
   -> m (Acquired t a o)
 acquire' _ t (s,_) | s > t = abort "Acquisition time of contract is after the provided market time."
+acquire' _ _ (s, When (TimeLte t) c) =
+  pure $ WhenF (TimeLte t) if t < s then Left c else Right (s,c)
 acquire' spot t (s, When obs c) = do
   predicate <- compare spot obs t
-  if predicate then
-    case obs of
-      TimeGte sNew -> pure . WhenF obs $ Right (max s sNew, c)
-      other -> pure . WhenF (TimeGte t) $ Right (t, c)  -- if the predicate is non-deterministic, we assume that we are lifecycling at a time `t` corresponding to the first instant the predicate becomes True
+  pure . WhenF obs $ if predicate then
+    let
+      sNew = -- new acquisition time
+        case obs of
+          TimeLte _ -> s
+          TimeGte τ -> max s τ
+          Lte _ -> t -- if the predicate is non-deterministic, we assume that we are lifecycling at a time `t` corresponding to the first instant in which the predicate becomes True.
+    in
+      Right (sNew,c)
     else
-      pure . WhenF obs $ Left c
+      Left c
 acquire' spot today (s, Cond obs c c') = do
   predicate <- compare spot obs s
-  acquire' spot today . (s, ) $ if predicate then c else c'
+  pure if predicate then
+      CondF obs (Right (s,c)) (Left c')
+    else
+      CondF obs (Left c) (Right (s,c'))
 acquire' spot today (_, Anytime obs c) = do
   predicate <- compare spot obs today
-  pure . AnytimeF obs $ if predicate then Right (today,c) else Left c  -- the acquisition time of an Anytime node is assumed to be the time at which we lifecycle
+  pure . AnytimeF obs $ if predicate then
+      Right (today,c) -- the acquisition time of an Anytime node is assumed to be the time at which we lifecycle
+    else
+      Left c
+acquire' _ _ (s, Until (TimeLte t) c) | s <= t = pure $ Left <$> UntilF (TimeLte t) c -- contract is acquired before t, predicate is immediately True
+acquire' spot today (s, Until obs c) = do
+  predicate <- compare spot obs today -- we assume here that the predicate inside `Until` has not been met before `t`
+  pure . UntilF obs $ if predicate then Left c else Right (s,c)
 acquire' _ _ (s, other) = pure $ Right . (s, ) <$> project other
+
+-- | HIDE
+-- Replace sub-trees that will never be acquired with `Zero`.
+expire' : (Ord t, Eq a) => Acquired t a o -> Acquired t a o
+expire' (WhenF (TimeLte t) (Left _)) = ZeroF
+expire' (AnytimeF (TimeLte t) (Left _)) = ZeroF
+expire' (UntilF _ (Left _)) = ZeroF
+expire' (CondF pred (Right c) _) = CondF pred (Right c) (Left Zero)
+expire' (CondF pred _ (Right c)) = CondF pred (Left Zero) (Right c)
+expire' other = other
+
+-- | HIDE
+-- Replace acquired `When pred c` nodes with `When (TimeGte t) c` when the predicate is non-deterministic.
+fixAcquisitionTime' : (Ord t, Eq a) => Acquired t a o -> Acquired t a o
+fixAcquisitionTime' (WhenF (Lte _) (Right (s,c))) = WhenF (TimeGte s) $ Right (s,c)
+fixAcquisitionTime' other = other
 
 -- | Carrier type used for `lifecycle`. It consists of a claim, its acquisition time and the accumulated scaling factor.
 type LifecycleCarrier t a o = (Decimal, (t, C t a o))
@@ -165,7 +200,8 @@ exercise spot election claim acquisitionTime today =
     acquireThenExercise =
       fmap (exercise' election today)
       . sequence
-      . fmap (sequence . (Prelude.fst &&& acquire' spot today))
+      . fmap (sequence . (Prelude.fst &&& effectfulAcquire))
+    effectfulAcquire = fmap (expire' . fixAcquisitionTime') <$> acquire' spot today
 
 -- | Carrier type used for `exercise`. It consists of a claim, its acquisition time and a flag keeping track of who is the entitled to the election (`True = bearer`).
 type ExerciseCarrier t a o = (Bool, (t, C t a o))
@@ -197,24 +233,3 @@ exercise' (elector, election) t (isBearer, (s, f@(AnytimeF _ _)))
   where stop = fmap $ Left . (identity ||| Prelude.snd)
         elections = foldMap (foldMap singleton) f
 exercise' _ _ (isBearer, (_, other)) = fmap (isBearer, ) <$> other
-
--- | Replace any subtrees that have expired with `Zero`s.
-expire : (Ord t, Eq a, CanAbort m) => (o -> t -> m Decimal) -> C t a o -> t -> t -> m (C t a o)
-expire spot claim acquisitionTime today =
-  apoCataM pruneZeros' acquireThenExpire
-  $ (acquisitionTime, claim)
-  where
-    acquireThenExpire =
-      (expire' spot today =<<)
-      . sequence . (Prelude.fst &&& acquire' spot today)
-
--- | Carrier type used for `expire`. It consists of a claim and its acquisition time.
-type ExpireCarrier t a o = (t, C t a o)
-
--- | HIDE
--- Replace Until nodes with Zero when applicable
-expire' : (Ord t, CanAbort m) => (o -> t -> m Decimal) -> t -> (t, Acquired t a o) -> m (FE t a o (ExpireCarrier t a o))
-expire' spot t (s, UntilF obs c) = do
-  predicate <- compare spot obs t
-  if predicate then pure ZeroF else pure $ UntilF obs c
-expire' _ _ (s, other) = pure other
