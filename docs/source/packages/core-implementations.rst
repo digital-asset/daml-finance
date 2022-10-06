@@ -14,7 +14,7 @@ Core Implementations
     - :ref:`Util <module-daml-finance-holding-util-87323>`: Utility functions related to holdings, e.g. locking a holding
 
     The :doc:`Asset Model <../concepts/asset-model>` page explains the relationship between instruments, holdings, and accounts.
-    Check out the :doc:`Transfer tutorial <../../tutorials/getting-started/transfer>` for a description of how to create a holding on an instrument and transfer it between accounts.
+    Check out the :doc:`Transfer tutorial <../tutorials/getting-started/transfer>` for a description of how to create a holding on an instrument and transfer it between accounts.
 
 - ``Daml.Finance.Account``
 
@@ -32,7 +32,7 @@ Core Implementations
     - :ref:`Batch <module-daml-finance-settlement-batch-95573>`: Allows you to atomically settle a set of settlement steps
 
     The :doc:`Settlement <../concepts/settlement>` page contains an overview of the settlement process and explains the relationship between ``Step``, ``Instruction`` and ``Batch``.
-    Check out the :doc:`Settlement tutorial <../../tutorials/getting-started/settlement>` for a description on how to implement the settlement workflow in practice.
+    Check out the :doc:`Settlement tutorial <../tutorials/getting-started/settlement>` for a description on how to implement the settlement workflow in practice.
 
 - ``Daml.Finance.Lifecycle``
 
@@ -48,8 +48,8 @@ Core Implementations
     - :ref:`Event.Replacement <module-daml-finance-lifecycle-event-replacement-51859>`: Event contract for the replacement of units of an instrument with a basket of other instruments (e.g. stock merger)
     - :ref:`Event.DateClock <module-daml-finance-lifecycle-event-dateclock-57483>`: Event signalling the update of a clock. This can trigger the execution of lifecycle rules for some instruments
 
-    Check out the :doc:`Lifecycling tutorial <../../tutorials/getting-started/lifecycling>` for a description on how lifecycling works in practice, including how to ``Claim`` an ``Effect``.
-    There is also the tutorial :doc:`How to implement a Contingent Claims-based instrument <../../tutorials/instrument-modeling/contingent-claims-instrument>`, which describes how create an ``Effect``.
+    Check out the :doc:`Lifecycling tutorial <../tutorials/getting-started/lifecycling>` for a description on how lifecycling works in practice, including how to ``Claim`` an ``Effect``.
+    There is also the tutorial :doc:`How to implement a Contingent Claims-based instrument <../tutorials/instrument-modeling/contingent-claims-instrument>`, which describes how create an ``Effect``.
     For a description of ``Distribution`` and ``Replacement``, check out the ``src/test/daml/Daml/Finance/Instrument/Equity/Test`` folder. It demonstrates
     how to create and lifecycle a cash dividend, and how to handle corporate actions like mergers and stock splits.
 

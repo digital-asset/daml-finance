@@ -16,7 +16,7 @@ Core Interfaces
     - :ref:`Util <module-daml-finance-interface-holding-util-81618>`: Utility functions related to holdings, e.g. getting the account / instrument / owner of a holding
 
     The :doc:`Asset Model <../concepts/asset-model>` page explains the relationship between instruments, holdings, and accounts.
-    Check out the :doc:`Transfer tutorial <../../tutorials/getting-started/transfer>` for a description on how to create a holding on an instrument and how to transfer it between accounts.
+    Check out the :doc:`Transfer tutorial <../tutorials/getting-started/transfer>` for a description on how to create a holding on an instrument and how to transfer it between accounts.
 
 - ``Daml.Finance.Interface.Account``
 
@@ -35,7 +35,7 @@ Core Interfaces
     - :ref:`Types <module-daml-finance-interface-settlement-types-44085>`: Types required in the settlement process, e.g. Step, Allocation and Approval
 
     The :doc:`Settlement <../concepts/settlement>` page contains an overview of the settlement process and explains the relationship between steps, instructions, and batches.
-    Check out the :doc:`Settlement tutorial <../../tutorials/getting-started/settlement>` for a description on how to use settlement workflow in practice.
+    Check out the :doc:`Settlement tutorial <../tutorials/getting-started/settlement>` for a description on how to use settlement workflow in practice.
 
 - ``Daml.Finance.Interface.Lifecycle``
 
@@ -48,8 +48,8 @@ Core Interfaces
     - :ref:`Rule.Lifecycle <module-daml-finance-interface-lifecycle-rule-lifecycle-50431>`: Interface implemented by instruments that can be lifecycled
 
     The :doc:`Lifecycling <../concepts/lifecycling>` page contains an overview of the lifecycle process and explains the relationship between events, lifecycle rules and effects.
-    Check out the :doc:`Lifecycling tutorial <../../tutorials/getting-started/lifecycling>` for a description on how lifecycling works in practice.
-    There is also the tutorial :doc:`How to implement a Contingent Claims-based instrument <../../tutorials/instrument-modeling/contingent-claims-instrument>`, which describes how claims are defined, how to use an ``Observable``, and how the ``Lifecycle`` interface is implemented for bonds.
+    Check out the :doc:`Lifecycling tutorial <../tutorials/getting-started/lifecycling>` for a description on how lifecycling works in practice.
+    There is also the tutorial :doc:`How to implement a Contingent Claims-based instrument <../tutorials/instrument-modeling/contingent-claims-instrument>`, which describes how claims are defined, how to use an ``Observable``, and how the ``Lifecycle`` interface is implemented for bonds.
 
 - ``Daml.Finance.Interface.Types``
 
