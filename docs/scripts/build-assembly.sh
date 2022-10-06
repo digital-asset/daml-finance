@@ -31,3 +31,7 @@ do
     sed -i.bck 's|.. literalinclude:: ../../|.. literalinclude:: |g' $file
     rm $file.bck
 done
+
+# Remove 'self' from the master index
+sed -i.bck '/self/d' ${docs_dir}/.assembly/index.rst
+rm ${docs_dir}/.assembly/index.rst.bck
