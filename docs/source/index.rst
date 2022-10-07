@@ -34,54 +34,8 @@ If you are missing content from the documentation, have feedback on the library,
    :hidden:
 
    self
-
-.. toctree::
-   :titlesonly:
-   :hidden:
-   :caption: Overview
-
-   overview/intro
-   overview/architecture
-
-.. toctree::
-   :titlesonly:
-   :hidden:
-   :caption: Concepts
-
-   concepts/intro
-   concepts/asset-model
-   concepts/settlement
-   concepts/lifecycling
-
-.. toctree::
-   :titlesonly:
-   :hidden:
-   :caption: Packages
-
-   packages/intro
-   packages/core-interfaces
-   packages/core-implementations
-   packages/instrument-extensions
-
-.. toctree::
-   :titlesonly:
-   :hidden:
-   :caption: Tutorials
-
-   tutorials/getting-started/intro
-   tutorials/instrument-modeling/intro
-
-.. toctree::
-   :titlesonly:
-   :hidden:
-   :caption: Reference
-
-   reference/glossary
-   reference/code-documentation/daml-finance-rst/index
-
-.. Indices and tables
-.. ==================
-
-.. * :ref:`genindex`
-.. * :ref:`modindex`
-.. * :ref:`search`
+   overview/index
+   concepts/index
+   packages/index
+   tutorials/index
+   reference/index
