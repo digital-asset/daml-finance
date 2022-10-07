@@ -1,0 +1,66 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Data.Reference.HolidayCalendar
+  ( GetCalendar(..)
+  , HolidayCalendar(..)
+  , HolidayCalendarKey(..)
+  , UpdateCalendar(..)
+  ) where
+
+import DA.Set (singleton)
+import Daml.Finance.Interface.Types.Common (PartiesMap)
+import Daml.Finance.Interface.Types.Date.Calendar
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
+
+-- | Key used to look up the holiday calendar of an entity, as defined by a reference data agency.
+data HolidayCalendarKey = HolidayCalendarKey
+  with
+    agency : Party
+      -- ^ The party maintaining the `HolidayCalendar`.
+    entity : Text
+      -- ^ A textual label identifying the calendar (e.g. "NYSE" for the New York Stock Exchange holiday calendar).
+  deriving (Eq, Show)
+
+-- | Holiday calendar of an entity (typically an exchange or a currency).
+-- It is maintained by a reference data agency.
+-- A public party is used as an observer in order to make this data publicly readable.
+template HolidayCalendar
+  with
+    agency : Party
+      -- ^ The party maintaining the `HolidayCalendar`.
+    entity : Text
+      -- ^ A textual label identifying the calendar (e.g. "NYSE" for the New York Stock Exchange holiday calendar).
+    calendar : HolidayCalendarData
+      -- ^ Holiday Calendar Data used to define holidays.
+    observers : PartiesMap
+      -- ^ Observers.
+  where
+    signatory agency
+    observer Disclosure.flattenObservers observers
+
+    key HolidayCalendarKey with agency, entity : HolidayCalendarKey
+    maintainer key.agency
+
+    interface instance Disclosure.I for HolidayCalendar where
+      view = Disclosure.View with disclosureControllers = singleton agency; observers
+      setObservers Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
+      archive' self = archive (coerceContractId self : ContractId HolidayCalendar)
+
+    nonconsuming choice GetCalendar : HolidayCalendarData
+      -- ^ Returns the calendar's `HolidayCalendarData`.
+      with
+        viewer : Party
+          -- ^ The party fetching the calendar.
+      controller viewer
+      do
+        pure calendar
+
+    choice UpdateCalendar : ContractId HolidayCalendar
+      -- ^ Updates the holiday calendar.
+      with
+        newCalendar : HolidayCalendarData
+          -- ^ The new `HolidayCalendarData`.
+      controller agency
+      do
+        create this with calendar = newCalendar

@@ -1,0 +1,114 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Interface.Util.Disclosure where
+
+import DA.Map qualified as M (delete, insert, lookup, values)
+import DA.Optional (fromOptional)
+import DA.Set qualified as S (difference, empty, isSubsetOf, null)
+import Daml.Finance.Interface.Types.Common (PartiesMap, Parties)
+import Prelude hiding (null)
+
+-- | Type synonym for `Disclosure`.
+type I = Disclosure
+
+-- | Type synonym for `View`.
+type V = View
+
+-- | View for `Disclosure`.
+data View = View
+  with
+    disclosureControllers : Parties
+      -- ^ Disjunction choice controllers.
+    observers : PartiesMap
+      -- ^ Observers with context.
+  deriving (Eq, Show)
+
+-- | An interface for managing the visibility of contracts for non-authorizing parties.
+interface Disclosure where
+  viewtype V
+
+  setObservers : SetObservers -> Update (ContractId Disclosure)
+    -- ^ Implementation of the `SetObservers` choice.
+  archive' : ContractId Disclosure -> Update ()
+    -- ^ Implemetation of archiving the contract.
+
+  nonconsuming choice GetView : View
+    -- ^ Retrieves the interface view.
+    with
+      viewer : Party
+        -- ^ The party retrieving the view.
+    controller viewer
+    do
+      pure $ view this
+
+  choice SetObservers : ContractId Disclosure
+    -- ^ Set the observers for a contract.
+    with
+      disclosers : Parties
+        -- ^ Party calling this choice.
+      newObservers : PartiesMap
+        -- ^ Observers to set for this contract. This overrides the existing observers.
+    controller disclosers
+    do
+      assertMsg "controller must be authorized to SetObservers" $ disclosers `S.isSubsetOf` (view this).disclosureControllers
+      setObservers this arg
+
+  choice AddObservers : ContractId Disclosure
+    -- ^ Add a single new observer context to the existing observers.
+    with
+      disclosers : Parties
+        -- ^ Party calling this choice.
+      observersToAdd : (Text, Parties)
+        -- ^ Observer context to add to a contract.
+    controller disclosers
+    do
+      assertMsg "controller must be authorized to AddObservers" $ disclosers `S.isSubsetOf` (view this).disclosureControllers
+      let
+        key = fst observersToAdd
+        curObservers = (view this).observers
+        curParties = fromOptional S.empty $ M.lookup key curObservers
+        value = curParties <> snd observersToAdd
+        newObservers = M.insert key value curObservers
+      setObservers this (SetObservers with disclosers; newObservers)
+
+  nonconsuming choice RemoveObservers : Optional (ContractId Disclosure)
+    -- ^ Remove observers from a context.
+    -- Any party can undisclose itself. None is returned if no update is needed.
+    with
+      disclosers : Parties
+        -- ^ Party calling this choice.
+      observersToRemove : (Text, Parties)
+        -- ^ Observer context to remove.
+    controller disclosers
+    do
+      assertMsg "controller must be authorized to RemoveObservers when removing other parties"
+        $ disclosers == snd observersToRemove || disclosers `S.isSubsetOf` (view this).disclosureControllers
+      let
+        key = fst observersToRemove
+        curObservers = (view this).observers
+      case M.lookup key curObservers of
+        Some parties -> do
+          let updatedParties = parties `S.difference` snd observersToRemove
+          if updatedParties == parties then
+            pure None
+          else do
+            let
+              newObservers = if S.null updatedParties
+                then M.delete key curObservers
+                else M.insert key updatedParties curObservers
+            archive' this $ toInterfaceContractId @I self
+            Some <$> setObservers this SetObservers with disclosers; newObservers
+        None -> pure None
+
+-- | Type constraint for requiring templates to implement `Disclosure`.
+type Implementation t = HasToInterface t I
+class (Implementation t) => HasImplementation t
+instance HasImplementation I
+
+-- | Flattens observers which use the `PartiesMap` into a `Set Party` for usage in template definitions. For example:
+-- ```
+-- observer $ flattenObservers observers
+-- ```
+flattenObservers : PartiesMap -> Parties
+flattenObservers = mconcat . M.values

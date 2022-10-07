@@ -9,17 +9,31 @@ executors:
   daml-executor:
     docker:
       - image: cimg/openjdk:11.0
+  docs-executor:
+    docker:
+      - image: cimg/python:3.7-node
 
 commands:
   install_sdk:
     description: "Install Daml SDK"
     steps:
       - run:
+          name: "Create download directory"
+          command: |
+            mkdir -p $HOME/downloads
+            >> $BASH_ENV echo 'export TEMPDIR=$HOME/downloads'
+      - run:
           name: Install Daml SDK
           command: |
             curl -sSL https://get.daml.com/ | sh /dev/stdin ${SDK_VERSION}
             # idea from https://circleci.com/docs/2.0/env-vars/
             >> $BASH_ENV echo 'export PATH="$HOME/.daml/bin:$PATH"'
+      - run:
+          name: Verify Daml SDK
+          command: |
+            DAR=`basename ${TEMPDIR}/*.tar.gz`
+            curl -SLf https://github.com/digital-asset/daml/releases/download/v${SDK_VERSION}/${DAR}.asc --output $TEMPDIR/$DAR.asc --progress-bar
+            gpg --verify ${TEMPDIR}/${DAR}.asc
   install_yq:
     description: "Install yq from binary"
     steps:
@@ -30,8 +44,20 @@ commands:
             curl -L https://github.com/mikefarah/yq/releases/download/3.4.1/yq_linux_amd64 -o $HOME/yq/yq &&\
               chmod +x $HOME/yq/yq &&\
               echo 'export PATH=$HOME/yq/yq:$PATH' >> $BASH_ENV
+      - run:
+          name: Verify yq
+          command: |
+            curl -L https://github.com/mikefarah/yq/releases/download/3.4.1/checksums -o $HOME/yq/checksums
+            curl -L https://github.com/mikefarah/yq/releases/download/3.4.1/checksums_hashes_order -o $HOME/yq/checksums_hashes_order
+            HASHPOSITION=`grep -m 1 -n "SHA3-512" ${HOME}/yq/checksums_hashes_order | cut -f1 -d:`
+            CHECKSUM=`grep "yq_linux_amd64" ${HOME}/yq/checksums | sed 's/  /\t/g' | cut -f$((${HASHPOSITION}+1))`
+
+            if [[ `openssl dgst -sha3-512 ${HOME}/yq/yq | cut -f2 -d" "` != ${CHECKSUM} ]] ; then
+              echo "ERROR: yq - invalid checksum"
+              exit 1
+            fi
   install_gh:
-    description: "Install GitHub Cli"
+    description: Install GitHub Cli
     steps:
       - run:
           name: Install gh
@@ -40,14 +66,16 @@ commands:
             echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
             sudo apt update
             sudo apt install gh
-  install_pandoc:
-    description: "Install Pandoc"
+  install_ruby_sass:
+    description: Install Ruby and Sass
     steps:
       - run:
-          name: Install pandoc
-          command: |
-            sudo apt update
-            sudo apt install pandoc
+          name: Install Ruby
+          command: sudo apt-get install ruby-full
+      - run:
+          name: Install Sass
+          command: sudo gem install sass
+
   set_sdk_version:
     description: "Set Daml SDK version environment version"
     steps:
@@ -61,60 +89,99 @@ commands:
           name: Import Digital Asset GPG key
           command: echo ${gpg_code_signing} | base64 -d | gpg --import --quiet
   run_release:
-    description: "Run Release"
+    description: "GitHub Release"
     steps:
       - run:
-          name: "Get target release version"
-          command: echo 'export VERSION=$(yq e '.version' daml.yaml)' >> $BASH_ENV
-      - run:
-          name: "Validate target release version"
+          name: "Run GitHub Release"
           command: |
-            if [[ `git tag | grep -Fx "v$VERSION" - | wc -l` -eq 0 ]] ; then
-              echo "New tag detected ${VERSION}. Releasing..."
-            else
-              echo "Tag ${VERSION} already exists; Skipping Release."
-              circleci-agent step halt
-            fi
-      - run:
-          name: "Sign dar"
-          command: gpg --armor --detach-sign .daml/dist/contingent-claims-${VERSION}.dar
-      - run:
-          name: "Tag and push to GitHub"
-          command: |
-            if [[ `awk 'BEGIN { FS="."} { print $NF-1 }' \<<< ${VERSION}` -le 2 ]] ; then
-              gh release create v${VERSION} .daml/dist/contingent-claims-${VERSION}.dar* --generate-notes
-            else
-              gh release create v${VERSION} .daml/dist/contingent-claims-${VERSION}.dar* --generate-notes --prerelease
-            fi
+            PACKAGES=(`ls package/main/daml/*/daml.yaml`)
+
+            for package in ${PACKAGES[@]}; do
+              PACKAGE=`echo ${package} | cut -f4 -d "/"`
+              VERSION=`yq e '.version' ${package}`
+              TAG="${PACKAGE}/${VERSION}"
+              echo "Processing package '${PACKAGE}' with tag '${TAG}'..."
+
+              if [[ `git tag -l ${TAG} | wc -l` -eq 0 ]]; then
+                DAR_PREFIX=`awk '{ gsub(/\./, "-", $0); print tolower($0); }' \<<< ${PACKAGE}`
+                DAR="${DAR_PREFIX}-${VERSION}.dar"
+                gpg --armor --detach-sign .dars/${DAR}
+
+                if [[ `echo $VERSION | grep ".99." | wc -l` -eq 0 ]] ; then
+                  gh release create ${TAG} .dars/${DAR}* --target ${CIRCLE_BRANCH} --notes "See release notes (insert link here) for further details."
+                else
+                  gh release create ${TAG} .dars/${DAR}* --target ${CIRCLE_BRANCH} --prerelease --notes "Development snapshot of package '${PACKAGE}'. Use at your own risk."
+                fi
+                echo -e "Successfully released package '${PACKAGE}' with tag '${TAG}'.\n"
+              else
+                echo -e "Tag '${TAG}' already exists for package '${PACKAGE}'; Ignoring...\n"
+              fi
+            done
       - store_artifacts:
-          path: .daml/dist/contingent-claims-${VERSION}.dar
-          destination: contingent-claims-dar-${VERSION}
+          path: .dars
+          destination: daml-finance-dar-${VERSION}
+  run_assembly:
+    description: "Build Assembly for docs.daml.com"
+    steps:
+      - run:
+          name: Build assembly
+          command: |
+            echo 'export ASSEMBLY_VERSION=$(yq e '.version' daml.yaml)' >> $BASH_ENV
+            make ci-assembly
+      - run:
+          name: Compress and zip assembly
+          command: |
+            echo 'export DOC_SOURCES_TAR=daml-finance-doc-sources-${ASSEMBLY_VERSION}.tar.gz' >> $BASH_ENV && source "$BASH_ENV"
+            tar czvf ${DOC_SOURCES_TAR} -C docs/.assembly .
+      - run:
+          name: Push assembly to Artifactory
+          command: |
+            URL="https://digitalasset.jfrog.io/artifactory/assembly/daml-finance/${ASSEMBLY_VERSION}/${DOC_SOURCES_TAR}"
+            curl -u "${ARTIFACTORY_USER}:${ARTIFACTORY_PASSWORD}" -sSf -X PUT -T ${DOC_SOURCES_TAR} ${URL}
+      - run:
+          name: Tag assembly in GitHub
+          command: |
+            TAG="assembly/${ASSEMBLY_VERSION}"
+            COMMIT=`git rev-parse HEAD`
+            DATE=`date +"%Y-%m-%dT%H:%M:%S%:z"`
+
+            gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              /repos/digital-asset/daml-finance/git/refs \
+              -f ref='refs/tags/'${TAG}'' \
+              -f sha=''${COMMIT}''
 
 jobs:
   build:
     executor: daml-executor
     steps:
       - checkout
+      - run:
+          name: Validate Copyright headers
+          command: |
+            make headers-check
       - install_yq
       - set_sdk_version
+      - import_gpg_key
       - install_sdk
       - run:
-          name: Build Daml
-          command: |
-            make build
+          name: Build source and packages
+          command: make ci-build
       - run:
-          name: Daml tests
-          command: |
-            make test
+          name: Execute tests
+          command: make ci-test
       - run:
-          name: Daml doc
-          command: |
-            make doc
+          name: Validate packages
+          command: make ci-validate
+      - save_cache:
+          paths:
+            - .dars
+          key: daml-finance-dars-{{ .Revision }}
       - save_cache:
           paths:
             - .daml
-            - .docs
-          key: contingent-claims-{{ .Revision }}
+          key: daml-build-{{ .Revision }}
 
   release:
     executor: daml-executor
@@ -122,68 +189,126 @@ jobs:
       - checkout
       - install_yq
       - install_gh
-      - install_pandoc
+      - import_gpg_key
       - restore_cache:
           keys:
-            - contingent-claims-{{ .Revision }}
-      - import_gpg_key
+            - daml-finance-dars-{{ .Revision }}
       - run_release
-      - run:
-          name: "Prettify doc and push to GitHub pages"
-          command: make publish-api-doc
 
-  blackduck:
-    executor: daml-executor
+  docs:
+    executor: docs-executor
     steps:
       - checkout
       - run:
-          name: Blackduck detect
-          command: |
-            bash <(curl -s https://raw.githubusercontent.com/DACH-NY/security-blackduck/master/synopsys-detect) \
-            ci-build digitalasset_contingent-claims master \
-            --logging.level.com.synopsys.integration=DEBUG \
-            --detect.excluded.detector.types=pip \
-            --detect.notices.report=false \
-            --detect.timeout=3600
+          name: Update package list
+          command: sudo apt-get update
+      - install_ruby_sass
+      - run:
+          name: Install Grunt
+          command: sudo npm install -g grunt-cli
+      - run:
+          name: Install Java JRE
+          command: sudo apt-get install openjdk-11-jre-headless
+      - set_sdk_version
+      - import_gpg_key
+      - install_sdk
+      - restore_cache:
+          keys:
+            - daml-build-{{ .Revision }}
+      - run:
+          name: Install Python dependencies
+          command: pipenv install
+      - run:
+          name: Build docs
+          command: make ci-docs
+      - save_cache:
+          paths:
+            - docs/build
+          key: docs-build-{{ .Revision }}
+
+  assembly:
+    executor: docs-executor
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - docs-build-{{ .Revision }}
+      - install_gh
+      - run_assembly
 
 workflows:
   version: 2
   build:
     jobs:
       - build:
+          context: npn-publish
           filters:
             branches:
               ignore:
-                - master
-  build_and_release:
+                - /^(R|r)elease.*$/
+                - /^(A|a)ssembly.*$/
+      - docs:
+          context: npn-publish
+          filters:
+            branches:
+              ignore:
+                - /^(R|r)elease.*$/
+                - /^(A|a)ssembly.*$/
+          requires:
+            - build
+  build-release:
     jobs:
       - build:
+          context: npn-publish
           filters:
             branches:
               only:
-                - master
+                - /^(R|r)elease.*$/
+      - docs:
+          context: npn-publish
+          filters:
+            branches:
+              only:
+                - /^(R|r)elease.*$/
+          requires:
+            - build
       - release:
           context:
             - github-fin-eng-context
             - npn-publish
           requires:
             - build
+            - docs
           filters:
             branches:
               only:
-                - master
-  scheduled_test:
-    triggers:
-      - schedule:
-          # need to scatter jobs to reduce Blackduck load
-          # see also https://digitalasset.atlassian.net/browse/ERA-913
-          cron: "0 1 * * *"
-          filters:
-            branches:
-              only:
-                - master
+                - /^(R|r)elease.*$/
+  assembly:
     jobs:
-      - build
-      - blackduck:
+      - build:
+          context: npn-publish
+          filters:
+            branches:
+              only:
+                - /^(A|a)ssembly.*$/
+      - docs:
+          context: npn-publish
+          filters:
+            branches:
+              only:
+                - /^(A|a)ssembly.*$/
+          requires:
+            - build
+      - hold:
+          type: approval
+          requires:
+            - docs
+      - assembly:
           context:
-            - blackduck
+            - github-fin-eng-context
+          filters:
+            branches:
+              only:
+                - /^(A|a)ssembly.*$/
+          requires:
+            - hold

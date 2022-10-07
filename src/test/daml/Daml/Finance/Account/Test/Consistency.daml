@@ -1,0 +1,50 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Account.Test.Consistency where
+
+import DA.Map qualified as M (fromList)
+import DA.Set qualified as S (singleton)
+import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
+import Daml.Finance.Holding.NonFungible qualified as NonFungible (Factory(..))
+import Daml.Finance.Holding.Test.Common (TestInitialState(..), TestParties(..), setupInitialState, setupParties)
+import Daml.Finance.Interface.Account.Factory qualified as Account (Create(..), F)
+import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
+import Daml.Finance.Interface.Types.Common (Id(..), AccountKey(..))
+import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createFactory, toControllers)
+import Daml.Script
+
+-- | Verify that I cannot transfer a non-fungible holding to a fungible account.
+consistencyCheck : Script ()
+consistencyCheck = script do
+  -- Create parties
+  tp@TestParties{custodian; issuer; investor; publicParty} <- setupParties
+
+  -- Initialize state with `NonFungible.Factory`
+  let pp = M.fromList [("PublicParty", S.singleton publicParty)]
+  TestInitialState {issuerAccount; issuerHoldingCid} <- setupInitialState tp (NonFungible.Factory with provider = custodian; observers = pp) [] Account.Owner
+
+  -- Create investor account for fungible holdings
+  accountFactoryCid <- toInterfaceContractId @Account.F <$> Account.createFactory custodian []
+  holdingFactoryCid <- toInterfaceContractId <$> submit custodian do
+    createCmd Fungible.Factory with provider = custodian; observers = pp
+  let
+    id = Id $ show investor <> "@" <> show custodian <> "[" <> "Fungible" <> "]"
+    investorAccount = AccountKey with custodian; owner = investor; id
+  submitMulti [custodian, investor] [] do
+    exerciseCmd accountFactoryCid Account.Create
+      with
+        account = investorAccount
+        description = "Fungible Account"
+        holdingFactoryCid
+        controllers = Account.toControllers custodian investor Account.Owner
+        observers = M.fromList [("Issuer", S.singleton issuer)]
+
+  -- Attempt to transfer a non-fungible holding to a fungible holding.
+  submitMultiMustFail [issuer, investor] [publicParty] do
+    exerciseCmd (coerceContractId issuerHoldingCid : ContractId Transferable.I) Transferable.Transfer
+      with
+        actors = S.singleton investor
+        newOwnerAccount = investorAccount
+
+  pure ()

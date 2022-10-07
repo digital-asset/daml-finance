@@ -1,0 +1,97 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Bond.Test.InflationLinked where
+
+import DA.Date
+import DA.Map qualified as M (empty, fromList)
+import DA.Set (singleton)
+import Daml.Finance.Data.Observable.Observation(Observation(..))
+import Daml.Finance.Data.Reference.HolidayCalendar
+import Daml.Finance.Instrument.Bond.Test.Util
+import Daml.Finance.Instrument.Generic.Util
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (qty)
+import Daml.Finance.Interface.Types.Common (Id(..))
+import Daml.Finance.Interface.Types.Date.Calendar
+import Daml.Finance.Interface.Types.Date.DayCount
+import Daml.Finance.Interface.Types.Date.RollConvention
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
+import Daml.Script
+
+-- Penultimate coupon payment on a bond showing creation of new instrument version
+run : Script ()
+run = script do
+  [depository, custodian, issuer, investor, calendarDataProvider, settler, provider, publicParty] <-
+    createParties ["CSD", "Custodian", "Issuer", "Investor", "Calendar Data Provider", "Settler", "Provider", "PublicParty"]
+  let settlers = singleton settler
+
+  -- Account and holding factory
+  let fp = [("FactoryProvider", singleton publicParty)]
+
+  -- Distribute commercial-bank cash
+  now <- getTime
+  let pp = [("PublicParty", singleton publicParty)]
+  cashInstrumentCid <- Instrument.originate depository issuer "EUR" "Euro" pp now
+
+  -- Create and distribute bond
+  -- Sample inflation linked bond
+  -- CREATE_INFLATION_LINKED_BOND_VARIABLES_BEGIN
+  let
+    issueDate = date 2019 Jan 16
+    firstCouponDate = date 2019 Feb 15
+    maturityDate = date 2019 May 15
+    inflationIndexId = "CPI"
+    couponRate = 0.011
+    couponPeriod = M
+    couponPeriodMultiplier = 3
+    dayCountConvention = Act365Fixed
+    businessDayConvention = Following
+  -- CREATE_INFLATION_LINKED_BOND_VARIABLES_END
+    inflationIndexBaseValue = 200.0
+    inflationIndexAtMaturity = 220.0
+    observations = M.fromList [(dateToDateClockTime (date 2019 Feb 15), 210.0), (dateToDateClockTime (date 2019 May 15), inflationIndexAtMaturity)]
+    holidayCalendarId = ["EUR"]
+    cal =
+      HolidayCalendarData with
+        id = "EUR"
+        weekend = [Saturday, Sunday]
+        holidays = [date 2019 Dec 19]
+
+  -- A reference data provider publishes the holiday calendar on the ledger
+  calendarCid <- submitMulti [calendarDataProvider] [] do
+    createCmd HolidayCalendar with
+      agency = calendarDataProvider
+      entity = cal.id
+      calendar = cal
+      observers = M.fromList pp
+
+  observableCid <- coerceContractId <$> submitMulti [issuer] [] do createCmd Observation with provider = issuer; id = Id inflationIndexId; observations; observers = M.empty
+
+  bondInstrument <- originateInflationLinkedBond custodian issuer "BONDTEST1" "Inflation Linked Bond" pp now issueDate holidayCalendarId calendarDataProvider firstCouponDate maturityDate dayCountConvention businessDayConvention couponRate couponPeriod couponPeriodMultiplier cashInstrumentCid inflationIndexId inflationIndexBaseValue
+
+  -- One day before the first coupon date: try to lifecycle and verify that there are no lifecycle effects.
+  verifyNoLifecycleEffects [publicParty] (subtractDays firstCouponDate 1) bondInstrument settlers issuer [observableCid]
+
+  -- First coupon date: Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumedQuantities = []
+    expectedProducedQuantities = [Instrument.qty 0.0009493151 cashInstrumentCid]
+  bondInstrumentAfterFirstCoupon <- lifecycleAndVerifyBondPaymentEffects [publicParty] firstCouponDate bondInstrument settlers issuer investor pp custodian [observableCid] expectedConsumedQuantities expectedProducedQuantities
+
+  -- One day after the first coupon date: try to lifecycle and verify that there are no lifecycle effects.
+  verifyNoLifecycleEffects [publicParty] (addDays firstCouponDate 1) bondInstrumentAfterFirstCoupon settlers issuer [observableCid]
+
+  -- One day before expiry: try to lifecycle and verify that there are no lifecycle effects.
+  verifyNoLifecycleEffects [publicParty] (subtractDays maturityDate 1) bondInstrumentAfterFirstCoupon settlers issuer [observableCid]
+
+  -- Lifecycle on the expiry date. Verify the lifecycle effects for one coupon and the inflation-adjusted redemption amount
+  let
+    expectedConsumedQuantities = []
+    expectedProducedQuantities = [Instrument.qty 1.102950411 cashInstrumentCid]
+  bondInstrumentAfterRedemption <- lifecycleAndVerifyBondPaymentEffects [publicParty] maturityDate bondInstrumentAfterFirstCoupon settlers issuer investor pp custodian [observableCid] expectedConsumedQuantities expectedProducedQuantities
+
+  -- One day after expiry: try to lifecycle and verify that there are no lifecycle effects.
+  verifyNoLifecycleEffects [publicParty] (addDays maturityDate 1) bondInstrumentAfterRedemption settlers issuer [observableCid]
+
+  pure ()

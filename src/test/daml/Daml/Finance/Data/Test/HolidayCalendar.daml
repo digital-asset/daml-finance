@@ -1,0 +1,61 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Data.Test.HolidayCalendar where
+
+import DA.Date
+import DA.Map qualified as M (fromList)
+import DA.Set (singleton)
+import Daml.Finance.Data.Reference.HolidayCalendar
+import Daml.Finance.Interface.Types.Date.Calendar
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Script
+
+-- | Test holiday calendars by a reference data agency
+test_reference_data_agency : Script ()
+test_reference_data_agency = script do
+  [reuters, publicParty] <- createParties ["Reuters", "PublicParty"]
+
+  let
+    cal = HolidayCalendarData with
+      id = "USNY"
+      weekend = [Saturday, Sunday]
+      holidays = [date 2018 Jan 02, date 2018 Jan 31, date 2018 Feb 1]
+    observers = [("PublicParty", singleton publicParty)]
+
+  -- Reuters defines the USNY holiday calendar
+  usnyCalendarCid <- submitMulti [reuters] [] do
+    createCmd HolidayCalendar with
+      agency = reuters
+      entity = cal.id
+      calendar = cal
+      observers = M.fromList observers
+
+  -- Retrieve the calendar from the ledger
+  Some usnyCalendar <- queryContractId publicParty usnyCalendarCid
+
+  -- Define a new calendar locally
+  let
+    cal2 = HolidayCalendarData with
+      id = "USNY"
+      weekend = [Saturday, Sunday]
+      holidays = [date 2018 Jan 02]
+
+  -- Ensure that publicParty cannot update the calendar
+  submitMultiMustFail [publicParty] [] do
+    exerciseCmd usnyCalendarCid UpdateCalendar with
+      newCalendar = cal2
+
+  -- Reuters updates the USNY calendar
+  usnyCalendarCid2 <- submitMulti [reuters] [] do
+    exerciseCmd usnyCalendarCid UpdateCalendar with
+      newCalendar = cal2
+
+  -- Retrieve the updated calendar from the ledger
+  Some usnyCalendar2 <- queryContractId publicParty usnyCalendarCid2
+
+  -- Verify that the updated calendar now has different holidays
+  assertMsg "The calendars should now have different holidays"
+    (usnyCalendar.calendar.holidays /= usnyCalendar2.calendar.holidays)
+
+  pure ()

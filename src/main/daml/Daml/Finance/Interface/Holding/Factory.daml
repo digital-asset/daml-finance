@@ -1,0 +1,65 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Interface.Holding.Factory where
+
+import Daml.Finance.Interface.Holding.Base qualified as Base (I)
+import Daml.Finance.Interface.Types.Common (AccountKey, InstrumentKey, PartiesMap, Parties)
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, Implementation)
+
+-- | Type synonym for `Factory`.
+type F = Factory
+
+-- | Type synonym for `View`.
+type V = View
+
+-- View of `Factory`.
+data View = View
+  with
+    provider : Party
+      -- ^ The provider of the `Factory`.
+  deriving (Eq, Show)
+
+-- | Holding factory contract used to create (credit) and archive (debit) holdings.
+interface Factory where
+  viewtype V
+
+  asDisclosure : Disclosure.I
+    -- ^ Conversion to `Disclosure.I` interface.
+  create' : Create -> Update (ContractId Base.I)
+    -- ^ Implementation of `Create` choice.
+  remove : Remove -> Update ()
+    -- ^ Implementation of `Remove` choice.
+
+  nonconsuming choice Create : ContractId Base.I
+    -- ^ Create a holding on the instrument in the corresponding account.
+    with
+      instrument : InstrumentKey
+        -- ^ The instrument of which units are held.
+      account : AccountKey
+        -- ^ The account at which the holding is held. Defines the holding's owner and custodian.
+      amount : Decimal
+        -- ^ Number of units.
+      observers : PartiesMap
+        -- ^ Observers of the holding to be credited.
+    controller account.custodian, account.owner
+      do
+        assertMsg "amount must be positive" $ amount > 0.0
+        create' this arg
+
+  nonconsuming choice Remove : ()
+    -- ^ Archive a holding.
+    with
+      actors : Parties
+        -- ^ The parties authorizing the removal.
+      holdingCid : ContractId Base.I
+        -- ^ The holding to be removed.
+    controller actors
+      do
+        remove this arg
+
+-- | Type constraint for requiring templates to implement `Holding` along with `Disclosure`.
+type Implementation t = (HasToInterface t F, Disclosure.Implementation t)
+instance HasToInterface F Disclosure.I where _toInterface = asDisclosure
+class (Implementation t) => HasImplementation t
+instance HasImplementation F

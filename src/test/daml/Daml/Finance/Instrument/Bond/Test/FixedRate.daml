@@ -1,0 +1,113 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Bond.Test.FixedRate where
+
+import DA.Date
+import DA.Map qualified as M (fromList)
+import DA.Set (singleton)
+import Daml.Finance.Data.Reference.HolidayCalendar
+import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
+import Daml.Finance.Instrument.Bond.Test.Util
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (qty)
+import Daml.Finance.Interface.Types.Date.Calendar
+import Daml.Finance.Interface.Types.Date.DayCount
+import Daml.Finance.Interface.Types.Date.RollConvention
+import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
+import Daml.Script
+
+-- Penultimate coupon payment on a bond showing creation of new instrument version
+run : Script ()
+run = script do
+  [depository, custodian, issuer, investor, calendarDataProvider, settler, provider, publicParty] <-
+    createParties ["CSD", "Custodian", "Issuer", "Investor", "Calendar Data Provider", "Settler", "Provider", "PublicParty"]
+  let settlers = singleton settler
+
+  -- Account and holding factory
+  let fp = [("FactoryProvider", singleton publicParty)]
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory provider fp
+  holdingFactoryCid <- toInterfaceContractId <$> submitMulti [custodian] [] do
+    createCmd Fungible.Factory with provider = custodian; observers = M.fromList fp
+
+  -- Create accounts
+  [custodianAccount, investorAccount] <- mapA (Account.createAccount "Default Account" [publicParty] accountFactoryCid holdingFactoryCid [] Account.Owner custodian) [custodian, investor]
+
+  -- Distribute commercial-bank cash
+  now <- getTime
+  let observers = [("PublicParty", singleton publicParty)]
+  cashInstrumentCid <- Instrument.originate depository issuer "EUR" "Euro" observers now
+
+  -- Create and distribute bond
+  -- Ireland 1.1% coupon every 12M
+  -- todo: change dayCountConvention to ActAct (implement this first)
+  -- CREATE_FIXED_RATE_BOND_VARIABLES_BEGIN
+  let
+    issueDate = date 2019 Jan 16
+    firstCouponDate = date 2019 May 15
+    maturityDate = date 2020 May 15
+    couponRate = 0.011
+    couponPeriod = M
+    couponPeriodMultiplier = 12
+    dayCountConvention = Act365Fixed
+    businessDayConvention = Following
+    redemptionAmount = 1_000_000.0
+    -- CREATE_FIXED_RATE_BOND_VARIABLES_END
+    holidayCalendarIds = ["EUR", "EUR2"] -- Test specifying 2 calendars (the union of the two will be used)
+    cal =
+      HolidayCalendarData with
+        id = "EUR"
+        weekend = [Saturday, Sunday]
+        holidays = [date 2019 Dec 19]
+    cal2 =
+      HolidayCalendarData with
+        id = "EUR2"
+        weekend = [Saturday, Sunday]
+        holidays = [date 2020 Dec 19]
+
+  -- A reference data provider publishes the holiday calendar on the ledger
+  calendarCid <- submitMulti [calendarDataProvider] [] do
+    createCmd HolidayCalendar with
+      agency = calendarDataProvider
+      entity = cal.id
+      calendar = cal
+      observers = M.fromList observers
+
+  calendarCid2 <- submitMulti [calendarDataProvider] [] do
+    createCmd HolidayCalendar with
+      agency = calendarDataProvider
+      entity = cal2.id
+      calendar = cal2
+      observers = M.fromList observers
+
+  bondInstrument <- originateFixedRateBond custodian issuer "BONDTEST1" "Fixed Rate Bond" observers now issueDate holidayCalendarIds calendarDataProvider firstCouponDate maturityDate dayCountConvention businessDayConvention couponRate couponPeriod couponPeriodMultiplier cashInstrumentCid
+  -- CREDIT_ACCOUNT_FIXED_RATE_BOND_BEGIN
+  investorBondTransferableCid <- Account.credit [publicParty] bondInstrument redemptionAmount investorAccount
+  -- CREDIT_ACCOUNT_FIXED_RATE_BOND_END
+
+  -- One day before the first coupon date: try to lifecycle and verify that there are no lifecycle effects.
+  verifyNoLifecycleEffects [publicParty] (subtractDays firstCouponDate 1) bondInstrument settlers issuer []
+
+  -- First coupon date: Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumedQuantities = []
+    expectedProducedQuantities = [Instrument.qty 0.0035863014 cashInstrumentCid]
+  bondInstrumentAfterFirstCoupon <- lifecycleAndVerifyBondPaymentEffects [publicParty] firstCouponDate bondInstrument settlers issuer investor observers custodian [] expectedConsumedQuantities expectedProducedQuantities
+
+  -- One day after the first coupon date: try to lifecycle and verify that there are no lifecycle effects.
+  verifyNoLifecycleEffects [publicParty] (addDays firstCouponDate 1) bondInstrumentAfterFirstCoupon settlers issuer []
+
+  -- One day before expiry: try to lifecycle and verify that there are no lifecycle effects.
+  verifyNoLifecycleEffects [publicParty] (subtractDays maturityDate 1) bondInstrumentAfterFirstCoupon settlers issuer []
+
+  -- Lifecycle on the expiry date. Verify the lifecycle effects for one coupon and the redemption amount
+  let
+    expectedConsumedQuantities = []
+    expectedProducedQuantities = [Instrument.qty 1.011030137 cashInstrumentCid]
+  bondInstrumentAfterRedemption <- lifecycleAndVerifyBondPaymentEffects [publicParty] maturityDate bondInstrumentAfterFirstCoupon settlers issuer investor observers custodian [] expectedConsumedQuantities expectedProducedQuantities
+
+  -- One day after expiry: try to lifecycle and verify that there are no lifecycle effects.
+  verifyNoLifecycleEffects [publicParty] (addDays maturityDate 1) bondInstrumentAfterRedemption settlers issuer []
+
+  pure ()

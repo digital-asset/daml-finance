@@ -1,0 +1,46 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Data.Observable.Observation
+  ( Observation(..)
+  ) where
+
+import DA.Map as M (Map, lookup)
+import DA.Set (singleton)
+import Daml.Finance.Interface.Data.Observable qualified as Observable (HasImplementation, I, View(..))
+import Daml.Finance.Interface.Types.Common (Id, PartiesMap)
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
+
+-- | Type synonym for `Observation`.
+type T = Observation
+
+instance Observable.HasImplementation T
+
+-- | An implementation of `Observable` that explicitly stores time-dependent numerical values.
+-- It can be used for e.g. equity or rate fixings.
+template Observation
+  with
+    provider : Party
+      -- ^ The reference data provider.
+    id : Id
+      -- ^ A textual identifier.
+    observations : Map Time Decimal
+      -- ^ The time-dependent values.
+    observers : PartiesMap
+      -- ^ Observers.
+  where
+    signatory provider
+    observer Disclosure.flattenObservers observers
+
+    interface instance Observable.I for Observation where
+      view = Observable.View with provider; id; observations
+      observe t =
+        case M.lookup t observations of
+          Some obs -> pure obs
+          None -> do
+            fail $ "Missing observation for " <> show id <>" at t = " <> show t
+
+    interface instance Disclosure.I for Observation where
+      view = Disclosure.View with disclosureControllers = singleton provider; observers
+      setObservers Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
+      archive' self = archive (coerceContractId self : ContractId Observation)

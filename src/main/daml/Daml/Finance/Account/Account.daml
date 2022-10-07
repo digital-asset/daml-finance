@@ -1,0 +1,94 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Account.Account where
+
+import DA.Map qualified as M (empty)
+import DA.Set qualified as S (fromList, singleton)
+import Daml.Finance.Account.Util (creditAndDebitImpl)
+import Daml.Finance.Interface.Account.Account qualified as Account (Credit(..), Debit(..), GetCid(..), HasImplementation, I, R, Controllers(..), View(..), createReference, disclosureUpdateReference)
+import Daml.Finance.Interface.Account.Factory qualified as AccountFactory (Create(..), F, HasImplementation, Remove(..), View(..))
+import Daml.Finance.Interface.Holding.Factory qualified as HoldingFactory (Create(..), F, Remove(..))
+import Daml.Finance.Interface.Types.Common (Id, AccountKey(..), PartiesMap)
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
+
+-- | Type synonym for `Account`.
+type T = Account
+
+instance Account.HasImplementation T
+-- | A relationship between a custodian and an asset owner. It is referenced by holdings.
+template Account
+  with
+    custodian : Party
+      -- ^ The account provider.
+    owner : Party
+      -- ^ The account owner.
+    controllers : Account.Controllers
+      -- ^ Controllers of transfers.
+    id : Id
+      -- ^ Identifier of the account.
+    description : Text
+      -- ^ Description of the account.
+    holdingFactoryCid : ContractId HoldingFactory.F
+      -- ^ Associated holding factory.
+    observers : PartiesMap
+      -- ^ Observers.
+  where
+    signatory custodian, owner
+    observer Disclosure.flattenObservers observers
+
+    let account = AccountKey with custodian; owner; id
+
+    interface instance Account.I for Account where
+      asDisclosure = toInterface @Disclosure.I this
+      view = Account.View with custodian; id; owner; holdingFactoryCid; description; controllers
+      getKey = account
+      credit Account.Credit{quantity} =
+        exercise holdingFactoryCid HoldingFactory.Create with
+          instrument = quantity.unit
+          account
+          amount = quantity.amount
+          observers = M.empty
+      debit Account.Debit{holdingCid} = do
+        vHolding <- view <$> fetch holdingCid
+        assertMsg "accounts must match" $ vHolding.account == account
+        exercise holdingFactoryCid HoldingFactory.Remove with
+          actors = S.fromList [account.custodian, account.owner]; holdingCid
+      creditAndDebit = creditAndDebitImpl account
+
+    interface instance Disclosure.I for Account where
+      view = Disclosure.View with disclosureControllers = S.fromList [custodian, owner]; observers
+      setObservers Disclosure.SetObservers{newObservers} = do
+        cid <- create this with observers = newObservers
+        Account.disclosureUpdateReference newObservers account (toInterfaceContractId @Account.I cid)
+      archive' self = archive (coerceContractId self : ContractId Account)
+
+instance AccountFactory.HasImplementation Factory
+-- | Template used to create accounts.
+template Factory
+  with
+    provider : Party
+      -- ^ The factory's provider.
+    observers : PartiesMap
+      -- ^ The factory's observers.
+  where
+    signatory provider
+    observer Disclosure.flattenObservers observers
+
+    interface instance AccountFactory.F for Factory where
+      asDisclosure = toInterface @Disclosure.I this
+      view = AccountFactory.View with provider
+      create' AccountFactory.Create{account; holdingFactoryCid; controllers; observers; description} = do
+        cid <- toInterfaceContractId <$> create Account with custodian = account.custodian; owner = account.owner; controllers; id = account.id; holdingFactoryCid; observers; description
+        Account.createReference account.custodian cid
+        pure cid
+      remove AccountFactory.Remove{account} = do
+        (refCid, ref) <- fetchByKey @Account.R account
+        accountCid <- exercise refCid Account.GetCid with viewer = account.custodian
+        archive $ fromInterfaceContractId @Account accountCid
+        archive refCid
+
+    interface instance Disclosure.I for Factory where
+      view = Disclosure.View with disclosureControllers = S.singleton provider; observers
+      setObservers Disclosure.SetObservers{newObservers} = toInterfaceContractId <$> create this with observers = newObservers
+      archive' self = archive (coerceContractId self : ContractId Account)

@@ -1,0 +1,52 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Lifecycle.Rule.Replacement where
+
+import DA.Date (toDateUTC)
+import Daml.Finance.Interface.Lifecycle.Clock qualified as Clock (GetView(..))
+import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (HasImplementation, Evolve(..), I, View(..))
+import Daml.Finance.Interface.Types.Common (Parties)
+import Daml.Finance.Lifecycle.Effect (Effect(..))
+import Daml.Finance.Lifecycle.Event.Replacement qualified as Replacement (Event)
+
+-- | Type synonym for `Rule`.
+type T = Rule
+
+instance Lifecycle.HasImplementation Rule
+
+-- | Rule contract that defines the replacement of units of an instrument with a basket of other instruments (e.g. stock merger).
+template Rule
+  with
+    providers : Parties
+      -- ^ Providers of the replacement rule.
+    lifecycler : Party
+      -- ^ Party performing the lifecycling.
+    observers : Parties
+      -- ^ Observers.
+  where
+    signatory providers
+    observer observers, lifecycler
+
+    interface instance Lifecycle.I for Rule where
+      view = Lifecycle.View with lifecycler
+      evolve Lifecycle.Evolve{settlers; eventCid; clockCid} self = do
+        replacement <- fetch $ fromInterfaceContractId @Replacement.Event eventCid
+        clockTime <- toDateUTC . (.clockTime) <$> exercise clockCid Clock.GetView with viewer = lifecycler
+        if clockTime >= replacement.effectiveDate
+        then do
+          effectCid <- toInterfaceContractId <$> create Effect
+            with
+              providers = replacement.providers
+              settlers
+              id = replacement.id
+              description = replacement.description
+              targetInstrument = replacement.targetInstrument
+              producedInstrument = None
+              consumed = []
+              produced = replacement.perUnitReplacement
+              settlementDate = replacement.effectiveDate
+              observers
+          pure (self, [effectCid])
+        else do
+          pure (self, [])

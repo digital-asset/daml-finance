@@ -1,0 +1,52 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Lifecycle.Rule.Distribution where
+
+import DA.Date (toDateUTC)
+import Daml.Finance.Interface.Lifecycle.Clock qualified as Clock (GetView(..))
+import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (HasImplementation, I, Evolve(..), View(..))
+import Daml.Finance.Interface.Types.Common (Parties)
+import Daml.Finance.Lifecycle.Effect (Effect(..))
+import Daml.Finance.Lifecycle.Event.Distribution qualified as Distribution (Event)
+
+-- | Type synonym for `Rule`.
+type T = Rule
+
+instance Lifecycle.HasImplementation Rule
+
+-- | Rule contract that defines the distribution of units of an instrument for each unit of a target instrument (e.g., share or cash dividends).
+template Rule
+  with
+    providers : Parties
+      -- ^ Providers of the distribution rule.
+    lifecycler : Party
+      -- ^ Party performing the lifecycling.
+    observers : Parties
+      -- ^ Observers of the distributin rule.
+  where
+    signatory providers
+    observer observers, lifecycler
+
+    interface instance Lifecycle.I for Rule where
+      view = Lifecycle.View with lifecycler
+      evolve Lifecycle.Evolve{settlers; eventCid; clockCid} self = do
+        distribution <- fetch $ fromInterfaceContractId @Distribution.Event eventCid
+        clockTime <- toDateUTC . (.clockTime) <$> exercise clockCid Clock.GetView with viewer = lifecycler
+        if clockTime >= distribution.effectiveDate
+        then do
+          effectCid <- toInterfaceContractId <$> create Effect
+            with
+              providers
+              settlers
+              id = distribution.id
+              description = distribution.description
+              targetInstrument = distribution.targetInstrument
+              producedInstrument = Some distribution.newInstrument
+              consumed = []
+              produced = distribution.perUnitDistribution
+              settlementDate = distribution.effectiveDate
+              observers
+          pure (self, [effectCid])
+        else do
+          pure (self, [])

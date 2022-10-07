@@ -1,0 +1,155 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
+module Daml.Finance.Interface.Instrument.Base.Instrument where
+
+import Daml.Finance.Interface.Holding.Base qualified as Base (I)
+import Daml.Finance.Interface.Holding.Util (getInstrument)
+import Daml.Finance.Interface.Types.Common (Id(..), InstrumentKey(..), PartiesMap, Quantity(..))
+import Daml.Finance.Interface.Util.Common (exerciseInterfaceByKeyHelper, fetchInterfaceByKey)
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (GetView(..), I, Implementation, flattenObservers)
+
+-- | Type synonym for `Instrument`.
+type I = Instrument
+
+-- | Type synonym for `InstrumentKey`.
+type K = InstrumentKey
+
+-- | Instrument quantity.
+type Q = Quantity InstrumentKey Decimal
+
+-- | Type synonym for `Reference`. This type is currently used as a work-around given the lack of interface keys.
+type R = Reference
+
+-- | Type synonym for `View`.
+type V = View
+
+-- | Exercise interface by key.
+-- This method can be used to exercise a choice on an `Instrument` given its `InstrumentKey`.
+-- Requires as input the `InstrumentKey`, the actor fetching the instrument and the choice arguments. For example:
+exerciseInterfaceByKey : forall t2 d r. (HasExercise t2 d r)
+  => K          -- ^ The instrument key.
+  -> Party      -- ^ The actor fetching the instrument.
+  -> d          -- ^ The choice arguments.
+  -> Update r
+exerciseInterfaceByKey k actor arg = exerciseInterfaceByKeyHelper @R @t2 k (GetCid with viewer = actor) arg
+
+-- | View for `Instrument`.
+data View = View
+  with
+    issuer : Party
+      -- ^ The instrument's issuer.
+    depository : Party
+      -- ^ The instrument's depository.
+    id : Id
+      -- ^ A versioned instrument identifier.
+    version : Text
+      -- ^ A textual instrument version.
+    description : Text
+      -- ^ A human readable description of the instrument.
+    validAsOf : Time
+      -- ^ Timestamp as of which the instrument is valid. This usually coincides with the timestamp of the event that creates the instrument. It usually does not coincide with ledger time.
+  deriving (Eq, Show)
+
+-- | Base interface for all instruments. This interface does not define any lifecycling logic.
+interface Instrument where
+  viewtype V
+
+  asDisclosure : Disclosure.I
+    -- ^ Conversion to `Disclosure` interface.
+  getKey : InstrumentKey
+    -- ^ Get the unique key for the `Instrument`.
+
+  nonconsuming choice GetView : V
+    -- ^ Retrieves the interface view.
+    with
+      viewer : Party
+        -- ^ The party retrieving the view.
+    controller viewer
+    do
+      pure $ view this
+
+-- | Type constraint for requiring templates to implement `Instrument` along with `Disclosure`.
+type Implementation t = (HasToInterface t I, Disclosure.Implementation t)
+instance HasToInterface I Disclosure.I where _toInterface = asDisclosure
+class (Implementation t) => HasImplementation t
+instance HasImplementation I
+
+-- | HIDE
+-- This template is used to key an Instrument contract. It allows for looking up this contract
+-- by key then acquiring the Instrument contract by fetching its contract id on this contract.
+-- As updates are made to an Instrument, this Reference contract is required to be kept in sync.
+template Reference
+  with
+    instrumentView : V
+      -- ^ The default view.
+    cid : ContractId I
+      -- ^ The contract id of the instrument.
+    observers : PartiesMap
+      -- ^ Observers.
+  where
+    signatory instrumentView.depository, instrumentView.issuer
+    observer Disclosure.flattenObservers observers
+
+    key toKey instrumentView : K
+    maintainer key.depository, key.issuer
+
+    nonconsuming choice GetCid : ContractId I
+      -- ^ Get the `Instrument`'s contract id.
+      with
+        viewer : Party
+      controller viewer
+      do
+        pure cid
+
+    choice SetCid : ContractId R
+      -- ^ Set the instrument cid. This choice should be called only from `Instrument` implementations.
+      with
+        newCid : ContractId I
+          -- The instrument cid.
+      controller instrumentView.depository, instrumentView.issuer
+      do
+        create this with cid = newCid
+
+    choice SetObservers : ContractId R
+      -- ^ Set observers. This choice should be called only from `Instrument` implementations.
+      with
+        newObservers : PartiesMap
+          -- ^ The new observers.
+      controller instrumentView.depository, instrumentView.issuer
+      do
+        create this with observers = newObservers
+
+-- | Convert the instrument's View to its key.
+toKey : V -> K
+toKey v = InstrumentKey with depository = v.depository; issuer = v.issuer; id = v.id; version = v.version
+
+-- | Fetch instrument from holding.
+fetchInstrument : (HasToInterface t Base.I) => t -> Update I
+fetchInstrument holding = fetchInterfaceByKey @R $ getInstrument (toInterface @Base.I holding)
+
+-- | Wraps an amount and an instrument key into an instrument quantity.
+qty : Decimal -> K -> Q
+qty amount instrument = Quantity with unit = instrument; amount
+
+-- | Scale `Quantity` by the provided factor.
+scale : Decimal -> Q -> Q
+scale factor quantity = quantity with amount = quantity.amount * factor
+
+-- | HIDE
+-- Create Reference for instrument.
+createReference : Party -> ContractId I -> Update (ContractId R)
+createReference actor cid = do
+  instrumentView <- exercise cid GetView with viewer = actor
+  disclosureView <- exercise (toInterfaceContractId @Disclosure.I cid) Disclosure.GetView with viewer = actor
+  create Reference with instrumentView; cid; observers = disclosureView.observers
+
+-- | HIDE
+-- Helper function to update the instrument reference once observers are added to the instrument.
+disclosureUpdateReference : PartiesMap -> K -> ContractId I -> Update (ContractId Disclosure.I)
+disclosureUpdateReference newObservers k iCid = do
+  exerciseByKey @Reference k SetCid with newCid = iCid
+  exerciseByKey @Reference k SetObservers with newObservers
+  pure $ toInterfaceContractId iCid

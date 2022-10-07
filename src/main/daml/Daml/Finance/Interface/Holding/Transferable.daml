@@ -1,0 +1,65 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Interface.Holding.Transferable where
+
+import Daml.Finance.Interface.Holding.Base qualified as Base (I, asDisclosure)
+import Daml.Finance.Interface.Holding.Lockable (getLockers)
+import Daml.Finance.Interface.Holding.Lockable qualified as Lockable (I, Implementation, asHolding)
+import Daml.Finance.Interface.Types.Common (AccountKey, InstrumentKey, Parties)
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I)
+
+-- | Type synonym for `Transferable`.
+type I = Transferable
+
+-- | Type synonym for `View`.
+type V = View
+
+-- | View for `Transferable`.
+data View = View
+  with
+    instrument : InstrumentKey
+      -- ^ Instrument being held.
+    account : AccountKey
+      -- ^ Key of the account holding the assets.
+    amount : Decimal
+      -- ^ Size of the holding.
+  deriving (Eq, Show)
+
+-- | An interface respresenting a contract where ownership can be transferred to other parties.
+interface Transferable where
+  viewtype View
+
+  asLockable : Lockable.I
+    -- ^ Conversion to `Lockable` interface.
+  transfer : ContractId I -> Transfer -> Update (ContractId Transferable)
+    -- ^ Implementation of the `Transfer` choice.
+
+  nonconsuming choice GetView : View
+    -- ^ Retrieves the interface view.
+    with
+      viewer : Party
+        -- ^ The party retrieving the view.
+    controller viewer
+    do
+      pure $ view this
+
+  nonconsuming choice Transfer : ContractId Transferable
+    -- ^ Transfer a contract to a new owner
+    with
+      actors : Parties
+        -- ^ Parties authorizing the transfer.
+      newOwnerAccount : AccountKey
+        -- ^ Account contract id of the parties to transfer the contract to.
+    controller actors, getLockers this
+    do
+      transfer this self arg
+
+-- | Type constraint for requiring templates to implement `Transferable` to
+-- also implement `Lockable`.
+type Implementation t = (HasToInterface t I, Lockable.Implementation t)
+instance HasToInterface I Lockable.I where _toInterface = asLockable
+instance HasToInterface I Base.I where _toInterface = Lockable.asHolding . asLockable
+instance HasToInterface I Disclosure.I where _toInterface = Base.asDisclosure . Lockable.asHolding . asLockable
+class (Implementation t) => HasImplementation t
+instance HasImplementation I

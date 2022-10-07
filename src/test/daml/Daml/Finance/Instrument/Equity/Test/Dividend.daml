@@ -1,0 +1,107 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Equity.Test.Dividend where
+
+import DA.Date (toDateUTC)
+import DA.Map qualified as M (fromList)
+import DA.Set (empty, fromList, singleton)
+import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
+import Daml.Finance.Instrument.Equity.Test.Util (originateEquity)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (qty)
+import Daml.Finance.Interface.Instrument.Equity.Instrument qualified as Equity (DeclareDividend(..), I)
+import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..), I)
+import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I)
+import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
+import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
+import Daml.Finance.Interface.Types.Common (Id(..))
+import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
+import Daml.Finance.Lifecycle.Rule.Distribution qualified as Distribution (Rule(..))
+import Daml.Finance.Settlement.Factory (Factory(..))
+import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
+import Daml.Finance.Test.Util.Instrument (originate)
+import Daml.Finance.Test.Util.Instrument qualified as Instrument (submitExerciseInterfaceByKeyCmd)
+import Daml.Finance.Test.Util.Lifecycle (createClockAndEvent)
+import Daml.Script
+
+-- Cash dividend lifecycling and settlement
+run : Script ()
+run = script do
+  -- Create parties
+  [cb, issuer, investor, public] <- createParties ["CentralBank", "Issuer", "Investor", "Public"]
+
+  -- Create factories
+  let pp = [("Public", singleton public)]
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory issuer pp
+  holdingFactoryCid <- toInterfaceContractId <$> submit issuer do createCmd Fungible.Factory with provider = issuer; observers = M.fromList pp
+  settlementFactoryCid <- toInterfaceContractId <$> submitMulti [issuer] [] do createCmd Factory with provider = issuer; observers = singleton public
+
+  -- Create accounts
+  issuerCashAccount <- Account.createAccount "Cash Account" [public] accountFactoryCid holdingFactoryCid [] Account.Owner cb issuer
+  investorCashAccount <- Account.createAccount "Cash Account" [public] accountFactoryCid holdingFactoryCid [] Account.Owner cb investor
+  investorSecuritiesAccount <- Account.createAccount "Securities Account" [public] accountFactoryCid holdingFactoryCid [] Account.Owner issuer investor
+
+  -- Create lifecycle rules
+  distributionRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit issuer do createCmd Distribution.Rule with providers = singleton issuer; lifecycler = issuer; observers = singleton public
+  claimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [issuer, investor] [] do
+    createCmd Claim.Rule
+      with
+        providers = fromList [issuer, investor]
+        claimers = singleton investor
+        settlers = singleton investor
+        settlementFactoryCid
+
+  -- Create clock
+  now <- getTime
+  (clockCid, clockEventCid) <- createClockAndEvent (singleton issuer) (toDateUTC now) empty
+
+  -- Originate instruments
+  cashInstrument <- originate cb cb "USD" "United States Dollar" pp now
+  cumEquityInstrument <- originateEquity issuer issuer "EQUITY-INST-1" "0" "APPL" pp now
+  exEquityInstrument <- originateEquity issuer issuer "EQUITY-INST-1" "1" "APPL" [] now
+
+  -- Distribute holdings
+  investorEquityCid <- Account.credit [public] cumEquityInstrument 1_000.0 investorSecuritiesAccount
+  issuerCashCid <- Account.credit [public] cashInstrument 2_000.0 issuerCashAccount
+
+  -- Create cash dividend event
+  distributionEventCid <- Instrument.submitExerciseInterfaceByKeyCmd @Equity.I [issuer] [public] cumEquityInstrument Equity.DeclareDividend
+    with
+      id = Id $ "APPL - " <> show now
+      description = "Cash Dividend"
+      effectiveDate = toDateUTC now
+      newInstrument = exEquityInstrument
+      perUnitDistribution = [Instrument.qty 2.0 cashInstrument]
+
+  -- Lifecycle cash dividend
+  (_, [effectCid]) <- submit issuer do exerciseCmd distributionRuleCid Lifecycle.Evolve with ruleName = "Dividend"; settlers = singleton investor; observableCids = []; eventCid = distributionEventCid; clockCid
+
+  -- Claim effect
+  result <- submitMulti [investor] [public] do
+    exerciseCmd claimRuleCid Claim.ClaimEffect
+      with
+        claimer = investor
+        holdingCids = [investorEquityCid]
+        effectCid
+        batchId = Id "DividendSettlement"
+
+  let
+    Some [investorEquityTransferableCid] = result.newInstrumentHoldingCids
+    [issuerCashInstructionCid] = result.instructionCids
+
+  -- Allocate instructions
+  (issuerCashInstructionCid, _) <- submit issuer do exerciseCmd issuerCashInstructionCid Instruction.Allocate with actors = singleton issuer; allocation = Pledge issuerCashCid
+
+  -- Approve instructions
+  issuerCashInstructionCid <- submit investor do exerciseCmd issuerCashInstructionCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorCashAccount
+
+  -- Settle batch
+  [investorCashTransferableCid] <- submitMulti [investor] [public] do exerciseCmd result.batchCid Batch.Settle with actors = singleton investor
+
+  -- Assert state
+  Holding.verifyOwnerOfHolding [(investor, investorEquityTransferableCid), (investor, coerceContractId investorCashTransferableCid)]
+
+  pure ()

@@ -1,0 +1,60 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Lifecycle.DateClock where
+
+import DA.Date (addDays)
+import Daml.Finance.Interface.Types.Common (Id, Parties)
+import Daml.Finance.Interface.Types.Date.Classes (HasUTCTimeConversion(..))
+import Daml.Finance.Interface.Lifecycle.Clock qualified as Clock (HasImplementation, I, View(..))
+import Daml.Finance.Lifecycle.Event.DateClock qualified as DateClock (Event(..))
+import Daml.Finance.Lifecycle.Types (Unit(..))
+
+-- | Type synonym for `DateClock`.
+type T = DateClock
+
+instance Clock.HasImplementation DateClock
+
+-- | A clock where time is discretized into dates. Each date is mapped to UTC noon.
+template DateClock
+  with
+    providers : Parties
+      -- ^ The clock's providers.
+    date : Unit
+      -- ^ The clock's date.
+    id : Id
+      -- ^ The clock's identifier.
+    description : Text
+      -- ^ The clock's description.
+    observers : Parties
+      -- ^ Observers of the events created from this clock.
+  where
+    signatory providers
+
+    key (providers, id) : (Parties, Id)
+    maintainer key._1
+
+    interface instance Clock.I for DateClock where
+      view = Clock.View with id; clockTime = toUTCTime this
+
+    choice ToNext : (ContractId DateClock, ContractId DateClock.Event)
+      -- ^ Moves the clock to the next date and spawns an update event.
+      with
+        eventId : Id
+          -- ^ Event identifier
+        eventDescription : Text
+          -- ^ Event description
+      controller providers
+      do
+        let
+          Unit currentDate = date
+          clock = this with date = Unit $ addDays currentDate 1
+        clockCid <- create clock
+        eventCid <- create DateClock.Event with providers; date; id = eventId; description = eventDescription; observers
+        pure (clockCid, eventCid)
+
+instance HasUTCTimeConversion DateClock where
+  toUTCTime clock = toUTCTime clock.date
+
+instance Ord DateClock where
+  compare x y = compare (toInterface x : Clock.I) (toInterface y)

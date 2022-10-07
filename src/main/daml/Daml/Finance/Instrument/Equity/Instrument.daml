@@ -1,0 +1,88 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Equity.Instrument where
+
+import DA.Set (fromList, singleton)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, View(..), disclosureUpdateReference, qty)
+import Daml.Finance.Interface.Instrument.Equity.Instrument qualified as Equity (DeclareDividend(..), DeclareReplacement(..), DeclareStockSplit(..), HasImplementation, I, View(..))
+import Daml.Finance.Interface.Types.Common (Id, InstrumentKey(..), PartiesMap)
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
+import Daml.Finance.Lifecycle.Event.Distribution qualified as Distribution (Event(..))
+import Daml.Finance.Lifecycle.Event.Replacement qualified as Replacement (Event(..))
+
+-- | Type synonym for `Instrument`.
+type T = Instrument
+
+instance Equity.HasImplementation T
+
+-- | An Instrument representing a common stock.
+template Instrument
+  with
+    issuer : Party
+      -- ^ Issuer.
+    depository : Party
+      -- ^ Depository.
+    id : Id
+      -- ^ A textual identifier.
+    version : Text
+      -- ^ The instrument's version.
+    description : Text
+      -- ^ A description of the instrument.
+    observers : PartiesMap
+      -- ^ Observers.
+    validAsOf : Time
+      -- ^ Timestamp as of which the instrument is valid. This usually coincides with the timestamp of the event that creates the instrument. It usually does not coincide with ledger time.
+  where
+    signatory depository, issuer
+    observer Disclosure.flattenObservers observers
+
+    let instrumentKey = InstrumentKey with depository; issuer; id; version
+
+    interface instance BaseInstrument.I for Instrument where
+      asDisclosure = toInterface @Disclosure.I this
+      view = BaseInstrument.View with issuer; depository; id; version; description; validAsOf
+      getKey = instrumentKey
+
+    interface instance Equity.I for Instrument where
+      asBaseInstrument = toInterface @BaseInstrument.I this
+      view = Equity.View with instrument = instrumentKey
+      declareDividend Equity.DeclareDividend{id; description; effectiveDate; newInstrument; perUnitDistribution} = toInterfaceContractId <$>
+        create Distribution.Event
+          with
+            providers = fromList [issuer, depository]
+            id
+            description
+            effectiveDate
+            targetInstrument = instrumentKey
+            newInstrument
+            perUnitDistribution
+            observers = Disclosure.flattenObservers observers
+      declareStockSplit Equity.DeclareStockSplit{id; description; adjustmentFactor; newInstrument; effectiveDate} = toInterfaceContractId <$>
+        -- NOTE: Doesn't handle conversion of fractional shares into cash
+        create Replacement.Event
+          with
+            providers = fromList [issuer, depository]
+            id
+            description
+            effectiveDate
+            targetInstrument = instrumentKey
+            perUnitReplacement = [BaseInstrument.qty (1.0 / adjustmentFactor) newInstrument]
+            observers = Disclosure.flattenObservers observers
+      declareReplacement Equity.DeclareReplacement{id; description; effectiveDate; perUnitReplacement} = toInterfaceContractId <$>
+        create Replacement.Event
+          with
+            providers = fromList [issuer, depository]
+            id
+            description
+            effectiveDate
+            targetInstrument = instrumentKey
+            perUnitReplacement
+            observers = Disclosure.flattenObservers observers
+
+    interface instance Disclosure.I for Instrument where
+      view = Disclosure.View with disclosureControllers = singleton issuer; observers
+      setObservers Disclosure.SetObservers{newObservers} = do
+        cid <- toInterfaceContractId <$> create this with observers = newObservers
+        BaseInstrument.disclosureUpdateReference newObservers instrumentKey cid
+      archive' self = archive (coerceContractId self : ContractId Instrument)

@@ -1,0 +1,100 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Swap.InterestRate.Instrument where
+
+import DA.Set (singleton)
+import Daml.Finance.Instrument.Generic.Util
+import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, View(..))
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, K, View(..), disclosureUpdateReference)
+import Daml.Finance.Interface.Instrument.Swap.InterestRate.Instrument qualified as InterestRate (HasImplementation, I, View(..))
+import Daml.Finance.Interface.Instrument.Swap.InterestRate.Types (InterestRate(..))
+import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..), View(..))
+import Daml.Finance.Interface.Types.Common (Id(..), InstrumentKey(..), PartiesMap)
+import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
+import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..))
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
+import Prelude hiding (key)
+
+-- | Type synonym for `Instrument`.
+type T = Instrument
+
+instance InterestRate.HasImplementation T
+
+-- | This template models an interest rate swap.
+-- It pays a fix vs floating rate at the end of every payment period.
+-- The floating leg depends on a reference rate (observed at the beginning of the swap payment period).
+-- For example: 3M Euribor vs 2.5% fix.
+template Instrument
+  with
+    depository : Party
+      -- ^ The depository of the instrument.
+    issuer : Party
+      -- ^ The issuer of the instrument.
+    id : Id
+      -- ^ An identifier of the instrument.
+    version : Text
+      -- ^ The instrument's version.
+    description : Text
+      -- ^ A description of the instrument.
+    referenceRateId : Text
+      -- ^ The floating rate reference ID. For example, in case of "3M Euribor vs 2.5% fix" this should be a valid reference to the "3M Euribor" reference rate.
+    issuerPaysFix : Bool
+      -- ^ Indicate whether the issuer of the instrument pays the fix or the floating leg of the swap.
+    fixRate : Decimal
+      -- ^ The interest rate of the fix leg. For example, in case of "3M Euribor vs 2.5% fix" this should be 0.025.
+    periodicSchedule : PeriodicSchedule
+      -- ^ The schedule for the periodic swap payments.
+    holidayCalendarIds : [Text]
+      -- ^ The identifier of the holiday calendar to be used for the swap payment schedule.
+    calendarDataProvider : Party
+      -- ^ The reference data provider to use for the holiday calendar.
+    dayCountConvention : DayCountConventionEnum
+      -- ^ The day count convention used to calculate day count fractions. For example: Act360.
+    currency : BaseInstrument.K
+      -- ^ The currency of the swap. For example, if the swap pays in USD this should be a USD cash instrument.
+    observers : PartiesMap
+      -- ^ The observers of the instrument.
+    lastEventTimestamp : Time
+      -- ^ (Market) time of the last recorded lifecycle event. If no event has occurred yet, the time of creation should be used.
+  where
+    signatory depository, issuer
+    observer Disclosure.flattenObservers observers
+
+    let instrumentKey = InstrumentKey with depository; issuer; id; version
+
+    interface instance Claim.I for Instrument where
+      view = Claim.View with instrument = instrumentKey; acquisitionTime = dateToDateClockTime periodicSchedule.effectiveDate
+      asBaseInstrument = toInterface @BaseInstrument.I this
+      getClaims = do
+        -- get the initial claims tree (as of the swap's acquisition time)
+        schedule <- rollPaymentSchedule periodicSchedule holidayCalendarIds issuer calendarDataProvider
+        let
+          useAdjustedDatesForDcf = True
+          issuerPaysFloatingLeg = not issuerPaysFix
+          fixClaims = createFixRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf fixRate issuerPaysFix dayCountConvention currency
+          floatingClaims = createFloatingRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf 0.0 issuerPaysFloatingLeg dayCountConvention currency referenceRateId
+        pure $ [fixClaims, floatingClaims]
+
+    interface instance BaseInstrument.I for Instrument where
+      asDisclosure = toInterface @Disclosure.I this
+      view = BaseInstrument.View with depository; issuer; id; version; description; validAsOf = lastEventTimestamp
+      getKey = instrumentKey
+
+    interface instance InterestRate.I for Instrument where
+      asBaseInstrument = toInterface @BaseInstrument.I this
+      view = InterestRate.View with interestRate = InterestRate with instrument = instrumentKey; description; referenceRateId; issuerPaysFix; fixRate; periodicSchedule; holidayCalendarIds; calendarDataProvider; dayCountConvention; currency; lastEventTimestamp
+
+    interface instance Lifecycle.I for Instrument where
+      view = Lifecycle.View with lifecycler = issuer
+      evolve Lifecycle.Evolve{ruleName; settlers; eventCid; clockCid; observableCids} self =
+        case ruleName of
+          "Time" -> processClockUpdate settlers eventCid clockCid self this observableCids
+          other -> abort $ "Unknown lifecycle rule " <> other
+
+    interface instance Disclosure.I for Instrument where
+      view = Disclosure.View with disclosureControllers = singleton issuer; observers
+      setObservers Disclosure.SetObservers{newObservers} = do
+        cid <- toInterfaceContractId <$> create this with observers = newObservers
+        BaseInstrument.disclosureUpdateReference newObservers instrumentKey cid
+      archive' self = archive (coerceContractId self : ContractId Instrument)

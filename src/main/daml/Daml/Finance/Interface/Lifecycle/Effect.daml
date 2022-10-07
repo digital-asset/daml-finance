@@ -1,0 +1,90 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Interface.Lifecycle.Effect where
+
+import Daml.Finance.Interface.Types.Common (Id, Parties)
+import Daml.Finance.Interface.Holding.Base qualified as Base (I)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (K, Q)
+
+-- | Type synonym for `Effect`.
+type I = Effect
+
+-- | Type synonym for `View`.
+type V = View
+
+-- | View for `Effect`.
+data View = View
+  with
+    providers : Parties
+      -- ^ The parties providing the claim processing.
+    settlers : Parties
+      -- ^ The parties that can settle the consequence of the effect.
+    targetInstrument : Instrument.K
+      -- ^ A holding on this instrument is required to claim the effect.
+    producedInstrument : Optional Instrument.K
+      -- ^ The new version of the target instrument, when it exists.
+    id : Id
+      -- ^ A textual identifier.
+    description : Text
+      -- ^ A human readable description of the Effect.
+    settlementDate : Date
+      -- ^ The effect's settlement date.
+    consumed : [Instrument.Q]
+      -- ^ Consumed quantities (not including the target instrument).
+    produced : [Instrument.Q]
+      -- ^ Produced quantities (not including the produced instrument).
+  deriving (Eq, Show)
+
+-- | Interface for contracts exposing effects of lifecycling processes.
+interface Effect where
+  viewtype V
+
+  setProvider : SetProvider -> Update (ContractId Effect)
+    -- ^ Implementation of the `SetProvider` choice.
+  calculate : Calculate -> ContractId Effect -> Update CalculationResult
+    -- ^ Implementation of the `Calculate` choice.
+
+  nonconsuming choice GetView : View
+    -- ^ Retrieves the interface view.
+    with
+      viewer : Party
+        -- ^ The party retrieving the view.
+    controller viewer
+    do
+      pure $ view this
+
+  nonconsuming choice Calculate : CalculationResult
+    -- ^ Given a holding, it calculates the instrument quantities to settle.
+    with
+      actor : Party
+        -- ^ The party calculating the quantities to settle.
+      holdingCid : ContractId Base.I
+        -- ^ The holding being targeted.
+       -- TODO this gives the effect provider visibility on the holding. As an alternative, we could take the holding instrument + amount as input so that nothing is leaked
+    controller actor
+    do
+      calculate this arg self
+
+  choice SetProvider : ContractId Effect
+    -- ^ Set the provider of the effect. The provider has visibility on all sub-transactions triggered by `Claim`\ing an effect.
+    with
+      newProviders : Parties
+        -- ^ The new provider.
+    controller (view this).providers, newProviders
+    do
+      setProvider this arg
+
+-- | Type constraint for requiring templates to implement `Effect`.
+type Implementation t = HasToInterface t I
+class (Implementation t) => HasImplementation t
+instance HasImplementation I
+
+-- | Data type encapsulating the effect's calculation result.
+data CalculationResult = CalculationResult
+  with
+    consumed : [Instrument.Q]
+      -- ^ Consumed quantities.
+    produced : [Instrument.Q]
+      -- ^ Produced quantities.
+  deriving (Eq, Show)

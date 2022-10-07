@@ -1,0 +1,107 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Settlement.Factory where
+
+import DA.List (groupOn, head, isSuffixOf, stripSuffix, tails)
+import DA.Map qualified as M (Map, fromList, lookup)
+import DA.Optional (fromSomeNote)
+import DA.Set (empty)
+import Daml.Finance.Interface.Settlement.Factory qualified as Factory (I, Instruct(..), View(..))
+import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), Step(..))
+import Daml.Finance.Interface.Types.Common (Id(..), Parties)
+import Daml.Finance.Settlement.Batch (Batch(..))
+import Daml.Finance.Settlement.Instruction (Instruction(..))
+import Daml.Finance.Util.Common (mapWithIndex)
+
+-- | Factory template that implements the `Factory` interface.
+-- It is used to create a set of settlement `Instruction`\s, and a `Batch` to atomically settle them.
+template Factory
+  with
+    provider : Party
+      -- ^ Party providing the facility to create settlement instructions.
+    observers : Parties
+      -- ^ Observers.
+  where
+    signatory provider
+    observer observers
+
+    interface instance Factory.I for Factory where
+      view = Factory.View with provider; observers
+      instruct Factory.Instruct{instructors; settlers; id; description; contextId; steps} = do
+        let
+          createInstruction step index =
+            Instruction with requestors = instructors; signed = empty; settlers; step; allocation = Unallocated; approval = Unapproved; batchId = id; id = Id (show index); observers = M.fromList [(show id, settlers)]
+          instructions = mapWithIndex createInstruction steps
+          instructionIds = map (.id) instructions
+        instructionCids <- mapA (fmap toInterfaceContractId . create) instructions
+        batchCid <- toInterfaceContractId <$> create Batch with requestors = instructors; settlers; id; description; contextId; stepsWithInstructionId = zip steps instructionIds
+        pure (batchCid, instructionCids)
+
+-- | Factory template that implements the `Factory` interface.
+-- It is used to create a set of settlement `Instruction`\s, and a `Batch` to atomically settle them.
+-- For each instrument to settle as part of the batch, a hierarchy of intermediaries is specified in `paths`.
+-- This hierarchy is used to generate the settlement instructions.
+template FactoryWithIntermediaries
+  with
+    provider : Party
+      -- ^ Party providing the facility to create settlement instructions.
+    observers : Parties
+      -- ^ Observers.
+    paths : M.Map Text Path
+      -- ^ Hierarchical paths used to settle holding transfers. A path is specified for each instrument label.
+  where
+    signatory provider
+    observer observers
+
+    interface instance Factory.I for FactoryWithIntermediaries where
+      view = Factory.View with provider; observers
+      instruct Factory.Instruct{instructors; settlers; id; description; contextId; steps} = do
+        let
+          -- Group steps by instrument. For each group, lookup corresponding paths and expand steps according to the corresponding settlement route.
+          groupedSteps = mconcat $ fromSomeNote "Could not find path or route." $ mapA (\steps -> do
+            let k = show (head steps).quantity.unit.id
+            route <- M.lookup k paths
+            mconcat <$> mapA (unfoldStep route) steps
+            ) $ groupOn (.quantity.unit) steps
+          -- For each step, generate instructions and ids.
+          createInstruction step index =
+            Instruction with requestors = instructors; signed = empty; settlers; step; allocation = Unallocated; approval = Unapproved; batchId = id; id = Id (show index); observers = M.fromList [(show id, settlers)]
+          instructions = mapWithIndex createInstruction groupedSteps
+          instructionIds = map (.id) instructions
+        instructionCids <- mapA (fmap toInterfaceContractId . create) instructions
+        batchCid <- toInterfaceContractId <$> create Batch with requestors = instructors; settlers; id; description; contextId; stepsWithInstructionId = zip groupedSteps instructionIds
+        pure (batchCid, instructionCids)
+
+-- | Data type that describes a hierarchical account structure between two parties for holdings on an instrument.
+data Path = Path
+  with
+    senderPath : [Party]
+      -- ^ Path from the sender to the root custodian of the holding. If the sender `p` is the root custodian, it should be `[p, p]`.
+    receiverPath : [Party]
+      -- ^ Path from the receiver to the root custodian of the holding. If the receiver `p` is the root custodian, it should be `[p, p]`.
+  deriving (Eq, Show)
+
+-- | HIDE
+-- Given a sender path and a receiver path, calculate the route to transfer a holding from sender to receiver.
+-- We assume that transfers can only be done between accounts at the same custodian.
+-- Returns `None` if no such route can be found. Otherwise, a list of (sender, receiver) pairs is returned.
+getRoute : (Eq a) => [a] -> [a] -> Optional [(a,a)]
+getRoute senderPath receiverPath =
+  case filter (`isSuffixOf` receiverPath) $ tails senderPath of
+  [] -> None
+  h :: _ -> do
+    fromRoute <- stripSuffix h senderPath
+    toRoute <- reverse <$> stripSuffix h receiverPath
+    let fullRoute = fromRoute <> toRoute
+    pure $ zip fullRoute (drop 1 fullRoute)
+
+-- | HIDE
+-- Given a hierarchical path, unfold a step from sender to receiver (resp. receiver to sender) onto the corresponding route.
+-- Returns `None` if no route can be found.
+unfoldStep : Path -> Step -> Optional [Step]
+unfoldStep path step | step.sender == head path.senderPath =
+  map (\(sender, receiver) -> Step with sender; receiver; quantity = step.quantity ) <$> getRoute path.senderPath path.receiverPath
+unfoldStep path step | step.sender == head path.receiverPath =
+  map (\(sender, receiver) -> Step with sender; receiver; quantity = step.quantity ) <$> getRoute path.receiverPath path.senderPath
+unfoldStep _ _ = error "One of the parties is neither the sender, nor the receiver."
