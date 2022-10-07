@@ -3,14 +3,13 @@
 
 Copyright © 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All Rights Reserved. SPDX-License-Identifier: Apache-2.0
 
-## Requirements
+## Development
 
-To build this library locally, the following requirements are necessary:
+This repo assumes the use of [direnv] for local development, along with a
+working [Nix] installation.
 
-1. [Daml SDK](https://docs.daml.com/getting-started/installation.html) (2.x)
-2. `make` (3.x)
-3. `yq` (4.x)
-4. `jq` (>1.5)
+[direnv]: https://github.com/direnv/direnv
+[Nix]: https://nixos.org/download.html
 
 ## Building
 

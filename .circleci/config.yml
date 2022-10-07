@@ -14,6 +14,45 @@ executors:
       - image: cimg/python:3.7-node
 
 commands:
+  setup_nix:
+    description: Set up Nix
+    steps:
+      - run:
+          name: make_cache_key
+          command: |
+            set -euo pipefail
+            git log -n1 --format=%H nix shell.nix > /tmp/nix-cache-key
+            sudo mkdir /nix
+            sudo chown circleci /nix
+            >> $BASH_ENV echo 'export USER=circleci'
+      - restore_cache:
+          keys:
+          - nix-{{ checksum "/tmp/nix-cache-key" }}
+      - run:
+        name: setup_nix
+        command: |
+          set -euo pipefail
+          if [ -f ~/.config/nix/nix.conf ]; then
+              exit 0
+          fi
+
+          # Disabling sandbox because:
+          # 1. It doesn't work on CircleCI (sethostname is not allowed)
+          # 2. We don't plan to build anything, so the risk is fairly low
+          mkdir -p ~/.config/nix
+          echo 'sandbox = false' >> ~/.config/nix/nix.conf
+
+          sh <(curl -fsSL https://nixos.org/nix/install) --no-daemon
+          . /home/circleci/.nix-profile/etc/profile.d/nix.sh
+          nix-shell shell.nix --run 'echo "Done loading all packages."'
+      - save_cache:
+          key: nix-{{ checksum "/tmp/nix-cache-key" }}
+          paths:
+          - /nix
+          - /home/circleci/.nix-profile
+          - /home/circleci/.nix-channels
+          - /home/circleci/.nix-defexpr
+          - /home/circleci/.config/nix
   install_sdk:
     description: "Install Daml SDK"
     steps:
@@ -157,6 +196,7 @@ jobs:
     executor: daml-executor
     steps:
       - checkout
+      - setup_nix
       - run:
           name: Validate Copyright headers
           command: |
@@ -167,7 +207,14 @@ jobs:
       - install_sdk
       - run:
           name: Build source and packages
-          command: make ci-build
+          command:
+            set -euo pipefail
+            . /home/circleci/.nix-profile/etc/profile.d/nix.sh
+
+            nix-shell shell.nix \
+              --pure \
+              --run 'make ci-build'
+            # BDW - CHECK WHY WE DO THIS AND SHOULD WE UPDATE OUR MAKEFILE INSTEAD?
       - run:
           name: Execute tests
           command: make ci-test
