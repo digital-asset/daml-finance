@@ -4,9 +4,7 @@
 
 set -euo pipefail
 
-SCRIPT_DIR=$(dirname "$0")
-cd $SCRIPT_DIR
-BUILD_DIR=$(pwd)/build
+cd "$(dirname $0)"
+cd ../build/html
 
-cd $BUILD_DIR/html
 python -m http.server 8000 --bind 127.0.0.1

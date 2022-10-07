@@ -53,6 +53,10 @@ virtual environment: run `pipenv install` again in the root folder of the reposi
 2. Start a local web server on `http://localhost:8000/` by running `./docs/scripts/preview.sh`. In case an
    old/cached html document is being shown, make sure to refresh your web browser.
 
+Note - The table of contents (the menu on the left of the UI) will show more drop down links than what it'll show on `docs.daml.com`
+(ie., it is displaying anchor links).
+When making modifications to the table of contents, ensure to test these changes as part of `docs.daml.com` repo's build.
+
 ### If you are doing many changes to the docs
 
 It is useful to do the two parts above in two separate terminal windows. That way, you only have to
