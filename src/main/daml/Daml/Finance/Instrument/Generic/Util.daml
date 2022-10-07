@@ -22,21 +22,23 @@ import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (I)
 import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I)
 import Daml.Finance.Interface.Types.Common (Id, Parties)
-import Daml.Finance.Interface.Types.Date.Calendar (BusinessDayAdjustment(..))
+import Daml.Finance.Interface.Types.Date.Calendar
 import Daml.Finance.Interface.Types.Date.Classes (toUTCTime)
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
+import Daml.Finance.Interface.Types.Date.RollConvention
 import Daml.Finance.Interface.Types.Date.Schedule (Frequency(..), PeriodicSchedule(..), Schedule, SchedulePeriod)
 import Daml.Finance.Interface.Types.Fpml
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, flattenObservers)
 import Daml.Finance.Lifecycle.Effect (Effect(..))
 import Daml.Finance.Lifecycle.Types (Unit(..))
+import Daml.Finance.Util.Date.Calendar (addBusinessDays, merge)
 import Daml.Finance.Util.Date.DayCount (calcPeriodDcf)
 import Daml.Finance.Util.Date.Schedule (createSchedule)
 import Prelude hiding (key)
 
 -- | Retrieve holiday calendar(s) from the ledger and roll out the payment schedule.
-rollPaymentSchedule : PeriodicSchedule -> [Text] -> Party -> Party -> Update Schedule
-rollPaymentSchedule periodicSchedule holidayCalendarIds issuer calendarDataAgency = do
+getHolidayCalendars : [Text] -> Party -> Party -> Update [HolidayCalendarData]
+getHolidayCalendars holidayCalendarIds issuer calendarDataAgency = do
   let
     -- get a holiday calendar from the ledger
     getCalendar holidayCalendarId = do
@@ -45,7 +47,12 @@ rollPaymentSchedule periodicSchedule holidayCalendarIds issuer calendarDataAgenc
           agency = calendarDataAgency
           entity = holidayCalendarId
   -- Get the holiday calendars
-  cals <- mapA getCalendar holidayCalendarIds
+  mapA getCalendar holidayCalendarIds
+
+-- | Retrieve holiday calendar(s) from the ledger and roll out the payment schedule.
+rollPaymentSchedule : PeriodicSchedule -> [Text] -> Party -> Party -> Update Schedule
+rollPaymentSchedule periodicSchedule holidayCalendarIds issuer calendarDataAgency = do
+  cals <- getHolidayCalendars holidayCalendarIds issuer calendarDataAgency
   pure $ createSchedule cals periodicSchedule
 
 -- | Convert the claims to UTCTime and tag them.
@@ -163,14 +170,37 @@ createPaymentPeriodicSchedule s = do
   periodicSchedule
 
 -- | Create claims from swapStream that describes a fix coupon stream.
+calculateClaimsFromFixSwapStream : SwapStream -> PeriodicSchedule -> [SchedulePeriod] -> Bool -> Bool -> Deliverable -> Update TaggedClaim
 calculateClaimsFromFixSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg currency = do
   let f = fromSome s.calculationPeriodAmount.calculation.fixedRateSchedule
   pure $ createFixRatePaymentClaims streamSchedule periodicSchedule useAdjustedDatesForDcf f.initialValue issuerPaysLeg s.calculationPeriodAmount.calculation.dayCountFraction currency
 
+-- | Calculate a floating rate amount for each payment date and create claims.
+-- The floating rate is observed according to the FpML ResetDates component and used for the corresponding payment on the last day of that payment period.
+-- This function is under construction and can probably be merged with createFloatingRatePaymentClaims above once all necessary FpML features have been implemented.
+createFloatingRatePaymentClaimsFpml : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Deliverable -> Observable -> [HolidayCalendarData] -> SwapStream -> Update TaggedClaim
+createFloatingRatePaymentClaimsFpml schedule periodicSchedule useAdjustedDatesForDcf floatingRateSpread issuerPays dayCountConvention cashInstrumentCid referenceRateId fixingCalendars s = do
+  let
+    resetDates = fromSome s.resetDates
+  assertMsg "Only daily fixing date period supported" (resetDates.fixingDates.period == D)
+  assertMsg "Only Business day type supported" (resetDates.fixingDates.dayType == Business)
+  assertMsg "No adjustement (besides business day type) supported" (resetDates.fixingDates.businessDayConvention == NoAdjustment)
+  let
+    fixingDates = map (\p -> addBusinessDays (merge fixingCalendars) resetDates.fixingDates.periodMultiplier p.adjustedStartDate) schedule
+    floatingClaimAmounts = mconcat $ map (\(p,f) ->
+      when (TimeGte f) $ scale ((Observe referenceRateId + Const floatingRateSpread) * (Const (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency))) $
+      when (TimeGte p.adjustedEndDate) $ one cashInstrumentCid) $ zip schedule fixingDates
+    floatingClaims = if issuerPays then floatingClaimAmounts else give floatingClaimAmounts
+  pure $ prepareAndTagClaims [floatingClaims] "Floating rate payment"
+
 -- | Create claims from swapStream that describes a floating coupon stream.
-calculateClaimsFromFloatingSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg currency = do
-  let f = fromSome s.calculationPeriodAmount.calculation.floatingRateCalculation
-  pure $ createFloatingRatePaymentClaims streamSchedule periodicSchedule useAdjustedDatesForDcf f.spreadSchedule.initialValue issuerPaysLeg s.calculationPeriodAmount.calculation.dayCountFraction currency f.floatingRateIndex
+calculateClaimsFromFloatingSwapStream : SwapStream -> PeriodicSchedule -> [SchedulePeriod] -> Bool -> Bool -> Deliverable -> Party -> Party -> Update TaggedClaim
+calculateClaimsFromFloatingSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg currency issuer calendarDataAgency = do
+  let
+    f = fromSome s.calculationPeriodAmount.calculation.floatingRateCalculation
+    resetDates = fromSome s.resetDates
+  fixingCalendars <- getHolidayCalendars resetDates.fixingDates.businessCenters issuer calendarDataAgency
+  createFloatingRatePaymentClaimsFpml streamSchedule periodicSchedule useAdjustedDatesForDcf f.spreadSchedule.initialValue issuerPaysLeg s.calculationPeriodAmount.calculation.dayCountFraction currency f.floatingRateIndex fixingCalendars s
 
 -- | HIDE
 -- Type-class constraint verified by the bond templates.
