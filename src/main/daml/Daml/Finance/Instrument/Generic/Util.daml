@@ -6,6 +6,7 @@ module Daml.Finance.Instrument.Generic.Util where
 import ContingentClaims.Claim (Claim(..), Inequality(..), give, one, scale, upTo, when, until)
 import ContingentClaims.Observation (Observation(..))
 import DA.Date
+import DA.List (head, (!!))
 import DA.Optional (fromOptional, fromSome, isNone, isSome)
 import DA.Record (HasField)
 import DA.Set (fromList)
@@ -175,19 +176,49 @@ calculateClaimsFromFixSwapStream s periodicSchedule streamSchedule useAdjustedDa
   let f = fromSome s.calculationPeriodAmount.calculation.fixedRateSchedule
   pure $ createFixRatePaymentClaims streamSchedule periodicSchedule useAdjustedDatesForDcf f.initialValue issuerPaysLeg s.calculationPeriodAmount.calculation.dayCountFraction currency
 
---getStubRateFromFpml : SwapStream -> Bool -> Decimal
-getStubRateFromFpml s initialStub = do
-  let
-    sc = fromSome s.stubCalculationPeriodAmount
-    is = fromSome sc.initialStub
-    sr = fromSome is.stubRate
-{-
-  if isSome sc
-    is
-  else
-    None -}
 
-  Some (Const sr)
+--getStubRateFromFpml : SwapStream -> Bool -> Decimal
+getSingleStubRateFromFpml floatingRate = do
+  Some (Observe (floatingRate.floatingRateIndex))
+
+--getStubRateFromFpml : SwapStream -> Bool -> Decimal
+-- https://www.isda.org/a/aWkgE/Linear-interpolation-04022022.pdf
+getInterpolatedStubRateFromFpml fr1 fr2 = do
+  let
+    nDays = 47
+    n1 = 30
+    n2 = 90
+    d1 = nDays - n1
+    d2 = n2 - nDays
+    w1 = intToDecimal d2 / intToDecimal (d1 + d2)
+    --w1 : Decimal = 0.5
+    w2 = 1.0 - w1
+  Some (Const w1 * Observe (fr1.floatingRateIndex) + Const w2 * Observe (fr2.floatingRateIndex))
+
+--getStubRateFromFpml : SwapStream -> Bool -> Decimal
+getStubRateFloatingFromFpml floatingRates = do
+  if length floatingRates == 1 then
+    getSingleStubRateFromFpml (head floatingRates)
+  else if length floatingRates == 2 then
+    getInterpolatedStubRateFromFpml (floatingRates !! 0) (floatingRates !! 1)
+  else
+    error "only one or two floating stub rates supported"
+
+--getStubRateFromFpml : SwapStream -> Bool -> Decimal
+getStubRateFromFpml sc initialStub p = do
+  let
+    stubUsed = if initialStub then sc.initialStub else sc.finalStub
+    -- todo: verify that stubUsed is set
+    is = fromSome stubUsed
+  if isSome is.stubRate then -- todo: verify that only 1 of stubRate and floatingRate is set, but not 0 or 2
+    Some (Const (fromSome is.stubRate))
+  else if isSome is.floatingRate then
+    getStubRateFloatingFromFpml (fromSome is.floatingRate)
+    --Some (Const a)
+  else
+    None
+
+  --Some (Const sr)
 
 -- | Calculate a floating rate amount for each payment date and create claims.
 -- The floating rate is observed according to the FpML ResetDates component and used for the corresponding payment on the last day of that payment period.
@@ -209,9 +240,9 @@ createFloatingRatePaymentClaimsFpml schedule periodicSchedule useAdjustedDatesFo
           rate =
             if isNone p.stubType || isNone s.stubCalculationPeriodAmount then regularRate
             else if fromSome p.stubType == LongInitial || fromSome p.stubType == ShortInitial then
-              fromOptional regularRate (getStubRateFromFpml s True)
+              fromOptional regularRate (getStubRateFromFpml (fromSome s.stubCalculationPeriodAmount) True p)
             else if fromSome p.stubType == LongFinal || fromSome p.stubType == ShortFinal then
-              fromOptional regularRate (getStubRateFromFpml s False)
+              fromOptional regularRate (getStubRateFromFpml (fromSome s.stubCalculationPeriodAmount) False p)
             else error "stub type not supported"
     floatingClaimAmounts = mconcat $ map createClaim $ zip schedule fixingDates
     floatingClaims = if issuerPays then floatingClaimAmounts else give floatingClaimAmounts
