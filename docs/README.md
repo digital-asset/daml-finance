@@ -10,8 +10,7 @@ Theme is copied from Daml Docs theme.
 
 2. Install `pyenv` for Python version management with `brew install pyenv`.
 
-3. Install `pipx` with `brew install pipenv`. This should install the `pipenv` binary for virtual
-   environments management.
+3. Install `pipenv` for virtual environment management with `brew install pipenv`.
 
 4. Navigate to the root folder of the repository.
 
