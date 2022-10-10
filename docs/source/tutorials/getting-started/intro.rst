@@ -30,7 +30,7 @@ executing the following command:
 Daml Finance Reference App
 **************************
 
-In addition to Daml Finance there also a separate Daml Finance Reference App.
+In addition to Daml Finance, there also a separate Daml Finance Reference App.
 It showcases several of the Daml Finance capabilites in a web based graphical user interface.
 
 If you are interested in trying out the Daml Finance Reference App locally, you can clone the repo
