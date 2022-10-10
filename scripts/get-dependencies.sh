@@ -62,7 +62,7 @@ else
 
         echo -e "\nAdding ${file_name} to the cache..."
         mkdir -p ${cache_dependency_path} && cp ${project_root_dir}/${dependency_path} ${cache_dependency_path}/${file_name}
-      elif [[ `awk '{ match($0, /^\.lib\/daml-finance\/Daml.Finance.[a-zA-Z\.]*\/v?[0-9\.]*\/daml-finance-[a-zA-Z0-9\.\-]*\.dar$/); print RLENGTH }' <<< ${dependency_path}` -ne -1 ]]; then
+      else
         echo "Attempting to get dependency ${file_name} locally..."
         package_name=$(echo ${tag} | cut -f1 -d/)
         if ( ls ${package_root_dir}/${package_name}/.daml/dist/${file_name} 1> /dev/null 2>&1 ); then
@@ -71,9 +71,6 @@ else
           echo -e "${red}ERROR: Unable to locally locate dependency ${file_name}. Ensure this dependency has been successfully built.${colour_off}"
           exit 1
         fi
-      else
-        echo -e "${red}ERROR: Unable to locate dependency - ${file_name}.${colour_off}"
-        exit 1
       fi
 
       echo -e "Dependency ${file_name} installed successfully and saved to ${project_root_dir}/${dependency_path}.\n"
