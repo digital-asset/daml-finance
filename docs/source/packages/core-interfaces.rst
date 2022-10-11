@@ -41,15 +41,14 @@ Core Interfaces
 
     This package contains the *interface* for lifecycle related processes. It contains the following modules:
 
-    - :ref:`Event <module-daml-finance-interface-lifecycle-event-43586>`: Interface for a lifecycle event, for example that a bond will pay a coupon on a given date
+    - :ref:`Event <module-daml-finance-interface-lifecycle-event-43586>`: Interface for a lifecycle event. An event is any contract that triggers the processing of a lifecycle rule. Events can be e.g. dividend announcements or simply the passing of time.
     - :ref:`Effect <module-daml-finance-interface-lifecycle-effect-16050>`: Interface for contracts exposing effects of lifecycling processes, e.g. the payment resulting from a bond coupon
-    - :ref:`Clock <module-daml-finance-interface-lifecycle-clock-75180>`: Interface for a clock that is used to control time-based events
     - :ref:`Rule.Claim <module-daml-finance-interface-lifecycle-rule-claim-6739>`: Interface for contracts that allow holders to claim an ``Effect`` and generate settlement instructions
     - :ref:`Rule.Lifecycle <module-daml-finance-interface-lifecycle-rule-lifecycle-50431>`: Interface implemented by instruments that can be lifecycled
 
     The :doc:`Lifecycling <../concepts/lifecycling>` page contains an overview of the lifecycle process and explains the relationship between events, lifecycle rules and effects.
     Check out the :doc:`Lifecycling tutorial <../tutorials/getting-started/lifecycling>` for a description on how lifecycling works in practice.
-    There is also the tutorial :doc:`How to implement a Contingent Claims-based instrument <../tutorials/instrument-modeling/contingent-claims-instrument>`, which describes how claims are defined, how to use an ``Observable``, and how the ``Lifecycle`` interface is implemented for bonds.
+    There is also the tutorial :doc:`How to implement a Contingent Claims-based instrument <../tutorials/instrument-modeling/contingent-claims-instrument>`, which describes how claims are defined, how to use a ``NumericObservable``, and how the ``Lifecycle`` interface is implemented for bonds.
 
 - ``Daml.Finance.Interface.Types``
 
@@ -73,9 +72,10 @@ Core Interfaces
 
 - ``Daml.Finance.Interface.Data``
 
-    This package contains the *interface* for inspecting numerical values, used for lifecycling instruments. It contains the following module:
+    This package contains the *interface* for inspecting observables. These are used in the context of lifecycling. It contains the following modules:
 
-    - :ref:`Observable <module-daml-finance-interface-data-observable-1199>`: Inferface to inspect numerical values (e.g. a stock price or an interest rate) required when processing a lifecycle rule
+    - :ref:`NumericObservable <module-daml-finance-interface-data-numericobservable-76523>`: Interface to inspect time-dependent numerical values (e.g. a stock price or an interest rate fixing)
+    - :ref:`TimeObservable <module-daml-finance-interface-data-timeobservable-98854>`: Interface implemented by templates exposing time information
 
 - ``Daml.Finance.Interface.Util``
 
