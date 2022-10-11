@@ -201,7 +201,7 @@ getInterpolatedStubRateFromFpml fr1 fr2 p cal convention = do
     w2 = 1.0 - w1
   -- In the ISDA paper, the following expression is used for linear interpolation:
   --Some (Observe (fr1.floatingRateIndex) + (Observe (fr2.floatingRateIndex) - Observe (fr1.floatingRateIndex)) * Const (intToDecimal (tn - t1) / intToDecimal (t2 - t1)))
-  -- This expression above can be simplified to:
+  -- This expression can be simplified to:
   Some (Const w1 * Observe (fr1.floatingRateIndex) + Const w2 * Observe (fr2.floatingRateIndex))
 
 -- | Get the floating stub rate to be used for a stub period.
@@ -214,7 +214,7 @@ getStubRateFloatingFromFpml floatingRates p cal convention = do
     error "only one or two floating stub rates supported"
 
 -- | Get the stub rate to be used for a stub period.
--- Currently, three main options are supported:
+-- Currently, three main options from the FpML schema are supported:
 -- 1. A fix stubRate.
 -- 2. One or two floating rates for the stub.
 -- 3. No specific stub rate defined -> use the same rate as is used for regular periods.
@@ -232,7 +232,7 @@ getStubRateFromFpml sc initialStub p cal convention = do
 -- | Calculate a floating rate amount for each payment date and create claims.
 -- The floating rate is observed according to the FpML ResetDates component and used for the corresponding payment on the last day of that payment period.
 -- This function is under construction and can probably be merged with createFloatingRatePaymentClaims above once all necessary FpML features have been implemented.
-createFloatingRatePaymentClaimsFpml : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Deliverable -> Observable -> [HolidayCalendarData] -> SwapStream -> Update TaggedClaim
+createFloatingRatePaymentClaimsFpml : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Deliverable -> Observable -> HolidayCalendarData -> SwapStream -> Update TaggedClaim
 createFloatingRatePaymentClaimsFpml schedule periodicSchedule useAdjustedDatesForDcf floatingRateSpread issuerPays dayCountConvention cashInstrumentCid referenceRateId fixingCalendars s = do
   let
     resetDates = fromSome s.resetDates
@@ -241,7 +241,7 @@ createFloatingRatePaymentClaimsFpml schedule periodicSchedule useAdjustedDatesFo
   assertMsg "Only Business day type supported" (resetDates.fixingDates.dayType == Business)
   assertMsg "No adjustement (besides business day type) supported" (resetDates.fixingDates.businessDayConvention == NoAdjustment)
   let
-    fixingDates = map (\p -> addBusinessDays (merge fixingCalendars) resetDates.fixingDates.periodMultiplier p.adjustedStartDate) schedule
+    fixingDates = map (\p -> addBusinessDays fixingCalendars resetDates.fixingDates.periodMultiplier p.adjustedStartDate) schedule
     createClaim (p,f) =
       when (TimeGte f) $ scale (rate * (Const (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency))) $
       when (TimeGte p.adjustedEndDate) $ one cashInstrumentCid
@@ -250,9 +250,9 @@ createFloatingRatePaymentClaimsFpml schedule periodicSchedule useAdjustedDatesFo
           rate =
             if isNone p.stubType || isNone s.stubCalculationPeriodAmount then regularRate
             else if fromSome p.stubType == LongInitial || fromSome p.stubType == ShortInitial then
-              fromOptional regularRate (getStubRateFromFpml (fromSome s.stubCalculationPeriodAmount) True p (merge fixingCalendars) bdc)
+              fromOptional regularRate (getStubRateFromFpml (fromSome s.stubCalculationPeriodAmount) True p fixingCalendars bdc)
             else if fromSome p.stubType == LongFinal || fromSome p.stubType == ShortFinal then
-              fromOptional regularRate (getStubRateFromFpml (fromSome s.stubCalculationPeriodAmount) False p (merge fixingCalendars) bdc)
+              fromOptional regularRate (getStubRateFromFpml (fromSome s.stubCalculationPeriodAmount) False p fixingCalendars bdc)
             else error "stub type not supported"
     floatingClaimAmounts = mconcat $ map createClaim $ zip schedule fixingDates
     floatingClaims = if issuerPays then floatingClaimAmounts else give floatingClaimAmounts
@@ -265,7 +265,7 @@ calculateClaimsFromFloatingSwapStream s periodicSchedule streamSchedule useAdjus
     f = fromSome s.calculationPeriodAmount.calculation.floatingRateCalculation
     resetDates = fromSome s.resetDates
   fixingCalendars <- getHolidayCalendars resetDates.fixingDates.businessCenters issuer calendarDataAgency
-  createFloatingRatePaymentClaimsFpml streamSchedule periodicSchedule useAdjustedDatesForDcf f.spreadSchedule.initialValue issuerPaysLeg s.calculationPeriodAmount.calculation.dayCountFraction currency f.floatingRateIndex fixingCalendars s
+  createFloatingRatePaymentClaimsFpml streamSchedule periodicSchedule useAdjustedDatesForDcf f.spreadSchedule.initialValue issuerPaysLeg s.calculationPeriodAmount.calculation.dayCountFraction currency f.floatingRateIndex (merge fixingCalendars) s
 
 -- | HIDE
 -- Type-class constraint verified by the bond templates.
