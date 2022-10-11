@@ -33,7 +33,9 @@ import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, flatte
 import Daml.Finance.Lifecycle.Effect (Effect(..))
 import Daml.Finance.Lifecycle.Types (Unit(..))
 import Daml.Finance.Util.Date.Calendar (addBusinessDays, merge)
+import Daml.Finance.Util.Date.Calendar (adjustDate)
 import Daml.Finance.Util.Date.DayCount (calcPeriodDcf)
+import Daml.Finance.Util.Date.RollConvention (addPeriod)
 import Daml.Finance.Util.Date.Schedule (createSchedule)
 import Prelude hiding (key)
 
@@ -183,37 +185,38 @@ getSingleStubRateFromFpml floatingRate = do
 
 --getStubRateFromFpml : SwapStream -> Bool -> Decimal
 -- https://www.isda.org/a/aWkgE/Linear-interpolation-04022022.pdf
-getInterpolatedStubRateFromFpml fr1 fr2 = do
+getInterpolatedStubRateFromFpml fr1 fr2 p cal convention = do
   let
-    nDays = 70
-    t1 = 31
-    t2 = 91
-    d1 = nDays - t1
-    d2 = t2 - nDays
+    tenor1 = fromSome fr1.indexTenor
+    tenor2 = fromSome fr2.indexTenor
+    s = p.adjustedStartDate
+    p1 = adjustDate cal convention (addPeriod s tenor1)
+    p2 = adjustDate cal convention (addPeriod s tenor2)
+    tn = subDate p.adjustedEndDate p.adjustedStartDate
+    t1 = subDate p1 s
+    t2 = subDate p2 s
+    d1 = tn - t1
+    d2 = t2 - tn
     w1 = intToDecimal d2 / intToDecimal (d1 + d2)
-    --w1 : Decimal = 0.5
     w2 = 1.0 - w1
-    w3 = intToDecimal (nDays - t1) / intToDecimal (t2-t1)
-  debug w3
-  --
 
   -- In the ISDA paper, the following expression is used for linear interpolation:
-  -- Some (Observe (fr1.floatingRateIndex) + (Observe (fr2.floatingRateIndex) - Observe (fr1.floatingRateIndex)) * Const (intToDecimal (nDays - t1) / intToDecimal (t2-t1)))
+  --Some (Observe (fr1.floatingRateIndex) + (Observe (fr2.floatingRateIndex) - Observe (fr1.floatingRateIndex)) * Const (intToDecimal (tn - t1) / intToDecimal (t2 - t1)))
 
   -- The expression above can be simplified to:
   Some (Const w1 * Observe (fr1.floatingRateIndex) + Const w2 * Observe (fr2.floatingRateIndex))
 
 --getStubRateFromFpml : SwapStream -> Bool -> Decimal
-getStubRateFloatingFromFpml floatingRates = do
+getStubRateFloatingFromFpml floatingRates p cal convention = do
   if length floatingRates == 1 then
     getSingleStubRateFromFpml (head floatingRates)
   else if length floatingRates == 2 then
-    getInterpolatedStubRateFromFpml (floatingRates !! 0) (floatingRates !! 1)
+    getInterpolatedStubRateFromFpml (floatingRates !! 0) (floatingRates !! 1) p cal convention
   else
     error "only one or two floating stub rates supported"
 
 --getStubRateFromFpml : SwapStream -> Bool -> Decimal
-getStubRateFromFpml sc initialStub p = do
+getStubRateFromFpml sc initialStub p cal convention = do
   let
     stubUsed = if initialStub then sc.initialStub else sc.finalStub
     -- todo: verify that stubUsed is set
@@ -221,7 +224,7 @@ getStubRateFromFpml sc initialStub p = do
   if isSome is.stubRate then -- todo: verify that only 1 of stubRate and floatingRate is set, but not 0 or 2
     Some (Const (fromSome is.stubRate))
   else if isSome is.floatingRate then
-    getStubRateFloatingFromFpml (fromSome is.floatingRate)
+    getStubRateFloatingFromFpml (fromSome is.floatingRate) p cal convention
     --Some (Const a)
   else
     None
@@ -235,6 +238,7 @@ createFloatingRatePaymentClaimsFpml : [SchedulePeriod] -> PeriodicSchedule -> Bo
 createFloatingRatePaymentClaimsFpml schedule periodicSchedule useAdjustedDatesForDcf floatingRateSpread issuerPays dayCountConvention cashInstrumentCid referenceRateId fixingCalendars s = do
   let
     resetDates = fromSome s.resetDates
+    bdc = s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessDayConvention
   assertMsg "Only daily fixing date period supported" (resetDates.fixingDates.period == D)
   assertMsg "Only Business day type supported" (resetDates.fixingDates.dayType == Business)
   assertMsg "No adjustement (besides business day type) supported" (resetDates.fixingDates.businessDayConvention == NoAdjustment)
@@ -248,9 +252,9 @@ createFloatingRatePaymentClaimsFpml schedule periodicSchedule useAdjustedDatesFo
           rate =
             if isNone p.stubType || isNone s.stubCalculationPeriodAmount then regularRate
             else if fromSome p.stubType == LongInitial || fromSome p.stubType == ShortInitial then
-              fromOptional regularRate (getStubRateFromFpml (fromSome s.stubCalculationPeriodAmount) True p)
+              fromOptional regularRate (getStubRateFromFpml (fromSome s.stubCalculationPeriodAmount) True p (merge fixingCalendars) bdc)
             else if fromSome p.stubType == LongFinal || fromSome p.stubType == ShortFinal then
-              fromOptional regularRate (getStubRateFromFpml (fromSome s.stubCalculationPeriodAmount) False p)
+              fromOptional regularRate (getStubRateFromFpml (fromSome s.stubCalculationPeriodAmount) False p (merge fixingCalendars) bdc)
             else error "stub type not supported"
     floatingClaimAmounts = mconcat $ map createClaim $ zip schedule fixingDates
     floatingClaims = if issuerPays then floatingClaimAmounts else give floatingClaimAmounts
