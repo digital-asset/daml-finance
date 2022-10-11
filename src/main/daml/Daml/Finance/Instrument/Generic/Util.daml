@@ -6,8 +6,6 @@ module Daml.Finance.Instrument.Generic.Util where
 import ContingentClaims.Claim (Claim(..), Inequality(..), give, one, scale, upTo, when, until)
 import ContingentClaims.Observation (Observation(..))
 import DA.Date
-import DA.List (head, (!!))
-import DA.Optional (fromOptional, fromSome, isNone, isSome)
 import DA.Record (HasField)
 import DA.Set (fromList)
 import DA.Text (sha256)
@@ -26,16 +24,12 @@ import Daml.Finance.Interface.Types.Common (Id, Parties)
 import Daml.Finance.Interface.Types.Date.Calendar
 import Daml.Finance.Interface.Types.Date.Classes (toUTCTime)
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
-import Daml.Finance.Interface.Types.Date.RollConvention
-import Daml.Finance.Interface.Types.Date.Schedule (Frequency(..), PeriodicSchedule(..), Schedule, SchedulePeriod, StubPeriodTypeEnum(..))
+import Daml.Finance.Interface.Types.Date.Schedule (Frequency(..), PeriodicSchedule(..), Schedule, SchedulePeriod)
 import Daml.Finance.Interface.Types.Fpml
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, flattenObservers)
 import Daml.Finance.Lifecycle.Effect (Effect(..))
 import Daml.Finance.Lifecycle.Types (Unit(..))
-import Daml.Finance.Util.Date.Calendar (addBusinessDays, merge)
-import Daml.Finance.Util.Date.Calendar (adjustDate)
 import Daml.Finance.Util.Date.DayCount (calcPeriodDcf)
-import Daml.Finance.Util.Date.RollConvention (addPeriod)
 import Daml.Finance.Util.Date.Schedule (createSchedule)
 import Prelude hiding (key)
 
@@ -171,99 +165,6 @@ createPaymentPeriodicSchedule s = do
       stubPeriodType = None
       terminationDate = s.calculationPeriodDates.terminationDate
   periodicSchedule
-
--- | Create claims from swapStream that describes a fix coupon stream.
-calculateClaimsFromFixSwapStream : SwapStream -> PeriodicSchedule -> [SchedulePeriod] -> Bool -> Bool -> Deliverable -> Update TaggedClaim
-calculateClaimsFromFixSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg currency = do
-  let f = fromSome s.calculationPeriodAmount.calculation.fixedRateSchedule
-  pure $ createFixRatePaymentClaims streamSchedule periodicSchedule useAdjustedDatesForDcf f.initialValue issuerPaysLeg s.calculationPeriodAmount.calculation.dayCountFraction currency
-
--- | Rule when one specific floating rate is provided for a stub period.
-getSingleStubRateFromFpml floatingRate = do
-  Some (Observe floatingRate.floatingRateIndex)
-
--- | Rule when two specific floating rates are provided for a stub period.
--- In this case, linear interpolation should be used, as specified here:
--- https://www.isda.org/a/aWkgE/Linear-interpolation-04022022.pdf
-getInterpolatedStubRateFromFpml fr1 fr2 p cal convention = do
-  let
-    tenor1 = fromSome fr1.indexTenor
-    tenor2 = fromSome fr2.indexTenor
-    s = p.adjustedStartDate
-    p1 = adjustDate cal convention (addPeriod s tenor1)
-    p2 = adjustDate cal convention (addPeriod s tenor2)
-    tn = subDate p.adjustedEndDate s
-    t1 = subDate p1 s
-    t2 = subDate p2 s
-    d1 = tn - t1
-    d2 = t2 - tn
-    w1 = intToDecimal d2 / intToDecimal (d1 + d2)
-    w2 = 1.0 - w1
-
-  -- In the ISDA paper, the following expression is used for linear interpolation:
-  --Some (Observe (fr1.floatingRateIndex) + (Observe (fr2.floatingRateIndex) - Observe (fr1.floatingRateIndex)) * Const (intToDecimal (tn - t1) / intToDecimal (t2 - t1)))
-
-  -- This expression can be simplified to:
-  Some (Const w1 * Observe (fr1.floatingRateIndex) + Const w2 * Observe (fr2.floatingRateIndex))
-
--- | Get the floating stub rate to be used for a stub period.
-getStubRateFloatingFromFpml floatingRates p cal convention = do
-  if length floatingRates == 1 then
-    getSingleStubRateFromFpml (head floatingRates)
-  else if length floatingRates == 2 then
-    getInterpolatedStubRateFromFpml (floatingRates !! 0) (floatingRates !! 1) p cal convention
-  else
-    error "only one or two floating stub rates supported"
-
--- | Get the stub rate to be used for a stub period.
--- Currently, three main options from the FpML schema are supported:
--- 1. A fix stubRate.
--- 2. One or two floating rates for the stub.
--- 3. No specific stub rate defined -> use the same rate as is used for regular periods.
-getStubRateFromFpml sc initialStub p cal convention = do
-  let s = if initialStub then fromSome sc.initialStub else fromSome sc.finalStub
-  if isSome s.stubRate && isSome s.floatingRate then error "both stubRate and floatingRate provided"
-  else if isSome s.stubRate then Some (Const (fromSome s.stubRate))
-  else if isSome s.floatingRate then getStubRateFloatingFromFpml (fromSome s.floatingRate) p cal convention
-  else None
-
--- | Calculate a floating rate amount for each payment date and create claims.
--- The floating rate is observed according to the FpML ResetDates component and used for the corresponding payment on the last day of that payment period.
--- This function is under construction and can probably be merged with createFloatingRatePaymentClaims above once all necessary FpML features have been implemented.
-createFloatingRatePaymentClaimsFpml : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Deliverable -> Observable -> HolidayCalendarData -> SwapStream -> Update TaggedClaim
-createFloatingRatePaymentClaimsFpml schedule periodicSchedule useAdjustedDatesForDcf floatingRateSpread issuerPays dayCountConvention cashInstrumentCid referenceRateId fixingCalendars s = do
-  let
-    resetDates = fromSome s.resetDates
-    bdc = s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessDayConvention
-  assertMsg "Only daily fixing date period supported" (resetDates.fixingDates.period == D)
-  assertMsg "Only Business day type supported" (resetDates.fixingDates.dayType == Business)
-  assertMsg "No adjustement (besides business day type) supported" (resetDates.fixingDates.businessDayConvention == NoAdjustment)
-  let
-    fixingDates = map (\p -> addBusinessDays fixingCalendars resetDates.fixingDates.periodMultiplier p.adjustedStartDate) schedule
-    createClaim (p,f) =
-      when (TimeGte f) $ scale (rate * (Const (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency))) $
-      when (TimeGte p.adjustedEndDate) $ one cashInstrumentCid
-        where
-          regularRate = Observe referenceRateId + Const floatingRateSpread
-          rate =
-            if isNone p.stubType || isNone s.stubCalculationPeriodAmount then regularRate
-            else if fromSome p.stubType == LongInitial || fromSome p.stubType == ShortInitial then
-              fromOptional regularRate (getStubRateFromFpml (fromSome s.stubCalculationPeriodAmount) True p fixingCalendars bdc)
-            else if fromSome p.stubType == LongFinal || fromSome p.stubType == ShortFinal then
-              fromOptional regularRate (getStubRateFromFpml (fromSome s.stubCalculationPeriodAmount) False p fixingCalendars bdc)
-            else error "stub type not supported"
-    floatingClaimAmounts = mconcat $ map createClaim $ zip schedule fixingDates
-    floatingClaims = if issuerPays then floatingClaimAmounts else give floatingClaimAmounts
-  pure $ prepareAndTagClaims [floatingClaims] "Floating rate payment"
-
--- | Create claims from swapStream that describes a floating coupon stream.
-calculateClaimsFromFloatingSwapStream : SwapStream -> PeriodicSchedule -> [SchedulePeriod] -> Bool -> Bool -> Deliverable -> Party -> Party -> Update TaggedClaim
-calculateClaimsFromFloatingSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg currency issuer calendarDataAgency = do
-  let
-    f = fromSome s.calculationPeriodAmount.calculation.floatingRateCalculation
-    resetDates = fromSome s.resetDates
-  fixingCalendars <- getHolidayCalendars resetDates.fixingDates.businessCenters issuer calendarDataAgency
-  createFloatingRatePaymentClaimsFpml streamSchedule periodicSchedule useAdjustedDatesForDcf f.spreadSchedule.initialValue issuerPaysLeg s.calculationPeriodAmount.calculation.dayCountFraction currency f.floatingRateIndex (merge fixingCalendars) s
 
 -- | HIDE
 -- Type-class constraint verified by the bond templates.
