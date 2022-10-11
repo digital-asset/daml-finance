@@ -48,17 +48,16 @@ run = script do
   TestParties{..} <- setupParties
 
   -- Account and holding factory
-  let fp = [("FactoryProvider", singleton publicParty)]
-  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank fp
+  let pp = [("PublicParty", singleton publicParty)]
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank pp
   holdingFactoryCid <- toInterfaceContractId <$> submit bank do
-    createCmd Fungible.Factory with provider = bank; observers = M.fromList fp
+    createCmd Fungible.Factory with provider = bank; observers = M.fromList pp
 
   -- Create accounts
-  [bankOwnAccount, investorAccount] <- mapA (Account.createAccount "Default Account" [publicParty] accountFactoryCid holdingFactoryCid [] Account.Owner bank) [bank, investor]
+  [bankOwnAccount, investorAccount] <- mapA (Account.createAccount "Default Account" [] accountFactoryCid holdingFactoryCid [] Account.Owner bank) [bank, investor]
 
   -- Distribute cash
   now <- getTime
-  let pp = [("PublicParty", singleton publicParty)]
   cashInstrument <- Instrument.originate centralBank centralBank "USD" "United States Dollar" pp now
   bankCashTransferableCid <- Account.credit [publicParty] cashInstrument 50_000.0 bankOwnAccount
 
@@ -66,7 +65,7 @@ run = script do
   let
     maturity = addDays (toDateUTC now) 1
     observations = M.fromList [(dateToDateClockTime maturity, 200.0)]
-  observableCid <- coerceContractId <$> submitMulti [broker] [] do createCmd Observation with provider = broker; id = Id "SPOT/AAPL"; observations; observers = M.empty
+  observableCid <- coerceContractId <$> submit broker do createCmd Observation with provider = broker; id = Id "SPOT/AAPL"; observations; observers = M.empty
 
   -- Create and distribute a gerneric derivative
   let
@@ -103,10 +102,10 @@ run = script do
   let [bankCashInstructionCid] = result.instructionCids
 
   -- Allocate instructions
-  (bankCashInstructionCid, _) <- submitMulti [bank] [] do exerciseCmd bankCashInstructionCid Instruction.Allocate with actors = singleton bank; allocation = Pledge bankCashTransferableCid
+  (bankCashInstructionCid, _) <- submit bank do exerciseCmd bankCashInstructionCid Instruction.Allocate with actors = singleton bank; allocation = Pledge bankCashTransferableCid
 
   -- Approve instructions
-  bankCashInstructionCid <- submitMulti [investor] [] do exerciseCmd bankCashInstructionCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorAccount
+  bankCashInstructionCid <- submit investor do exerciseCmd bankCashInstructionCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorAccount
 
   -- Settle batch
   [investorCashTransferableCid] <- submitMulti (toList settlers) [publicParty] do exerciseCmd result.batchCid Batch.Settle with actors = settlers
