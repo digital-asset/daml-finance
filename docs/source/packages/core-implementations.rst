@@ -40,7 +40,6 @@ Core Implementations
 
     - :ref:`Effect <module-daml-finance-lifecycle-effect-1975>`: A contract encoding the *consequences of a lifecycle event* for one unit of the target instrument
     - :ref:`ElectionEffect <module-daml-finance-lifecycle-electioneffect-99924>`: A contract encoding the *consequences of an election* for one unit of the target instrument
-    - :ref:`DateClock <module-daml-finance-lifecycle-dateclock-31311>`: A contract specifying what is the current local date. It is used to inject date information in lifecycle processing rules
     - :ref:`Rule.Claim <module-daml-finance-lifecycle-rule-claim-99318>`: Rule contract that allows an actor to process/claim effects, returning settlement instructions
     - :ref:`Rule.Distribution <module-daml-finance-lifecycle-rule-distribution-35531>`: Rule contract that defines the distribution of units of an instrument for each unit of a target instrument (e.g. share or cash dividends)
     - :ref:`Rule.Replacement <module-daml-finance-lifecycle-rule-replacement-6984>`: Rule contract that defines the replacement of units of an instrument with a basket of other instruments (e.g. stock merger)
@@ -55,10 +54,11 @@ Core Implementations
 
 - ``Daml.Finance.Data``
 
-    This package contains the *implementation* of observable or reference data related workflows. It contains the following modules:
+    This package implements templates containing reference data. It includes the following modules:
 
-    - :ref:`Observation <module-daml-finance-data-observable-observation-7524>`: An implementation of ``Observable`` that explicitly stores time-dependent numerical values (e.g. equity or rate fixings)
+    - :ref:`Observation <module-daml-finance-data-observable-observation-7524>`: An implementation of an ``Observation`` that explicitly stores time-dependent numerical values on the ledger. It can be used to e.g. store equity or rate fixings
     - :ref:`HolidayCalendar <module-daml-finance-data-reference-holidaycalendar-10773>`: Holiday calendar of an entity (typically an exchange or a currency)
+    - :ref:`DateClock <module-daml-finance-data-time-dateclock-65212>`: A contract specifying what is the current local date. It is used to inject date information in lifecycle processing rules
 
 - ``Daml.Finance.Util``
 
