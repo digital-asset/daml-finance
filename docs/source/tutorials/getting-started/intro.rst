@@ -11,6 +11,9 @@ Getting Started
    settlement
    lifecycling
 
+Daml Finance
+************
+
 This section explains how some key concepts of Daml Finance work in practice.
 It combines a step by step description of different workflows with supporting code.
 
@@ -23,6 +26,18 @@ executing the following command:
    cd quickstart-finance
    ./get-dependencies.sh
    daml studio
+
+Daml Finance Reference App
+**************************
+
+In addition to Daml Finance, there also a separate Daml Finance Reference App.
+It showcases several of the Daml Finance capabilites in a web-based graphical user interface.
+
+If you are interested in trying out the Daml Finance Reference App locally, you can clone the corresponding repo
+and follow the installation instructions on the `Daml Finance Reference App GitHub page <https://github.com/digital-asset/daml-finance-app>`_.
+
+Next Steps
+**********
 
 The following tutorials are available:
 
