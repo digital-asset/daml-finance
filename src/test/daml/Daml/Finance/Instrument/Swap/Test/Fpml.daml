@@ -137,7 +137,7 @@ run = script do
 
   observableCid <- coerceContractId <$> submitMulti [issuer] [] do createCmd Observation with provider = issuer; id = Id referenceRateId; observations; observers = M.empty
 
-  swapInstrument <- originateFpmlSwap custodian issuer "SwapTest1" "Interest rate swap" fp now swapStreams issueDate holidayCalendarId calendarDataProvider firstPaymentDate maturityDate dayCountConvention businessDayConvention fixRate paymentPeriod paymentPeriodMultiplier cashInstrumentCid referenceRateId issuerPaysFix issuerPartyRef
+  swapInstrument <- originateFpmlSwap custodian issuer "SwapTest1" "Interest rate swap" fp now swapStreams issueDate holidayCalendarId calendarDataProvider firstPaymentDate maturityDate dayCountConvention businessDayConvention paymentPeriod paymentPeriodMultiplier cashInstrumentCid referenceRateId issuerPaysFix issuerPartyRef
 
   -- One day before the first payment date: try to lifecycle and verify that there are no lifecycle effects.
   let settlers = singleton custodian
@@ -296,7 +296,7 @@ runDualStub = script do
 
   observableCid <- coerceContractId <$> submitMulti [issuer] [] do createCmd Observation with provider = issuer; id = Id referenceRateId; observations; observers = M.empty
 
-  swapInstrument <- originateFpmlSwap custodian issuer "SwapTest1" "Interest rate swap" fp now swapStreams issueDate holidayCalendarId calendarDataProvider firstRegularPeriodDate maturityDate dayCountConvention businessDayConvention fixRate paymentPeriod paymentPeriodMultiplier cashInstrumentCid referenceRateId issuerPaysFix issuerPartyRef
+  swapInstrument <- originateFpmlSwap custodian issuer "SwapTest1" "Interest rate swap" fp now swapStreams issueDate holidayCalendarId calendarDataProvider firstRegularPeriodDate maturityDate dayCountConvention businessDayConvention paymentPeriod paymentPeriodMultiplier cashInstrumentCid referenceRateId issuerPaysFix issuerPartyRef
 
   -- One day before the first payment date: try to lifecycle and verify that there are no lifecycle effects.
   let settlers = singleton custodian
@@ -331,5 +331,117 @@ runDualStub = script do
     expectedConsumedQuantities = [Instrument.qty 0.0029414539 cashInstrumentCid]
     expectedProducedQuantities = []
   lifecycleAndVerifySwapPaymentEffects [publicParty] maturityDate swapInstrumentAfterSecondPayment settlers issuer investor observers custodian [observableCid] expectedConsumedQuantities expectedProducedQuantities
+
+  pure ()
+
+-- Verify dual floating rate interpolation for stub period, according to calculation here:
+-- https://www.isda.org/a/aWkgE/Linear-interpolation-04022022.pdf
+runStubRateInterpolation : Script ()
+runStubRateInterpolation = script do
+  [custodian, issuer, investor, calendarDataProvider, publicParty] <-
+    createParties ["Custodian", "Issuer", "Investor", "Calendar Data Provider", "PublicParty"]
+
+  -- Account and holding factory
+  let fp = [("FactoryProvider", singleton publicParty)]
+
+  -- Distribute commercial-bank cash
+  now <- getTime
+  let observers = [("PublicParty", singleton publicParty)]
+  cashInstrumentCid <- Instrument.originate custodian issuer "USD" "US Dollars" observers now
+
+  -- Create and distribute swap
+  -- Fix vs floating interest rate swap: Libor 3M vs 2.01% p.a. payment every 3M
+  let
+    acquisitionTime = date 1970 Jan 01
+    issueDate = date 2022 Jan 10
+    firstRegularPeriodDate = date 2022 Mar 20
+    lastRegularPeriodDate = date 2022 Jun 20
+    maturityDate = date 2022 Jun 20
+    referenceRateId = "USD/LIBOR/3M"
+    referenceRateOneMonthId = "USD/LIBOR/1M"
+    issuerPaysFix = False
+    paymentPeriod = M
+    paymentPeriodMultiplier = 3
+    dayCountConvention = Basis1 -- Use basis 1/1 in order to easily compare the interpolated rate calculation with the ISDA paper
+    businessDayConvention = ModifiedFollowing
+    observations = M.fromList [(dateToDateClockTime (date 2022 Jan 06), 0.0010414), (dateToDateClockTime (date 2022 Mar 17), 0.002035)]
+    observationsOneMonth = M.fromList [(dateToDateClockTime (date 2022 Jan 06), 0.0023129), (dateToDateClockTime (date 2022 Mar 17), 0.002035)]
+    holidayCalendarId = ["USD"]
+    cal =
+      HolidayCalendarData with
+        id = "USD"
+        weekend = [Saturday, Sunday]
+        holidays = [date 2019 Dec 19]
+    fixingHolidayCalendarId = ["LIB"]
+    fixingCal =
+      HolidayCalendarData with
+        id = "LIB"
+        weekend = [Saturday, Sunday]
+        holidays = [date 2019 Jan 14]
+
+    issuerPartyRef = "Counterparty"
+    clientPartyRef = "ExecutingParty"
+
+    swapStreamFloatingLeg = SwapStream with
+      payerPartyReference = issuerPartyRef
+      calculationPeriodDates = CalculationPeriodDates with
+        effectiveDate = issueDate
+        terminationDate = maturityDate
+        calculationPeriodDatesAdjustments = CalculationPeriodDatesAdjustments with
+          businessDayConvention = ModifiedFollowing
+          businessCenters = holidayCalendarId
+        firstRegularPeriodStartDate = Some firstRegularPeriodDate
+        lastRegularPeriodEndDate = Some lastRegularPeriodDate
+        calculationPeriodFrequency = CalculationPeriodFrequency with
+          periodMultiplier = paymentPeriodMultiplier
+          period = paymentPeriod
+          rollConvention = DOM 20
+      resetDates = Some ResetDates with
+        resetRelativeTo = CalculationPeriodStartDate
+        fixingDates = FixingDates with
+          periodMultiplier = -2
+          period = D
+          dayType = Business
+          businessDayConvention = NoAdjustment
+          businessCenters = fixingHolidayCalendarId
+      calculationPeriodAmount = CalculationPeriodAmount with
+        calculation = Calculation with
+          floatingRateCalculation = Some FloatingRateCalculation with
+            floatingRateIndex = referenceRateId
+            indexTenor = Some Period with
+              periodMultiplier = paymentPeriodMultiplier
+              period = paymentPeriod
+            spreadSchedule = SpreadSchedule with
+              initialValue = 0.0
+          fixedRateSchedule = None
+          dayCountFraction = dayCountConvention
+      stubCalculationPeriodAmount = Some StubCalculationPeriodAmount with
+        initialStub = Some StubValue with
+          stubRate = None
+          floatingRate = Some [(StubFloatingRate with floatingRateIndex=referenceRateId;indexTenor=None), (StubFloatingRate with floatingRateIndex=referenceRateOneMonthId;indexTenor=None)]
+        finalStub = None
+
+    swapStreams = [swapStreamFloatingLeg]
+
+  debug swapStreamFloatingLeg
+
+  -- A reference data provider publishes the holiday calendars on the ledger
+  calendarCid <- submitMulti [calendarDataProvider] [] do
+    createCmd HolidayCalendar with agency = calendarDataProvider; entity = cal.id; calendar = cal; observers = M.fromList fp
+  fixingCalendarCid <- submitMulti [calendarDataProvider] [] do
+    createCmd HolidayCalendar with agency = calendarDataProvider; entity = fixingCal.id; calendar = fixingCal; observers = M.fromList fp
+
+  observableCid <- coerceContractId <$> submitMulti [issuer] [] do createCmd Observation with provider = issuer; id = Id referenceRateId; observations; observers = M.empty
+  observableOneMonthCid <- coerceContractId <$> submitMulti [issuer] [] do createCmd Observation with provider = issuer; id = Id referenceRateOneMonthId; observations=observationsOneMonth; observers = M.empty
+
+  swapInstrument <- originateFpmlSwap custodian issuer "SwapTest1" "Interest rate swap" fp now swapStreams issueDate holidayCalendarId calendarDataProvider firstRegularPeriodDate maturityDate dayCountConvention businessDayConvention paymentPeriod paymentPeriodMultiplier cashInstrumentCid referenceRateId issuerPaysFix issuerPartyRef
+
+  let settlers = singleton custodian
+
+  -- First payment date (after weekend adjustment): Lifecycle and verify the lifecycle effects for fix and floating payments.
+  let
+    expectedConsumedQuantities = []
+    expectedProducedQuantities = [Instrument.qty 0.001867875 cashInstrumentCid]
+  swapInstrumentAfterFirstPayment <- lifecycleAndVerifySwapPaymentEffects [publicParty] (addDays firstRegularPeriodDate 1) swapInstrument settlers issuer investor observers custodian [observableCid, observableOneMonthCid] expectedConsumedQuantities expectedProducedQuantities
 
   pure ()
