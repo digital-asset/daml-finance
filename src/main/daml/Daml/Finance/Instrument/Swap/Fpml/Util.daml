@@ -68,11 +68,12 @@ getStubRateFloatingFromFpml floatingRates p cal convention = do
 -- 3. No specific stub rate defined -> use the same rate as is used for regular periods.
 getStubRateFromFpml : (DA.Internal.Record.HasField "adjustedEndDate" r1 Date, DA.Internal.Record.HasField "adjustedStartDate" r1 Date, DA.Internal.Record.HasField "finalStub" r2 (Optional r3), DA.Internal.Record.HasField "floatingRate" r3 (Optional [r4]), DA.Internal.Record.HasField "floatingRateIndex" r4 o, DA.Internal.Record.HasField "indexTenor" r4 (Optional Period), DA.Internal.Record.HasField "initialStub" r2 (Optional r3), DA.Internal.Record.HasField "stubRate" r3 (Optional Decimal)) => r2 -> Bool -> r1 -> HolidayCalendarData -> BusinessDayConventionEnum -> Optional (Observation t Decimal o)
 getStubRateFromFpml sc initialStub p cal convention = do
-  let s = if initialStub then fromSome sc.initialStub else fromSome sc.finalStub
-  if isSome s.stubRate && isSome s.floatingRate then error "both stubRate and floatingRate provided"
-  else if isSome s.stubRate then Some (Const (fromSome s.stubRate))
-  else if isSome s.floatingRate then getStubRateFloatingFromFpml (fromSome s.floatingRate) p cal convention
-  else None
+  let
+    s = if initialStub then fromSome sc.initialStub else fromSome sc.finalStub
+    stubRate = s.stubRate
+  case stubRate of
+    Some stubRate -> if isSome s.floatingRate then error "both stubRate and floatingRate provided" else Some (Const (fromSome s.stubRate))
+    None -> if isSome s.floatingRate then getStubRateFloatingFromFpml (fromSome s.floatingRate) p cal convention else None
 
 -- | Calculate a floating rate amount for each payment date and create claims.
 -- The floating rate is observed according to the FpML ResetDates component and used for the corresponding payment on the last day of that payment period.
@@ -92,13 +93,10 @@ createFloatingRatePaymentClaimsFpml schedule periodicSchedule useAdjustedDatesFo
       when (TimeGte p.adjustedEndDate) $ one cashInstrumentCid
         where
           regularRate = Observe referenceRateId + Const floatingRateSpread
-          rate =
-            if isNone p.stubType || isNone s.stubCalculationPeriodAmount then regularRate
-            else if fromSome p.stubType == LongInitial || fromSome p.stubType == ShortInitial then
-              fromOptional regularRate (getStubRateFromFpml (fromSome s.stubCalculationPeriodAmount) True p fixingCalendars bdc)
-            else if fromSome p.stubType == LongFinal || fromSome p.stubType == ShortFinal then
-              fromOptional regularRate (getStubRateFromFpml (fromSome s.stubCalculationPeriodAmount) False p fixingCalendars bdc)
-            else error "stub type not supported"
+          stubType = p.stubType
+          rate = case stubType of
+            None -> regularRate
+            Some stubType -> if isNone s.stubCalculationPeriodAmount then regularRate else fromOptional regularRate (getStubRateFromFpml (fromSome s.stubCalculationPeriodAmount) (stubType == LongInitial || stubType == ShortInitial) p fixingCalendars bdc)
     floatingClaimAmounts = mconcat $ map createClaim $ zip schedule fixingDates
     floatingClaims = if issuerPays then floatingClaimAmounts else give floatingClaimAmounts
   pure $ prepareAndTagClaims [floatingClaims] "Floating rate payment"
