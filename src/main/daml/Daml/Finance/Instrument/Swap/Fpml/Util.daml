@@ -75,7 +75,7 @@ getStubRateFromFpml sc initialStub p cal convention = do
     stubRate = s.stubRate
   case s.stubRate of
     Some stubRate -> if isSome s.floatingRate then error "both stubRate and floatingRate provided" else Some (Const (fromSome s.stubRate))
-    None -> getStubRateFloatingFromFpml (fromSome s.floatingRate) p cal convention <$> s.floatingRate
+    None -> if isSome s.floatingRate then getStubRateFloatingFromFpml (fromSome s.floatingRate) p cal convention else None
 
 -- | Calculate a floating rate amount for each payment date and create claims.
 -- The floating rate is observed according to the FpML ResetDates component and used for the corresponding payment on the last day of that payment period.
@@ -90,7 +90,7 @@ createFloatingRatePaymentClaimsFpml schedule periodicSchedule useAdjustedDatesFo
   assertMsg "No adjustement (besides business day type) supported" (resetDates.fixingDates.businessDayConvention == NoAdjustment)
   let
     fixingDates = map (\p -> addBusinessDays fixingCalendars resetDates.fixingDates.periodMultiplier p.adjustedStartDate) schedule
-    createClaim (p,f) =
+    createClaim p f =
       when (TimeGte f) $ scale (rate * (Const (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency))) $
       when (TimeGte p.adjustedEndDate) $ one cashInstrumentCid
         where
@@ -99,7 +99,7 @@ createFloatingRatePaymentClaimsFpml schedule periodicSchedule useAdjustedDatesFo
           rate = case stubType of
             None -> regularRate
             Some stubType -> if isNone s.stubCalculationPeriodAmount then regularRate else fromOptional regularRate (getStubRateFromFpml (fromSome s.stubCalculationPeriodAmount) (stubType == LongInitial || stubType == ShortInitial) p fixingCalendars bdc)
-    floatingClaimAmounts = mconcat $ map createClaim $ zip schedule fixingDates
+    floatingClaimAmounts = mconcat $ zipWith createClaim schedule fixingDates
     floatingClaims = if issuerPays then floatingClaimAmounts else give floatingClaimAmounts
   pure $ prepareAndTagClaims [floatingClaims] "Floating rate payment"
 
