@@ -3,21 +3,18 @@
 
 module Daml.Finance.Settlement.Batch where
 
-import DA.Action (foldrA)
+import DA.Action (foldlA)
 import DA.Foldable (forA_)
-import DA.List (groupOn, head)
+import DA.List (groupOn)
 import DA.Optional (catOptionals, fromOptional)
-import DA.Set (empty, member, fromList, insert, size, toList)
+import DA.Set (Set, empty, member, fromList, insert, size)
 import DA.Traversable qualified as T
-import Daml.Finance.Interface.Account.Account qualified as Account (undisclose)
-import Daml.Finance.Interface.Account.Util (fetchAccount, getAccount)
-import Daml.Finance.Interface.Holding.Base qualified as Base (I)
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I)
 import Daml.Finance.Interface.Holding.Util (undisclose)
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (HasImplementation, I, Settle(..), View(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Execute(..), I)
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), Step(..))
-import Daml.Finance.Interface.Types.Common (Id(..), Parties)
+import Daml.Finance.Interface.Types.Common (Id(..), InstructionKey(..), Parties)
 import Daml.Finance.Settlement.Instruction (Instruction(..))
 
 -- | Type synonym for `Batch`.
@@ -25,7 +22,14 @@ type T = Batch
 
 instance Batch.HasImplementation T
 
--- | Allows you to atomically settle a set of settlement `Step`\s.
+-- | Type for batch key.
+data BatchKey = BatchKey
+  with
+    requestors : Parties
+    id : Id
+  deriving (Eq, Show, Ord)
+
+-- | Allows you to atomically settle a set of settlement `Step`\
 template Batch
   with
     requestors : Parties
@@ -39,61 +43,68 @@ template Batch
     contextId : Optional Id
       -- ^ Identifier to link a batch to a context (eg. the `Effect` it originated from).
     stepsWithInstructionId : [(Step, Id)]
-      -- ^ The settlement `Step`\s and the identifiers of the corresponding `Instruction`\s.
+      -- ^ The settlement `Step`\s and the identifiers of the corresponding `Instruction`\
   where
     signatory requestors
     observer settlers
 
-    key (requestors, id) : (Parties, Id)
-    maintainer fst key
+    key BatchKey with requestors; id : BatchKey
+    maintainer key.requestors
 
     let
       (steps, instructionIds) = unzip stepsWithInstructionId
-      undiscloseA actors = Account.undisclose (show id, settlers) (head $ toList actors) actors
       undiscloseT actors = undisclose @Transferable.I (show id, actors) actors
 
     interface instance Batch.I for Batch where
       view = Batch.View with requestors; settlers; id; description; contextId; steps
       settle Batch.Settle{actors} = do
-        (_, instructionsWithDisclosureInfo) <- foldrA
-          (\(step, instructionId) acc ->
-            do
-              let (previousAccounts, l) = acc
-              -- get sender and receiver accounts (if any)
-              (instructionCid, instruction) <- fetchByKey @Instruction (requestors, id, instructionId)
-              oSenderAccount <- case instruction.allocation of
-                Pledge senderTransferableCid -> do
-                  holding <- fetch $ toInterfaceContractId @Base.I senderTransferableCid
-                  account <- fetchAccount holding
-                  pure . Some $ getAccount holding
-                _ -> pure None
-              let
-                oReceiverAccount = case instruction.approval of
-                  TakeDelivery receiverAccount -> Some receiverAccount
-                  _ -> None
-              -- in case the same account is used multiple times, only keep the last
-              let
-                removeDuplicate accounts oAccount = optional (accounts, False) (\account -> if member account accounts then (accounts, False) else (insert account accounts, True)) oAccount
-                (previousAccounts', undiscloseSenderAccount) = removeDuplicate previousAccounts oSenderAccount
-                (previousAccounts'', undiscloseReceiverAccount) = removeDuplicate previousAccounts' oReceiverAccount
-              pure (previousAccounts'', (instructionId, undiscloseSenderAccount, undiscloseReceiverAccount) :: l)
-          ) (empty, []) stepsWithInstructionId
+        -- order instructions (such that they can be executed with passthroughs)
+        orderedInstructions <- reverse . fst <$> foldlA
+          (\(orderedInstructions, usedInstructionIds) (step, instructionId) ->
+            if member instructionId usedInstructionIds then
+              -- instruction has already been ordered
+              pure (orderedInstructions, usedInstructionIds)
+            else
+              do
+                (instructionCid, instruction) <- fetchByKey @Instruction $ InstructionKey with requestors; batchId = id; id = instructionId
+                assertMsg "step must match" $ step == instruction.step
+                let
+                  orderedInstructions' = instruction :: orderedInstructions
+                  usedInstructionIds' = insert instruction.id usedInstructionIds
+                case instruction.allocation of
+                  Pledge _ -> addPathOfInstructions orderedInstructions' usedInstructionIds' instruction
+                  PassthroughFrom _ -> pure (orderedInstructions, usedInstructionIds)
+                  _ -> pure (orderedInstructions', usedInstructionIds')
+          )
+          ([], empty)
+          stepsWithInstructionId
+        assertMsg "ordering must be complete" $ length orderedInstructions == length stepsWithInstructionId
         -- settle
         let
-          settleInstruction (instructionId, undiscloseSenderAccount, undiscloseReceiverAccount) = do
-            (instructionCid, instruction) <- fetchByKey @Instruction (requestors, id, instructionId)
+          settleInstruction instruction = do
+            instructionCid <- fst <$> (fetchByKey @Instruction $ key instruction)
             allocatedTransferable <- case instruction.allocation of
               Pledge cid -> Some <$> fetch cid
               _ -> pure None
-            transferableCidOpt <- exercise (toInterfaceContractId @Instruction.I instructionCid) Instruction.Execute with actors; undiscloseSenderAccount; undiscloseReceiverAccount
+            transferableCidOpt <- exercise (toInterfaceContractId @Instruction.I instructionCid) Instruction.Execute with actors
             settledTransferable <- T.mapA fetch transferableCidOpt
             -- undisclose transferable
             transferableCidOpt <- T.mapA (\tCid -> fromOptional tCid <$> undiscloseT actors tCid) transferableCidOpt
             let usedTypeRepOpts = fmap (\t -> (instruction.step.quantity.unit, interfaceTypeRep t)) <$> [allocatedTransferable, settledTransferable]
             pure (transferableCidOpt, usedTypeRepOpts)
         -- execute instructions
-        (transferableCidOpts, usedTypeRepOpts) <- unzip <$> mapA settleInstruction instructionsWithDisclosureInfo
+        (transferableCidOpts, usedTypeRepOpts) <- unzip <$> mapA settleInstruction orderedInstructions
         -- consistency check
         forA_ (groupOn fst $ catOptionals . concat $ usedTypeRepOpts) \ts ->
           assertMsg "The template type rep of allocated transferables must be the same for all instructions for the same instrument." $ size (fromList ts) == 1
         pure $ catOptionals transferableCidOpts
+
+-- | Gets the passthrough instruction path.
+addPathOfInstructions : [Instruction] -> Set Id -> Instruction -> Update ([Instruction], Set Id)
+addPathOfInstructions orderedInstructions usedInstructionIds instruction =
+    case instruction.approval of
+      PassthroughTo (passthroughAccount, toInstructionKey) -> do
+        toInstruction <- snd <$> fetchByKey @Instruction toInstructionKey
+        assertMsg "toInstruction must not have been used before" $ not $ member toInstruction.id usedInstructionIds
+        addPathOfInstructions (toInstruction :: orderedInstructions) (insert toInstruction.id usedInstructionIds) toInstruction
+      _ -> pure (orderedInstructions, usedInstructionIds)
