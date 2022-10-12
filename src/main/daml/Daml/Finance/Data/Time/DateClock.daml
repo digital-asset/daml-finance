@@ -7,17 +7,19 @@ import DA.Date (addDays)
 import Daml.Finance.Interface.Data.TimeObservable qualified as TimeObservable (HasImplementation, I, View(..))
 import Daml.Finance.Interface.Types.Common (Id, Parties)
 import Daml.Finance.Interface.Types.Date.Classes (HasUTCTimeConversion(..))
-import Daml.Finance.Lifecycle.Event.DateClock qualified as DateClock (Event(..))
-import Daml.Finance.Lifecycle.Types (Unit(..))
+import Daml.Finance.Data.Time.DateClock.DateClockUpdateEvent (DateClockUpdateEvent(..))
+import Daml.Finance.Data.Time.DateClock.Types (Unit(..))
 
 -- | Type synonym for `DateClock`.
 type T = DateClock
 
 instance TimeObservable.HasImplementation DateClock
 
--- | A `DateClock` is a subdivision of the Time continuum into dates.
--- Each date is mapped to UTC noon.
--- Updating the clock spawns a `ClockUpdateEvent`.
+-- | A `DateClock` is a template used to keep track of the current date.
+-- The `ToNext` choice moves the clock to the next date and spawns a `DateClockUpdateEvent`.
+-- The `DateClock` implements the `TimeObservable` interface. Specifically, each date `D` is mapped to `D 12:00:00 UTC`.
+-- If your use-case involves working across multiple time zones, you might need to define multiple `DateClock` templates
+-- with specific time conversions.
 template DateClock
   with
     providers : Parties
@@ -29,9 +31,10 @@ template DateClock
     description : Text
       -- ^ The clock's description.
     observers : Parties
-      -- ^ Observers of the events created from this clock.
+      -- ^ Observers.
   where
     signatory providers
+    observer observers
 
     key (providers, id) : (Parties, Id)
     maintainer key._1
@@ -39,20 +42,20 @@ template DateClock
     interface instance TimeObservable.I for DateClock where
       view = TimeObservable.View with providers; id; time = toUTCTime this
 
-    choice ToNext : (ContractId DateClock, ContractId DateClock.Event)
+    choice ToNext : (ContractId DateClock, ContractId DateClockUpdateEvent)
       -- ^ Moves the clock to the next date and spawns an update event.
       with
         eventId : Id
-          -- ^ Event identifier
+          -- ^ Event identifier.
         eventDescription : Text
-          -- ^ Event description
+          -- ^ Event description.
       controller providers
       do
         let
           Unit currentDate = date
           clock = this with date = Unit $ addDays currentDate 1
         clockCid <- create clock
-        eventCid <- create DateClock.Event with providers; date; id = eventId; description = eventDescription; observers
+        eventCid <- create DateClockUpdateEvent with providers; date; id = eventId; description = eventDescription; observers
         pure (clockCid, eventCid)
 
 instance HasUTCTimeConversion DateClock where
