@@ -46,6 +46,8 @@ data TestParties = TestParties
       -- ^ Party that requests and executes the settlement of the transaction between Buyer and Seller.
     delegatee : Party
       -- ^ Party that is granted the right to allocate Buyer's holdings on her behalf.
+    provider : Party
+      -- ^ Acts as provider of account and holding factory.
     publicParty : Party
       -- ^ The public party. Every party can readAs the public party.
 
@@ -87,10 +89,10 @@ run useDelegatee = script do
   TestParties{..} <- setupParties
 
   -- Account and holding factory
-  let fp = [("FactoryProvider", singleton publicParty)]
-  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory publicParty []
-  holdingFactoryCid <- toInterfaceContractId <$> submitMulti [publicParty] [] do
-    createCmd Fungible.Factory with provider = publicParty; observers = M.fromList fp
+  let pp = [("PublicParty", singleton publicParty)]
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory provider pp
+  holdingFactoryCid <- toInterfaceContractId <$> submit provider do
+    createCmd Fungible.Factory with provider; observers = M.fromList pp
 
   -- Create accounts
   let createAccounts description custodian = mapA (Account.createAccount description [publicParty] accountFactoryCid holdingFactoryCid [] Account.Owner custodian)
@@ -128,37 +130,37 @@ run useDelegatee = script do
       , Step with sender = custodian2; receiver = buyer; quantity = assetQuantity
       ]
   -- Create settlement factory
-  settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submitMulti [agent] [] do createCmd Factory with provider = agent; observers = empty
+  settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submit agent do createCmd Factory with provider = agent; observers = empty
 
   -- Instruct settlement
   (batchCid, [buyerInstructionCid, bank1InstructionCid, bank2InstructionCid, sellerInstructionCid, custodian1InstructionCid, custodian2InstructionCid]) <-
-    submitMulti [agent] [] do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = singleton agent; settlers = singleton agent; id = Id "SHARE 200000.0@160.0USD DVP"; description = "Crosspayment"; contextId = None; steps
+    submit agent do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = singleton agent; settlers = singleton agent; id = Id "SHARE 200000.0@160.0USD DVP"; description = "Crosspayment"; contextId = None; steps
 
   -- Allocate and approve instructions
   (buyerInstructionCid, _) <-
     if useDelegatee then
       do
         -- delegate
-        delegationCid <- submitMulti [buyer] [] do createCmd AllocationDelegation with delegator = buyer; delegatee
+        delegationCid <- submit buyer do createCmd AllocationDelegation with delegator = buyer; delegatee
         -- disclose
         -- TODO: use explicit disclosure (once available)
         let observerContext = ("delegation123", singleton delegatee)
-        buyerCashCid : ContractId Transferable.I <- coerceContractId <$> submitMulti [buyer] [] do exerciseCmd (coerceContractId buyerCashCid : ContractId Disclosure.I) Disclosure.AddObservers with disclosers = singleton buyer; observersToAdd = observerContext
-        buyerInstructionCid : ContractId Instruction.I <- coerceContractId <$> submitMulti [buyer] [] do exerciseCmd (coerceContractId buyerInstructionCid : ContractId Disclosure.I) Disclosure.AddObservers with disclosers = singleton buyer; observersToAdd = observerContext
+        buyerCashCid : ContractId Transferable.I <- coerceContractId <$> submit buyer do exerciseCmd (coerceContractId buyerCashCid : ContractId Disclosure.I) Disclosure.AddObservers with disclosers = singleton buyer; observersToAdd = observerContext
+        buyerInstructionCid : ContractId Instruction.I <- coerceContractId <$> submit buyer do exerciseCmd (coerceContractId buyerInstructionCid : ContractId Disclosure.I) Disclosure.AddObservers with disclosers = singleton buyer; observersToAdd = observerContext
         Account.submitExerciseInterfaceByKeyCmd @Disclosure.I [buyer] [] buyerCashAccount Disclosure.AddObservers with disclosers = singleton buyer; observersToAdd = observerContext
         -- allocate (on behalf of buyer)
-        t <- submitMulti [delegatee] [] do exerciseCmd delegationCid OnBehalfAllocation with id = observerContext._1; instructionCid = buyerInstructionCid; transferableCid = buyerCashCid
+        t <- submit delegatee do exerciseCmd delegationCid OnBehalfAllocation with id = observerContext._1; instructionCid = buyerInstructionCid; transferableCid = buyerCashCid
         -- undisclose
         Account.submitExerciseInterfaceByKeyCmd @Disclosure.I [buyer] [] buyerCashAccount Disclosure.RemoveObservers with disclosers = singleton buyer; observersToRemove = observerContext
         pure t
     else
-      submitMulti [buyer] [] do exerciseCmd buyerInstructionCid Instruction.Allocate with actors = singleton buyer; allocation = Pledge buyerCashCid
+      submit buyer do exerciseCmd buyerInstructionCid Instruction.Allocate with actors = singleton buyer; allocation = Pledge buyerCashCid
   buyerInstructionCid <- submitMulti [bank1] [] do exerciseCmd buyerInstructionCid Instruction.Approve with actors = singleton bank1; approval = DebitSender
-  bank2InstructionCid <- submitMulti [seller] [] do exerciseCmd bank2InstructionCid Instruction.Approve with actors = singleton seller; approval = TakeDelivery sellerCashAccount
+  bank2InstructionCid <- submit seller do exerciseCmd bank2InstructionCid Instruction.Approve with actors = singleton seller; approval = TakeDelivery sellerCashAccount
   (bank2InstructionCid, _) <- submitMulti [bank2] [] do exerciseCmd bank2InstructionCid Instruction.Allocate with actors = singleton bank2; allocation = CreditReceiver
   (bank1InstructionCid, _) <- submitMulti [bank1] [] do exerciseCmd bank1InstructionCid Instruction.Allocate with actors = singleton bank1; allocation = SettleOffLedger
   bank1InstructionCid <- submitMulti [bank2] [] do exerciseCmd bank1InstructionCid Instruction.Approve with actors = singleton bank2; approval = SettleOffLedgerAcknowledge
-  (sellerInstructionCid, _) <- submitMulti [seller] [] do exerciseCmd sellerInstructionCid Instruction.Allocate with actors = singleton seller; allocation = Pledge sellerAssetCid
+  (sellerInstructionCid, _) <- submit seller do exerciseCmd sellerInstructionCid Instruction.Allocate with actors = singleton seller; allocation = Pledge sellerAssetCid
   sellerInstructionCid <- submitMulti [custodian1] [] do exerciseCmd sellerInstructionCid Instruction.Approve with actors = singleton custodian1; approval = DebitSender
   (custodian1InstructionCid, _) <- submitMulti [custodian1] [] do exerciseCmd custodian1InstructionCid Instruction.Allocate with actors = singleton custodian1; allocation = Pledge custodian1AssetCid
   custodian1InstructionCid <- submitMulti [custodian2] [] do exerciseCmd custodian1InstructionCid Instruction.Approve with actors = singleton custodian2; approval = TakeDelivery custodian2DepoAccount
@@ -166,11 +168,11 @@ run useDelegatee = script do
   submitMultiMustFail [agent] [publicParty] do exerciseCmd batchCid Batch.Settle with actors = singleton agent
   (custodian2InstructionCid, _) <- submitMulti [custodian2] [] do exerciseCmd custodian2InstructionCid Instruction.Allocate with actors = singleton custodian2; allocation = CreditReceiver
   -- Buyer approves her instrcution with an incompatible approval
-  custodian2InstructionCid <- submitMulti [buyer] [] do exerciseCmd custodian2InstructionCid Instruction.Approve with actors = singleton buyer; approval = SettleOffLedgerAcknowledge
+  custodian2InstructionCid <- submit buyer do exerciseCmd custodian2InstructionCid Instruction.Approve with actors = singleton buyer; approval = SettleOffLedgerAcknowledge
   -- Settlement of batch must fail due to the incompatible approval
   submitMultiMustFail [agent] [publicParty] do exerciseCmd batchCid Batch.Settle with actors = singleton agent
   -- Buyer approves her instruction with a compatible approval
-  custodian2InstructionCid <- submitMulti [buyer] [] do exerciseCmd custodian2InstructionCid Instruction.Approve with actors = singleton buyer; approval = TakeDelivery buyerDepoAccount
+  custodian2InstructionCid <- submit buyer do exerciseCmd custodian2InstructionCid Instruction.Approve with actors = singleton buyer; approval = TakeDelivery buyerDepoAccount
 
   -- Settle batch
   [sellerCashCid, custodian2AssetCid, buyerAssetCid] <- submitMulti [agent] [publicParty] do exerciseCmd batchCid Batch.Settle with actors = singleton agent
@@ -184,9 +186,9 @@ run useDelegatee = script do
 
 setupParties : Script TestParties
 setupParties = do
-  [cb, csd, bank1, bank2, custodian2, custodian1, issuer, buyer, seller, agent, delegatee, publicParty] <-
-    createParties ["CentralBank", "CSD", "Bank 1", "Bank 2", "Custodian 2", "Custodian 1", "Issuer", "Buyer", "Seller", "Agent", "Delegatee", "PublicParty"]
-  pure TestParties with cb; csd; bank1; bank2; custodian2; custodian1; issuer; buyer; seller; agent; delegatee; publicParty
+  [cb, csd, bank1, bank2, custodian2, custodian1, issuer, buyer, seller, agent, delegatee, provider, publicParty] <-
+    createParties ["CentralBank", "CSD", "Bank 1", "Bank 2", "Custodian 2", "Custodian 1", "Issuer", "Buyer", "Seller", "Agent", "Delegatee", "Provider", "PublicParty"]
+  pure TestParties with cb; csd; bank1; bank2; custodian2; custodian1; issuer; buyer; seller; agent; delegatee; provider; publicParty
 
 -- | Grants the `delegatee` the right to allocate holdings on behalf of the `delegator`
 template AllocationDelegation
