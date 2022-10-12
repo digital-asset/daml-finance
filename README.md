@@ -3,7 +3,21 @@
 
 Copyright © 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All Rights Reserved. SPDX-License-Identifier: Apache-2.0
 
-## Requirements
+# Daml Finance
+
+Welcome to Daml Finance, a collection of purpose-built libraries to enable rapid development of enterprise-grade tokenization solutions.
+
+## Why do I need it?
+
+Implementing basic financial concepts like ownership or economic terms of an asset is a complex and tedious task. By providing common building blocks, Daml Finance increases delivery velocity and shortens the time-to-market when developing Daml applications.
+
+## Getting started using the library
+
+The [Daml Finance documentation](https://digital-asset.github.io/daml-finance/) provides a number of options to get started using the library.
+
+## Contributing to Daml Finance
+
+### Dependencies
 
 To build this library locally, the following requirements are necessary:
 
@@ -12,7 +26,7 @@ To build this library locally, the following requirements are necessary:
 3. `yq` (4.x)
 4. `jq` (>1.5)
 
-## Building
+### Building the library from source
 
 To build the library:
 
@@ -22,7 +36,7 @@ make
 
 This will produce individual DAR files for each package in the `.dars` directory.
 
-To test CI locally run the following target:
+To test the CI locally, run the following target:
 
 ```script
 make ci-local
@@ -30,10 +44,10 @@ make ci-local
 
 To build the documentation follows the steps [here](./docs/README.md).
 
-## Developing
+### Style
 
 When developing please adhere to the [style guide](./STYLEGUIDE.md).
 
-## Releasing
+### Releases
 
 To perform a release of this project, please follow the guide [here](./RELEASE.MD).
