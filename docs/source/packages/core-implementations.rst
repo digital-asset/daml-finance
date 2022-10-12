@@ -45,7 +45,6 @@ Core Implementations
     - :ref:`Rule.Replacement <module-daml-finance-lifecycle-rule-replacement-6984>`: Rule contract that defines the replacement of units of an instrument with a basket of other instruments (e.g. stock merger)
     - :ref:`Event.Distribution <module-daml-finance-lifecycle-event-distribution-17302>`: Event contract for the distribution of units of an instrument for each unit of a target instrument (e.g. share or cash dividends)
     - :ref:`Event.Replacement <module-daml-finance-lifecycle-event-replacement-51859>`: Event contract for the replacement of units of an instrument with a basket of other instruments (e.g. stock merger)
-    - :ref:`Event.DateClock <module-daml-finance-lifecycle-event-dateclock-57483>`: Event signalling the update of a clock. This can trigger the execution of lifecycle rules for some instruments
 
     Check out the :doc:`Lifecycling tutorial <../tutorials/getting-started/lifecycling>` for a description on how lifecycling works in practice, including how to ``Claim`` an ``Effect``.
     There is also the tutorial :doc:`How to implement a Contingent Claims-based instrument <../tutorials/instrument-modeling/contingent-claims-instrument>`, which describes how create an ``Effect``.
@@ -58,7 +57,8 @@ Core Implementations
 
     - :ref:`Observation <module-daml-finance-data-observable-observation-7524>`: An implementation of an ``Observation`` that explicitly stores time-dependent numerical values on the ledger. It can be used to e.g. store equity or rate fixings
     - :ref:`HolidayCalendar <module-daml-finance-data-reference-holidaycalendar-10773>`: Holiday calendar of an entity (typically an exchange or a currency)
-    - :ref:`DateClock <module-daml-finance-data-time-dateclock-65212>`: A contract specifying what is the current local date. It is used to inject date information in lifecycle processing rules
+    - :ref:`DateClock <module-daml-finance-data-time-dateclock-65212>`: A contract to keep track of the current date
+    - :ref:`DateClock.DateClockUpdateEvent <module-daml-finance-data-time-dateclock-dateclockupdateevent-61634>`: Event signalling the update of a `DateClock`. This can trigger the execution of lifecycle rules for some instruments
 
 - ``Daml.Finance.Util``
 
