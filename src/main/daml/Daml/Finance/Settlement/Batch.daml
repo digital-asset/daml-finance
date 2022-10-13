@@ -71,7 +71,7 @@ template Batch
                   orderedInstructions' = instruction :: orderedInstructions
                   usedInstructionIds' = insert instruction.id usedInstructionIds
                 case instruction.allocation of
-                  Pledge _ -> addPathOfInstructions orderedInstructions' usedInstructionIds' instruction
+                  Pledge _ -> collectPassThroughChain orderedInstructions' usedInstructionIds' instruction
                   PassthroughFrom _ -> pure (orderedInstructions, usedInstructionIds)
                   _ -> pure (orderedInstructions', usedInstructionIds')
           )
@@ -98,12 +98,15 @@ template Batch
         pure $ catOptionals oTransferableCids
 
 -- | HIDE
--- Gets the passthrough instruction path.
-addPathOfInstructions : [Instruction] -> Set Id -> Instruction -> Update ([Instruction], Set Id)
-addPathOfInstructions orderedInstructions usedInstructionIds instruction =
-  case instruction.approval of
-    PassthroughTo (passthroughAccount, toInstructionKey) -> do
-      toInstruction <- snd <$> fetchByKey @Instruction toInstructionKey
-      assertMsg "toInstruction must not have been used before" $ not $ member toInstruction.id usedInstructionIds
-      addPathOfInstructions (toInstruction :: orderedInstructions) (insert toInstruction.id usedInstructionIds) toInstruction
-    _ -> pure (orderedInstructions, usedInstructionIds)
+-- Follows the pass-through chain and collects the corresponding instructions in an ordered list.
+collectPassThroughChain : [Instruction] -> Set Id -> Instruction -> Update ([Instruction], Set Id)
+collectPassThroughChain
+  orderedInstructions   -- ^ Previously-ordered instructions.
+  usedInstructionIds    -- ^ Instructions that have already been visited.
+  instruction =         -- ^ First instruction of the chain.
+    case instruction.approval of
+      PassthroughTo (passthroughAccount, toInstructionKey) -> do
+        toInstruction <- snd <$> fetchByKey @Instruction toInstructionKey
+        assertMsg "toInstruction must not have been used before" $ not $ member toInstruction.id usedInstructionIds
+        collectPassThroughChain (toInstruction :: orderedInstructions) (insert toInstruction.id usedInstructionIds) toInstruction
+      _ -> pure (orderedInstructions, usedInstructionIds)
