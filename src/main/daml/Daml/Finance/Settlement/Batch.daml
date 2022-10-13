@@ -62,7 +62,6 @@ template Batch
         orderedInstructions <- reverse . fst <$> foldlA
           (\(orderedInstructions, usedInstructionIds) (step, instructionId) ->
             if member instructionId usedInstructionIds then
-              -- instruction has already been ordered
               pure (orderedInstructions, usedInstructionIds)
             else
               do
@@ -83,21 +82,20 @@ template Batch
         let
           settleInstruction instruction = do
             instructionCid <- fst <$> (fetchByKey @Instruction $ key instruction)
-            allocatedTransferable <- case instruction.allocation of
+            oAllocatedTransferable <- case instruction.allocation of
               Pledge cid -> Some <$> fetch cid
               _ -> pure None
-            transferableCidOpt <- exercise (toInterfaceContractId @Instruction.I instructionCid) Instruction.Execute with actors
-            settledTransferable <- T.mapA fetch transferableCidOpt
-            -- undisclose transferable
-            transferableCidOpt <- T.mapA (\tCid -> fromOptional tCid <$> undiscloseT actors tCid) transferableCidOpt
-            let usedTypeRepOpts = fmap (\t -> (instruction.step.quantity.unit, interfaceTypeRep t)) <$> [allocatedTransferable, settledTransferable]
-            pure (transferableCidOpt, usedTypeRepOpts)
+            oSettledTransferableCid <- exercise (toInterfaceContractId @Instruction.I instructionCid) Instruction.Execute with actors
+            oSettledTransferable <- T.mapA fetch oSettledTransferableCid
+            let usedTypeRepOpts = fmap (\t -> (instruction.step.quantity.unit, interfaceTypeRep t)) <$> [oAllocatedTransferable, oSettledTransferable]
+            oTransferableCid <- T.mapA (\tCid -> fromOptional tCid <$> undiscloseT actors tCid) oSettledTransferableCid
+            pure (oTransferableCid, usedTypeRepOpts)
         -- execute instructions
-        (transferableCidOpts, usedTypeRepOpts) <- unzip <$> mapA settleInstruction orderedInstructions
+        (oTransferableCids, oUsedTypeReps) <- unzip <$> mapA settleInstruction orderedInstructions
         -- consistency check
-        forA_ (groupOn fst $ catOptionals . concat $ usedTypeRepOpts) \ts ->
+        forA_ (groupOn fst $ catOptionals . concat $ oUsedTypeReps) \ts ->
           assertMsg "The template type rep of allocated transferables must be the same for all instructions for the same instrument." $ size (fromList ts) == 1
-        pure $ catOptionals transferableCidOpts
+        pure $ catOptionals oTransferableCids
 
 -- | HIDE
 -- Gets the passthrough instruction path.

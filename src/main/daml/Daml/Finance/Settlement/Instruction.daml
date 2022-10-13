@@ -126,12 +126,15 @@ template Instruction
         toInterfaceContractId <$> create this with signed = newSigned; approval
       execute Instruction.Execute{actors} = do
         assertMsg "actors must intersect with settlers" $ not $ S.null $ S.intersection actors settlers
-        let void allocation approval = abort $ "unsupported combination " <> show (allocation, approval) <> messageSuffix
+        let
+          abortUnapproved = abort $ "instruction must be approved" <> messageSuffix
+          abortOnOffLedgerMix = abort $ "mix of on- and off-ledger settlement is not supported" <> messageSuffix
         -- execute instruction
         case (allocation, approval) of
-          (Unallocated, _) -> void allocation approval
-          (_, Unapproved) -> void allocation approval
-          (PassthroughFrom _, _) -> void allocation approval
+          (Unallocated, Unapproved) -> abort $ "instruction must be allocated and approved" <> messageSuffix
+          (Unallocated, _) -> abort $ "instruction must be allocated" <> messageSuffix
+          (_, Unapproved) -> abortUnapproved
+          (PassthroughFrom _, _) -> abort $ "asset has not been passed through" <> messageSuffix
           (Pledge transferableCid, a) ->
             case a of
               TakeDelivery receiverAccount -> do
@@ -159,7 +162,8 @@ template Instruction
                 undiscloseA senderAccount
                 undiscloseA passthroughAccount
                 pure None
-              _ -> void allocation approval
+              SettleOffLedgerAcknowledge -> abortOnOffLedgerMix
+              Unapproved -> abortUnapproved
           (CreditReceiver, a) ->
             case a of
               TakeDelivery receiverAccount -> do
@@ -171,8 +175,10 @@ template Instruction
               DebitSender -> do
                 assertMsg ("sender must be the same party as receiver" <> messageSuffix) $ step.sender == step.receiver
                 pure None
-              _ -> void allocation approval
+              PassthroughTo _ -> abort $ "passthroughs for credits are not supported" <> messageSuffix
+              SettleOffLedgerAcknowledge -> abortOnOffLedgerMix
+              Unapproved -> abortUnapproved
           (SettleOffLedger, a) ->
             case a of
               SettleOffLedgerAcknowledge -> pure None
-              _ -> void allocation approval
+              _ -> abortOnOffLedgerMix
