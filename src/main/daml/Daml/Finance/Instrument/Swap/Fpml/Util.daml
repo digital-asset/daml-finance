@@ -22,10 +22,10 @@ import Prelude hiding (key)
 type O = Observation Date Decimal Observable
 
 -- | Create claims from swapStream that describes a fix coupon stream.
-calculateClaimsFromFixSwapStream : SwapStream -> PeriodicSchedule -> [SchedulePeriod] -> Bool -> Bool -> Deliverable -> Update TaggedClaim
-calculateClaimsFromFixSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg currency = do
+calculateClaimsFromFixSwapStream : SwapStream -> PeriodicSchedule -> [SchedulePeriod] -> Bool -> Bool -> Decimal -> Deliverable -> Update TaggedClaim
+calculateClaimsFromFixSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg notional currency = do
   let f = fromSome s.calculationPeriodAmount.calculation.fixedRateSchedule
-  pure $ createFixRatePaymentClaims streamSchedule periodicSchedule useAdjustedDatesForDcf f.initialValue issuerPaysLeg s.calculationPeriodAmount.calculation.dayCountFraction currency
+  pure $ createFixRatePaymentClaims streamSchedule periodicSchedule useAdjustedDatesForDcf f.initialValue issuerPaysLeg s.calculationPeriodAmount.calculation.dayCountFraction notional currency
 
 -- | Define observable part of claim when one specific floating rate is provided for a stub period.
 getSingleStubRate : StubFloatingRate -> Optional O
@@ -78,8 +78,8 @@ getStubRate sc initialStub p cal convention = do
 
 -- | Calculate a floating rate amount for each payment date and create claims.
 -- The floating rate is observed according to the FpML ResetDates component and used for the corresponding payment on the last day of that payment period.
-createFloatingRatePaymentClaims : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Deliverable -> Observable -> HolidayCalendarData -> SwapStream -> Update TaggedClaim
-createFloatingRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf floatingRateSpread issuerPays dayCountConvention cashInstrumentCid referenceRateId fixingCalendars s = do
+createFloatingRatePaymentClaims : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> Observable -> HolidayCalendarData -> SwapStream -> Update TaggedClaim
+createFloatingRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf floatingRateSpread issuerPays dayCountConvention notional cashInstrumentCid referenceRateId fixingCalendars s = do
   let
     resetDates = fromSome s.resetDates
     bdc = s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessDayConvention
@@ -90,7 +90,7 @@ createFloatingRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf
     fixingDates = map (\p -> addBusinessDays fixingCalendars resetDates.fixingDates.periodMultiplier p.adjustedStartDate) schedule
     createClaim p f =
       when (TimeGte f) $ scale (rate * (Const (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency))) $
-      when (TimeGte p.adjustedEndDate) $ one cashInstrumentCid
+      when (TimeGte p.adjustedEndDate) $ scale (Const notional) $ one cashInstrumentCid
         where
           regularRate = Observe referenceRateId + Const floatingRateSpread
           stubType = p.stubType
@@ -102,10 +102,10 @@ createFloatingRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf
   pure $ prepareAndTagClaims [floatingClaims] "Floating rate payment"
 
 -- | Create claims from swapStream that describes a floating coupon stream.
-calculateClaimsFromFloatingSwapStream : SwapStream -> PeriodicSchedule -> [SchedulePeriod] -> Bool -> Bool -> Deliverable -> Party -> Party -> Update TaggedClaim
-calculateClaimsFromFloatingSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg currency issuer calendarDataAgency = do
+calculateClaimsFromFloatingSwapStream : SwapStream -> PeriodicSchedule -> [SchedulePeriod] -> Bool -> Bool -> Decimal -> Deliverable -> Party -> Party -> Update TaggedClaim
+calculateClaimsFromFloatingSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg notional currency issuer calendarDataAgency= do
   let
     f = fromSome s.calculationPeriodAmount.calculation.floatingRateCalculation
     resetDates = fromSome s.resetDates
   fixingCalendars <- getHolidayCalendars resetDates.fixingDates.businessCenters issuer calendarDataAgency
-  createFloatingRatePaymentClaims streamSchedule periodicSchedule useAdjustedDatesForDcf f.spreadSchedule.initialValue issuerPaysLeg s.calculationPeriodAmount.calculation.dayCountFraction currency f.floatingRateIndex (merge fixingCalendars) s
+  createFloatingRatePaymentClaims streamSchedule periodicSchedule useAdjustedDatesForDcf f.spreadSchedule.initialValue issuerPaysLeg s.calculationPeriodAmount.calculation.dayCountFraction notional currency f.floatingRateIndex (merge fixingCalendars) s
