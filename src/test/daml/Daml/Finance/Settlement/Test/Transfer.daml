@@ -26,7 +26,7 @@ import Daml.Script
 data TestParties = TestParties
   with
     bank : Party
-      -- ^ Acts as custodian in the respective holdings.
+      -- ^ Acts as custodian in the respective holdings and provider of the holding factories.
     cb : Party
       -- ^ Depository and issuer of the cash instrument.
     sender : Party
@@ -34,11 +34,9 @@ data TestParties = TestParties
     receiver : Party
       -- ^ Receives units of cash from sender.
     ccp : Party
-      -- ^ Central counterparty.
+      -- ^ Central counterparty. Passes through cash from the sender to the receiver.
     settler : Party
-      -- ^ Central counterparty.
-    provider : Party
-      -- ^ Acts as provider of account and holding factory.
+      -- ^ Executes the settlement of the batch.
     publicParty : Party
       -- ^ The public party. Every party can readAs the public party.
 
@@ -58,17 +56,17 @@ run = script do
 
   -- Account and holding factory
   let pp = [("PublicParty", singleton publicParty)]
-  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory provider pp
-  holdingFactoryCid <- toInterfaceContractId <$> submit provider do
-    createCmd Fungible.Factory with provider; observers = M.fromList pp
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank pp
+  holdingFactoryCid <- toInterfaceContractId <$> submit bank do
+    createCmd Fungible.Factory with provider = bank; observers = M.fromList pp
 
   -- Create accounts
-  [senderAccount, receiverAccount] <- mapA (Account.createAccount "Cash Account" [publicParty] accountFactoryCid holdingFactoryCid [] Account.Owner bank) [sender, receiver]
+  [senderAccount, receiverAccount] <- mapA (Account.createAccount "Cash Account" [] accountFactoryCid holdingFactoryCid [] Account.Owner bank) [sender, receiver]
 
   -- Distribute asset
   now <- getTime
   cashInstrument <- Instrument.originate cb cb "USD" "United States Dollar" [] now
-  transferableCid <- coerceContractId <$> Account.credit [publicParty] cashInstrument 200_000.0 senderAccount
+  transferableCid <- coerceContractId <$> Account.credit [] cashInstrument 200_000.0 senderAccount
 
   -- Create settlement factory
   settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submit bank do createCmd Factory with provider = bank; observers = empty
@@ -113,19 +111,19 @@ run2 = script do
 
   -- Account and holding factory
   let pp = [("PublicParty", singleton publicParty)]
-  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory provider pp
-  holdingFactoryCid <- toInterfaceContractId <$> submit provider do
-    createCmd Fungible.Factory with provider; observers = M.fromList pp
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank pp
+  holdingFactoryCid <- toInterfaceContractId <$> submit bank do
+    createCmd Fungible.Factory with provider = bank; observers = M.fromList pp
 
   -- Create accounts
-  [senderAccount, receiverAccount] <- mapA (Account.createAccount "Cash Account" [publicParty] accountFactoryCid holdingFactoryCid [] Account.Owner bank) [sender, receiver]
+  [senderAccount, receiverAccount] <- mapA (Account.createAccount "Cash Account" [] accountFactoryCid holdingFactoryCid [] Account.Owner bank) [sender, receiver]
 
   -- Distribute asset
   now <- getTime
   cashInstrument <- Instrument.originate cb cb "USD" "United States Dollar" [] now
-  transferableCid1 <- coerceContractId <$> Account.credit [publicParty] cashInstrument 100_000.0 senderAccount
-  transferableCid2 <- coerceContractId <$> Account.credit [publicParty] cashInstrument 200_000.0 senderAccount
-  transferableCid3 <- coerceContractId <$> Account.credit [publicParty] cashInstrument 300_000.0 senderAccount
+  transferableCid1 <- coerceContractId <$> Account.credit [] cashInstrument 100_000.0 senderAccount
+  transferableCid2 <- coerceContractId <$> Account.credit [] cashInstrument 200_000.0 senderAccount
+  transferableCid3 <- coerceContractId <$> Account.credit [] cashInstrument 300_000.0 senderAccount
 
   -- Create settlement factory
   settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submit bank do createCmd Factory with provider = bank; observers = empty
@@ -140,20 +138,21 @@ run2 = script do
     third = Step with sender; receiver; quantity = Instrument.qty 300_000.0 cashInstrument
   (batchCid1, [cashInstructionCid1]) <- submit bank do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = singleton bank; settlers = singleton bank; id = id1; description = "transfer of 100000.0 USD payment"; contextId = None; steps = [first]
   -- the id of the batch must be unique
-  submitMultiMustFail [bank] [] do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = singleton bank; settlers = singleton bank; id = id1; description = "transfer of 200000.0 USD payment"; contextId = None; steps = [second]
+  submitMustFail bank do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = singleton bank; settlers = singleton bank; id = id1; description = "transfer of 200000.0 USD payment"; contextId = None; steps = [second]
   (batchCid2, [cashInstructionCid2]) <- submit bank do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = singleton bank; settlers = singleton bank; id = id2; description = "transfer of 200000.0 USD payment"; contextId = None; steps = [second]
   (batchCid3, [cashInstructionCid3]) <- submit bank do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = singleton bank; settlers = singleton bank; id = id3; description = "transfer of 300000.0 USD payment"; contextId = None; steps = [third]
 
   let
     verifyAccountDisclosureContexts owner ids = do
-      a <- (.observers) . snd . head <$> query @Account.T owner
-      a === (M.fromList (fmap (\id -> (show id <> "(0)", singleton bank)) ids))
+      o <- (.observers) . snd . head <$> query @Account.T owner
+      let o' = M.fromList $ (\id -> (show id <> "(0)", singleton bank)) <$> ids
+      o === o'
 
   -- check account observers
   verifyAccountDisclosureContexts sender []
   verifyAccountDisclosureContexts receiver []
 
-  -- -- Allocate instruction (in any order)
+  -- Allocate instruction (in any order)
   -- first
   (cashInstructionCid1, _) <- submit sender do exerciseCmd cashInstructionCid1 Instruction.Allocate with actors = singleton sender; allocation = Pledge transferableCid1
   verifyAccountDisclosureContexts sender [id1]
@@ -217,17 +216,17 @@ run3 = script do
 
   -- Account and holding factory
   let pp = [("PublicParty", singleton publicParty)]
-  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory provider pp
-  holdingFactoryCid <- toInterfaceContractId <$> submit provider do
-    createCmd Fungible.Factory with provider; observers = M.fromList pp
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank pp
+  holdingFactoryCid <- toInterfaceContractId <$> submit bank do
+    createCmd Fungible.Factory with provider = bank; observers = M.fromList pp
 
   -- Create accounts
-  [senderAccount, receiverAccount] <- mapA (Account.createAccount "Cash Account" [publicParty] accountFactoryCid holdingFactoryCid [] Account.Owner bank) [sender, receiver]
+  [senderAccount, receiverAccount] <- mapA (Account.createAccount "Cash Account" [] accountFactoryCid holdingFactoryCid [] Account.Owner bank) [sender, receiver]
 
   -- Distribute asset
   now <- getTime
   cashInstrument <- Instrument.originate cb cb "USD" "United States Dollar" [] now
-  transferableCid <- coerceContractId <$> Account.credit [publicParty] cashInstrument 200_000.0 senderAccount
+  transferableCid <- coerceContractId <$> Account.credit [] cashInstrument 200_000.0 senderAccount
 
   -- Create settlement factory
   settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submit bank do createCmd Factory with provider = bank; observers = singleton publicParty
@@ -277,18 +276,18 @@ run4 = script do
 
   -- Account and holding factory
   let pp = [("PublicParty", singleton publicParty)]
-  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory provider pp
-  holdingFactoryCid <- toInterfaceContractId <$> submit provider do
-    createCmd Fungible.Factory with provider; observers = M.fromList pp
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank pp
+  holdingFactoryCid <- toInterfaceContractId <$> submit bank do
+    createCmd Fungible.Factory with provider = bank; observers = M.fromList pp
 
   -- Create accounts
-  [senderAccount, receiverAccount] <- mapA (Account.createAccount "Cash Account" [publicParty] accountFactoryCid holdingFactoryCid [] Account.Owner bank) [sender, receiver]
+  [senderAccount, receiverAccount] <- mapA (Account.createAccount "Cash Account" [] accountFactoryCid holdingFactoryCid [] Account.Owner bank) [sender, receiver]
 
   -- Distribute asset
   now <- getTime
   cashInstrument1 <- Instrument.originate cb cb "USD" "United States Dollar" [] now
-  transferableCid1 <- coerceContractId <$> Account.credit [publicParty] cashInstrument1 200_000.0 senderAccount
-  transferableCid2 <- coerceContractId <$> Account.credit [publicParty] cashInstrument1 100_000.0 senderAccount
+  transferableCid1 <- coerceContractId <$> Account.credit [] cashInstrument1 200_000.0 senderAccount
+  transferableCid2 <- coerceContractId <$> Account.credit [] cashInstrument1 100_000.0 senderAccount
 
   -- Create settlement factory
   settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submit bank do createCmd Factory with provider = bank; observers = singleton publicParty
@@ -326,7 +325,7 @@ run4 = script do
 
   pure ()
 
--- Transfer of commercial bank money from Alice to Charlie via Bob (acting as an intermediary/passthrough).
+-- Transfer using passthrough (of commercial bank money from Sender to Receiver via CCP).
 -- +---------------------------------------------------+
 -- | Accounts                                          |
 -- +---------------------------+-----------------------+
@@ -341,27 +340,27 @@ run5 = script do
   TestParties{..} <- setupParties
 
   -- Account and holding factory
-  let fp = [("FactoryProvider", singleton publicParty)]
-  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory provider fp
-  holdingFactoryCid <- toInterfaceContractId <$> submitMulti [publicParty] [] do
-    createCmd Fungible.Factory with provider = publicParty; observers = M.fromList fp
+  let pp = [("PublicParty", singleton publicParty)]
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank pp
+  holdingFactoryCid <- toInterfaceContractId <$> submit bank do
+    createCmd Fungible.Factory with provider = bank; observers = M.fromList pp
 
   -- Create accounts
-  [senderAccount, ccpAccount, receiverAccount] <- mapA (Account.createAccount "Cash Account" [publicParty] accountFactoryCid holdingFactoryCid [] Account.Owner bank) [sender, ccp, receiver]
+  [senderAccount, ccpAccount, receiverAccount] <- mapA (Account.createAccount "Cash Account" [] accountFactoryCid holdingFactoryCid [] Account.Owner bank) [sender, ccp, receiver]
 
   -- Distribute asset
   now <- getTime
   cashInstrument <- Instrument.originate cb cb "USD" "United States Dollar" [] now
-  transferableCid <- coerceContractId <$> Account.credit [publicParty] cashInstrument 200_000.0 senderAccount
+  transferableCid <- coerceContractId <$> Account.credit [] cashInstrument 200_000.0 senderAccount
 
   -- Create settlement factory
-  settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submitMulti [bank] [] do createCmd Factory with provider = bank; observers = empty
+  settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submit bank do createCmd Factory with provider = bank; observers = empty
 
   -- Instruct transfer
   let
     step1 = Step with sender; receiver = ccp; quantity = Instrument.qty 200_000.0 cashInstrument
     step2 = Step with sender = ccp; receiver; quantity = Instrument.qty 200_000.0 cashInstrument
-  (batchCid, [instructionCid2, instructionCid1]) <- submitMulti [bank] [] do
+  (batchCid, [instructionCid2, instructionCid1]) <- submit bank do
     exerciseCmd settlementFactoryCid Factory.Instruct with
       instructors = singleton bank
       settlers = singleton settler
@@ -405,5 +404,5 @@ run5 = script do
 
 setupParties : Script TestParties
 setupParties = do
-  [cb, bank, sender, receiver, ccp, provider, settler, publicParty] <- createParties ["CentralBank", "Bank", "Sender", "Receiver", "CCP", "Provider", "Settler", "PublicParty"]
-  pure TestParties with cb, bank, sender, receiver, ccp, provider, settler, publicParty
+  [cb, bank, sender, receiver, ccp, settler, publicParty] <- createParties ["CentralBank", "Bank", "Sender", "Receiver", "CCP", "Settler", "PublicParty"]
+  pure TestParties with cb, bank, sender, receiver, ccp, settler, publicParty
