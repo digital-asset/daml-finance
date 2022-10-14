@@ -59,24 +59,8 @@ template Batch
       view = Batch.View with requestors; settlers; id; description; contextId; steps
       settle Batch.Settle{actors} = do
         -- order instructions (such that they can be executed with passthroughs)
-        orderedInstructions <- reverse . fst <$> foldlA
-          (\(orderedInstructions, usedInstructionIds) (step, instructionId) ->
-            if member instructionId usedInstructionIds then
-              pure (orderedInstructions, usedInstructionIds)
-            else
-              do
-                (instructionCid, instruction) <- fetchByKey @Instruction $ InstructionKey with requestors; batchId = id; id = instructionId
-                assertMsg "step must match" $ step == instruction.step
-                let
-                  orderedInstructions' = instruction :: orderedInstructions
-                  usedInstructionIds' = insert instruction.id usedInstructionIds
-                case instruction.allocation of
-                  Pledge _ -> addPathOfInstructions orderedInstructions' usedInstructionIds' instruction
-                  PassthroughFrom _ -> pure (orderedInstructions, usedInstructionIds)
-                  _ -> pure (orderedInstructions', usedInstructionIds')
-          )
-          ([], empty)
-          stepsWithInstructionId
+        let buildKey instructionId = InstructionKey with requestors; batchId = id; id = instructionId
+        orderedInstructions <- orderPassThroughChains . fmap (fmap buildKey) $ stepsWithInstructionId
         assertMsg "ordering must be complete" $ length orderedInstructions == length stepsWithInstructionId
         -- settle
         let
@@ -93,17 +77,49 @@ template Batch
         -- execute instructions
         (oTransferableCids, oUsedTypeReps) <- unzip <$> mapA settleInstruction orderedInstructions
         -- consistency check
-        forA_ (groupOn fst $ catOptionals . concat $ oUsedTypeReps) \ts ->
+        forA_ (groupOn fst . catOptionals . concat $ oUsedTypeReps) \ts ->
           assertMsg "The template type rep of allocated transferables must be the same for all instructions for the same instrument." $ size (fromList ts) == 1
         pure $ catOptionals oTransferableCids
 
 -- | HIDE
--- Gets the passthrough instruction path.
-addPathOfInstructions : [Instruction] -> Set Id -> Instruction -> Update ([Instruction], Set Id)
-addPathOfInstructions orderedInstructions usedInstructionIds instruction =
-  case instruction.approval of
-    PassthroughTo (passthroughAccount, toInstructionKey) -> do
-      toInstruction <- snd <$> fetchByKey @Instruction toInstructionKey
-      assertMsg "toInstruction must not have been used before" $ not $ member toInstruction.id usedInstructionIds
-      addPathOfInstructions (toInstruction :: orderedInstructions) (insert toInstruction.id usedInstructionIds) toInstruction
-    _ -> pure (orderedInstructions, usedInstructionIds)
+-- Partially order instructions, so that pass-through chains can be executed in order.
+orderPassThroughChains : [(Step, InstructionKey)] -> Update [Instruction]
+orderPassThroughChains stepsWithInstructionKeys =
+  reverse . fst <$> foldlA
+    (\(orderedInstructions, usedInstructionIds) (step, instructionKey) ->
+      if member instructionKey.id usedInstructionIds
+      then
+        -- instruction has already been visited, do not re-insert in list
+        pure (orderedInstructions, usedInstructionIds)
+      else do
+        (instructionCid, instruction) <- fetchByKey @Instruction instructionKey
+        assertMsg "step must match" $ step == instruction.step
+        let
+          orderedInstructions' = instruction :: orderedInstructions
+          usedInstructionIds' = insert instruction.id usedInstructionIds
+        case instruction.allocation of
+          Pledge _ ->
+            -- a Pledge might be the start of a pass-through chain, try to follow the chain
+            collectPassThroughChain orderedInstructions' usedInstructionIds' instruction
+          PassthroughFrom _ ->
+            -- A PassThrough will be visited as part of a chain, do not insert in list
+            pure (orderedInstructions, usedInstructionIds)
+          _ ->
+            pure (orderedInstructions', usedInstructionIds')
+    )
+    ([], empty)
+    stepsWithInstructionKeys
+
+-- | HIDE
+-- Follows the pass-through chain and collects the corresponding instructions in an ordered list.
+collectPassThroughChain : [Instruction] -> Set Id -> Instruction -> Update ([Instruction], Set Id)
+collectPassThroughChain
+  orderedInstructions   -- Previously-ordered instructions.
+  usedInstructionIds    -- Instructions that have already been visited.
+  instruction =         -- First instruction of the chain.
+    case instruction.approval of
+      PassthroughTo (passthroughAccount, toInstructionKey) -> do
+        toInstruction <- snd <$> fetchByKey @Instruction toInstructionKey
+        assertMsg "toInstruction must not have been used before" $ not $ member toInstruction.id usedInstructionIds
+        collectPassThroughChain (toInstruction :: orderedInstructions) (insert toInstruction.id usedInstructionIds) toInstruction
+      _ -> pure (orderedInstructions, usedInstructionIds)
