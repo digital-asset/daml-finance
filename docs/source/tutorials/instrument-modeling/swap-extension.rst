@@ -43,7 +43,7 @@ We start by defining the terms:
 
 The floating leg depends on a reference rate, which is defined by the *referenceRateId* variable.
 
-The *issuerPaysFix* variable is used to specifiy whether the issuer pays the fix or the floating leg.
+The *issuerPaysFix* variable is used to specify whether the issuer pays the fix or the floating leg.
 This is not needed for bonds, because the regular payments are always in one direction (from the issuer to the holder).
 However, in the case of a swap with two counterparties A and B, we need the *issuerPaysFix* variable to specify who pays fix and who pays floating.
 In this example, the issuer pays the floating leg.
@@ -207,6 +207,58 @@ Finally, we create the asset swap instrument:
 
 Once the instrument is created, you can book a holding on it.
 Since the issuer pays the asset leg, it means that the owner of the holding receives the asset leg (and pays the fix leg).
+
+FpML
+====
+
+Unlike the other swap types above, the FpML swap template is not a new type of payoff. Instead, it allows you to input other types of swaps using the `FpML schema <https://www.fpml.org/spec/fpml-5-11-3-lcwd-1/html/confirmation/schemaDocumentation/schemas/fpml-ird-5-11_xsd/complexTypes/Swap.html>`_.
+Currently, only interest rate swaps are supported, but the template can quite easily be extended to currency swaps and FX swaps.
+
+Specifically, it allows you to specify one `swapStream <https://www.fpml.org/spec/fpml-5-11-3-lcwd-1/html/confirmation/schemaDocumentation/schemas/fpml-ird-5-11_xsd/complexTypes/Swap/swapStream.html>`_ object for each leg of the swap.
+
+We start by defining the general terms:
+
+.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Swap/Test/Fpml.daml
+  :language: daml
+  :start-after: -- CREATE_FPML_SWAP_VARIABLES_BEGIN
+  :end-before: -- CREATE_FPML_SWAP_VARIABLES_END
+
+The *issuerPartyRef* and the *clientPartyRef* variables are used to specify who pays each leg (see *payerPartyReference* below)
+
+The fixed leg of the swap can now be defined using Daml data types that correspond to the `swapStream <https://www.fpml.org/spec/fpml-5-11-3-lcwd-1/html/confirmation/schemaDocumentation/schemas/fpml-ird-5-11_xsd/complexTypes/Swap/swapStream.html>`_ schema:
+
+.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Swap/Test/Fpml.daml
+  :language: daml
+  :start-after: -- CREATE_FPML_SWAP_FIX_LEG_BEGIN
+  :end-before: -- CREATE_FPML_SWAP_FIX_LEG_END
+
+As you can see, the Daml ``SwapStream`` data type matches the `swapStream FpML schema <https://www.fpml.org/spec/fpml-5-11-3-lcwd-1/html/confirmation/schemaDocumentation/schemas/fpml-ird-5-11_xsd/complexTypes/Swap/swapStream.html>`_.
+Please note that the actual parsing from FpML to Daml is not done by this template. It has to be implemented on the client side.
+
+Similarly, the floating leg of the swap is defined like this:
+
+.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Swap/Test/Fpml.daml
+  :language: daml
+  :start-after: -- CREATE_FPML_SWAP_FLOAT_LEG_BEGIN
+  :end-before: -- CREATE_FPML_SWAP_FLOAT_LEG_END
+
+There are three main ways to define which interest rate should be used for a stub period.
+They are all included in the fix or floating leg above, either in the inital or in the final stub period.
+In short, it depends on the content of ``StubCalculationPeriodAmount``:
+
+#. *None*: No special stub rate is provided. Instead, use the same rate as was specified in the corresponding ``Calculation``.
+#. Specific *stubRate*: Use this specific fix rate.
+#. Specific *floatingRate*: Use this specific floating rate (if one rate is provided). If two rates are provided: use linear interpolation between the two rates.
+
+Finally, we create the FpML swap instrument:
+
+.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Swap/Test/Util.daml
+  :language: daml
+  :start-after: -- CREATE_FPML_SWAP_INSTRUMENT_BEGIN
+  :end-before: -- CREATE_FPML_SWAP_INSTRUMENT_END
+
+Once the instrument is created, you can book a holding on it. In this particular example trade, the notional is specified in the FpML instrument.
+This means that you would only book a unit holding (quantity=1.0) on the instrument.
 
 Frequently Asked Questions
 **************************
