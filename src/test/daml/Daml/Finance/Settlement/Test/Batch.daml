@@ -54,7 +54,7 @@ run settleCashOnLedger = script do
 
   -- Account and holding factory
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank []
-  holdingFactoryCid <- toInterfaceContractId <$> submitMulti [bank] [] do
+  holdingFactoryCid <- toInterfaceContractId <$> submit bank do
     createCmd Fungible.Factory with provider = bank; observers = M.empty
 
   -- Originate instruments
@@ -77,13 +77,13 @@ run settleCashOnLedger = script do
       [ Step with sender = seller; receiver = buyer; quantity = Instrument.qty 1_000.0 equityInstrument
       , Step with sender = buyer; receiver = seller; quantity = Instrument.qty 200_000.0 cashInstrument
       ]
-  settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submitMulti [bank] [] do createCmd Factory with provider = bank; observers = empty
+  settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submit bank do createCmd Factory with provider = bank; observers = empty
   (batchCid, [equityInstructionCid, cashInstructionCid]) <-
-    submitMulti [bank] [] do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = singleton bank; settlers = singleton bank; id = Id "APPL 1000@200.0USD"; description = "DVP"; contextId = None; steps
+    submit bank do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = singleton bank; settlers = singleton bank; id = Id "APPL 1000@200.0USD"; description = "DVP"; contextId = None; steps
 
   -- Allocate and approve equity instruction
-  (equityInstructionCid, _) <- submitMulti [seller] [] do exerciseCmd equityInstructionCid Instruction.Allocate with actors = singleton seller; allocation = Pledge equityTransferableCid
-  equityInstructionCid <- submitMulti [buyer] [] do exerciseCmd equityInstructionCid Instruction.Approve with actors = singleton buyer; approval = TakeDelivery buyerCustodyAccount
+  (equityInstructionCid, _) <- submit seller do exerciseCmd equityInstructionCid Instruction.Allocate with actors = singleton seller; allocation = Pledge equityTransferableCid
+  equityInstructionCid <- submit buyer do exerciseCmd equityInstructionCid Instruction.Approve with actors = singleton buyer; approval = TakeDelivery buyerCustodyAccount
 
   -- Allocate and approve cash instruction
   cashInstructionCid <- if settleCashOnLedger
@@ -91,16 +91,16 @@ run settleCashOnLedger = script do
       do
         -- Settle by on-ledger transfer
         cashTransferableCid <- Account.credit [] cashInstrument 200_000.0 buyerCashAccount
-        (cashInstructionCid, _) <- submitMulti [buyer] [] do exerciseCmd cashInstructionCid Instruction.Allocate with actors = singleton buyer; allocation = Pledge cashTransferableCid
-        submitMulti [seller] [] do exerciseCmd cashInstructionCid Instruction.Approve with actors = singleton seller; approval = TakeDelivery sellerCashAccount
+        (cashInstructionCid, _) <- submit buyer do exerciseCmd cashInstructionCid Instruction.Allocate with actors = singleton buyer; allocation = Pledge cashTransferableCid
+        submit seller do exerciseCmd cashInstructionCid Instruction.Approve with actors = singleton seller; approval = TakeDelivery sellerCashAccount
     else
       do
         -- Settle by off ledger trasnfer
-        (cashInstructionCid, _) <- submitMulti [buyer] [] do exerciseCmd cashInstructionCid Instruction.Allocate with actors = singleton buyer; allocation = SettleOffLedger
-        submitMulti [seller] [] do exerciseCmd cashInstructionCid Instruction.Approve with actors = singleton seller; approval = SettleOffLedgerAcknowledge
+        (cashInstructionCid, _) <- submit buyer do exerciseCmd cashInstructionCid Instruction.Allocate with actors = singleton buyer; allocation = SettleOffLedger
+        submit seller do exerciseCmd cashInstructionCid Instruction.Approve with actors = singleton seller; approval = SettleOffLedgerAcknowledge
 
   -- Settle batch
-  cids <- submitMulti [bank] [] do exerciseCmd batchCid Batch.Settle with actors = singleton bank
+  cids <- submit bank do exerciseCmd batchCid Batch.Settle with actors = singleton bank
 
   -- Assert state
   let ts = zip [buyer, seller] cids

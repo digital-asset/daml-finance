@@ -57,6 +57,7 @@ Swaps
     - :ref:`CurrencySwap <module-daml-finance-interface-instrument-swap-currency-instrument-11782>`: Interface that allows implementing templates to create currency swaps
     - :ref:`ForeignExchange <module-daml-finance-interface-instrument-swap-foreignexchange-instrument-90743>`: Interface that allows implementing templates to create foreign exchange (FX) swaps
     - :ref:`InterestRate <module-daml-finance-interface-instrument-swap-interestrate-instrument-49463>`: Interface that allows implementing templates to create interest rate swaps
+    - :ref:`Fpml <module-daml-finance-interface-instrument-swap-fpml-instrument-38654>`: Interface that allows implementing templates to create FpML swaps
 
 - ``Daml.Finance.Instrument.Swap``
 
@@ -67,6 +68,7 @@ Swaps
     - :ref:`CurrencySwap <module-daml-finance-instrument-swap-currency-instrument-67721>`: This template models a currency swap that pays a fixed vs fixed rate (in different currencies) at the end of every payment period
     - :ref:`ForeignExchange <module-daml-finance-instrument-swap-foreignexchange-instrument-43394>`: This template models a foreign exchange (FX) swap with two legs: an initial FX transaction and a final FX transaction
     - :ref:`InterestRate <module-daml-finance-instrument-swap-interestrate-instrument-86260>`: This template models an interest rate swap that pays a fixed vs floating interest rate at the end of every payment period
+    - :ref:`Fpml <module-daml-finance-instrument-swap-fpml-instrument-17241>`: This template models interest rate swaps using the `FpML swap schema <https://www.fpml.org/spec/fpml-5-11-3-lcwd-1/html/confirmation/schemaDocumentation/schemas/fpml-ird-5-11_xsd/complexTypes/Swap.html>`_
 
 Equity
 ======

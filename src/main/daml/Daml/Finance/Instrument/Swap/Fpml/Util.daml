@@ -1,0 +1,111 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Swap.Fpml.Util where
+
+import ContingentClaims.Claim (Inequality(..), give, one, scale, when)
+import ContingentClaims.Observation (Observation(..))
+import DA.Date
+import DA.Optional (fromOptional, fromSome, isNone, isSome)
+import Daml.Finance.Instrument.Generic.Util (createFixRatePaymentClaims, getHolidayCalendars, prepareAndTagClaims)
+import Daml.Finance.Interface.Claims.Types (Deliverable, Observable, TaggedClaim(..))
+import Daml.Finance.Interface.Types.Date.Calendar
+import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
+import Daml.Finance.Interface.Types.Date.RollConvention
+import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..), SchedulePeriod, StubPeriodTypeEnum(..))
+import Daml.Finance.Interface.Types.Fpml
+import Daml.Finance.Util.Date.Calendar (addBusinessDays, adjustDate, merge)
+import Daml.Finance.Util.Date.DayCount (calcPeriodDcf)
+import Daml.Finance.Util.Date.RollConvention (addPeriod)
+import Prelude hiding (key)
+
+type O = Observation Date Decimal Observable
+
+-- | Create claims from swapStream that describes a fix coupon stream.
+calculateClaimsFromFixSwapStream : SwapStream -> PeriodicSchedule -> [SchedulePeriod] -> Bool -> Bool -> Decimal -> Deliverable -> Update TaggedClaim
+calculateClaimsFromFixSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg notional currency = do
+  let f = fromSome s.calculationPeriodAmount.calculation.fixedRateSchedule
+  pure $ createFixRatePaymentClaims streamSchedule periodicSchedule useAdjustedDatesForDcf f.initialValue issuerPaysLeg s.calculationPeriodAmount.calculation.dayCountFraction notional currency
+
+-- | Define observable part of claim when one specific floating rate is provided for a stub period.
+getSingleStubRate : StubFloatingRate -> Optional O
+getSingleStubRate floatingRate = do
+  Some (Observe floatingRate.floatingRateIndex)
+
+-- | Linearly interpolates two rates within a period, as specified in https://www.isda.org/a/aWkgE/Linear-interpolation-04022022.pdf
+getInterpolatedStubRate : StubFloatingRate -> StubFloatingRate -> SchedulePeriod -> HolidayCalendarData -> BusinessDayConventionEnum -> Optional O
+getInterpolatedStubRate fr1 fr2 p cal convention = do
+  let
+    tenor1 = fromSome fr1.indexTenor
+    tenor2 = fromSome fr2.indexTenor
+    s = p.adjustedStartDate
+    p1 = adjustDate cal convention (addPeriod s tenor1)
+    p2 = adjustDate cal convention (addPeriod s tenor2)
+    tn = subDate p.adjustedEndDate s
+    t1 = subDate p1 s
+    t2 = subDate p2 s
+    d1 = tn - t1
+    d2 = t2 - tn
+    w1 = intToDecimal d2 / intToDecimal (d1 + d2)
+    w2 = 1.0 - w1
+
+  -- In the ISDA paper, the following expression is used for linear interpolation:
+  --Some (Observe (fr1.floatingRateIndex) + (Observe (fr2.floatingRateIndex) - Observe (fr1.floatingRateIndex)) * Const (intToDecimal (tn - t1) / intToDecimal (t2 - t1)))
+
+  -- This expression can be simplified to:
+  Some $ Const w1 * Observe fr1.floatingRateIndex + Const w2 * Observe fr2.floatingRateIndex
+
+-- | Get the floating stub rate to be used for a stub period.
+getStubRateFloating : [StubFloatingRate] -> SchedulePeriod -> HolidayCalendarData -> BusinessDayConventionEnum -> Optional O
+getStubRateFloating floatingRates p cal convention = do
+  case floatingRates of
+    [rate] -> getSingleStubRate rate
+    [rate1, rate2] -> getInterpolatedStubRate rate1 rate2 p cal convention
+    other -> error "only one or two floating stub rates supported"
+
+-- | Get the stub rate to be used for a stub period.
+-- Currently, three main options from the FpML schema are supported:
+-- 1. A fix stubRate.
+-- 2. One or two floating rates for the stub.
+-- 3. No specific stub rate defined -> use the same rate as is used for regular periods.
+getStubRate : StubCalculationPeriodAmount -> Bool -> SchedulePeriod -> HolidayCalendarData -> BusinessDayConventionEnum -> Optional O
+getStubRate sc initialStub p cal convention = do
+  let
+    s = if initialStub then fromSome sc.initialStub else fromSome sc.finalStub
+  case s.stubRate of
+    Some stubRate -> if isSome s.floatingRate then error "both stubRate and floatingRate provided" else Const <$> s.stubRate
+    None -> if isSome s.floatingRate then getStubRateFloating (fromSome s.floatingRate) p cal convention else None
+
+-- | Calculate a floating rate amount for each payment date and create claims.
+-- The floating rate is observed according to the FpML ResetDates component and used for the corresponding payment on the last day of that payment period.
+createFloatingRatePaymentClaims : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> Observable -> HolidayCalendarData -> SwapStream -> Update TaggedClaim
+createFloatingRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf floatingRateSpread issuerPays dayCountConvention notional cashInstrumentCid referenceRateId fixingCalendars s = do
+  let
+    resetDates = fromSome s.resetDates
+    bdc = s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessDayConvention
+  assertMsg "Only daily fixing date period supported" (resetDates.fixingDates.period == D)
+  assertMsg "Only Business day type supported" (resetDates.fixingDates.dayType == Business)
+  assertMsg "No adjustement (besides business day type) supported" (resetDates.fixingDates.businessDayConvention == NoAdjustment)
+  let
+    fixingDates = map (\p -> addBusinessDays fixingCalendars resetDates.fixingDates.periodMultiplier p.adjustedStartDate) schedule
+    createClaim p f =
+      when (TimeGte f) $ scale (rate * (Const (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency))) $
+      when (TimeGte p.adjustedEndDate) $ scale (Const notional) $ one cashInstrumentCid
+        where
+          regularRate = Observe referenceRateId + Const floatingRateSpread
+          stubType = p.stubType
+          rate = case stubType of
+            None -> regularRate
+            Some stubType -> if isNone s.stubCalculationPeriodAmount then regularRate else fromOptional regularRate (getStubRate (fromSome s.stubCalculationPeriodAmount) (stubType == LongInitial || stubType == ShortInitial) p fixingCalendars bdc)
+    floatingClaimAmounts = mconcat $ zipWith createClaim schedule fixingDates
+    floatingClaims = if issuerPays then floatingClaimAmounts else give floatingClaimAmounts
+  pure $ prepareAndTagClaims [floatingClaims] "Floating rate payment"
+
+-- | Create claims from swapStream that describes a floating coupon stream.
+calculateClaimsFromFloatingSwapStream : SwapStream -> PeriodicSchedule -> [SchedulePeriod] -> Bool -> Bool -> Decimal -> Deliverable -> Party -> Party -> Update TaggedClaim
+calculateClaimsFromFloatingSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg notional currency issuer calendarDataAgency= do
+  let
+    f = fromSome s.calculationPeriodAmount.calculation.floatingRateCalculation
+    resetDates = fromSome s.resetDates
+  fixingCalendars <- getHolidayCalendars resetDates.fixingDates.businessCenters issuer calendarDataAgency
+  createFloatingRatePaymentClaims streamSchedule periodicSchedule useAdjustedDatesForDcf f.spreadSchedule.initialValue issuerPaysLeg s.calculationPeriodAmount.calculation.dayCountFraction notional currency f.floatingRateIndex (merge fixingCalendars) s

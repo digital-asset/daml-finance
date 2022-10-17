@@ -23,7 +23,7 @@ Intrinsic events are contractual cash flows.
 The contract terms pre-define exactly what triggers these events, for example:
 
 - A certain date is reached, which results in a coupon payent of a bond. Time-based events are controlled using the ``DateClock`` template (not ledger time).
-- The price of a stock reaches a certain level, resulting in a barrier hit. The relevant stock price is defined in an ``Observable`` template.
+- The price of a stock reaches a certain level, resulting in a barrier hit. The relevant stock price is defined in an ``Observation`` template.
 
 Extrinsic
 =========
