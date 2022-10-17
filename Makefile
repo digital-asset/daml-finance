@@ -85,8 +85,8 @@ ci-docs:
 
 .PHONY: ci-headers-check
 ci-headers-check:
-	@nix-shell \
-		--pure   \
+	@nix-shell shell.nix \
+		--pure \
 		--run './scripts/dade-copyright-headers.py check'
 
 .PHONY: ci-assembly
