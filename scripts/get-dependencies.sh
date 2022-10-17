@@ -42,10 +42,7 @@ else
       echo -e "Dependency ${dependency_path} already setup. Skipping.\n"
     else
       # Extract the dependency details from dependency path
-      # read repo_name file_name tag <<<$(awk '{ n=split($0,array,"/"); print array[2], array[n]; for (i=3; i < n; i++) { printf array[i]; if (i != n-1) printf "/" }}' <<< ${dependency_path})
-      # ^^ Due to the image CircleCI uses, reading of printf as the third variable fails.
-      read repo_name file_name <<<$(awk '{ n=split($0,array,"/"); print array[2], array[n] }' <<< ${dependency_path})
-      read tag <<<$(awk '{ n=split($0,array,"/"); for (i=3; i < n; i++) { printf array[i]; if (i != n-1) printf "/" }}' <<< ${dependency_path})
+      read repo_name file_name tag <<<$(awk '{ n=split($0,array,"/"); print array[2], array[n]; for (i=3; i < n; i++) { printf array[i]; if (i != n-1) printf "/" }}' <<< ${dependency_path})
 
       # Check if the dependency exists in the following order :
       # 1 - cache

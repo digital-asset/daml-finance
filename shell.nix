@@ -5,9 +5,10 @@ let
   sources = import ./nix/sources.nix;
   pkgs = import sources.nixpkgs {};
   daml = import ./nix/daml.nix;
-  damlYaml = builtins.fromJSON (builtins.readFile (pkgs.runCommand "daml.yaml.json" { yamlfile = ./daml.yaml; } ''
-                ${pkgs.yj}/bin/yj < "$yamlfile" > $out
+  damlYaml = builtins.fromJSON (builtins.readFile (pkgs.runCommand "daml.yaml.json" { yamlFile = ./daml.yaml; } ''
+                ${pkgs.yj}/bin/yj < "$yamlFile" > $out
               ''));
+  docs = import ./nix/docs.nix;
 in
 pkgs.mkShell {
   SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
@@ -18,10 +19,11 @@ pkgs.mkShell {
     pkgs.bash
     pkgs.binutils # cp, grep, etc.
     pkgs.cacert
+    pkgs.circleci-cli
     pkgs.curl
-    pkgs.yq-go
+    pkgs.gh
+    pkgs.git
     pkgs.jq
-    pkgs.pipenv
-    pkgs.python39
-  ];
+    pkgs.yq-go
+  ] ++ (docs { pkgs = pkgs; });
 }
