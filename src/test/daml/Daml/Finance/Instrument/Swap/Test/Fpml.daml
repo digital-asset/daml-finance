@@ -192,8 +192,8 @@ runStubRateInterpolation = script do
     paymentPeriodMultiplier = 3
     dayCountConvention = Basis1 -- Use basis 1/1 in order to easily compare the interpolated rate calculation with the ISDA paper
     businessDayConvention = ModifiedFollowing
-    observations = M.fromList [(dateToDateClockTime (date 2022 Jan 06), 0.0023129), (dateToDateClockTime (date 2022 Mar 17), 0.002035)]
-    observationsOneMonth = M.fromList [(dateToDateClockTime (date 2022 Jan 06), 0.0010414), (dateToDateClockTime (date 2022 Mar 17), 0.002035)]
+    observationsLibor3M = M.fromList [(dateToDateClockTime (date 2022 Jan 06), 0.0023129), (dateToDateClockTime (date 2022 Mar 17), 0.002035)]
+    observationsLibor1M = M.fromList [(dateToDateClockTime (date 2022 Jan 06), 0.0010414), (dateToDateClockTime (date 2022 Mar 17), 0.002035)]
     holidayCalendarId = ["USD"]
     cal =
       HolidayCalendarData with
@@ -256,13 +256,14 @@ runStubRateInterpolation = script do
     swapStreams = [swapStreamFloatingLeg]
 
   -- A reference data provider publishes the holiday calendars on the ledger
-  calendarCid <- submitMulti [calendarDataProvider] [] do
+  calendarCid <- submit calendarDataProvider do
     createCmd HolidayCalendar with agency = calendarDataProvider; entity = cal.id; calendar = cal; observers = M.fromList observers
-  fixingCalendarCid <- submitMulti [calendarDataProvider] [] do
+  fixingCalendarCid <- submit calendarDataProvider do
     createCmd HolidayCalendar with agency = calendarDataProvider; entity = fixingCal.id; calendar = fixingCal; observers = M.fromList observers
 
-  observableCid <- coerceContractId <$> submitMulti [issuer] [] do createCmd Observation with provider = issuer; id = Id referenceRateId; observations; observers = M.empty
-  observableOneMonthCid <- coerceContractId <$> submitMulti [issuer] [] do createCmd Observation with provider = issuer; id = Id referenceRateOneMonthId; observations=observationsOneMonth; observers = M.empty
+  observableLibor3MCid <- coerceContractId <$> submit issuer do createCmd Observation with provider = issuer; id = Id referenceRateId; observations=observationsLibor3M; observers = M.empty
+  observableLibor1MCid <- coerceContractId <$> submit issuer do createCmd Observation with provider = issuer; id = Id referenceRateOneMonthId; observations=observationsLibor1M; observers = M.empty
+  let observableCids = [observableLibor3MCid, observableLibor1MCid]
 
   swapInstrument <- originateFpmlSwap custodian issuer "SwapTest1" "Interest rate swap" observers now swapStreams calendarDataProvider cashInstrumentCid issuerPartyRef
 
@@ -272,7 +273,7 @@ runStubRateInterpolation = script do
   let
     expectedConsumedQuantities = []
     expectedProducedQuantities = [Instrument.qty 0.001867875 cashInstrumentCid]  -- interpolated stub rate from the ISDA paper
-  swapInstrumentAfterFirstPayment <- lifecycleAndVerifySwapPaymentEffects [publicParty] (addDays firstRegularPeriodDate 1) swapInstrument settlers issuer investor observers custodian [observableCid, observableOneMonthCid] expectedConsumedQuantities expectedProducedQuantities
+  swapInstrumentAfterFirstPayment <- lifecycleAndVerifySwapPaymentEffects [publicParty] (addDays firstRegularPeriodDate 1) swapInstrument settlers issuer investor observers custodian observableCids expectedConsumedQuantities expectedProducedQuantities
 
   pure ()
 
@@ -399,13 +400,13 @@ runDualStubSampleTrade = script do
     swapStreams = [swapStreamFloatingLeg, swapStreamFixedLeg]
 
   -- A reference data provider publishes the holiday calendars on the ledger
-  calendarCid <- submitMulti [calendarDataProvider] [] do
+  calendarCid <- submit calendarDataProvider do
     createCmd HolidayCalendar with agency = calendarDataProvider; entity = cal.id; calendar = cal; observers = M.fromList observers
-  fixingCalendarCid <- submitMulti [calendarDataProvider] [] do
+  fixingCalendarCid <- submit calendarDataProvider do
     createCmd HolidayCalendar with agency = calendarDataProvider; entity = fixingCal.id; calendar = fixingCal; observers = M.fromList observers
 
-  observableLibor3MCid <- coerceContractId <$> submitMulti [issuer] [] do createCmd Observation with provider = issuer; id = Id referenceRateId; observations=observationsLibor3M; observers = M.empty
-  observableLibor1MCid <- coerceContractId <$> submitMulti [issuer] [] do createCmd Observation with provider = issuer; id = Id referenceRateOneMonthId; observations=observationsLibor1M; observers = M.empty
+  observableLibor3MCid <- coerceContractId <$> submit issuer do createCmd Observation with provider = issuer; id = Id referenceRateId; observations=observationsLibor3M; observers = M.empty
+  observableLibor1MCid <- coerceContractId <$> submit issuer do createCmd Observation with provider = issuer; id = Id referenceRateOneMonthId; observations=observationsLibor1M; observers = M.empty
   let observableCids = [observableLibor3MCid, observableLibor1MCid]
 
   swapInstrument <- originateFpmlSwap custodian issuer "SwapTest1" "Interest rate swap" observers now swapStreams calendarDataProvider cashInstrumentCid issuerPartyRef
