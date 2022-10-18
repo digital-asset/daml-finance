@@ -10,6 +10,8 @@ root_dir=$(cd "$(dirname $0)"; cd ..; pwd -P)
 echo "Running package tests..."
 
 # Run tests
+# Contingent Claims
+daml test --project-root ${root_dir}/package/test/daml/ContingentClaims.Test
 # Util
 daml test --project-root ${root_dir}/package/test/daml/Daml.Finance.Test.Util
 ## Date Utils

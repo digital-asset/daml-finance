@@ -9,6 +9,8 @@ script_dir=$(cd "$(dirname $0)"; pwd -P)
 root_dir=$(cd ${script_dir}; cd ..; pwd -P)
 
 ## Validate Core
+# Contingent Claims
+${script_dir}/validate-package.sh ${root_dir}/package/main/daml/ContingentClaims
 # Interfaces
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Types
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Util
