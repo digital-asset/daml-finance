@@ -12,7 +12,7 @@ import Daml.Finance.Interface.Claims.Types (Deliverable, Observable, TaggedClaim
 import Daml.Finance.Interface.Types.Date.Calendar
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
 import Daml.Finance.Interface.Types.Date.RollConvention
-import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..), SchedulePeriod, StubPeriodTypeEnum(..))
+import Daml.Finance.Interface.Types.Date.Schedule (Frequency(..), PeriodicSchedule(..), SchedulePeriod, StubPeriodTypeEnum(..))
 import Daml.Finance.Interface.Types.Fpml
 import Daml.Finance.Util.Date.Calendar (addBusinessDays, adjustDate, merge)
 import Daml.Finance.Util.Date.DayCount (calcPeriodDcf)
@@ -20,6 +20,66 @@ import Daml.Finance.Util.Date.RollConvention (addPeriod)
 import Prelude hiding (key)
 
 type O = Observation Date Decimal Observable
+
+-- | Create a schedule for calculation periods.
+createCalculationPeriodicSchedule : CalculationPeriodDates -> PeriodicSchedule
+createCalculationPeriodicSchedule c = do
+  let
+    periodicSchedule = PeriodicSchedule with
+      businessDayAdjustment =
+        BusinessDayAdjustment with
+          calendarIds = c.calculationPeriodDatesAdjustments.businessCenters
+          convention = c.calculationPeriodDatesAdjustments.businessDayConvention
+      effectiveDateBusinessDayAdjustment = None
+      terminationDateBusinessDayAdjustment = None
+      frequency =
+        Frequency with
+          rollConvention = c.calculationPeriodFrequency.rollConvention
+          period = c.calculationPeriodFrequency.period
+          periodMultiplier = c.calculationPeriodFrequency.periodMultiplier
+      effectiveDate = c.effectiveDate.unadjustedDate
+      firstRegularPeriodStartDate = c.firstRegularPeriodStartDate
+      lastRegularPeriodEndDate = c.lastRegularPeriodEndDate
+      stubPeriodType = None
+      terminationDate = c.terminationDate.unadjustedDate
+  periodicSchedule
+
+-- | Create a schedule for payment periods.
+createPaymentPeriodicSchedule : SwapStream -> PeriodicSchedule
+createPaymentPeriodicSchedule s = do
+  let
+    periodicSchedule = PeriodicSchedule with
+      businessDayAdjustment =
+        BusinessDayAdjustment with
+          calendarIds = fromSome s.paymentDates.paymentDatesAdjustments.businessCenters
+          convention = s.paymentDates.paymentDatesAdjustments.businessDayConvention
+      effectiveDateBusinessDayAdjustment = None
+      terminationDateBusinessDayAdjustment = None
+      frequency =
+        Frequency with
+          rollConvention = s.calculationPeriodDates.calculationPeriodFrequency.rollConvention
+          period = s.paymentDates.paymentFrequency.period
+          periodMultiplier = s.paymentDates.paymentFrequency.periodMultiplier
+      effectiveDate = s.calculationPeriodDates.effectiveDate.unadjustedDate
+      firstRegularPeriodStartDate = s.paymentDates.firstPaymentDate
+      lastRegularPeriodEndDate = s.paymentDates.lastRegularPaymentDate
+      stubPeriodType = None
+      terminationDate = s.calculationPeriodDates.terminationDate.unadjustedDate
+  periodicSchedule
+
+-- | Retrieve holiday calendars and adjust a date as specified in a BusinessDayAdjustments FpML element
+getCalendarsAndAdjust : Date -> BusinessDayAdjustments -> Party -> Party -> Update Date
+getCalendarsAndAdjust unadjustedDate businessDayAdjustments issuer calendarDataAgency = do
+  let holidayCalendarIds = fromSome businessDayAdjustments.businessCenters
+  cals <- getHolidayCalendars holidayCalendarIds issuer calendarDataAgency
+  pure $ adjustDate (merge cals) businessDayAdjustments.businessDayConvention unadjustedDate
+
+-- | Adjust a date as specified in a BusinessDayAdjustments FpML element (or not at all if NoAdjustment)
+adjustDateAccordingToBusinessDayAdjustments : Date -> BusinessDayAdjustments -> Party -> Party -> Update Date
+adjustDateAccordingToBusinessDayAdjustments unadjustedDate businessDayAdjustments issuer calendarDataAgency = do
+  case businessDayAdjustments.businessDayConvention of
+    NoAdjustment -> pure $ unadjustedDate
+    _ -> getCalendarsAndAdjust unadjustedDate businessDayAdjustments issuer calendarDataAgency
 
 -- | Create claims from swapStream that describes a fix coupon stream.
 calculateClaimsFromFixSwapStream : SwapStream -> PeriodicSchedule -> [SchedulePeriod] -> Bool -> Bool -> Decimal -> Deliverable -> Update TaggedClaim
@@ -85,6 +145,7 @@ createFloatingRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf
     bdc = s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessDayConvention
   assertMsg "Only daily fixing date period supported" (resetDates.fixingDates.period == D)
   assertMsg "Only Business day type supported" (resetDates.fixingDates.dayType == Business)
+  assertMsg "Only fixing dates relative to calculation start dates supported" (resetDates.resetRelativeTo == CalculationPeriodStartDate)
   assertMsg "No adjustement (besides business day type) supported" (resetDates.fixingDates.businessDayConvention == NoAdjustment)
   let
     fixingDates = map (\p -> addBusinessDays fixingCalendars resetDates.fixingDates.periodMultiplier p.adjustedStartDate) schedule
@@ -106,6 +167,11 @@ calculateClaimsFromFloatingSwapStream : SwapStream -> PeriodicSchedule -> [Sched
 calculateClaimsFromFloatingSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg notional currency issuer calendarDataAgency= do
   let
     f = fromSome s.calculationPeriodAmount.calculation.floatingRateCalculation
-    resetDates = fromSome s.resetDates
-  fixingCalendars <- getHolidayCalendars resetDates.fixingDates.businessCenters issuer calendarDataAgency
+    r = fromSome s.resetDates
+  assertMsg "resetDate must refer to the calculationPeriodDates of the current swapStream" $ r.calculationPeriodDatesReference == s.calculationPeriodDates.id
+  assertMsg "resetDate period must match calculation period" (r.resetFrequency.period == s.calculationPeriodDates.calculationPeriodFrequency.period)
+  assertMsg "resetDate periodMultiplier must match calculation periodMultiplier" (r.resetFrequency.periodMultiplier == s.calculationPeriodDates.calculationPeriodFrequency.periodMultiplier)
+  assertMsg "resetDate businessDayConvention must match calculation businessDayConvention" (r.resetDatesAdjustments.businessDayConvention == s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessDayConvention)
+  assertMsg "resetDate businessCenters must match calculation businessCenters" (r.resetDatesAdjustments.businessCenters == s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessCenters)
+  fixingCalendars <- getHolidayCalendars r.fixingDates.businessCenters issuer calendarDataAgency
   createFloatingRatePaymentClaims streamSchedule periodicSchedule useAdjustedDatesForDcf f.spreadSchedule.initialValue issuerPaysLeg s.calculationPeriodAmount.calculation.dayCountFraction notional currency f.floatingRateIndex (merge fixingCalendars) s
