@@ -43,20 +43,23 @@ else
     else
       # Extract the dependency details from dependency path
       read repo_name file_name tag <<<$(awk '{
-          n=split($0,array,"/");
-          print array[2], array[n];
-          for (i=3; i < n; i++) {
-              printf "%s", array[i];
-              if (i != n-1)
-                printf "%s", "/";
+          n = split($0,array,"/");
+          repo = array[2];
+          file = array[n];
+          for (i = 3; i < n; i++) {
+            tag = sprintf("%s%s", tag, array[i]);
+            if (i != n - 1)
+              tag = sprintf("%s/", tag);
             }
-          }' <<< ${dependency_path})
+          }
+          END { print repo, file, tag }' <<< ${dependency_path})
 
       # Check if the dependency exists in the following order :
       # 1 - cache
       # 2 - GitHub
       # 3 - local build
       cache_dependency_path=${cache_dir}/${repo_name}/${tag}
+      echo "cache_dependency_path=${cache_dependency_path}"
 
       if [[ -a ${cache_dependency_path}/${file_name} ]]; then
         echo "Using cached dependency at ${cache_dependency_path}/${file_name}"
