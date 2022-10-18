@@ -31,6 +31,7 @@ daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Holding
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Account
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Settlement
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Lifecycle
+daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Claims
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Data
 
 ## Clean Extensions

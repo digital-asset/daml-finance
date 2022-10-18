@@ -29,6 +29,7 @@ ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Hol
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Account
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Settlement
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Lifecycle
+${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Claims
 ${script_dir}/validate-package.sh ${root_dir}/package/main/daml/Daml.Finance.Data
 
 ## Validate Extensions
