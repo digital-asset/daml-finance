@@ -12,4 +12,11 @@ in
     buildPhase = "patchShebangs .";
     installPhase = "DAML_HOME=$out ./install.sh";
     propagatedBuildInputs = [ jdk ];
+    preFixup = ''
+      # Set DAML_HOME automatically.
+      mkdir -p $out/nix-support
+      cat <<EOF >> $out/nix-support/setup-hook
+      export DAML_HOME=$out
+      EOF
+    '';
 }

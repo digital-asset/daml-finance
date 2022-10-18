@@ -78,7 +78,7 @@ ci-validate:
 		--run './$(SCRIPTS_DIR)/validate-packages.sh'
 
 .PHONY: ci-docs
-ci-docs:
+ci-docs: $(DAML_SDK_ROOT)
 	@nix-shell \
 		--pure   \
 		--run 'pipenv run make doc-html'
@@ -124,6 +124,7 @@ headers-update:
 
 DAML_SRC := $(shell find src/main/daml -name '*.daml')
 SDK_VERSION := $(shell yq e '.sdk-version' daml.yaml)
+# DAML_SDK_ROOT := $(shell nix-store --query $$(which daml))
 
 .PHONY: doc-code-json
 doc-code-json: $(DAML_SRC)
@@ -144,7 +145,7 @@ doc-code: doc-code-json
 		--template=docs/code-documentation-templates/base-rst-template.rst \
 		--index-template=docs/code-documentation-templates/base-rst-index-template.rst \
 		--base-url=https://docs.daml.com/daml/daml-finance \
-		--input-anchor=${HOME}/.daml/sdk/${SDK_VERSION}/damlc/resources/daml-base-anchors.json \
+		--input-anchor=$(DAML_HOME)/sdk/$(SDK_VERSION)/damlc/resources/daml-base-anchors.json \
 		docs/build/daml-finance.json
 
 # Build doc theme

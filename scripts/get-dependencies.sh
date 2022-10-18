@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -59,7 +59,6 @@ else
       # 2 - GitHub
       # 3 - local build
       cache_dependency_path=${cache_dir}/${repo_name}/${tag}
-      echo "cache_dependency_path=${cache_dependency_path}"
 
       if [[ -a ${cache_dependency_path}/${file_name} ]]; then
         echo "Using cached dependency at ${cache_dependency_path}/${file_name}"
