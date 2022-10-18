@@ -2,7 +2,7 @@
 # Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-set -eu
+set -euo pipefail
 
 daml_yaml_file=$1
 project_name=$(yq e '.name' ${daml_yaml_file})
@@ -42,12 +42,20 @@ else
       echo -e "Dependency ${dependency_path} already setup. Skipping.\n"
     else
       # Extract the dependency details from dependency path
-      read repo_name file_name tag <<<$(awk '{ n=split($0,array,"/"); print array[2], array[n]; for (i=3; i < n; i++) { printf array[i]; if (i != n-1) printf "/" }}' <<< ${dependency_path})
+      read repo_name file_name tag <<<$(awk '{
+          n=split($0,array,"/");
+          print array[2], array[n];
+          for (i=3; i < n; i++) {
+              printf "%s", array[i];
+              if (i != n-1)
+                printf "%s", "/";
+            }
+          }' <<< ${dependency_path})
 
       # Check if the dependency exists in the following order :
       # 1 - cache
       # 2 - GitHub
-      # 3 - locally
+      # 3 - local build
       cache_dependency_path=${cache_dir}/${repo_name}/${tag}
 
       if [[ -a ${cache_dependency_path}/${file_name} ]]; then
@@ -78,7 +86,3 @@ else
 
   done
 fi
-
-# TODO:
-# If we have a locally built .dar, we should use the latest built jar :/ [done]
-# Update CI config!
