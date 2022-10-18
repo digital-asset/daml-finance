@@ -21,23 +21,22 @@ import Daml.Script
 -- Penultimate coupon payment on a bond showing creation of new instrument version
 run : Script ()
 run = script do
-  [depository, custodian, issuer, investor, calendarDataProvider, settler, provider, publicParty] <-
-    createParties ["CSD", "Custodian", "Issuer", "Investor", "Calendar Data Provider", "Settler", "Provider", "PublicParty"]
+  [depository, custodian, issuer, investor, calendarDataProvider, settler, publicParty] <-
+    createParties ["CSD", "Custodian", "Issuer", "Investor", "Calendar Data Provider", "Settler", "PublicParty"]
   let settlers = singleton settler
 
   -- Account and holding factory
-  let fp = [("FactoryProvider", singleton publicParty)]
-  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory provider fp
-  holdingFactoryCid <- toInterfaceContractId <$> submitMulti [custodian] [] do
-    createCmd Fungible.Factory with provider = custodian; observers = M.fromList fp
+  let pp = [("FactoryProvider", singleton publicParty)]
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory custodian pp
+  holdingFactoryCid <- toInterfaceContractId <$> submit custodian do
+    createCmd Fungible.Factory with provider = custodian; observers = M.fromList pp
 
   -- Create accounts
-  [custodianAccount, investorAccount] <- mapA (Account.createAccount "Default Account" [publicParty] accountFactoryCid holdingFactoryCid [] Account.Owner custodian) [custodian, investor]
+  [custodianAccount, investorAccount] <- mapA (Account.createAccount "Default Account" [] accountFactoryCid holdingFactoryCid [] Account.Owner custodian) [custodian, investor]
 
   -- Distribute commercial-bank cash
   now <- getTime
-  let observers = [("PublicParty", singleton publicParty)]
-  cashInstrumentCid <- Instrument.originate depository issuer "EUR" "Euro" observers now
+  cashInstrumentCid <- Instrument.originate depository issuer "EUR" "Euro" pp now
 
   -- Create and distribute bond
   -- Ireland 1.1% coupon every 12M
@@ -67,23 +66,23 @@ run = script do
         holidays = [date 2020 Dec 19]
 
   -- A reference data provider publishes the holiday calendar on the ledger
-  calendarCid <- submitMulti [calendarDataProvider] [] do
+  calendarCid <- submit calendarDataProvider do
     createCmd HolidayCalendar with
       agency = calendarDataProvider
       entity = cal.id
       calendar = cal
-      observers = M.fromList observers
+      observers = M.fromList pp
 
-  calendarCid2 <- submitMulti [calendarDataProvider] [] do
+  calendarCid2 <- submit calendarDataProvider do
     createCmd HolidayCalendar with
       agency = calendarDataProvider
       entity = cal2.id
       calendar = cal2
-      observers = M.fromList observers
+      observers = M.fromList pp
 
-  bondInstrument <- originateFixedRateBond custodian issuer "BONDTEST1" "Fixed Rate Bond" observers now issueDate holidayCalendarIds calendarDataProvider firstCouponDate maturityDate dayCountConvention businessDayConvention couponRate couponPeriod couponPeriodMultiplier cashInstrumentCid
+  bondInstrument <- originateFixedRateBond custodian issuer "BONDTEST1" "Fixed Rate Bond" pp now issueDate holidayCalendarIds calendarDataProvider firstCouponDate maturityDate dayCountConvention businessDayConvention couponRate couponPeriod couponPeriodMultiplier cashInstrumentCid
   -- CREDIT_ACCOUNT_FIXED_RATE_BOND_BEGIN
-  investorBondTransferableCid <- Account.credit [publicParty] bondInstrument redemptionAmount investorAccount
+  investorBondTransferableCid <- Account.credit [] bondInstrument redemptionAmount investorAccount
   -- CREDIT_ACCOUNT_FIXED_RATE_BOND_END
 
   -- One day before the first coupon date: try to lifecycle and verify that there are no lifecycle effects.
@@ -93,7 +92,7 @@ run = script do
   let
     expectedConsumedQuantities = []
     expectedProducedQuantities = [Instrument.qty 0.0035863014 cashInstrumentCid]
-  bondInstrumentAfterFirstCoupon <- lifecycleAndVerifyBondPaymentEffects [publicParty] firstCouponDate bondInstrument settlers issuer investor observers custodian [] expectedConsumedQuantities expectedProducedQuantities
+  bondInstrumentAfterFirstCoupon <- lifecycleAndVerifyBondPaymentEffects [publicParty] firstCouponDate bondInstrument settlers issuer investor pp custodian [] expectedConsumedQuantities expectedProducedQuantities
 
   -- One day after the first coupon date: try to lifecycle and verify that there are no lifecycle effects.
   verifyNoLifecycleEffects [publicParty] (addDays firstCouponDate 1) bondInstrumentAfterFirstCoupon settlers issuer []
@@ -105,7 +104,7 @@ run = script do
   let
     expectedConsumedQuantities = []
     expectedProducedQuantities = [Instrument.qty 1.011030137 cashInstrumentCid]
-  bondInstrumentAfterRedemption <- lifecycleAndVerifyBondPaymentEffects [publicParty] maturityDate bondInstrumentAfterFirstCoupon settlers issuer investor observers custodian [] expectedConsumedQuantities expectedProducedQuantities
+  bondInstrumentAfterRedemption <- lifecycleAndVerifyBondPaymentEffects [publicParty] maturityDate bondInstrumentAfterFirstCoupon settlers issuer investor pp custodian [] expectedConsumedQuantities expectedProducedQuantities
 
   -- One day after expiry: try to lifecycle and verify that there are no lifecycle effects.
   verifyNoLifecycleEffects [publicParty] (addDays maturityDate 1) bondInstrumentAfterRedemption settlers issuer []

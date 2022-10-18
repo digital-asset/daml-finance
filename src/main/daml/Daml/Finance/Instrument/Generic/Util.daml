@@ -6,7 +6,6 @@ module Daml.Finance.Instrument.Generic.Util where
 import ContingentClaims.Claim (Claim(..), Inequality(..), give, one, scale, upTo, when, until)
 import ContingentClaims.Observation (Observation(..))
 import DA.Date
-import DA.Optional (fromSome)
 import DA.Record (HasField)
 import DA.Set (fromList)
 import DA.Text (sha256)
@@ -15,9 +14,9 @@ import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, getAcquisition
 import Daml.Finance.Interface.Claims.Types (C, Deliverable, Observable, TaggedClaim(..))
 import Daml.Finance.Interface.Claims.Util (isZero', toTime')
 import Daml.Finance.Interface.Claims.Util.Lifecycle (lifecycle, lifecycleClaims, net, splitPending, timeEvent)
-import Daml.Finance.Interface.Data.Observable qualified as Observable (I)
+import Daml.Finance.Interface.Data.NumericObservable qualified as NumericObservable (I)
+import Daml.Finance.Interface.Data.TimeObservable qualified as TimeObservable (I)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (I, createReference, getKey)
-import Daml.Finance.Interface.Lifecycle.Clock qualified as Clock (I)
 import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (I)
 import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I)
@@ -25,18 +24,16 @@ import Daml.Finance.Interface.Types.Common (Id, Parties)
 import Daml.Finance.Interface.Types.Date.Calendar
 import Daml.Finance.Interface.Types.Date.Classes (toUTCTime)
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
-import Daml.Finance.Interface.Types.Date.RollConvention
 import Daml.Finance.Interface.Types.Date.Schedule (Frequency(..), PeriodicSchedule(..), Schedule, SchedulePeriod)
 import Daml.Finance.Interface.Types.Fpml
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, flattenObservers)
 import Daml.Finance.Lifecycle.Effect (Effect(..))
 import Daml.Finance.Lifecycle.Types (Unit(..))
-import Daml.Finance.Util.Date.Calendar (addBusinessDays, merge)
 import Daml.Finance.Util.Date.DayCount (calcPeriodDcf)
 import Daml.Finance.Util.Date.Schedule (createSchedule)
 import Prelude hiding (key)
 
--- | Retrieve holiday calendar(s) from the ledger and roll out the payment schedule.
+-- | Retrieve holiday calendar(s) from the ledger.
 getHolidayCalendars : [Text] -> Party -> Party -> Update [HolidayCalendarData]
 getHolidayCalendars holidayCalendarIds issuer calendarDataAgency = do
   let
@@ -62,37 +59,37 @@ prepareAndTagClaims cs tag = do
   TaggedClaim with tag; claim
 
 -- FIXED_RATE_BOND_COUPON_CLAIMS_BEGIN
-createFixRatePaymentClaimsList : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Deliverable -> [Claim Date Decimal Deliverable Observable]
-createFixRatePaymentClaimsList schedule periodicSchedule useAdjustedDatesForDcf couponRate issuerPays dayCountConvention cashInstrumentCid = do
+createFixRatePaymentClaimsList : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> [Claim Date Decimal Deliverable Observable]
+createFixRatePaymentClaimsList schedule periodicSchedule useAdjustedDatesForDcf couponRate issuerPays dayCountConvention notional cashInstrumentCid = do
   let
     couponDatesAdjusted = map (.adjustedEndDate) schedule
     couponAmounts = map (\p -> couponRate * (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency)) schedule
-    couponClaimAmounts = mconcat $ zipWith (\d a -> when (TimeGte d) $ scale (Const a) $ one cashInstrumentCid) couponDatesAdjusted couponAmounts
+    couponClaimAmounts = mconcat $ zipWith (\d a -> when (TimeGte d) $ scale (Const a) $ scale (Const notional) $ one cashInstrumentCid) couponDatesAdjusted couponAmounts
     couponClaims = if issuerPays then couponClaimAmounts else give couponClaimAmounts
   pure couponClaims
 -- FIXED_RATE_BOND_COUPON_CLAIMS_END
 
 -- | Calculate a fix rate amount for each payment date and create claims.
-createFixRatePaymentClaims : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Deliverable -> TaggedClaim
-createFixRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf couponRate issuerPays dayCountConvention cashInstrumentCid = do
-  let couponClaims = createFixRatePaymentClaimsList schedule periodicSchedule useAdjustedDatesForDcf couponRate issuerPays dayCountConvention cashInstrumentCid
+createFixRatePaymentClaims : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> TaggedClaim
+createFixRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf couponRate issuerPays dayCountConvention notional cashInstrumentCid = do
+  let couponClaims = createFixRatePaymentClaimsList schedule periodicSchedule useAdjustedDatesForDcf couponRate issuerPays dayCountConvention notional cashInstrumentCid
   prepareAndTagClaims couponClaims "Fix rate payment"
 
 -- | Calculate a fix rate amount (if a credit event has not yet happened) for each payment date and create claims.
-createConditionalCreditFixRatePaymentClaims : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Deliverable -> Observable -> TaggedClaim
-createConditionalCreditFixRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf couponRate issuerPays dayCountConvention cashInstrumentCid defaultProbabilityReferenceId = do
+createConditionalCreditFixRatePaymentClaims : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> Observable -> TaggedClaim
+createConditionalCreditFixRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf couponRate issuerPays dayCountConvention notional cashInstrumentCid defaultProbabilityReferenceId = do
   let
-    couponClaims = createFixRatePaymentClaimsList schedule periodicSchedule useAdjustedDatesForDcf couponRate issuerPays dayCountConvention cashInstrumentCid
+    couponClaims = createFixRatePaymentClaimsList schedule periodicSchedule useAdjustedDatesForDcf couponRate issuerPays dayCountConvention notional cashInstrumentCid
     creditEvent = Lte (Const 1.0, Observe defaultProbabilityReferenceId)
     couponClaimUntilCreditEvent = until creditEvent $ mconcat couponClaims
   prepareAndTagClaims [couponClaimUntilCreditEvent] "Fix rate payment (unless credit event has occurred)"
 
 -- | Calculate a (1-recoveryRate) payment if a credit event just happened and create claims.
-createCreditEventPaymentClaims : Bool -> Deliverable -> Observable -> Observable -> PeriodicSchedule -> TaggedClaim
-createCreditEventPaymentClaims issuerPays cashInstrumentCid defaultProbabilityReferenceId recoveryRateReferenceId periodicSchedule = do
+createCreditEventPaymentClaims : Bool -> Decimal -> Deliverable -> Observable -> Observable -> PeriodicSchedule -> TaggedClaim
+createCreditEventPaymentClaims issuerPays notional cashInstrumentCid defaultProbabilityReferenceId recoveryRateReferenceId periodicSchedule = do
   let
     creditEvent = Lte (Const 1.0, Observe defaultProbabilityReferenceId)
-    payoffAmount = scale (Const 1.0 - Observe recoveryRateReferenceId) $ one cashInstrumentCid
+    payoffAmount = scale (Const 1.0 - Observe recoveryRateReferenceId) $ scale (Const notional) $ one cashInstrumentCid
     payoff = if issuerPays then payoffAmount else give payoffAmount
     creditEventClaim =
       when (TimeGte periodicSchedule.effectiveDate)
@@ -106,12 +103,12 @@ createCreditEventPaymentClaims issuerPays cashInstrumentCid defaultProbabilityRe
 -- The floating rate is always observed on the first day of each payment period and used for the corresponding payment on the last day of that payment period.
 -- This means that the calculation agent needs to provide such an Observable, irrespective of
 -- the kind of reference rate used (e.g. a forward looking LIBOR or a backward looking SOFR-COMPOUND).
-createFloatingRatePaymentClaims : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Deliverable -> Observable -> TaggedClaim
-createFloatingRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf floatingRateSpread issuerPays dayCountConvention cashInstrumentCid referenceRateId = do
+createFloatingRatePaymentClaims : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> Observable -> TaggedClaim
+createFloatingRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf floatingRateSpread issuerPays dayCountConvention notional cashInstrumentCid referenceRateId = do
   let
     couponClaimAmounts = mconcat $ map (\p ->
       when (TimeGte p.adjustedStartDate) $ scale ((Observe referenceRateId + Const floatingRateSpread) * (Const (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency))) $
-      when (TimeGte p.adjustedEndDate) $ one cashInstrumentCid) schedule
+      when (TimeGte p.adjustedEndDate) $ scale (Const notional) $ one cashInstrumentCid) schedule
     couponClaims = if issuerPays then couponClaimAmounts else give couponClaimAmounts
   prepareAndTagClaims [couponClaims] "Floating rate payment"
 -- FLOATING_RATE_BOND_COUPON_CLAIMS_END
@@ -122,14 +119,14 @@ createFloatingRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf
 -- The reference asset Observable needs to contain the appropriate type of fixings:
 --   unadjusted fixings in case of a price return asset swap
 --   adjusted fixings in case of a total return asset swap
-createAssetPerformancePaymentClaims : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Bool -> DayCountConventionEnum -> Deliverable -> Observable -> TaggedClaim
-createAssetPerformancePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf issuerPays dayCountConvention cashInstrumentCid referenceAssetId = do
+createAssetPerformancePaymentClaims : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> Observable -> TaggedClaim
+createAssetPerformancePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf issuerPays dayCountConvention notional cashInstrumentCid referenceAssetId = do
   let
     assetClaimAmounts = mconcat $ map (\p ->
       when (TimeGte p.adjustedStartDate) $ scale (Const 1.0 / Observe referenceAssetId) $
-      when (TimeGte p.adjustedEndDate) $ scale (Observe referenceAssetId) $ one cashInstrumentCid) schedule
+      when (TimeGte p.adjustedEndDate) $ scale (Observe referenceAssetId) $ scale (Const notional) $ one cashInstrumentCid) schedule
     correctionClaimAmounts = mconcat $ map (\p ->
-      when (TimeGte p.adjustedEndDate) $ one cashInstrumentCid) schedule
+      when (TimeGte p.adjustedEndDate) $ scale (Const notional) $ one cashInstrumentCid) schedule
     assetClaims = if issuerPays then assetClaimAmounts else give assetClaimAmounts
     correctionAssetClaims = if issuerPays then give correctionClaimAmounts else correctionClaimAmounts
   prepareAndTagClaims [assetClaims, correctionAssetClaims] "Asset performance payment"
@@ -138,10 +135,10 @@ createAssetPerformancePaymentClaims schedule periodicSchedule useAdjustedDatesFo
 -- FIXED_RATE_BOND_REDEMPTION_CLAIM_BEGIN
 -- | Create an FX adjusted principal claim.
 -- This can be used for both FX swaps (using the appropriate FX rate) and single currency bonds (setting the FX rate to 1.0).
-createFxAdjustedPrincipalClaim : Bool -> Decimal -> Deliverable -> Date -> TaggedClaim
-createFxAdjustedPrincipalClaim issuerPays fxRateMultiplier cashInstrumentCid valueDate = do
+createFxAdjustedPrincipalClaim : Bool -> Decimal -> Decimal -> Deliverable -> Date -> TaggedClaim
+createFxAdjustedPrincipalClaim issuerPays fxRateMultiplier notional cashInstrumentCid valueDate = do
   let
-    fxLegClaimAmount = when (TimeGte valueDate) $ scale (Const fxRateMultiplier) $ one cashInstrumentCid
+    fxLegClaimAmount = when (TimeGte valueDate) $ scale (Const fxRateMultiplier) $ scale (Const notional) $ one cashInstrumentCid
     fxLegClaim = if issuerPays then fxLegClaimAmount else give fxLegClaimAmount
   prepareAndTagClaims [fxLegClaim] "Principal payment"
 -- FIXED_RATE_BOND_REDEMPTION_CLAIM_END
@@ -168,39 +165,6 @@ createPaymentPeriodicSchedule s = do
       stubPeriodType = None
       terminationDate = s.calculationPeriodDates.terminationDate
   periodicSchedule
-
--- | Create claims from swapStream that describes a fix coupon stream.
-calculateClaimsFromFixSwapStream : SwapStream -> PeriodicSchedule -> [SchedulePeriod] -> Bool -> Bool -> Deliverable -> Update TaggedClaim
-calculateClaimsFromFixSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg currency = do
-  let f = fromSome s.calculationPeriodAmount.calculation.fixedRateSchedule
-  pure $ createFixRatePaymentClaims streamSchedule periodicSchedule useAdjustedDatesForDcf f.initialValue issuerPaysLeg s.calculationPeriodAmount.calculation.dayCountFraction currency
-
--- | Calculate a floating rate amount for each payment date and create claims.
--- The floating rate is observed according to the FpML ResetDates component and used for the corresponding payment on the last day of that payment period.
--- This function is under construction and can probably be merged with createFloatingRatePaymentClaims above once all necessary FpML features have been implemented.
-createFloatingRatePaymentClaimsFpml : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Deliverable -> Observable -> [HolidayCalendarData] -> SwapStream -> Update TaggedClaim
-createFloatingRatePaymentClaimsFpml schedule periodicSchedule useAdjustedDatesForDcf floatingRateSpread issuerPays dayCountConvention cashInstrumentCid referenceRateId fixingCalendars s = do
-  let
-    resetDates = fromSome s.resetDates
-  assertMsg "Only daily fixing date period supported" (resetDates.fixingDates.period == D)
-  assertMsg "Only Business day type supported" (resetDates.fixingDates.dayType == Business)
-  assertMsg "No adjustement (besides business day type) supported" (resetDates.fixingDates.businessDayConvention == NoAdjustment)
-  let
-    fixingDates = map (\p -> addBusinessDays (merge fixingCalendars) resetDates.fixingDates.periodMultiplier p.adjustedStartDate) schedule
-    floatingClaimAmounts = mconcat $ map (\(p,f) ->
-      when (TimeGte f) $ scale ((Observe referenceRateId + Const floatingRateSpread) * (Const (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency))) $
-      when (TimeGte p.adjustedEndDate) $ one cashInstrumentCid) $ zip schedule fixingDates
-    floatingClaims = if issuerPays then floatingClaimAmounts else give floatingClaimAmounts
-  pure $ prepareAndTagClaims [floatingClaims] "Floating rate payment"
-
--- | Create claims from swapStream that describes a floating coupon stream.
-calculateClaimsFromFloatingSwapStream : SwapStream -> PeriodicSchedule -> [SchedulePeriod] -> Bool -> Bool -> Deliverable -> Party -> Party -> Update TaggedClaim
-calculateClaimsFromFloatingSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg currency issuer calendarDataAgency = do
-  let
-    f = fromSome s.calculationPeriodAmount.calculation.floatingRateCalculation
-    resetDates = fromSome s.resetDates
-  fixingCalendars <- getHolidayCalendars resetDates.fixingDates.businessCenters issuer calendarDataAgency
-  createFloatingRatePaymentClaimsFpml streamSchedule periodicSchedule useAdjustedDatesForDcf f.spreadSchedule.initialValue issuerPaysLeg s.calculationPeriodAmount.calculation.dayCountFraction currency f.floatingRateIndex fixingCalendars s
 
 -- | HIDE
 -- Type-class constraint verified by the bond templates.
@@ -232,7 +196,7 @@ mapClaimToUTCTime =
 
 -- BOND_PROCESS_CLOCK_UPDATE_INITAL_CLAIMS_BEGIN
 -- | Rule to process a clock update event.
-processClockUpdate : IsBond t => Parties -> ContractId Event.I -> ContractId Clock.I -> ContractId Lifecycle.I -> t -> [ContractId Observable.I] -> Update (ContractId Lifecycle.I, [ContractId Effect.I])
+processClockUpdate : IsBond t => Parties -> ContractId Event.I -> ContractId TimeObservable.I -> ContractId Lifecycle.I -> t -> [ContractId NumericObservable.I] -> Update (ContractId Lifecycle.I, [ContractId Effect.I])
 processClockUpdate settlers eventCid _ self instrument observableCids = do
   v <- view <$> fetch eventCid
   let

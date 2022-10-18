@@ -7,6 +7,7 @@ import DA.Date
 import DA.Optional (isNone, isSome)
 import DA.Set (singleton)
 import Daml.Finance.Instrument.Generic.Util
+import Daml.Finance.Instrument.Swap.Fpml.Util
 import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, View(..))
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, K, View(..), disclosureUpdateReference)
 import Daml.Finance.Interface.Instrument.Swap.Fpml.Instrument qualified as Fpml (HasImplementation, I, View(..))
@@ -38,8 +39,6 @@ template Instrument
       -- ^ A description of the instrument.
     swapStreams : [SwapStream]
       -- ^ Each element describes a stream of swap payments, for example a regular fixed or floating rate.
-    issueDate : Date
-      -- ^ The issue date of the instrument.
     issuerPartyRef : Text
       -- ^ Used to the identify which counterparty is the issuer in the swapStream.
     calendarDataProvider : Party
@@ -69,9 +68,11 @@ template Instrument
               periodicSchedule = createPaymentPeriodicSchedule s
               useAdjustedDatesForDcf = True
               issuerPaysLeg = (s.payerPartyReference == issuerPartyRef)
+              n = s.calculationPeriodAmount.calculation.notionalSchedule.notionalStepSchedule
+              notional = if Id n.currency == currency.id then n.initialValue else error "swapStream currency does not match swap currency"
             streamSchedule <- rollPaymentSchedule periodicSchedule s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessCenters issuer calendarDataProvider
-            if isSome c.fixedRateSchedule && isNone c.floatingRateCalculation then calculateClaimsFromFixSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg currency
-            else if isNone c.fixedRateSchedule && isSome c.floatingRateCalculation then calculateClaimsFromFloatingSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg currency issuer calendarDataProvider
+            if isSome c.fixedRateSchedule && isNone c.floatingRateCalculation then calculateClaimsFromFixSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg notional currency
+            else if isNone c.fixedRateSchedule && isSome c.floatingRateCalculation then calculateClaimsFromFloatingSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg notional currency issuer calendarDataProvider
             else error "leg type not supported"
         mapA calculateClaimsFromSwapStream swapStreams
 
@@ -82,13 +83,13 @@ template Instrument
 
     interface instance Fpml.I for Instrument where
       asBaseInstrument = toInterface @BaseInstrument.I this
-      view = Fpml.View with fpml = Fpml with instrument = instrumentKey; description; swapStreams; issueDate; issuerPartyRef; calendarDataProvider; currency; lastEventTimestamp
+      view = Fpml.View with fpml = Fpml with instrument = instrumentKey; description; swapStreams; issuerPartyRef; calendarDataProvider; currency; lastEventTimestamp
 
     interface instance Lifecycle.I for Instrument where
       view = Lifecycle.View with lifecycler = issuer
-      evolve Lifecycle.Evolve{ruleName; settlers; eventCid; clockCid; observableCids} self =
+      evolve Lifecycle.Evolve{ruleName; settlers; eventCid; timeObservableCid; observableCids} self =
         case ruleName of
-          "Time" -> processClockUpdate settlers eventCid clockCid self this observableCids
+          "Time" -> processClockUpdate settlers eventCid timeObservableCid self this observableCids
           other -> abort $ "Unknown lifecycle rule " <> other
 
     interface instance Disclosure.I for Instrument where

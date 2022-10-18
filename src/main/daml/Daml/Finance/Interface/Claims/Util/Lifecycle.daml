@@ -11,12 +11,13 @@ module Daml.Finance.Interface.Claims.Util.Lifecycle
  ) where
 
 import ContingentClaims.Lifecycle qualified as CC (exercise, lifecycle)
+import DA.Action (foldlA)
 import DA.Either (partitionEithers)
 import DA.List (head, groupOn, sort)
 import DA.Map as M (fromList, lookup)
 import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, getAcquisitionTime, getClaims)
 import Daml.Finance.Interface.Claims.Types (C, Observable, Pending(..), TaggedClaim(..))
-import Daml.Finance.Interface.Data.Observable qualified as Observable (I, observe)
+import Daml.Finance.Interface.Data.NumericObservable qualified as NumericObservable (I, observe)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (Q, qty)
 import Prelude hiding (exercise)
 
@@ -57,16 +58,15 @@ applyEvent observe acquisitionTime e (TaggedClaim with claim; tag) = do
   pure (remaining, pending)
 
 -- | HIDE
--- Process events for a single claim. The events are processed in order.
+-- Process events for a single claim. The events are processed in order (from the earliest to the latest).
 applyEvents : (Observable -> Time -> Update Decimal) -> Time -> [Event] -> TaggedClaim -> Update (TaggedClaim, [Pending])
 applyEvents observe acquisitionTime es claim =
-  let folder accM event = do
-      (claim, pending) <- accM
-      fmap (<> pending) <$> applyEvent observe acquisitionTime event claim
-  in foldl folder (pure (claim,[])) $ sort es
+  let folder (claim, pending) event =
+        fmap (<> pending) <$> applyEvent observe acquisitionTime event claim
+  in foldlA folder (claim,[]) $ sort es
 
 -- | Lifecycle a set of claims at specified events.
-lifecycleClaims : [ContractId Observable.I]          -- ^ The set of observables.
+lifecycleClaims : [ContractId NumericObservable.I]   -- ^ The set of observables.
                -> Time                               -- ^ The input claims' acquisition time.
                -> [TaggedClaim]                      -- ^ The input claims.
                -> [Event]                            -- ^ Lifecycle events.
@@ -93,8 +93,8 @@ net pending =
     map createPendingNode groupedPending
 
 -- | Lifecycle a claim instrument at specified events.
-lifecycle : [ContractId Observable.I]          -- ^ The set of observables.
-         -> Claim.I                        -- ^ The input instrument.
+lifecycle : [ContractId NumericObservable.I]   -- ^ The set of observables.
+         -> Claim.I                            -- ^ The input instrument.
          -> [Event]                            -- ^ Lifecycle events.
          -> Update ([TaggedClaim], [Pending])  -- ^ The remaining claims and pending payments.
 lifecycle observableCids instrument events = do
@@ -106,13 +106,13 @@ lifecycle observableCids instrument events = do
 -- | HIDE
 -- Fetches all `Observable` contracts and stores them in a `Map` keyed by their `id`. It then returns a function that can be used to query them.
 -- The controller must be authorized to fetch the `Observable` contracts.
-collectObservables : [ContractId Observable.I] -> Update (Observable -> Time -> Update Decimal)
+collectObservables : [ContractId NumericObservable.I] -> Update (Observable -> Time -> Update Decimal)
 collectObservables observableCids = do
   os <- M.fromList <$> forA observableCids \cid -> do
     observation <- fetch cid
     pure (show (view observation).id, observation)
   pure \key t -> case M.lookup key os of
-    Some o -> Observable.observe o t
+    Some o -> NumericObservable.observe o t
     None -> do abort $ "Missing observable" <> show key <> " at time " <> show t
 
 -- | Map pending settlements into corresponding instrument quantities and split them into consumed and produced.

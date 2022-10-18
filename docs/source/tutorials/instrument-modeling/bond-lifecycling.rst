@@ -70,13 +70,11 @@ by calling ``Lifecycle`` on the coupon date:
   :end-before: -- LIFECYCLE_BOND_END
 
 This internally uses the ``Event`` interface, which is defined in ``Daml.Finance.Interface.Lifecycle.Event``. In our case, the event
-is a clock event, since the coupon is defined by the passage of time.
+is a clock update event, since the coupon payment is triggered by the passage of time.
 
 The ``effectCids`` will contain the effect(s) of the lifecycling, in this case a coupon payment.
 If there is nothing to lifecycle, for example because there is no coupon to be paid today, ``effectCids`` would be empty.
 The ``Effect`` interface is defined in ``Daml.Finance.Interface.Lifecycle.Effect``.
-
-
 
 Settle the Instructions
 ***********************
@@ -96,6 +94,10 @@ The investor then claims the effect:
   :start-after: -- CLAIM_EFFECT_BOND_BEGIN
   :end-before: -- CLAIM_EFFECT_BOND_END
 
+Claiming the effect has two consequences:
+- the investor's holding is upgraded to the new instrument version (the one where the coupon has been paid)
+- settlement instructions are generated in order to process the coupon payment
+
 Finally, the settlement instructions are allocated, approved and then settled.
 
 .. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
@@ -103,8 +105,5 @@ Finally, the settlement instructions are allocated, approved and then settled.
   :start-after: -- ALLOCATE_APPROVE_SETTLE_INSTRUCTIONS_BOND_BEGIN
   :end-before: -- ALLOCATE_APPROVE_SETTLE_INSTRUCTIONS_BOND_END
 
-This is the result of the settlement:
-  - The investor receives cash for the coupon
-  - The investor receives a new version of the bond instrument, which excludes today's coupon (it only contains future coupons and the redemption amount)
-  - The issuer receives the original version of the bond instrument, which can be archived
+Following settlement, the investor receives a cash holding for the due coupon amount.
 
