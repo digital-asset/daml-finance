@@ -14,6 +14,8 @@ if ls package/*/daml/*/.lib/ 1> /dev/null 2>&1; then
 fi
 
 ## Build Core
+# Contingent Claims
+${script_dir}/build-package.sh ${root_dir}/package/main/daml/ContingentClaims
 # Interfaces
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Types
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Util
@@ -56,6 +58,8 @@ cp ${root_dir}/package/main/daml/*/.daml/dist/* ${root_dir}/.dars/
 ## Build Tests
 # Util
 ${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Test.Util
+# Contingent Claims
+${script_dir}/build-package.sh ${root_dir}/package/test/daml/ContingentClaims.Test
 # Core
 ${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Util.Test
 ${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Holding.Test

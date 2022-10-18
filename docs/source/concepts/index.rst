@@ -12,3 +12,4 @@ Concepts
    asset-model
    settlement
    lifecycling
+   contingent-claims
