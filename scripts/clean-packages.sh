@@ -12,7 +12,9 @@ rm -r ${root_dir}/.dars 1> /dev/null 2>&1
 
 ## Clean Core
 # Contingent Claims
-daml clean --project-root ${root_dir}/package/main/daml/ContingentClaims
+daml clean --project-root ${root_dir}/package/main/daml/ContingentClaims.Core
+daml clean --project-root ${root_dir}/package/main/daml/ContingentClaims.Lifecycle
+daml clean --project-root ${root_dir}/package/main/daml/ContingentClaims.Valuation
 # Interfaces
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Types
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Util
@@ -29,6 +31,7 @@ daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Holding
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Account
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Settlement
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Lifecycle
+daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Claims
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Data
 
 ## Clean Extensions
