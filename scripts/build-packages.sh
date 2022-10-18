@@ -15,7 +15,9 @@ fi
 
 ## Build Core
 # Contingent Claims
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/ContingentClaims
+${script_dir}/build-package.sh ${root_dir}/package/main/daml/ContingentClaims.Core
+${script_dir}/build-package.sh ${root_dir}/package/main/daml/ContingentClaims.Lifecycle
+${script_dir}/build-package.sh ${root_dir}/package/main/daml/ContingentClaims.Valuation
 # Interfaces
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Types
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Util
@@ -32,6 +34,7 @@ ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Holdin
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Account
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Settlement
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Lifecycle
+${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Claims
 ${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Data
 
 ## Build Extensions

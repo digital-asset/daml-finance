@@ -27,7 +27,7 @@ of the bank: there are interest payments at regular intervals (the small
 arrows), and a single repayment of the loan at maturity (the big arrow
 on the right). So how do we go about modelling this?
 
-We use the following data type, slightly simplified from :ref:`Claim <type-contingentclaims-internal-claim-claim-98456>`:
+We use the following data type, slightly simplified from :ref:`Claim <type-contingentclaims-core-internal-claim-claim-35538>`:
 
 .. code-block:: daml
 
