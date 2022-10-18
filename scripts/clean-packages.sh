@@ -12,6 +12,8 @@ echo "Removing .dars/ directory"
 rm -r ${root_dir}/.dars 1> /dev/null 2>&1
 
 ## Clean Core
+# Contingent Claims
+daml clean --project-root ${root_dir}/package/main/daml/ContingentClaims
 # Interfaces
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Types
 daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Interface.Util
@@ -47,6 +49,8 @@ daml clean --project-root ${root_dir}/package/main/daml/Daml.Finance.Instrument.
 ## Clean Tests
 # Util
 daml clean --project-root ${root_dir}/package/test/daml/Daml.Finance.Test.Util
+# Contingent Claims
+daml clean --project-root ${root_dir}/package/test/daml/ContingentClaims.Test
 # Core
 daml clean --project-root ${root_dir}/package/test/daml/Daml.Finance.Util.Test
 daml clean --project-root ${root_dir}/package/test/daml/Daml.Finance.Holding.Test
