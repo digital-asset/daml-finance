@@ -52,6 +52,13 @@ Core Implementations
     For a description of ``Distribution`` and ``Replacement``, check out the ``src/test/daml/Daml/Finance/Instrument/Equity/Test`` folder. It demonstrates
     how to create and lifecycle a cash dividend, and how to handle corporate actions like mergers and stock splits.
 
+- ``Daml.Finance.Claims``
+
+    This package contains utility functions that facilitate building and working with contingent-claim-based instruments. It includes the following modules:
+
+    - :ref:`Util <module-daml-finance-claims-util-5254>`: Contains utility functions for claims, e.g. checking content of a claim and converting claim time
+    - :ref:`Util.Lifecycle <module-daml-finance-claims-util-lifecycle-9534>`: Defines different types of events and how to lifecycle them
+
 - ``Daml.Finance.Data``
 
     This package implements templates containing reference data. It includes the following modules:
@@ -62,7 +69,7 @@ Core Implementations
 
 - ``Daml.Finance.Util``
 
-    This package mainly contains functions related to dates, lists and maps. They are defined in the following modules:
+    This package mainly contains utility functions related to dates, lists and maps. They are defined in the following modules:
 
     - :ref:`Date.Calendar <module-daml-finance-util-date-calendar-17588>`: Functions regarding dates and holiday calendars (business vs non-business days)
     - :ref:`Date.DayCount <module-daml-finance-util-date-daycount-38239>`: Functions to calculate day count fractions according to different conventions

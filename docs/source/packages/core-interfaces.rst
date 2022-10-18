@@ -67,8 +67,6 @@ Core Interfaces
 
     - :ref:`Claim <module-daml-finance-interface-claims-claim-82866>`: Interface implemented by templates that can be represented as a set of contingent claims
     - :ref:`Types <module-daml-finance-interface-claims-types-95967>`: Types related to claims and what is require to represent claims (e.g. Deliverable and Observable)
-    - :ref:`Util <module-daml-finance-interface-claims-util-28409>`: Contains utility functions for claims, e.g. checking content of a claim and converting claim time
-    - :ref:`Util.Lifecycle <module-daml-finance-interface-claims-util-lifecycle-60221>`: Defines different types of events and how to lifecycle them
 
 - ``Daml.Finance.Interface.Data``
 
