@@ -124,7 +124,6 @@ headers-update:
 
 DAML_SRC := $(shell find src/main/daml -name '*.daml')
 SDK_VERSION := $(shell yq e '.sdk-version' daml.yaml)
-# DAML_SDK_ROOT := $(shell nix-store --query $$(which daml))
 
 .PHONY: doc-code-json
 doc-code-json: $(DAML_SRC)
