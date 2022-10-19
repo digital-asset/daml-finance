@@ -21,12 +21,11 @@ The [Daml Finance Reference App](https://github.com/digital-asset/daml-finance-a
 
 ### Dependencies
 
-To build this library locally, the following requirements are necessary:
+This repo assumes the use of [direnv] for local development, along with a
+working [Nix] installation.
 
-1. [Daml SDK](https://docs.daml.com/getting-started/installation.html) (2.x)
-2. `make` (3.x)
-3. `yq` (4.x)
-4. `jq` (>1.5)
+[direnv]: https://github.com/direnv/direnv
+[Nix]: https://nixos.org/download.html
 
 ### Building the library from source
 

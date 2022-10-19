@@ -6,82 +6,54 @@
 version: 2.1
 
 executors:
-  daml-executor:
+  daml-finance-executor:
     docker:
-      - image: cimg/openjdk:11.0
-  docs-executor:
-    docker:
-      - image: cimg/python:3.7-node
+      - image: cimg/base:2022.10
 
 commands:
-  install_sdk:
-    description: "Install Daml SDK"
+  setup_nix:
+    description: Set up Nix
     steps:
       - run:
-          name: "Create download directory"
+          name: Generate cache key
           command: |
-            mkdir -p $HOME/downloads
-            >> $BASH_ENV echo 'export TEMPDIR=$HOME/downloads'
-      - run:
-          name: Install Daml SDK
-          command: |
-            curl -sSL https://get.daml.com/ | sh /dev/stdin ${SDK_VERSION}
-            # idea from https://circleci.com/docs/2.0/env-vars/
-            >> $BASH_ENV echo 'export PATH="$HOME/.daml/bin:$PATH"'
-      - run:
-          name: Verify Daml SDK
-          command: |
-            DAR=`basename ${TEMPDIR}/*.tar.gz`
-            curl -SLf https://github.com/digital-asset/daml/releases/download/v${SDK_VERSION}/${DAR}.asc --output $TEMPDIR/$DAR.asc --progress-bar
-            gpg --verify ${TEMPDIR}/${DAR}.asc
-  install_yq:
-    description: "Install yq from binary"
-    steps:
-      - run:
-          name: Install yq
-          command: |
-            mkdir -p $HOME/yq
-            curl -L https://github.com/mikefarah/yq/releases/download/3.4.1/yq_linux_amd64 -o $HOME/yq/yq &&\
-              chmod +x $HOME/yq/yq &&\
-              echo 'export PATH=$HOME/yq/yq:$PATH' >> $BASH_ENV
-      - run:
-          name: Verify yq
-          command: |
-            curl -L https://github.com/mikefarah/yq/releases/download/3.4.1/checksums -o $HOME/yq/checksums
-            curl -L https://github.com/mikefarah/yq/releases/download/3.4.1/checksums_hashes_order -o $HOME/yq/checksums_hashes_order
-            HASHPOSITION=`grep -m 1 -n "SHA3-512" ${HOME}/yq/checksums_hashes_order | cut -f1 -d:`
-            CHECKSUM=`grep "yq_linux_amd64" ${HOME}/yq/checksums | sed 's/  /\t/g' | cut -f$((${HASHPOSITION}+1))`
+            set -euo pipefail
 
-            if [[ `openssl dgst -sha3-512 ${HOME}/yq/yq | cut -f2 -d" "` != ${CHECKSUM} ]] ; then
-              echo "ERROR: yq - invalid checksum"
-              exit 1
+            git log -n1 --format=%H nix shell.nix > /tmp/nix-cache-key
+            sudo mkdir /nix
+            sudo chown circleci /nix
+            >> $BASH_ENV echo 'export USER=circleci'
+      - restore_cache:
+          keys:
+          - nix-{{ checksum "/tmp/nix-cache-key" }}
+      - run:
+          name: Setup Nix
+          command: |
+            set -euo pipefail
+
+            if [ -f ~/.config/nix/nix.conf ]; then
+                echo '. /home/circleci/.nix-profile/etc/profile.d/nix.sh' >> "$BASH_ENV"
+                exit 0
             fi
-  install_gh:
-    description: Install GitHub Cli
-    steps:
-      - run:
-          name: Install gh
-          command: |
-            curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-            sudo apt update
-            sudo apt install gh
-  install_ruby_sass:
-    description: Install Ruby and Sass
-    steps:
-      - run:
-          name: Install Ruby
-          command: sudo apt-get install ruby-full
-      - run:
-          name: Install Sass
-          command: sudo gem install sass
 
-  set_sdk_version:
-    description: "Set Daml SDK version environment version"
-    steps:
-      - run:
-          name: Set Daml SDK version
-          command: echo 'export SDK_VERSION=$(yq e '.sdk-version' daml.yaml)' >> $BASH_ENV
+            # Disabling sandbox because:
+            # 1. It doesn't work on CircleCI (sethostname is not allowed)
+            # 2. We don't plan to build anything, so the risk is fairly low
+            mkdir -p ~/.config/nix
+            echo 'sandbox = false' >> ~/.config/nix/nix.conf
+
+            sh <(curl -fsSL https://nixos.org/nix/install) --no-daemon
+            . /home/circleci/.nix-profile/etc/profile.d/nix.sh
+            nix-shell shell.nix --run 'echo "Done loading all packages."'
+            echo '. /home/circleci/.nix-profile/etc/profile.d/nix.sh' >> "$BASH_ENV"
+      - save_cache:
+          key: nix-{{ checksum "/tmp/nix-cache-key" }}
+          paths:
+          - /nix
+          - /home/circleci/.nix-profile
+          - /home/circleci/.nix-channels
+          - /home/circleci/.nix-defexpr
+          - /home/circleci/.config/nix
   import_gpg_key:
     description: "Setup GPG for signing artifacts as part of a release"
     steps:
@@ -103,7 +75,7 @@ commands:
               echo "Processing package '${PACKAGE}' with tag '${TAG}'..."
 
               if [[ `git tag -l ${TAG} | wc -l` -eq 0 ]]; then
-                DAR_PREFIX=`awk '{ gsub(/\./, "-", $0); print tolower($0); }' \<<< ${PACKAGE}`
+                DAR_PREFIX=`yq e '.name' ${package}`
                 DAR="${DAR_PREFIX}-${VERSION}.dar"
                 gpg --armor --detach-sign .dars/${DAR}
 
@@ -143,7 +115,6 @@ commands:
           command: |
             TAG="assembly/${ASSEMBLY_VERSION}"
             COMMIT=`git rev-parse HEAD`
-            DATE=`date +"%Y-%m-%dT%H:%M:%S%:z"`
 
             gh api \
               --method POST \
@@ -154,26 +125,31 @@ commands:
 
 jobs:
   build:
-    executor: daml-executor
+    executor: daml-finance-executor
     steps:
       - checkout
+      - setup_nix
       - run:
           name: Validate Copyright headers
-          command: |
-            make headers-check
-      - install_yq
-      - set_sdk_version
-      - import_gpg_key
-      - install_sdk
+          command:
+            make ci-headers-check
       - run:
           name: Build source and packages
-          command: make ci-build
+          command:
+            make ci-build
       - run:
           name: Execute tests
-          command: make ci-test
+          command:
+            make ci-test
       - run:
           name: Validate packages
-          command: make ci-validate
+          command:
+            make ci-validate
+      - run:
+          name: Build docs
+          command: |
+            nix-shell --pure --run 'pipenv install'
+            make ci-docs
       - save_cache:
           paths:
             - .dars
@@ -182,58 +158,30 @@ jobs:
           paths:
             - .daml
           key: daml-build-{{ .Revision }}
+      - save_cache:
+          paths:
+            - docs/build
+          key: docs-build-{{ .Revision }}
 
   release:
-    executor: daml-executor
+    executor: daml-finance-executor
     steps:
       - checkout
-      - install_yq
-      - install_gh
+      - setup_nix
       - import_gpg_key
       - restore_cache:
           keys:
             - daml-finance-dars-{{ .Revision }}
       - run_release
 
-  docs:
-    executor: docs-executor
-    steps:
-      - checkout
-      - run:
-          name: Update package list
-          command: sudo apt-get update
-      - install_ruby_sass
-      - run:
-          name: Install Grunt
-          command: sudo npm install -g grunt-cli
-      - run:
-          name: Install Java JRE
-          command: sudo apt-get install openjdk-11-jre-headless
-      - set_sdk_version
-      - import_gpg_key
-      - install_sdk
-      - restore_cache:
-          keys:
-            - daml-build-{{ .Revision }}
-      - run:
-          name: Install Python dependencies
-          command: pipenv install
-      - run:
-          name: Build docs
-          command: make ci-docs
-      - save_cache:
-          paths:
-            - docs/build
-          key: docs-build-{{ .Revision }}
-
   assembly:
-    executor: docs-executor
+    executor: daml-finance-executor
     steps:
       - checkout
+      - setup_nix
       - restore_cache:
           keys:
             - docs-build-{{ .Revision }}
-      - install_gh
       - run_assembly
 
 workflows:
@@ -247,16 +195,7 @@ workflows:
               ignore:
                 - /^(R|r)elease.*$/
                 - /^(A|a)ssembly.*$/
-      - docs:
-          context: npn-publish
-          filters:
-            branches:
-              ignore:
-                - /^(R|r)elease.*$/
-                - /^(A|a)ssembly.*$/
-          requires:
-            - build
-  build-release:
+  release:
     jobs:
       - build:
           context: npn-publish
@@ -264,12 +203,8 @@ workflows:
             branches:
               only:
                 - /^(R|r)elease.*$/
-      - docs:
-          context: npn-publish
-          filters:
-            branches:
-              only:
-                - /^(R|r)elease.*$/
+      - hold:
+          type: approval
           requires:
             - build
       - release:
@@ -277,8 +212,7 @@ workflows:
             - github-fin-eng-context
             - npn-publish
           requires:
-            - build
-            - docs
+            - hold
           filters:
             branches:
               only:
@@ -291,18 +225,10 @@ workflows:
             branches:
               only:
                 - /^(A|a)ssembly.*$/
-      - docs:
-          context: npn-publish
-          filters:
-            branches:
-              only:
-                - /^(A|a)ssembly.*$/
-          requires:
-            - build
       - hold:
           type: approval
           requires:
-            - docs
+            - build
       - assembly:
           context:
             - github-fin-eng-context

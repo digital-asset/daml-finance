@@ -25,6 +25,10 @@ clean:
 # Packages (./packages) #
 #########################
 
+.PHONY: clean-packages
+clean-packages:
+	./$(SCRIPTS_DIR)/clean-packages.sh
+
 .PHONY: build-packages
 build-packages: clean-packages
 	./$(SCRIPTS_DIR)/build-packages.sh
@@ -36,10 +40,6 @@ test-packages: build-packages
 .PHONY: validate-packages
 validate-packages: build-packages
 	./$(SCRIPTS_DIR)/validate-packages.sh
-
-.PHONY: clean-packages
-clean-packages:
-	./$(SCRIPTS_DIR)/clean-packages.sh
 
 ###############################
 # Project Source and Packages #
@@ -58,26 +58,42 @@ clean-all: clean clean-packages
 ####################################
 # CI (avoids unnecessary rebuilds) #
 ####################################
+
 .PHONY: ci-build
-ci-build: build
-	./$(SCRIPTS_DIR)/build-packages.sh
+ci-build:
+	@nix-shell \
+		--pure 	 \
+		--run 'make build && ./$(SCRIPTS_DIR)/build-packages.sh'
 
 .PHONY: ci-test
 ci-test:
-	daml test
-	./$(SCRIPTS_DIR)/test-packages.sh
+	@nix-shell \
+		--pure 	 \
+		--run 'daml test && ./$(SCRIPTS_DIR)/test-packages.sh'
 
 .PHONY: ci-validate
 ci-validate:
-	./$(SCRIPTS_DIR)/validate-packages.sh
+	@nix-shell \
+		--pure 	 \
+		--run './$(SCRIPTS_DIR)/validate-packages.sh'
 
 .PHONY: ci-docs
-ci-docs:
-	pipenv run make doc-html
+ci-docs: $(DAML_SDK_ROOT)
+	@nix-shell \
+		--pure   \
+		--run 'pipenv run make doc-html'
+
+.PHONY: ci-headers-check
+ci-headers-check:
+	@nix-shell \
+		--pure   \
+		--run './scripts/dade-copyright-headers.py check'
 
 .PHONY: ci-assembly
 ci-assembly:
-	./docs/scripts/build-assembly.sh
+	@nix-shell \
+		--pure   \
+		--run './docs/scripts/build-assembly.sh'
 
 .PHONY: ci-local
 ci-local: clean-all ci-build ci-test ci-validate ci-docs
@@ -106,7 +122,8 @@ headers-update:
 # Documentation Generation #
 ############################
 
-DAML_SRC:=$(shell find src/main/daml -name '*.daml')
+DAML_SRC := $(shell find src/main/daml -name '*.daml')
+SDK_VERSION := $(shell yq e '.sdk-version' daml.yaml)
 
 .PHONY: doc-code-json
 doc-code-json: $(DAML_SRC)
@@ -115,8 +132,6 @@ doc-code-json: $(DAML_SRC)
 		--package-name=daml-finance \
 		--format Json \
     $(DAML_SRC)
-
-SDK_VERSION:=$(shell yq e '.sdk-version' daml.yaml)
 
 .PHONY: doc-code
 doc-code: doc-code-json
@@ -129,7 +144,7 @@ doc-code: doc-code-json
 		--template=docs/code-documentation-templates/base-rst-template.rst \
 		--index-template=docs/code-documentation-templates/base-rst-index-template.rst \
 		--base-url=https://docs.daml.com/daml/daml-finance \
-		--input-anchor=${HOME}/.daml/sdk/${SDK_VERSION}/damlc/resources/daml-base-anchors.json \
+		--input-anchor=$(DAML_HOME)/sdk/$(SDK_VERSION)/damlc/resources/daml-base-anchors.json \
 		docs/build/daml-finance.json
 
 # Build doc theme
@@ -139,11 +154,11 @@ doc-theme:
 
 # You can set these variables from the command line, and also
 # from the environment for the first two.
-SPHINXOPTS    ?= -c "$(CONFDIR)" -W
-SPHINXBUILD   ?= sphinx-build
-SOURCEDIR     = docs/source
-BUILDDIR      = docs/build
-CONFDIR       = docs/sphinx
+SPHINXOPTS  ?= -c "$(CONFDIR)" -W
+SPHINXBUILD ?= sphinx-build
+SOURCEDIR   = docs/source
+BUILDDIR    = docs/build
+CONFDIR     = docs/sphinx
 
 .PHONY: doc-html
 doc-html: doc-theme doc-code

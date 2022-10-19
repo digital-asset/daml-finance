@@ -19,17 +19,14 @@ mkdir ${docs_dir}/.assembly
 cp -r ${docs_dir}/source/* ${docs_dir}/.assembly
 cp -r ${root_dir}/src ${docs_dir}/.assembly
 
-# For BSD (ie, MacOS) and GNU compatibility - remove copied symlink/folder(BSD) and manually copy build output
+# Remove copied symlinks and manually copy build output
 rm -r ${docs_dir}/.assembly/reference/code-documentation/daml-finance-rst
 cp -r ${docs_dir}/build/daml-finance-rst ${docs_dir}/.assembly/reference/code-documentation
 
 # Update the directory paths in the RST files as per the assembly structure
 find ${docs_dir}/.assembly -type f -name '*.rst' -print0 | while IFS= read -r -d '' file
 do
-    # For BSD (ie, MacOS) and GNU compatibility -
-    #  - specify a backup file as part of the 'in-place' flag which works for both distributions and then remove the generated backup file
-    sed -i.bck 's|.. literalinclude:: ../../|.. literalinclude:: |g' $file
-    rm $file.bck
+    sed -i 's|.. literalinclude:: ../../|.. literalinclude:: |g' $file
 done
 
 # Remove 'self' from the master index
