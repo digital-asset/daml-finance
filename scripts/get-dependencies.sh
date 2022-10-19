@@ -1,8 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-set -eu
+set -euo pipefail
 
 daml_yaml_file=$1
 project_name=$(yq e '.name' ${daml_yaml_file})
@@ -42,15 +42,22 @@ else
       echo -e "Dependency ${dependency_path} already setup. Skipping.\n"
     else
       # Extract the dependency details from dependency path
-      # read repo_name file_name tag <<<$(awk '{ n=split($0,array,"/"); print array[2], array[n]; for (i=3; i < n; i++) { printf array[i]; if (i != n-1) printf "/" }}' <<< ${dependency_path})
-      # ^^ Due to the image CircleCI uses, reading of printf as the third variable fails.
-      read repo_name file_name <<<$(awk '{ n=split($0,array,"/"); print array[2], array[n] }' <<< ${dependency_path})
-      read tag <<<$(awk '{ n=split($0,array,"/"); for (i=3; i < n; i++) { printf array[i]; if (i != n-1) printf "/" }}' <<< ${dependency_path})
+      read repo_name file_name tag <<<$(awk '{
+          n = split($0,array,"/");
+          repo = array[2];
+          file = array[n];
+          for (i = 3; i < n; i++) {
+            tag = sprintf("%s%s", tag, array[i]);
+            if (i != n - 1)
+              tag = sprintf("%s/", tag);
+            }
+          }
+          END { print repo, file, tag }' <<< ${dependency_path})
 
       # Check if the dependency exists in the following order :
       # 1 - cache
       # 2 - GitHub
-      # 3 - locally
+      # 3 - local build
       cache_dependency_path=${cache_dir}/${repo_name}/${tag}
 
       if [[ -a ${cache_dependency_path}/${file_name} ]]; then
@@ -78,7 +85,3 @@ else
 
   done
 fi
-
-# TODO:
-# If we have a locally built .dar, we should use the latest built jar :/ [done]
-# Update CI config!
