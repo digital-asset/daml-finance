@@ -15,8 +15,6 @@ in
     preFixup = ''
       # Set DAML_HOME automatically.
       mkdir -p $out/nix-support
-      cat <<EOF >> $out/nix-support/setup-hook
-      export DAML_HOME=$out
-      EOF
+      echo export DAML_HOME=$out > $out/nix-support/setup-hook
     '';
 }
