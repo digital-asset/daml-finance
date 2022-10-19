@@ -6,7 +6,7 @@ module Daml.Finance.Instrument.Generic.Instrument where
 import DA.Date (toDateUTC)
 import DA.Set (fromList, singleton)
 import DA.Text (sha256)
-import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, View(..), getClaims)
+import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, GetClaims(..), View(..), getClaims)
 import Daml.Finance.Interface.Claims.Types (C, TaggedClaim(..))
 import Daml.Finance.Claims.Util (isZero')
 import Daml.Finance.Claims.Util.Lifecycle (electionEvent, lifecycle, splitPending, timeEvent)
@@ -58,12 +58,14 @@ template Instrument
     signatory depository, issuer
     observer Disclosure.flattenObservers observers
 
-    let instrumentKey = InstrumentKey with depository; issuer; id; version
+    let
+      instrumentKey = InstrumentKey with depository; issuer; id; version
+      lifecycler = issuer
 
     interface instance Claim.I for Instrument where
       view = Claim.View with acquisitionTime; instrument = instrumentKey
       asBaseInstrument = toInterface @BaseInstrument.I this
-      getClaims = pure [TaggedClaim with tag = "Generic"; claim = this.claims]
+      getClaims _ = pure [TaggedClaim with tag = "Generic"; claim = this.claims]
 
     interface instance BaseInstrument.I for Instrument where
       asDisclosure = toInterface @Disclosure.I this
@@ -79,7 +81,7 @@ template Instrument
       view = Lifecycle.View with lifecycler = issuer
       evolve Lifecycle.Evolve{ruleName; settlers; eventCid; timeObservableCid; observableCids} self =
         case ruleName of
-          "Time" -> processClockUpdate settlers eventCid timeObservableCid self this observableCids
+          "Time" -> processClockUpdate issuer settlers eventCid timeObservableCid self this observableCids
           other -> abort $ "Unknown lifecycle rule " <> other
 
     interface instance Disclosure.I for Instrument where
@@ -91,17 +93,17 @@ template Instrument
 
     interface instance Election.Exercisable for Instrument where
       asLifecycle = toInterface @Lifecycle.I this
-      view = Election.ExercisableView with lifecycler = issuer
+      view = Election.ExercisableView with lifecycler
       applyElection Election.ApplyElection{clockCid; electionCid; observableCids; settlers} self = do
         currentTime <- toUTCTime <$> fetch clockCid
         election <- fetch electionCid
-        instrumentClaim <- Claim.getClaims $ toInterface @Claim.I this
+        instrumentClaim <- Claim.getClaims (toInterface @Claim.I this) $ Claim.GetClaims with actor = lifecycler
         let
           v = view election
           electionTime = Election.getElectionTime election
           election = electionEvent electionTime v.electorIsOwner v.claim
         verify (currentTime == electionTime) $ "Election time " <> show electionTime <> " is different than Current time " <> show currentTime
-        (remaining, pending) <- lifecycle observableCids (toInterface this) [election]
+        (remaining, pending) <- lifecycle lifecycler observableCids (toInterface this) [election]
         if remaining == instrumentClaim && null pending then
           pure (coerceContractId self, [])
         else do
@@ -139,11 +141,11 @@ template Instrument
 
 -- | HIDE
 -- | Rule to process a time update event.
-processClockUpdate : Parties -> ContractId Event.I -> ContractId TimeObservable.I -> ContractId Lifecycle.I -> Instrument -> [ContractId NumericObservable.I] -> Update (ContractId Lifecycle.I, [ContractId Effect.I])
-processClockUpdate settlers eventCid _ self instrument observableCids = do
+processClockUpdate : Party -> Parties -> ContractId Event.I -> ContractId TimeObservable.I -> ContractId Lifecycle.I -> Instrument -> [ContractId NumericObservable.I] -> Update (ContractId Lifecycle.I, [ContractId Effect.I])
+processClockUpdate actor settlers eventCid _ self instrument observableCids = do
   v <- view <$> fetch eventCid
-  claims <- Claim.getClaims $ toInterface @Claim.I instrument
-  (remaining, pending) <- lifecycle observableCids (toInterface instrument) [timeEvent v.eventTime]
+  claims <- Claim.getClaims (toInterface @Claim.I instrument) $ Claim.GetClaims with actor
+  (remaining, pending) <- lifecycle actor observableCids (toInterface instrument) [timeEvent v.eventTime]
   if remaining == claims && null pending then
     pure (self, [])
   else do
