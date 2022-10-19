@@ -4,7 +4,8 @@
 module Daml.Finance.Instrument.Swap.Fpml.Instrument where
 
 import DA.Date
-import DA.Optional (isNone, isSome)
+import DA.List (head, last)
+import DA.Optional (fromSome, isNone, isSome)
 import DA.Set (singleton)
 import Daml.Finance.Instrument.Generic.Util
 import Daml.Finance.Instrument.Swap.Fpml.Util
@@ -65,15 +66,35 @@ template Instrument
           calculateClaimsFromSwapStream s = do
             let
               c = s.calculationPeriodAmount.calculation
-              periodicSchedule = createPaymentPeriodicSchedule s
+              calculationPeriodicSchedule = createCalculationPeriodicSchedule s.calculationPeriodDates
+              paymentPeriodicSchedule = createPaymentPeriodicSchedule s
               useAdjustedDatesForDcf = True
-              issuerPaysLeg = (s.payerPartyReference == issuerPartyRef)
-              n = s.calculationPeriodAmount.calculation.notionalSchedule.notionalStepSchedule
+              issuerPaysLeg = if s.payerPartyReference == s.receiverPartyReference then error "payer and receiver must be different counterparties" else (s.payerPartyReference == issuerPartyRef)
+              n = c.notionalSchedule.notionalStepSchedule
               notional = if Id n.currency == currency.id then n.initialValue else error "swapStream currency does not match swap currency"
-            streamSchedule <- rollPaymentSchedule periodicSchedule s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessCenters issuer calendarDataProvider
-            if isSome c.fixedRateSchedule && isNone c.floatingRateCalculation then calculateClaimsFromFixSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg notional currency
-            else if isNone c.fixedRateSchedule && isSome c.floatingRateCalculation then calculateClaimsFromFloatingSwapStream s periodicSchedule streamSchedule useAdjustedDatesForDcf issuerPaysLeg notional currency issuer calendarDataProvider
+              e = s.calculationPeriodDates.effectiveDate
+              t = s.calculationPeriodDates.terminationDate
+
+            -- Verify the payment schedule
+            assertMsg "The payment schedule must refer to the calculationPeriodDates of the current swapStream" $ s.paymentDates.calculationPeriodDatesReference == s.calculationPeriodDates.id
+            assertMsg "Only payment schedules relative to CalculationPeriodEndDate supported" $ s.paymentDates.payRelativeTo == CalculationPeriodEndDate
+            calculationSchedule <- rollPaymentSchedule calculationPeriodicSchedule s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessCenters issuer calendarDataProvider
+            paymentSchedule <- rollPaymentSchedule paymentPeriodicSchedule (fromSome s.paymentDates.paymentDatesAdjustments.businessCenters) issuer calendarDataProvider
+            assertMsg "The payment schedule must match the calculation schedule" $ paymentSchedule == calculationSchedule
+
+            -- Verify the effectiveDate and the terminationDate
+            effectiveDateAdjusted <- adjustDateAccordingToBusinessDayAdjustments e.unadjustedDate e.dateAdjustments issuer calendarDataProvider
+            terminationDateAdjusted <- adjustDateAccordingToBusinessDayAdjustments t.unadjustedDate t.dateAdjustments issuer calendarDataProvider
+            let h = head calculationSchedule
+            assertMsg "The adjusted effectiveDate must match the adjusted start date of the first period" $ h.adjustedStartDate == effectiveDateAdjusted
+            let l = last calculationSchedule
+            assertMsg "The adjusted terminationDate must match the adjusted end date of the last period" $ l.adjustedEndDate == terminationDateAdjusted
+
+            -- Calculate the claims from the current leg (either fix or float)
+            if isSome c.fixedRateSchedule && isNone c.floatingRateCalculation then calculateClaimsFromFixSwapStream s calculationPeriodicSchedule calculationSchedule useAdjustedDatesForDcf issuerPaysLeg notional currency
+            else if isNone c.fixedRateSchedule && isSome c.floatingRateCalculation then calculateClaimsFromFloatingSwapStream s calculationPeriodicSchedule calculationSchedule useAdjustedDatesForDcf issuerPaysLeg notional currency issuer calendarDataProvider
             else error "leg type not supported"
+
         mapA calculateClaimsFromSwapStream swapStreams
 
     interface instance BaseInstrument.I for Instrument where
