@@ -9,7 +9,7 @@ import DA.Optional (fromSome, isNone, isSome)
 import DA.Set (singleton)
 import Daml.Finance.Instrument.Generic.Util
 import Daml.Finance.Instrument.Swap.Fpml.Util
-import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, View(..))
+import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, GetClaims(..), View(..))
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, K, View(..), disclosureUpdateReference)
 import Daml.Finance.Interface.Instrument.Swap.Fpml.Instrument qualified as Fpml (HasImplementation, I, View(..))
 import Daml.Finance.Interface.Instrument.Swap.Fpml.Types (Fpml(..))
@@ -60,7 +60,7 @@ template Instrument
       view = Claim.View with instrument = instrumentKey; acquisitionTime = dateToDateClockTime (daysSinceEpochToDate 0) -- sufficiently early to guarantee that any time-shifted fixings are observed on the correct date
       asBaseInstrument = toInterface @BaseInstrument.I this
 
-      getClaims = do
+      getClaims Claim.GetClaims{actor} = do
         -- get the initial claims tree (as of the swap's acquisition time)
         let
           calculateClaimsFromSwapStream s = do
@@ -80,7 +80,6 @@ template Instrument
             assertMsg "Only payment schedules relative to CalculationPeriodEndDate supported" $ s.paymentDates.payRelativeTo == CalculationPeriodEndDate
             calculationSchedule <- rollPaymentSchedule calculationPeriodicSchedule s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessCenters issuer calendarDataProvider
             paymentSchedule <- rollPaymentSchedule paymentPeriodicSchedule (fromSome s.paymentDates.paymentDatesAdjustments.businessCenters) issuer calendarDataProvider
-            assertMsg "The payment schedule must match the calculation schedule" $ paymentSchedule == calculationSchedule
 
             -- Verify the effectiveDate and the terminationDate
             effectiveDateAdjusted <- adjustDateAccordingToBusinessDayAdjustments e.unadjustedDate e.dateAdjustments issuer calendarDataProvider
@@ -91,8 +90,8 @@ template Instrument
             assertMsg "The adjusted terminationDate must match the adjusted end date of the last period" $ l.adjustedEndDate == terminationDateAdjusted
 
             -- Calculate the claims from the current leg (either fix or float)
-            if isSome c.fixedRateSchedule && isNone c.floatingRateCalculation then calculateClaimsFromFixSwapStream s calculationPeriodicSchedule calculationSchedule useAdjustedDatesForDcf issuerPaysLeg notional currency
-            else if isNone c.fixedRateSchedule && isSome c.floatingRateCalculation then calculateClaimsFromFloatingSwapStream s calculationPeriodicSchedule calculationSchedule useAdjustedDatesForDcf issuerPaysLeg notional currency issuer calendarDataProvider
+            if isSome c.fixedRateSchedule && isNone c.floatingRateCalculation then calculateClaimsFromFixSwapStream s calculationPeriodicSchedule calculationSchedule paymentSchedule useAdjustedDatesForDcf issuerPaysLeg notional currency
+            else if isNone c.fixedRateSchedule && isSome c.floatingRateCalculation then calculateClaimsFromFloatingSwapStream s calculationPeriodicSchedule calculationSchedule paymentSchedule useAdjustedDatesForDcf issuerPaysLeg notional currency issuer calendarDataProvider
             else error "leg type not supported"
 
         mapA calculateClaimsFromSwapStream swapStreams
@@ -110,7 +109,7 @@ template Instrument
       view = Lifecycle.View with lifecycler = issuer
       evolve Lifecycle.Evolve{ruleName; settlers; eventCid; timeObservableCid; observableCids} self =
         case ruleName of
-          "Time" -> processClockUpdate settlers eventCid timeObservableCid self this observableCids
+          "Time" -> processClockUpdate issuer settlers eventCid timeObservableCid self this observableCids
           other -> abort $ "Unknown lifecycle rule " <> other
 
     interface instance Disclosure.I for Instrument where
