@@ -13,9 +13,9 @@ in
 pkgs.mkShell {
   SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
   buildInputs = with pkgs; [
-    # (daml { stdenv = stdenv;
-    #         jdk = openjdk11_headless;
-    #         version = damlYaml.sdk-version; })
+    (daml { stdenv = stdenv;
+            jdk = openjdk11_headless;
+            version = damlYaml.sdk-version; })
     bash
     binutils # cp, grep, etc.
     cacert
