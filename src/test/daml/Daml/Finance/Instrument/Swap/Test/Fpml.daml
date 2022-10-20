@@ -791,3 +791,218 @@ runSeparatePaymentFrequencySampleTrade = script do
   lifecycleAndVerifySwapPaymentEffects [publicParty] (date 2023 Oct 26) swapInstrumentAfterFourthPayment settlers issuer investor observers custodian observableCids expectedConsumedQuantities expectedProducedQuantities
 
   pure ()
+
+-- Test sample trade with different currencies and exchange of principal.
+runCurrencySwapSampleTrade : Script ()
+runCurrencySwapSampleTrade = script do
+  [custodian, issuer, investor, calendarDataProvider, publicParty] <-
+    createParties ["Custodian", "Issuer", "Investor", "Calendar Data Provider", "PublicParty"]
+
+  -- Distribute commercial-bank cash
+  now <- getTime
+  let observers = [("PublicParty", singleton publicParty)]
+  cashInstrumentCid <- Instrument.originate custodian issuer "USD" "US Dollars" observers now
+
+  -- Create and distribute swap
+  -- Float vs float currency swap: Euribor 3M vs Libor 3M
+  -- CREATE_FPML_SWAP_VARIABLES_BEGIN
+  let
+    issueDate = date 2022 Oct 17
+    maturityDate = date 2027 Oct 17
+    referenceRateUsdId = "USD/LIBOR/3M"
+    referenceRateEurId = "EUR/EURIBOR/3M"
+    paymentPeriod = M
+    paymentPeriodMultiplier = 3
+    dayCountConventionFixLeg = Basis30360
+    dayCountConventionFloatingLeg = Act360
+    businessDayConvention = ModifiedFollowing
+    issuerPartyRef = "Counterparty"
+    clientPartyRef = "ExecutingParty"
+    -- CREATE_FPML_SWAP_VARIABLES_END
+    observationsLibor3M = M.fromList [(dateToDateClockTime (date 2022 Oct 24), 0.01), (dateToDateClockTime (date 2023 Apr 24), 0.01), (dateToDateClockTime (date 2023 Oct 24), 0.01)]
+    observationsEuribor3M = M.fromList [(dateToDateClockTime (date 2022 Oct 24), 0.01), (dateToDateClockTime (date 2023 Apr 24), 0.01), (dateToDateClockTime (date 2023 Oct 24), 0.01)]
+    holidayCalendarId = ["USD"]
+    cal =
+      HolidayCalendarData with
+        id = "USD"
+        weekend = [Saturday, Sunday]
+        holidays = [date 2019 Dec 19]
+    fixingHolidayCalendarId = ["LIB"]
+    fixingCal =
+      HolidayCalendarData with
+        id = "LIB"
+        weekend = [Saturday, Sunday]
+        holidays = [date 2019 Jan 14]
+
+    -- CREATE_FPML_SWAP_FLOAT_LEG_BEGIN
+    swapStreamFloatingLeg = SwapStream with
+      payerPartyReference = clientPartyRef
+      receiverPartyReference = issuerPartyRef
+      calculationPeriodDates = CalculationPeriodDates with
+        id = "floatingLegCalcPeriodDates"
+        effectiveDate = AdjustableDate with
+          unadjustedDate = issueDate
+          dateAdjustments = BusinessDayAdjustments with
+            businessDayConvention = NoAdjustment
+            businessCenters = None
+        terminationDate = AdjustableDate with
+          unadjustedDate = maturityDate
+          dateAdjustments = BusinessDayAdjustments with
+            businessDayConvention = ModifiedFollowing
+            businessCenters = Some holidayCalendarId
+        calculationPeriodDatesAdjustments = CalculationPeriodDatesAdjustments with
+          businessDayConvention = ModifiedFollowing
+          businessCenters = holidayCalendarId
+        firstRegularPeriodStartDate = None
+        lastRegularPeriodEndDate = None
+        calculationPeriodFrequency = CalculationPeriodFrequency with
+          periodMultiplier = paymentPeriodMultiplier
+          period = paymentPeriod
+          rollConvention = DOM 17
+      paymentDates = PaymentDates with
+        calculationPeriodDatesReference = "floatingLegCalcPeriodDates"
+        paymentFrequency = PaymentFrequency with
+          periodMultiplier = paymentPeriodMultiplier
+          period = paymentPeriod
+        firstPaymentDate = None
+        lastRegularPaymentDate = None
+        payRelativeTo = CalculationPeriodEndDate
+        paymentDatesAdjustments = BusinessDayAdjustments with
+            businessDayConvention = ModifiedFollowing
+            businessCenters = Some holidayCalendarId
+      resetDates = Some ResetDates with
+        calculationPeriodDatesReference = "floatingLegCalcPeriodDates"
+        resetRelativeTo = CalculationPeriodStartDate
+        fixingDates = FixingDates with
+          periodMultiplier = -2
+          period = paymentPeriod
+          dayType = Business
+          businessDayConvention = NoAdjustment
+          businessCenters = fixingHolidayCalendarId
+        resetFrequency = ResetFrequency with
+          periodMultiplier = paymentPeriodMultiplier
+          period = paymentPeriod
+        resetDatesAdjustments = ResetDatesAdjustments with
+          businessDayConvention = ModifiedFollowing
+          businessCenters = holidayCalendarId
+      calculationPeriodAmount = CalculationPeriodAmount with -- todo: adapt for EUR
+        calculation = Calculation with
+          notionalSchedule = NotionalSchedule with
+            notionalStepSchedule = NotionalStepSchedule with
+              initialValue = 5000000.0
+              currency = "USD"
+          floatingRateCalculation = Some FloatingRateCalculation with
+            floatingRateIndex = referenceRateEurId
+            indexTenor = Some Period with
+              periodMultiplier = paymentPeriodMultiplier
+              period = paymentPeriod
+            spreadSchedule = SpreadSchedule with -- make optional?
+              initialValue = 0.0
+          fixedRateSchedule = None
+          dayCountFraction = dayCountConventionFloatingLeg
+      stubCalculationPeriodAmount = None
+    -- CREATE_FPML_SWAP_FLOAT_LEG_END
+
+    -- CREATE_FPML_SWAP_FIX_LEG_BEGIN
+    swapStreamFixedLeg = SwapStream with
+      payerPartyReference = issuerPartyRef
+      receiverPartyReference = clientPartyRef
+      calculationPeriodDates = CalculationPeriodDates with
+        id = "floatingLeg2CalcPeriodDates"
+        effectiveDate = AdjustableDate with
+          unadjustedDate = issueDate
+          dateAdjustments = BusinessDayAdjustments with
+            businessDayConvention = NoAdjustment
+            businessCenters = None
+        terminationDate = AdjustableDate with
+          unadjustedDate = maturityDate
+          dateAdjustments = BusinessDayAdjustments with
+            businessDayConvention = ModifiedFollowing
+            businessCenters = Some holidayCalendarId
+        calculationPeriodDatesAdjustments = CalculationPeriodDatesAdjustments with
+          businessDayConvention = ModifiedFollowing
+          businessCenters = holidayCalendarId
+        firstRegularPeriodStartDate = None
+        lastRegularPeriodEndDate = None
+        calculationPeriodFrequency = CalculationPeriodFrequency with
+          periodMultiplier = paymentPeriodMultiplier
+          period = paymentPeriod
+          rollConvention = DOM 17
+      paymentDates = PaymentDates with
+        calculationPeriodDatesReference = "floatingLeg2CalcPeriodDates"
+        paymentFrequency = PaymentFrequency with
+          periodMultiplier = paymentPeriodMultiplier
+          period = paymentPeriod
+        firstPaymentDate = None
+        lastRegularPaymentDate = None
+        payRelativeTo = CalculationPeriodEndDate
+        paymentDatesAdjustments = BusinessDayAdjustments with
+            businessDayConvention = ModifiedFollowing
+            businessCenters = Some holidayCalendarId
+      resetDates = Some ResetDates with
+        calculationPeriodDatesReference = "floatingLeg2CalcPeriodDates"
+        resetRelativeTo = CalculationPeriodStartDate
+        fixingDates = FixingDates with
+          periodMultiplier = -2
+          period = paymentPeriod
+          dayType = Business
+          businessDayConvention = NoAdjustment
+          businessCenters = fixingHolidayCalendarId
+        resetFrequency = ResetFrequency with
+          periodMultiplier = paymentPeriodMultiplier
+          period = paymentPeriod
+        resetDatesAdjustments = ResetDatesAdjustments with
+          businessDayConvention = ModifiedFollowing
+          businessCenters = holidayCalendarId
+      calculationPeriodAmount = CalculationPeriodAmount with -- todo: adapt for USD
+        calculation = Calculation with
+          notionalSchedule = NotionalSchedule with
+            notionalStepSchedule = NotionalStepSchedule with
+              initialValue = 5000000.0
+              currency = "USD"
+          floatingRateCalculation = Some FloatingRateCalculation with
+            floatingRateIndex = referenceRateUsdId
+            indexTenor = Some Period with
+              periodMultiplier = paymentPeriodMultiplier
+              period = paymentPeriod
+            spreadSchedule = SpreadSchedule with -- make optional?
+              initialValue = 0.0
+          fixedRateSchedule = None
+          dayCountFraction = dayCountConventionFloatingLeg
+      stubCalculationPeriodAmount = None
+    -- CREATE_FPML_SWAP_FIX_LEG_END
+
+    swapStreams = [swapStreamFloatingLeg, swapStreamFixedLeg]
+
+  -- A reference data provider publishes the holiday calendars on the ledger
+  calendarCid <- submit calendarDataProvider do
+    createCmd HolidayCalendar with agency = calendarDataProvider; entity = cal.id; calendar = cal; observers = M.fromList observers
+  fixingCalendarCid <- submit calendarDataProvider do
+    createCmd HolidayCalendar with agency = calendarDataProvider; entity = fixingCal.id; calendar = fixingCal; observers = M.fromList observers
+
+  observableLibor3MCid <- coerceContractId <$> submit issuer do createCmd Observation with provider = issuer; id = Id referenceRateUsdId; observations=observationsLibor3M; observers = M.empty
+  observableEuribor3MCid <- coerceContractId <$> submit issuer do createCmd Observation with provider = issuer; id = Id referenceRateEurId; observations=observationsEuribor3M; observers = M.empty
+  let observableCids = [observableLibor3MCid, observableEuribor3MCid]
+
+  swapInstrument <- originateFpmlSwap custodian issuer "SwapTest1" "Interest rate swap" observers now swapStreams calendarDataProvider cashInstrumentCid issuerPartyRef
+  let settlers = singleton custodian
+
+  -- First payment date: Lifecycle and verify the net fix vs floating payment (stub period).
+  let
+    expectedConsumedQuantities = []
+    expectedProducedQuantities = [Instrument.qty 916.6665 cashInstrumentCid]
+  swapInstrumentAfterFirstPayment <- lifecycleAndVerifySwapPaymentEffects [publicParty] (date 2023 Jan 17) swapInstrument settlers issuer investor observers custodian observableCids expectedConsumedQuantities expectedProducedQuantities
+
+  -- Lifecycle and verify the fix payment (regular period, 3M).
+  let
+    expectedConsumedQuantities = [Instrument.qty 25000.0 cashInstrumentCid]
+    expectedProducedQuantities = []
+  swapInstrumentAfterSecondPayment <- lifecycleAndVerifySwapPaymentEffects [publicParty] (date 2023 Apr 26) swapInstrumentAfterFirstPayment settlers issuer investor observers custodian observableCids expectedConsumedQuantities expectedProducedQuantities
+
+  -- Lifecycle and verify the fix (regular period, 3M). The 6M float payment is calculated but only paid every 12M.
+  let
+    expectedConsumedQuantities = [Instrument.qty 25000.0 cashInstrumentCid]
+    expectedProducedQuantities = []
+  swapInstrumentAfterThirdPayment <- lifecycleAndVerifySwapPaymentEffects [publicParty] (date 2023 Jul 26) swapInstrumentAfterSecondPayment settlers issuer investor observers custodian observableCids expectedConsumedQuantities expectedProducedQuantities
+
+  pure ()
