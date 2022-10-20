@@ -64,37 +64,37 @@ clean-all: clean clean-packages
 .PHONY: ci-build
 ci-build:
 	@nix-shell \
-		--pure 	 \
+		--pure \
 		--run 'make build && ./$(SCRIPTS_DIR)/build-packages.sh'
 
 .PHONY: ci-test
 ci-test:
 	@nix-shell \
-		--pure 	 \
+		--pure \
 		--run 'daml test && ./$(SCRIPTS_DIR)/test-packages.sh'
 
 .PHONY: ci-validate
 ci-validate:
 	@nix-shell \
-		--pure 	 \
+		--pure \
 		--run './$(SCRIPTS_DIR)/validate-packages.sh'
 
 .PHONY: ci-docs
 ci-docs: $(DAML_SDK_ROOT)
 	@nix-shell \
-		--pure   \
+		--pure \
 		--run 'pipenv run make doc-html'
 
 .PHONY: ci-headers-check
 ci-headers-check:
 	@nix-shell \
-		--pure   \
+		--pure \
 		--run './scripts/dade-copyright-headers.py check'
 
 .PHONY: ci-assembly
 ci-assembly:
 	@nix-shell \
-		--pure   \
+		--pure \
 		--run './docs/scripts/build-assembly.sh'
 
 .PHONY: ci-local

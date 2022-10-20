@@ -22,8 +22,8 @@ pkgs.mkShell {
     circleci-cli
     curl
     gh
-    gnupg
     git
+    gnupg
     jq
     yq-go
   ] ++ (docs { pkgs = pkgs; });
