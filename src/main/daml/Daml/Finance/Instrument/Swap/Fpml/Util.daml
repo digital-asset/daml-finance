@@ -6,6 +6,7 @@ module Daml.Finance.Instrument.Swap.Fpml.Util where
 import ContingentClaims.Core.Claim (Inequality(..), give, one, scale, when)
 import ContingentClaims.Core.Observation (Observation(..))
 import DA.Date
+import DA.List (head, last)
 import DA.Optional (fromOptional, fromSome, isNone, isSome)
 import Daml.Finance.Instrument.Generic.Util (createFixRatePaymentClaims, getHolidayCalendars, prepareAndTagClaims)
 import Daml.Finance.Interface.Claims.Types (Deliverable, Observable, TaggedClaim(..))
@@ -138,6 +139,42 @@ getStubRate sc initialStub p cal convention = do
     Some stubRate -> if isSome s.floatingRate then error "both stubRate and floatingRate provided" else Const <$> s.stubRate
     None -> if isSome s.floatingRate then getStubRateFloating (fromSome s.floatingRate) p cal convention else None
 
+-- | Align the payment schedule with the calculation schedule.
+alignPaymentSchedule : [SchedulePeriod] -> [SchedulePeriod] -> Update [SchedulePeriod]
+alignPaymentSchedule calculationSchedule paymentSchedule = do
+  assertMsg "The payment schedule has fewer periods than the calculation schedule" $ length paymentSchedule <= length calculationSchedule
+  let
+    removeStubElements acc p =
+      acc ++ if isSome p.stubType then [] else [p]
+    calculationScheduleWithoutStubs = foldl removeStubElements [] calculationSchedule
+    paymentScheduleWithoutStubs = foldl removeStubElements [] paymentSchedule
+    nCalculationPeriodsPerPaymentPeriod = length calculationScheduleWithoutStubs / length paymentScheduleWithoutStubs
+    --paymentScheduleAligned = foldl (\acc p -> acc ++ replicate nCalculationPeriodsPerPaymentPeriod p) [] paymentSchedule
+    --paymentScheduleAligned = foldl (\acc p -> p :: acc) [] paymentSchedule
+    --paymentScheduleAligned = foldl (\acc p -> acc ++ [p]) [] paymentSchedule
+    paymentScheduleAlignedWithoutStubs = foldl (\acc p -> acc ++ replicate nCalculationPeriodsPerPaymentPeriod p) [] paymentScheduleWithoutStubs
+    --initialStubIfItExists = if (getField @"stubType" (head paymentSchedule)) `elem` [ShortInitial, LongInitial] then head paymentSchedule else []
+    firstPeriod = head paymentSchedule
+    lastPeriod = last paymentSchedule
+    initialStubIfItExists = if isSome firstPeriod.stubType && fromSome firstPeriod.stubType `elem` [ShortInitial, LongInitial] then [head paymentSchedule] else []
+    finalStubIfItExists = if isSome lastPeriod.stubType && fromSome lastPeriod.stubType `elem` [ShortFinal, LongFinal] then [last paymentSchedule] else []
+    paymentScheduleAligned = initialStubIfItExists ++ paymentScheduleAlignedWithoutStubs ++ finalStubIfItExists
+  assertMsg "The payment schedule periods must be an even multiple of the calculation schedule periods" $ length calculationScheduleWithoutStubs % length paymentScheduleWithoutStubs == 0
+  assertMsg "The payment schedule must match the calculation schedule" $ length paymentScheduleAligned == length calculationSchedule
+  debug calculationSchedule
+  debug calculationScheduleWithoutStubs
+  debug paymentSchedule
+  debug paymentScheduleWithoutStubs
+  debug $ length calculationSchedule
+  debug $ length calculationScheduleWithoutStubs
+  debug $ length paymentSchedule
+  debug $ length paymentScheduleWithoutStubs
+  debug $ length paymentScheduleAlignedWithoutStubs
+  debug $ length paymentScheduleAligned
+  debug nCalculationPeriodsPerPaymentPeriod
+  debug paymentScheduleAligned
+  pure paymentScheduleAligned
+
 -- | Calculate a floating rate amount for each payment date and create claims.
 -- The floating rate is observed according to the FpML ResetDates component and used for the corresponding payment on the last day of that payment period.
 createFloatingRatePaymentClaims : [SchedulePeriod] -> [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> Observable -> HolidayCalendarData -> SwapStream -> Update TaggedClaim
@@ -145,7 +182,7 @@ createFloatingRatePaymentClaims calculationSchedule paymentSchedule periodicSche
   let
     resetDates = fromSome s.resetDates
     bdc = s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessDayConvention
-  assertMsg "The payment schedule must match the calculation schedule" $ paymentSchedule == calculationSchedule
+  paymentScheduleAligned <- alignPaymentSchedule calculationSchedule paymentSchedule
   assertMsg "Only daily fixing date period supported" $ resetDates.fixingDates.period == D
   assertMsg "Only Business day type supported" $ resetDates.fixingDates.dayType == Business
   assertMsg "Only fixing dates relative to calculation start dates supported" $ resetDates.resetRelativeTo == CalculationPeriodStartDate
@@ -160,7 +197,7 @@ createFloatingRatePaymentClaims calculationSchedule paymentSchedule periodicSche
           rate = case c.stubType of
             None -> regularRate
             Some stubType -> if isNone s.stubCalculationPeriodAmount then regularRate else fromOptional regularRate (getStubRate (fromSome s.stubCalculationPeriodAmount) (stubType == LongInitial || stubType == ShortInitial) p fixingCalendars bdc)
-    floatingClaimAmounts = mconcat $ zipWith3 createClaim calculationSchedule paymentSchedule fixingDates
+    floatingClaimAmounts = mconcat $ zipWith3 createClaim calculationSchedule paymentScheduleAligned fixingDates
     floatingClaims = if issuerPays then floatingClaimAmounts else give floatingClaimAmounts
   pure $ prepareAndTagClaims [floatingClaims] "Floating rate payment"
 
