@@ -55,11 +55,11 @@ test-all: test test-packages
 clean-all: clean clean-packages
 	pipenv run make doc-clean
 
-###################################
-# CI															#
-#		- utilises nix dependencies   #
-#		- avoids unnecessary rebuilds #
-###################################
+##################################
+# CI                             #
+#  - utilises nix dependencies   #
+#  - avoids unnecessary rebuilds #
+##################################
 
 .PHONY: ci-build
 ci-build:
