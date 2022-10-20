@@ -12,18 +12,19 @@ let
 in
 pkgs.mkShell {
   SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
-  buildInputs = [
-    (daml { stdenv = pkgs.stdenv;
-            jdk = pkgs.openjdk11_headless;
+  buildInputs = with pkgs; [
+    (daml { stdenv = stdenv;
+            jdk = openjdk11_headless;
             version = damlYaml.sdk-version; })
-    pkgs.bash
-    pkgs.binutils # cp, grep, etc.
-    pkgs.cacert
-    pkgs.circleci-cli
-    pkgs.curl
-    pkgs.gh
-    pkgs.git
-    pkgs.jq
-    pkgs.yq-go
+    bash
+    binutils # cp, grep, etc.
+    cacert
+    circleci-cli
+    curl
+    gh
+    gnupg
+    git
+    jq
+    yq-go
   ] ++ (docs { pkgs = pkgs; });
 }
