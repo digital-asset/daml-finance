@@ -55,9 +55,11 @@ test-all: test test-packages
 clean-all: clean clean-packages
 	pipenv run make doc-clean
 
-####################################
-# CI (avoids unnecessary rebuilds) #
-####################################
+##################################
+# CI                             #
+#  - utilises nix dependencies   #
+#  - avoids unnecessary rebuilds #
+##################################
 
 .PHONY: ci-build
 ci-build:
@@ -96,7 +98,7 @@ ci-assembly:
 		--run './docs/scripts/build-assembly.sh'
 
 .PHONY: ci-local
-ci-local: clean-all ci-build ci-test ci-validate ci-docs
+ci-local: clean-all ci-headers-check ci-build ci-test ci-validate ci-docs
 
 #########
 # Cache #
