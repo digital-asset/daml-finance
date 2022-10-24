@@ -82,17 +82,31 @@ Settle the Instructions
 In order to process the effect(s) of the lifecycling (in this case: pay the coupon), we need to create settlement instructions.
 We start by creating a settlement factory:
 
-.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
-  :language: daml
-  :start-after: -- CREATE_SETTLEMENT_FACTORY_BOND_BEGIN
-  :end-before: -- CREATE_SETTLEMENT_FACTORY_BOND_END
+.. code-block:: daml
+
+  settlementFactoryCid <- toInterfaceContractId <$> submit investor do createCmd Factory with provider = investor; observers = empty
 
 The investor then claims the effect:
 
 .. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
-  :language: daml
-  :start-after: -- CLAIM_EFFECT_BOND_BEGIN
-  :end-before: -- CLAIM_EFFECT_BOND_END
+
+.. code-block:: daml
+
+  -- Claim effect
+  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [custodian, investor] [] do
+    createCmd Claim.Rule
+      with
+        providers = fromList [custodian, investor]
+        claimers = singleton investor
+        settlers
+        settlementFactoryCid
+
+  result <- submitMulti [investor] readAs do
+    exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
+      claimer = investor
+      holdingCids = [toInterfaceContractId @Base.I investorBondTransferableCid]
+      effectCid
+      batchId = Id "CouponSettlement"
 
 Claiming the effect has two consequences:
 - the investor's holding is upgraded to the new instrument version (the one where the coupon has been paid)
@@ -100,10 +114,22 @@ Claiming the effect has two consequences:
 
 Finally, the settlement instructions are allocated, approved and then settled.
 
-.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
-  :language: daml
-  :start-after: -- ALLOCATE_APPROVE_SETTLE_INSTRUCTIONS_BOND_BEGIN
-  :end-before: -- ALLOCATE_APPROVE_SETTLE_INSTRUCTIONS_BOND_END
+.. code-block:: daml
+
+  let
+    Some [investorBondHoldingCid] = result.newInstrumentHoldingCids
+    [custodianCashInstructionCid] = result.instructionCids
+
+  -- Allocate instructions
+  (custodianCashInstructionCid, _) <- submitMulti [custodian] readAs do exerciseCmd custodianCashInstructionCid Instruction.Allocate with actors = singleton custodian; allocation = Pledge custodianCashTransferableCid
+
+  -- Approve instructions
+  custodianCashInstructionCid <- submit investor do
+    exerciseCmd custodianCashInstructionCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorAccount
+
+  -- Settle batch
+  let settlerUsed = head $ toList settlers
+  [investorCashTransferableCid] <- submitMulti [settlerUsed] readAs do exerciseCmd result.batchCid Batch.Settle with actors = singleton settlerUsed
 
 Following settlement, the investor receives a cash holding for the due coupon amount.
 
