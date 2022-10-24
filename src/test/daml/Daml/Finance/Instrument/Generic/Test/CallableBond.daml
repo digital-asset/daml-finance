@@ -75,13 +75,11 @@ run = script do
     createCmd Fungible.Factory with provider = bank; observers = M.fromList pp
 
   -- Create accounts
-  [bankAccount, investorAccount] <- mapA (Account.createAccount "Default Account" [] accountFactoryCid holdingFactoryCid [] Account.Owner bank) [bank, investor]
+  investorAccount <- Account.createAccount "Default Account" [] accountFactoryCid holdingFactoryCid [] Account.Owner bank investor
 
-  -- Distribute cash
+  -- Originate cash
   now <- getTime
   cashInstrumentCid <- Instrument.originate centralBank centralBank "USD" "United States Dollar" pp now
-  bankCashTransferableCouponCid <- Account.credit [publicParty] cashInstrumentCid 1_000.0 bankAccount
-  bankCashTransferablePrincipalCid <- Account.credit [publicParty] cashInstrumentCid 100_000.0 bankAccount
 
   -- Create and distribute a generic derivative
   let
@@ -154,13 +152,15 @@ run = script do
       effectCid
       batchId = Id "BondCallSettlement"
 
-  let [bankCashInstructionCouponCid, bankCashInstructionPrincipalCid] = result.instructionCids
+  let [investorInstrumentInstructionCid, bankCashInstructionCouponCid, bankCashInstructionPrincipalCid] = result.instructionCids
 
   -- Allocate instructions
-  (bankCashInstructionCouponCid, _) <- submit bank do exerciseCmd bankCashInstructionCouponCid Instruction.Allocate with actors = singleton bank; allocation = Pledge bankCashTransferableCouponCid
-  (bankCashInstructionPrincipalCid, _) <- submit bank do exerciseCmd bankCashInstructionPrincipalCid Instruction.Allocate with actors = singleton bank; allocation = Pledge bankCashTransferablePrincipalCid
+  (investorInstrumentInstructionCid, _) <- submit investor do exerciseCmd investorInstrumentInstructionCid Instruction.Allocate with actors = singleton investor; allocation = Pledge $ coerceContractId investorGenericTransferableCid
+  (bankCashInstructionCouponCid, _) <- submit bank do exerciseCmd bankCashInstructionCouponCid Instruction.Allocate with actors = singleton bank; allocation = CreditReceiver
+  (bankCashInstructionPrincipalCid, _) <- submit bank do exerciseCmd bankCashInstructionPrincipalCid Instruction.Allocate with actors = singleton bank; allocation = CreditReceiver
 
   -- Approve instructions
+  investorInstrumentInstructionCid <- submit bank do exerciseCmd investorInstrumentInstructionCid Instruction.Approve with actors = singleton bank; approval = DebitSender
   bankCashInstructionCouponCid <- submit investor do exerciseCmd bankCashInstructionCouponCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorAccount
   bankCashInstructionPrincipalCid <- submit investor do exerciseCmd bankCashInstructionPrincipalCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorAccount
 
