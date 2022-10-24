@@ -15,7 +15,7 @@ import Daml.Finance.Instrument.Generic.Test.Util (originateGeneric, mapClaimToUT
 import Daml.Finance.Interface.Account.Account qualified as Account (K)
 import Daml.Finance.Interface.Account.Util (getOwner)
 import Daml.Finance.Interface.Holding.Base qualified as Base (I)
-import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
+import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I)
 import Daml.Finance.Interface.Holding.Util (getAmount, getInstrument)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (GetCid(..), R)
 import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (SetProvider(..), GetView(..), I)
@@ -94,14 +94,14 @@ run = script do
   TestParties{..} <- setupParties
 
   -- Setup security accounts
-  [csdOwnSecurityAccount, investorSecurityAccount] <- setupAccounts "Security Account" csd publicParty [csd, investor]
-  [csdAccountAtIssuer] <- setupAccounts "Security Account" issuer publicParty [csd]
+  [investorSecuritiesAccount] <- setupAccounts "Securities Account" csd publicParty [investor]
+  [csdAccountAtIssuer] <- setupAccounts "Securities Account" issuer publicParty [csd]
 
   -- Setup cash accounts at central bank
   [issuerCashAccount, bankCashAccount, csdCashAccount] <- setupAccounts "Cash Account" centralBank publicParty [issuer, bank, csd]
 
-  -- Setup Issuer's cash account at Bank
-  [investorCashAccount, bankOwnCashAccount] <- setupAccounts "Cash Account" bank publicParty [investor, bank]
+  -- Setup investor's cash account at Bank
+  [investorCashAccount] <- setupAccounts "Cash Account" bank publicParty [investor]
 
   -- Distribute central-bank cash
   now <- getTime
@@ -126,7 +126,7 @@ run = script do
   genericInstrument <- originateGeneric csd issuer bondLabel "Bond" now claims pp now
   -- CREATE_CC_INSTRUMENT_END
   csdGenericTransferableCid <- Account.credit [publicParty] genericInstrument 1_000_000.0 csdAccountAtIssuer
-  investorGenericTransferableCid <- Account.credit [publicParty] genericInstrument 1_000_000.0 investorSecurityAccount
+  investorGenericTransferableCid <- Account.credit [publicParty] genericInstrument 1_000_000.0 investorSecuritiesAccount
 
   genericLifecycleCid <- submit issuer do exerciseByKeyCmd @BaseInstrument.R genericInstrument BaseInstrument.GetCid with viewer = issuer
 
@@ -151,17 +151,27 @@ run = script do
         csdCashAccount
 
   -- CSD claims and settles effect against issuer
-  (effectCid, _, [cashHolding]) <- submitMulti [issuer] [publicParty] do
+  (effectCid, newInstrumentHoldingCid, [cashHolding]) <- submitMulti [issuer] [publicParty] do
     exerciseCmd settle1Cid ClaimAndSettle
       with
         instrumentHoldingCid = csdGenericTransferableCid
-        cashHoldingsCid = [issuerCashTransferableCid]
+        cashHoldingCid = issuerCashTransferableCid
         effectCid
 
   -- investor claims effect against CSD
 
   -- Define settlement routes from CSD to Investor and create batch factory
-  let routes = [("USD" , Path with senderPath = [csd, centralBank]; receiverPath = [investor, bank, centralBank])]
+  let routes =
+        [
+          ( "USD" , Path with
+              senderPath = [csd, centralBank]
+              receiverPath = [investor, bank, centralBank]
+          ),
+          ( bondLabel , Path with
+              senderPath = [csd]
+              receiverPath = [investor]
+          )
+        ]
 
   settlementFactoryCid <- submit csd do
     toInterfaceContractId <$> createCmd FactoryWithIntermediaries
@@ -185,23 +195,26 @@ run = script do
       effectCid
       batchId = Id "CouponSettlement"
 
-  let
-    Some [investorGenericTransferableCid] = result.newInstrumentHoldingCids
-    [csdCashInstructionCid, bankCashInstructionCid] = result.instructionCids
+  let [investorBondInstructionCid, csdBondInstructionCid, csdCashInstructionCid, bankCashInstructionCid] = result.instructionCids
 
   -- Allocate instructions
+  (investorBondInstructionCid, _) <- submit investor do exerciseCmd investorBondInstructionCid Instruction.Allocate with actors = singleton investor; allocation = Pledge $ coerceContractId investorGenericTransferableCid
+  (csdBondInstructionCid, _) <- submit csd do exerciseCmd csdBondInstructionCid Instruction.Allocate with actors = singleton csd; allocation = CreditReceiver
   (csdCashInstructionCid, _) <- submit csd do exerciseCmd csdCashInstructionCid Instruction.Allocate with actors = singleton csd; allocation = Pledge cashHolding
-  bankOwnCashTransferableCid <- Account.credit [publicParty] cashInstrument 20_000.0 bankOwnCashAccount
-  (bankCashInstructionCid, _) <- submit bank do exerciseCmd bankCashInstructionCid Instruction.Allocate with actors = singleton bank; allocation = Pledge bankOwnCashTransferableCid
+  (bankCashInstructionCid, _) <- submit bank do exerciseCmd bankCashInstructionCid Instruction.Allocate with actors = singleton bank; allocation = CreditReceiver
 
   -- Approve instructions
+  investorBondInstructionCid <- submit csd do
+    exerciseCmd investorBondInstructionCid Instruction.Approve with actors = singleton csd; approval = DebitSender
+  csdBondInstructionCid <- submit investor do
+    exerciseCmd csdBondInstructionCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorSecuritiesAccount
   csdCashInstructionCid <- submit bank do
     exerciseCmd csdCashInstructionCid Instruction.Approve with actors = singleton bank; approval = TakeDelivery bankCashAccount
   bankCashInstructionCid <- submit investor do
     exerciseCmd bankCashInstructionCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorCashAccount
 
   -- Settle batch
-  [bankCashTransferableCid, investorCashTransferableCid] <- submitMulti (toList settlers) [publicParty] do exerciseCmd result.batchCid Batch.Settle with actors = settlers
+  [investorGenericTransferableCid, bankCashTransferableCid, investorCashTransferableCid] <- submitMulti (toList settlers) [publicParty] do exerciseCmd result.batchCid Batch.Settle with actors = settlers
 
   -- Assert state
   Holding.verifyOwnerOfHolding
@@ -242,12 +255,12 @@ template EffectSettlementService
       issuerCashAccount.owner == issuer &&
       csdCashAccount.owner == csd
 
-    nonconsuming choice ClaimAndSettle : (ContractId Effect.I, Optional [ContractId Base.I], [ContractId Transferable.I])
+    nonconsuming choice ClaimAndSettle : (ContractId Effect.I, Optional (ContractId Base.I), [ContractId Transferable.I])
       with
         instrumentHoldingCid : ContractId Base.I
           -- ^ Holding of CSD @ issuer for the old instrument.
-        cashHoldingsCid : [ContractId Transferable.I]
-          -- ^ Cash holdings of issuer @ central bank, used to settle the effect's consequences.
+        cashHoldingCid : ContractId Transferable.I
+          -- ^ Cash holding of issuer @ central bank, used to settle the effect's consequences.
         effectCid : ContractId Effect.I
           -- ^ Effect to claim.
       controller issuer
@@ -271,11 +284,6 @@ template EffectSettlementService
         fungible <- fetch instrumentHoldingCid
         assertMsg "wrong fungible" $ getInstrument fungible == oldInstrument
 
-        -- fetch other holdings
-        holdings <- forA cashHoldingsCid \hCid -> do
-          h <- fetch $ coerceContractId hCid
-          pure (hCid, h)
-
         -- 1. csd claims effect against issuer
         settlementFactoryCid <- create Factory with provider = csd; observers = empty
 
@@ -295,22 +303,25 @@ template EffectSettlementService
         archive settlementFactoryCid
         archive lifecycleClaimRuleCid
 
-        -- TODO : use settlement instruction instead of direct transfer, or at least make sure it gets archived
+        let [csdInstrumentInstructionCid, issuerInstrumentInstructionCid, issuerCashInstructionCouponCid] = result.instructionCids
 
-        steps <- fmap ((.step) . view) <$> mapA fetch result.instructionCids
+        -- Allocate instructions
+        (csdInstrumentInstructionCid, _) <- exercise csdInstrumentInstructionCid Instruction.Allocate with actors = singleton csd; allocation = Pledge $ coerceContractId instrumentHoldingCid
+        (issuerCashInstructionCouponCid, _) <- exercise issuerCashInstructionCouponCid Instruction.Allocate with actors = singleton issuer; allocation = Pledge $ coerceContractId cashHoldingCid
+        (issuerInstrumentInstructionCid, _) <- exercise issuerInstrumentInstructionCid Instruction.Allocate with actors = singleton issuer; allocation = CreditReceiver
 
-        newHoldingsCid <- fmap toInterfaceContractId .  mconcat <$> forA steps \s -> case find (match s . Prelude.snd) holdings of
-          Some (hCid, h) -> do
-            let allocation = Pledge $ coerceContractId hCid
-            newHCid <- exercise hCid Transferable.Transfer with actors = fromList [issuer, csd]; newOwnerAccount = csdCashAccount
-            pure [newHCid]
-            -- TODO fix so that it works for effects going in the other direction
-          None -> abort ""
+        -- Approve instructions
+        csdInstrumentInstructionCid <- exercise csdInstrumentInstructionCid Instruction.Approve with actors = singleton issuer; approval = DebitSender
+        issuerCashInstructionCouponCid <- exercise issuerCashInstructionCouponCid Instruction.Approve with actors = singleton csd; approval = TakeDelivery csdCashAccount
+        issuerInstrumentInstructionCid <- exercise issuerInstrumentInstructionCid Instruction.Approve with actors = singleton csd; approval = TakeDelivery securitiesAccount
+
+        -- Settle batch
+        [newInstrumentHoldingCid, investorCashTransferableCouponCid] <- exercise result.batchCid Batch.Settle with actors = singleton csd
 
         -- 2. create effect to be used by investors
         newEffectCid <- exercise effectCid Effect.SetProvider with newProviders = singleton csd
 
-        pure (newEffectCid, result.newInstrumentHoldingCids, newHoldingsCid)
+        pure (newEffectCid, Some (toInterfaceContractId newInstrumentHoldingCid), [investorCashTransferableCouponCid])
 
 -- | HIDE
 -- Matches a holding to a settlement step.
