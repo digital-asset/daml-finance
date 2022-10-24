@@ -37,37 +37,39 @@ template Instrument
     signatory depository, issuer
     observer Disclosure.flattenObservers observers
 
-    let instrumentKey = InstrumentKey with depository; issuer; id; version
-
     interface instance BaseInstrument.I for Instrument where
       asDisclosure = toInterface @Disclosure.I this
       view = BaseInstrument.View with issuer; depository; id; version; description; validAsOf
-      getKey = instrumentKey
+      getKey = instrumentKey this
 
     interface instance Equity.I for Instrument where
       asBaseInstrument = toInterface @BaseInstrument.I this
-      view = Equity.View with instrument = instrumentKey
-      declareDividend Equity.DeclareDividend{id; description; effectiveDate; newInstrument; perUnitDistribution} = toInterfaceContractId <$>
-        create Distribution.Event
+      view = Equity.View with instrument = instrumentKey this
+      declareDividend Equity.DeclareDividend{id; description; effectiveDate; newInstrumentVersion; perUnitDistribution} = do
+        newInstrumentCid <- create this with version = newInstrumentVersion
+        newInstrumentKey <- instrumentKey <$> fetch newInstrumentCid
+        toInterfaceContractId <$> create Distribution.Event
           with
             providers = fromList [issuer, depository]
             id
             description
             effectiveDate
-            targetInstrument = instrumentKey
-            newInstrument
+            targetInstrument = instrumentKey this
+            newInstrument = newInstrumentKey
             perUnitDistribution
             observers = Disclosure.flattenObservers observers
-      declareStockSplit Equity.DeclareStockSplit{id; description; adjustmentFactor; newInstrument; effectiveDate} = toInterfaceContractId <$>
+      declareStockSplit Equity.DeclareStockSplit{id; description; adjustmentFactor; newInstrumentVersion; effectiveDate} = do
         -- NOTE: Doesn't handle conversion of fractional shares into cash
-        create Replacement.Event
+        newInstrumentCid <- create this with version = newInstrumentVersion
+        newInstrumentKey <- instrumentKey <$> fetch newInstrumentCid
+        toInterfaceContractId <$> create Replacement.Event
           with
             providers = fromList [issuer, depository]
             id
             description
             effectiveDate
-            targetInstrument = instrumentKey
-            perUnitReplacement = [BaseInstrument.qty (1.0 / adjustmentFactor) newInstrument]
+            targetInstrument = instrumentKey this
+            perUnitReplacement = [BaseInstrument.qty (1.0 / adjustmentFactor) newInstrumentKey]
             observers = Disclosure.flattenObservers observers
       declareReplacement Equity.DeclareReplacement{id; description; effectiveDate; perUnitReplacement} = toInterfaceContractId <$>
         create Replacement.Event
@@ -76,7 +78,7 @@ template Instrument
             id
             description
             effectiveDate
-            targetInstrument = instrumentKey
+            targetInstrument = instrumentKey this
             perUnitReplacement
             observers = Disclosure.flattenObservers observers
 
@@ -84,5 +86,9 @@ template Instrument
       view = Disclosure.View with disclosureControllers = singleton issuer; observers
       setObservers Disclosure.SetObservers{newObservers} = do
         cid <- toInterfaceContractId <$> create this with observers = newObservers
-        BaseInstrument.disclosureUpdateReference newObservers instrumentKey cid
+        BaseInstrument.disclosureUpdateReference newObservers (instrumentKey this) cid
       archive' self = archive (coerceContractId self : ContractId Instrument)
+
+-- | HIDE
+instrumentKey : Instrument -> InstrumentKey
+instrumentKey i = InstrumentKey with depository = i.depository; issuer = i.issuer; id = i.id; version = i.version
