@@ -202,6 +202,8 @@ createFloatingRatePaymentClaims calculationSchedule paymentSchedule periodicSche
 -- | Calculate a floating rate amount for each payment date and create claims.
 -- The floating rate is observed according to the FpML ResetDates component and used for the corresponding payment on the last day of that payment period.
 --createFloatingRatePaymentClaims : [SchedulePeriod] -> [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Deliverable -> Observable -> HolidayCalendarData -> HolidayCalendarData -> SwapStream -> Update TaggedClaim
+--createFloatingRatePaymentClaimsFxNotional : [SchedulePeriod] -> [SchedulePeriod] -> PeriodicSchedule -> NotionalSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Deliverable -> Observable -> HolidayCalendarData -> [Date] -> SwapStream -> Party -> Party -> Update TaggedClaim
+--createFloatingRatePaymentClaimsFxNotional calculationSchedule paymentSchedule periodicSchedule notionalSchedule useAdjustedDatesForDcf floatingRateSpread issuerPays dayCountConvention cashInstrumentCid referenceRateId rateFixingCalendars rateFixingDates s issuer calendarDataAgency = do
 createFloatingRatePaymentClaimsFxNotional : [SchedulePeriod] -> [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Deliverable -> Observable -> HolidayCalendarData -> [Date] -> SwapStream -> Party -> Party -> Update TaggedClaim
 createFloatingRatePaymentClaimsFxNotional calculationSchedule paymentSchedule periodicSchedule useAdjustedDatesForDcf floatingRateSpread issuerPays dayCountConvention cashInstrumentCid referenceRateId rateFixingCalendars rateFixingDates s issuer calendarDataAgency = do
   let
@@ -210,6 +212,7 @@ createFloatingRatePaymentClaimsFxNotional calculationSchedule paymentSchedule pe
   let
     c = s.calculationPeriodAmount.calculation
     n = fromSome c.notionalSchedule
+    --n = notionalSchedule -- use the notionalSchedule provided (in case the current leg points at another leg)
     notional = if Id n.notionalStepSchedule.currency == cashInstrumentCid.id then n.notionalStepSchedule.initialValue else error "swapStream currency does not match swap currency"
     resetDates = fromSome s.resetDates
     bdc = s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessDayConvention
@@ -222,18 +225,16 @@ createFloatingRatePaymentClaimsFxNotional calculationSchedule paymentSchedule pe
   assertMsg "No adjustement (besides business day type) supported" $ resetDates.fixingDates.businessDayConvention == NoAdjustment
   let
     createClaim c p f =
-      --when (TimeGte f) $ scale (Const fxAdjustedNotional) $ scale (rate * (Const (calcPeriodDcf dayCountConvention c useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency))) $
       when (TimeGte f) $ scale (notionalConst * fxRateObs) $ scale (rate * (Const (calcPeriodDcf dayCountConvention c useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency))) $
       when (TimeGte p.adjustedEndDate) $ one cashInstrumentCid
         where
           origNotional = 5000000.0
           notionalConst = Const origNotional
-          fxRateId = "FX/EURUSD/WMRPSPOT01"
-          fxRateObs = Observe fxRateId
-          regularRate = Observe referenceRateId + Const floatingRateSpread
+          fxRateObs = Observe fx.fxSpotRateSource.primaryRateSource.rateSourcePage
+          regularRateObs = Observe referenceRateId + Const floatingRateSpread
           rate = case c.stubType of
-            None -> regularRate
-            Some stubType -> if isNone s.stubCalculationPeriodAmount then regularRate else fromOptional regularRate (getStubRate (fromSome s.stubCalculationPeriodAmount) (stubType == LongInitial || stubType == ShortInitial) p rateFixingCalendars bdc)
+            None -> regularRateObs
+            Some stubType -> if isNone s.stubCalculationPeriodAmount then regularRateObs else fromOptional regularRateObs (getStubRate (fromSome s.stubCalculationPeriodAmount) (stubType == LongInitial || stubType == ShortInitial) p rateFixingCalendars bdc)
     floatingClaimAmounts = mconcat $ zipWith3 createClaim calculationSchedule paymentScheduleAligned rateFixingDates
     floatingClaims = if issuerPays then floatingClaimAmounts else give floatingClaimAmounts
   pure $ prepareAndTagClaims [floatingClaims] "Floating rate payment"
