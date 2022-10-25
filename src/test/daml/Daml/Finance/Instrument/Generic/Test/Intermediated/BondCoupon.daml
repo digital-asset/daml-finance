@@ -16,7 +16,7 @@ import Daml.Finance.Interface.Account.Account qualified as Account (K)
 import Daml.Finance.Interface.Holding.Base qualified as Base (I)
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I)
 import Daml.Finance.Interface.Holding.Util (getInstrument)
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (GetCid(..), R)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (K)
 import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (SetProvider(..), GetView(..), I)
 import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..), I)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..))
@@ -79,18 +79,44 @@ data TestParties = TestParties
     publicParty : Party
       -- ^ The public party. Every party can readAs the public party.
 
--- | Setup a set of accounts.
-setupAccounts : Text -> Party -> Party -> [Party] -> Script [Account.K]
-setupAccounts description custodian publicParty owners = do
-  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory custodian []
-  holdingFactoryCid <- toInterfaceContractId <$> submit custodian do
-    createCmd Fungible.Factory with provider= custodian; observers = M.fromList [("PublicParty", singleton publicParty)]
-  forA owners $ Account.createAccount description [] accountFactoryCid holdingFactoryCid [] Account.Owner custodian
+-- | Originate USD cash instrument and define settlement route.
+originateCashAndDefineRoute : TestParties -> Time -> Script (BaseInstrument.K, (Text, Path))
+originateCashAndDefineRoute TestParties{bank, centralBank, csd, investor, publicParty} now = do
+  let
+    pp = [("PublicParty", singleton publicParty)]
+    label = "USD"
+    route = ( label , Path with
+                senderPath = [csd, centralBank]
+                receiverPath = [investor, bank, centralBank]
+            )
+  instrument <- BaseInstrument.originate centralBank centralBank "USD" "United States Dollar" pp now
+  pure (instrument, route)
+
+-- | Originate bond instrument and define settlement route.
+originateSecurityAndDefineRoute : TestParties -> Time -> BaseInstrument.K -> Script (BaseInstrument.K, (Text, Path))
+originateSecurityAndDefineRoute TestParties{bank, csd, investor, issuer, publicParty} now cashInstrument = do
+  -- CREATE_CC_INSTRUMENT_VARIABLES_BEGIN
+  let
+    today = toDateUTC now
+    expiry = addDays today 180
+    bondLabel = "ABC.DE 2% " <> show expiry <> " Corp"
+    claims = mapClaimToUTCTime $ mconcat
+      [ when (TimeGte $ today) $ scale (Const 0.02) $ one cashInstrument
+      , when (TimeGte $ expiry) $ scale (Const 0.02) $ one cashInstrument
+      , when (TimeGte $ expiry) $ scale (Const 1.0) $ one cashInstrument
+      ]
+  -- CREATE_CC_INSTRUMENT_VARIABLES_END
+  let pp = [("PublicParty", singleton publicParty)]
+  -- CREATE_CC_INSTRUMENT_BEGIN
+  instrument <- originateGeneric csd issuer bondLabel "Bond" now claims pp now
+  -- CREATE_CC_INSTRUMENT_END
+  let route = ( bondLabel , Path with senderPath = [csd]; receiverPath = [investor] )
+  pure (instrument, route)
 
 -- | Penultimate coupon payment on a bond showing creation of new instrument version.
 run : Script ()
 run = script do
-  TestParties{..} <- setupParties
+  parties@TestParties{..} <- setupParties
 
   -- Setup security accounts
   [investorSecuritiesAccount] <- setupAccounts "Securities Account" csd publicParty [investor]
@@ -102,38 +128,24 @@ run = script do
   -- Setup investor's cash account at Bank
   [investorCashAccount] <- setupAccounts "Cash Account" bank publicParty [investor]
 
-  -- Distribute central-bank cash
+  -- Originate and distribute central-bank cash
   now <- getTime
-  let pp = [("PublicParty", singleton publicParty)]
-  cashInstrument <- BaseInstrument.originate centralBank centralBank "USD" "United States Dollar" pp now
-  issuerCashTransferableCid <- Account.credit [publicParty] cashInstrument 20_000.0 issuerCashAccount
-
-  -- CREATE_CC_INSTRUMENT_VARIABLES_BEGIN
-  -- Create and distribute bond
   let
     today = toDateUTC now
-    expiry = addDays today 180
-    bondLabel = "ABC.DE 2% " <> show expiry <> " Corp"
-    claims = mapClaimToUTCTime $ mconcat
-      [ when (TimeGte $ today) $ scale (Const 0.02) $ one cashInstrument
-      , when (TimeGte $ expiry) $ scale (Const 0.02) $ one cashInstrument
-      , when (TimeGte $ expiry) $ scale (Const 1.0) $ one cashInstrument
-      ]
-  -- CREATE_CC_INSTRUMENT_VARIABLES_END
 
-  -- CREATE_CC_INSTRUMENT_BEGIN
-  genericInstrument <- originateGeneric csd issuer bondLabel "Bond" now claims pp now
-  -- CREATE_CC_INSTRUMENT_END
-  csdGenericTransferableCid <- Account.credit [publicParty] genericInstrument 1_000_000.0 csdAccountAtIssuer
-  investorGenericTransferableCid <- Account.credit [publicParty] genericInstrument 1_000_000.0 investorSecuritiesAccount
+  (cashInstrument, cashRoute) <- originateCashAndDefineRoute parties now
+  issuerCashTransferableCid <- Account.credit [publicParty] cashInstrument 20_000.0 issuerCashAccount
 
-  genericLifecycleCid <- submit issuer do exerciseByKeyCmd @BaseInstrument.R genericInstrument BaseInstrument.GetCid with viewer = issuer
+  -- Originate and distribute bond
+  (bondInstrument, bondRoute) <- originateSecurityAndDefineRoute parties now cashInstrument
+  csdGenericTransferableCid <- Account.credit [publicParty] bondInstrument 1_000_000.0 csdAccountAtIssuer
+  investorGenericTransferableCid <- Account.credit [publicParty] bondInstrument 1_000_000.0 investorSecuritiesAccount
 
   -- create clock and clock update event
   (clockCid, clockEventCid) <- createClockAndEvent (singleton issuer) today empty
 
   -- Lifecycle bond
-  (genericLifecycleCid2, [effectCid]) <- BaseInstrument.submitExerciseInterfaceByKeyCmd @Lifecycle.I [issuer] [] genericInstrument Lifecycle.Evolve with eventCid = clockEventCid; observableCids = []; ruleName = "Time"; timeObservableCid = clockCid
+  (_, [effectCid]) <- BaseInstrument.submitExerciseInterfaceByKeyCmd @Lifecycle.I [issuer] [] bondInstrument Lifecycle.Evolve with eventCid = clockEventCid; observableCids = []; ruleName = "Time"; timeObservableCid = clockCid
 
   -- Setup settlement contract between issuer and CSD
   -- In order for the workflow to be successful, we need to disclose the CSD's cash account to the Issuer.
@@ -144,7 +156,7 @@ run = script do
       with
         csd
         issuer
-        instrumentId = Id bondLabel
+        instrumentId = bondInstrument.id
         securitiesAccount = csdAccountAtIssuer
         issuerCashAccount
         csdCashAccount
@@ -160,23 +172,13 @@ run = script do
   -- investor claims effect against CSD
 
   -- Define settlement routes from CSD to Investor and create batch factory
-  let routes =
-        [
-          ( "USD" , Path with
-              senderPath = [csd, centralBank]
-              receiverPath = [investor, bank, centralBank]
-          ),
-          ( bondLabel , Path with
-              senderPath = [csd]
-              receiverPath = [investor]
-          )
-        ]
+  let routes = M.fromList [cashRoute, bondRoute]
 
   settlementFactoryCid <- submit csd do
     toInterfaceContractId <$> createCmd FactoryWithIntermediaries
       with
         provider = csd
-        paths = M.fromList routes
+        paths = routes
         observers = fromList [investor]
 
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [csd, investor] [] do
@@ -223,11 +225,6 @@ run = script do
     ]
 
   pure ()
-
-setupParties : Script TestParties
-setupParties = do
-  [bank, centralBank, csd, issuer, investor, settler, publicParty] <- createParties ["Bank", "CentralBank", "CSD", "Issuer", "Investor", "Settler", "PublicParty"]
-  pure $ TestParties with bank; centralBank; csd; issuer; investor; settlers = singleton settler; publicParty
 
 -- | Service template that allows to claim an effect and settle the corresponding transactions atomically.
 template EffectSettlementService
@@ -321,3 +318,19 @@ template EffectSettlementService
         newEffectCid <- exercise effectCid Effect.SetProvider with newProviders = singleton csd
 
         pure (newEffectCid, Some (toInterfaceContractId newInstrumentHoldingCid), [investorCashTransferableCouponCid])
+
+-- | HIDE
+setupParties : Script TestParties
+setupParties = do
+  [bank, centralBank, csd, issuer, investor, settler, publicParty] <- createParties ["Bank", "CentralBank", "CSD", "Issuer", "Investor", "Settler", "PublicParty"]
+  pure $ TestParties with bank; centralBank; csd; issuer; investor; settlers = singleton settler; publicParty
+
+-- | HIDE
+-- Setup a set of accounts.
+setupAccounts : Text -> Party -> Party -> [Party] -> Script [Account.K]
+setupAccounts description custodian publicParty owners = do
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory custodian []
+  holdingFactoryCid <- toInterfaceContractId <$> submit custodian do
+    createCmd Fungible.Factory with provider= custodian; observers = M.fromList [("PublicParty", singleton publicParty)]
+  forA owners $ Account.createAccount description [] accountFactoryCid holdingFactoryCid [] Account.Owner custodian
+
