@@ -46,12 +46,12 @@ run = script do
 
   -- Create lifecycle rules
   distributionRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit issuer do createCmd Distribution.Rule with providers = singleton issuer; lifecycler = issuer; observers = singleton public
-  claimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [issuer, investor] [] do
+  claimRuleCid <- toInterfaceContractId @Claim.I <$> submit issuer do
     createCmd Claim.Rule
       with
-        providers = fromList [issuer, investor]
-        claimers = singleton investor
-        settlers = singleton investor
+        providers = singleton issuer
+        claimers = fromList [investor, issuer]
+        settlers = fromList [investor, issuer]
         settlementFactoryCid
 
   -- Create clock
@@ -80,10 +80,11 @@ run = script do
   (_, [effectCid]) <- submit issuer do exerciseCmd distributionRuleCid Lifecycle.Evolve with ruleName = "Dividend"; observableCids = []; eventCid = distributionEventCid; timeObservableCid = clockCid
 
   -- Claim effect
-  result <- submitMulti [investor] [public] do
+  -- The effect is claimed and then settled by the issuer, but it could also be claimed and then settled by the investor.
+  result <- submit issuer do
     exerciseCmd claimRuleCid Claim.ClaimEffect
       with
-        claimer = investor
+        claimer = issuer
         holdingCids = [investorEquityCid]
         effectCid
         batchId = Id "DividendSettlement"
@@ -101,7 +102,7 @@ run = script do
   issuerCashInstructionCid <- submit investor do exerciseCmd issuerCashInstructionCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorCashAccount
 
   -- Settle batch
-  [investorEquityTransferableCid, investorCashTransferableCid] <- submitMulti [investor] [public] do exerciseCmd result.batchCid Batch.Settle with actors = singleton investor
+  [investorEquityTransferableCid, investorCashTransferableCid] <- submit issuer do exerciseCmd result.batchCid Batch.Settle with actors = singleton issuer
 
   -- Assert state
   Holding.verifyOwnerOfHolding [(investor, investorEquityTransferableCid), (investor, coerceContractId investorCashTransferableCid)]

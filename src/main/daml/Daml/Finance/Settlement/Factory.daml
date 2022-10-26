@@ -3,14 +3,15 @@
 
 module Daml.Finance.Settlement.Factory where
 
-import DA.List (groupOn, head, isSuffixOf, stripSuffix, tails)
+import DA.List (groupOn, head)
 import DA.Map qualified as M (Map, fromList, lookup)
 import DA.Optional (fromSomeNote)
 import DA.Set (empty)
 import Daml.Finance.Interface.Settlement.Factory qualified as Factory (I, Instruct(..), View(..))
-import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), Step(..))
+import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
 import Daml.Finance.Interface.Types.Common (Id(..), Parties)
 import Daml.Finance.Settlement.Batch (Batch(..))
+import Daml.Finance.Settlement.Hierarchy (Hierarchy(..), unfoldStep)
 import Daml.Finance.Settlement.Instruction (Instruction(..))
 import Daml.Finance.Util.Common (mapWithIndex)
 
@@ -48,7 +49,7 @@ template FactoryWithIntermediaries
       -- ^ Party providing the facility to create settlement instructions.
     observers : Parties
       -- ^ Observers.
-    paths : M.Map Text Path
+    paths : M.Map Text Hierarchy
       -- ^ Hierarchical paths used to settle holding transfers. A path is specified for each instrument label.
   where
     signatory provider
@@ -72,36 +73,3 @@ template FactoryWithIntermediaries
         instructionCids <- mapA (fmap toInterfaceContractId . create) instructions
         batchCid <- toInterfaceContractId <$> create Batch with requestors = instructors; settlers; id; description; contextId; stepsWithInstructionId = zip groupedSteps instructionIds
         pure (batchCid, instructionCids)
-
--- | Data type that describes a hierarchical account structure between two parties for holdings on an instrument.
-data Path = Path
-  with
-    senderPath : [Party]
-      -- ^ Path from the sender to the root custodian of the holding. If the sender `p` is the root custodian, it should be `[p, p]`.
-    receiverPath : [Party]
-      -- ^ Path from the receiver to the root custodian of the holding. If the receiver `p` is the root custodian, it should be `[p, p]`.
-  deriving (Eq, Show)
-
--- | HIDE
--- Given a sender path and a receiver path, calculate the route to transfer a holding from sender to receiver.
--- We assume that transfers can only be done between accounts at the same custodian.
--- Returns `None` if no such route can be found. Otherwise, a list of (sender, receiver) pairs is returned.
-getRoute : (Eq a) => [a] -> [a] -> Optional [(a,a)]
-getRoute senderPath receiverPath =
-  case filter (`isSuffixOf` receiverPath) $ tails senderPath of
-  [] -> None
-  h :: _ -> do
-    fromRoute <- stripSuffix h senderPath
-    toRoute <- reverse <$> stripSuffix h receiverPath
-    let fullRoute = fromRoute <> toRoute
-    pure $ zip fullRoute (drop 1 fullRoute)
-
--- | HIDE
--- Given a hierarchical path, unfold a step from sender to receiver (resp. receiver to sender) onto the corresponding route.
--- Returns `None` if no route can be found.
-unfoldStep : Path -> Step -> Optional [Step]
-unfoldStep path step | step.sender == head path.senderPath =
-  map (\(sender, receiver) -> Step with sender; receiver; quantity = step.quantity ) <$> getRoute path.senderPath path.receiverPath
-unfoldStep path step | step.sender == head path.receiverPath =
-  map (\(sender, receiver) -> Step with sender; receiver; quantity = step.quantity ) <$> getRoute path.receiverPath path.senderPath
-unfoldStep _ _ = error "One of the parties is neither the sender, nor the receiver."
