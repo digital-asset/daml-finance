@@ -3,13 +3,13 @@
 
 module Daml.Finance.Instrument.Swap.Fpml.Util where
 
-import ContingentClaims.Core.Claim (Inequality(..), give, one, scale, when)
+import ContingentClaims.Core.Claim (Claim(..), Inequality(..), give, one, scale, when)
 import ContingentClaims.Core.Observation (Observation(..))
 import DA.Date
 import DA.Foldable (foldMap)
 import DA.List (head, last)
 import DA.Optional (fromOptional, fromSome, isNone, isSome)
-import Daml.Finance.Instrument.Generic.Util (createFixRatePaymentClaims, getHolidayCalendars, prepareAndTagClaims)
+import Daml.Finance.Instrument.Generic.Util (getHolidayCalendars, prepareAndTagClaims)
 import Daml.Finance.Interface.Claims.Types (Deliverable, Observable, TaggedClaim(..))
 import Daml.Finance.Interface.Types.Common (Id(..))
 import Daml.Finance.Interface.Types.Date.Calendar
@@ -83,6 +83,25 @@ adjustDateAccordingToBusinessDayAdjustments unadjustedDate businessDayAdjustment
   case businessDayAdjustments.businessDayConvention of
     NoAdjustment -> pure $ unadjustedDate
     _ -> getCalendarsAndAdjust unadjustedDate businessDayAdjustments issuer calendarDataAgency
+
+-- TODO: remove this when merged with FpML functions below
+createFixRatePaymentClaimsList : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> [Claim Date Decimal Deliverable Observable]
+createFixRatePaymentClaimsList schedule periodicSchedule useAdjustedDatesForDcf couponRate issuerPays dayCountConvention notional cashInstrumentCid = do
+  let
+    couponDatesAdjusted = map (.adjustedEndDate) schedule
+    couponAmounts = map (\p -> couponRate * (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency)) schedule
+    couponClaimAmounts = mconcat $ zipWith (\d a -> when (TimeGte d) $ scale (Const a) $ scale (Const notional) $ one cashInstrumentCid) couponDatesAdjusted couponAmounts
+    couponClaims = if issuerPays then couponClaimAmounts else give couponClaimAmounts
+  debug couponDatesAdjusted
+  debug couponAmounts
+  pure couponClaims
+-- FIXED_RATE_BOND_COUPON_CLAIMS_END
+
+-- TODO: remove this when merged with FpML functions below
+createFixRatePaymentClaims : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> TaggedClaim
+createFixRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf couponRate issuerPays dayCountConvention notional cashInstrumentCid = do
+  let couponClaims = createFixRatePaymentClaimsList schedule periodicSchedule useAdjustedDatesForDcf couponRate issuerPays dayCountConvention notional cashInstrumentCid
+  prepareAndTagClaims couponClaims "Fix rate payment"
 
 -- | Create claims from swapStream that describes a fix coupon stream.
 calculateClaimsFromFixSwapStream : SwapStream -> PeriodicSchedule -> [SchedulePeriod] -> [SchedulePeriod] -> Bool -> Bool -> Deliverable -> Update TaggedClaim
