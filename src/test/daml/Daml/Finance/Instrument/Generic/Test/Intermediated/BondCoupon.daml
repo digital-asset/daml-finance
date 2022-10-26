@@ -147,12 +147,12 @@ runIntermediatedLifecyclingNonAtomic = script do
     today = toDateUTC now
 
   (cashInstrument, cashRoute) <- originateCashAndDefineRoute parties now
-  issuerCashTransferableCid <- Account.credit [publicParty] cashInstrument 20_000.0 issuerCashAccount
+  issuerCashHoldingCid <- Account.credit [publicParty] cashInstrument 20_000.0 issuerCashAccount
 
   -- Originate and distribute bond
   (bondInstrument, bondRoute) <- originateSecurityAndDefineRoute parties now cashInstrument
-  csdGenericTransferableCid <- Account.credit [publicParty] bondInstrument 1_000_000.0 csdAccountAtIssuer
-  investorGenericTransferableCid <- Account.credit [publicParty] bondInstrument 1_000_000.0 investorSecuritiesAccount
+  csdBondHoldingCid <- Account.credit [publicParty] bondInstrument 1_000_000.0 csdAccountAtIssuer
+  investorBondHoldingCid <- Account.credit [publicParty] bondInstrument 1_000_000.0 investorSecuritiesAccount
 
   -- create clock and clock update event
   (clockCid, clockEventCid) <- createClockAndEvent (singleton issuer) today empty
@@ -178,8 +178,8 @@ runIntermediatedLifecyclingNonAtomic = script do
   (effectCid, newInstrumentHoldingCid, [cashHolding]) <- submitMulti [issuer] [publicParty] do
     exerciseCmd settle1Cid ClaimAndSettle
       with
-        instrumentHoldingCid = csdGenericTransferableCid
-        cashHoldingCid = issuerCashTransferableCid
+        instrumentHoldingCid = csdBondHoldingCid
+        cashHoldingCid = issuerCashHoldingCid
         effectCid
 
   -- investor claims effect against CSD
@@ -205,14 +205,14 @@ runIntermediatedLifecyclingNonAtomic = script do
   result <- submitMulti [investor] [publicParty] do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
       claimer = investor
-      holdingCids = [investorGenericTransferableCid]
+      holdingCids = [investorBondHoldingCid]
       effectCid
       batchId = Id "CouponSettlement"
 
   let [investorBondInstructionCid, csdBondInstructionCid, csdCashInstructionCid, bankCashInstructionCid] = result.instructionCids
 
   -- Allocate instructions
-  (investorBondInstructionCid, _) <- submit investor do exerciseCmd investorBondInstructionCid Instruction.Allocate with actors = singleton investor; allocation = Pledge $ coerceContractId investorGenericTransferableCid
+  (investorBondInstructionCid, _) <- submit investor do exerciseCmd investorBondInstructionCid Instruction.Allocate with actors = singleton investor; allocation = Pledge $ coerceContractId investorBondHoldingCid
   (csdBondInstructionCid, _) <- submit csd do exerciseCmd csdBondInstructionCid Instruction.Allocate with actors = singleton csd; allocation = CreditReceiver
   (csdCashInstructionCid, _) <- submit csd do exerciseCmd csdCashInstructionCid Instruction.Allocate with actors = singleton csd; allocation = Pledge cashHolding
   (bankCashInstructionCid, _) <- submit bank do exerciseCmd bankCashInstructionCid Instruction.Allocate with actors = singleton bank; allocation = CreditReceiver
@@ -228,13 +228,13 @@ runIntermediatedLifecyclingNonAtomic = script do
     exerciseCmd bankCashInstructionCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorCashAccount
 
   -- Settle batch
-  [investorGenericTransferableCid, bankCashTransferableCid, investorCashTransferableCid] <- submitMulti (toList settlers) [publicParty] do exerciseCmd result.batchCid Batch.Settle with actors = settlers
+  [investorBondHoldingCid, bankCashHoldingCid, investorCashHoldingCid] <- submitMulti (toList settlers) [publicParty] do exerciseCmd result.batchCid Batch.Settle with actors = settlers
 
   -- Assert state
   Holding.verifyOwnerOfHolding
-    [ (investor, investorGenericTransferableCid)
-    , (bank, coerceContractId bankCashTransferableCid)
-    , (investor, coerceContractId investorCashTransferableCid)
+    [ (investor, investorBondHoldingCid)
+    , (bank, coerceContractId bankCashHoldingCid)
+    , (investor, coerceContractId investorCashHoldingCid)
     ]
 
   pure ()
@@ -261,12 +261,12 @@ runIntermediatedLifecyclingAtomic = script do
     today = toDateUTC now
 
   (cashInstrument, cashRoute) <- originateCashAndDefineRoute parties now
-  issuerCashTransferableCid <- Account.credit [publicParty] cashInstrument 20_000.0 issuerCashAccount
+  issuerCashHoldingCid <- Account.credit [publicParty] cashInstrument 20_000.0 issuerCashAccount
 
   -- Originate and distribute bond
   (bondInstrument, bondRoute) <- originateSecurityAndDefineRoute parties now cashInstrument
-  csdGenericTransferableCid <- Account.credit [publicParty] bondInstrument 1_000_000.0 csdAccountAtIssuer
-  investorGenericTransferableCid <- Account.credit [publicParty] bondInstrument 1_000_000.0 investorSecuritiesAccount
+  csdBondHoldingCid <- Account.credit [publicParty] bondInstrument 1_000_000.0 csdAccountAtIssuer
+  investorBondHoldingCid <- Account.credit [publicParty] bondInstrument 1_000_000.0 investorSecuritiesAccount
 
   -- create clock and clock update event
   (clockCid, clockEventCid) <- createClockAndEvent (singleton issuer) today empty
@@ -295,7 +295,7 @@ runIntermediatedLifecyclingAtomic = script do
   result <- submit csd do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
       claimer = csd
-      holdingCids = [csdGenericTransferableCid, investorGenericTransferableCid]
+      holdingCids = [csdBondHoldingCid, investorBondHoldingCid]
       effectCid
       batchId = Id "CouponSettlement"
 
@@ -321,10 +321,10 @@ runIntermediatedLifecyclingAtomic = script do
         id = csdCashInstruction.id
 
   -- Allocate instructions
-  (csdBondInstructionCid1, _) <- submit csd do exerciseCmd csdBondInstructionCid1 Instruction.Allocate with actors = singleton csd; allocation = Pledge $ coerceContractId csdGenericTransferableCid
+  (csdBondInstructionCid1, _) <- submit csd do exerciseCmd csdBondInstructionCid1 Instruction.Allocate with actors = singleton csd; allocation = Pledge $ coerceContractId csdBondHoldingCid
   (issuerBondInstructionCid, _) <- submit issuer do exerciseCmd issuerBondInstructionCid Instruction.Allocate with actors = singleton issuer; allocation = CreditReceiver
-  (issuerCashInstructionCid, _) <- submit issuer do exerciseCmd issuerCashInstructionCid Instruction.Allocate with actors = singleton issuer; allocation = Pledge $ coerceContractId issuerCashTransferableCid
-  (investorBondInstructionCid, _) <- submit investor do exerciseCmd investorBondInstructionCid Instruction.Allocate with actors = singleton investor; allocation = Pledge $ coerceContractId investorGenericTransferableCid
+  (issuerCashInstructionCid, _) <- submit issuer do exerciseCmd issuerCashInstructionCid Instruction.Allocate with actors = singleton issuer; allocation = Pledge $ coerceContractId issuerCashHoldingCid
+  (investorBondInstructionCid, _) <- submit investor do exerciseCmd investorBondInstructionCid Instruction.Allocate with actors = singleton investor; allocation = Pledge $ coerceContractId investorBondHoldingCid
   (csdBondInstructionCid2, _) <- submit csd do exerciseCmd csdBondInstructionCid2 Instruction.Allocate with actors = singleton csd; allocation = CreditReceiver
   (csdCashInstructionCid, _) <- submit csd do exerciseCmd csdCashInstructionCid Instruction.Allocate with actors = singleton csd; allocation = PassthroughFrom (csdCashAccount, issuerCashInstructionKey)
   (bankCashInstructionCid, _) <- submit bank do exerciseCmd bankCashInstructionCid Instruction.Allocate with actors = singleton bank; allocation = CreditReceiver
@@ -346,14 +346,14 @@ runIntermediatedLifecyclingAtomic = script do
     exerciseCmd bankCashInstructionCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorCashAccount
 
   -- Settle batch
-  [csdGenericTransferableCid, bankCashTransferableCid, investorGenericTransferableCid, investorCashTransferableCid] <- submitMulti (toList settlers) [publicParty] do exerciseCmd result.batchCid Batch.Settle with actors = settlers
+  [csdBondHoldingCid, bankCashHoldingCid, investorBondHoldingCid, investorCashHoldingCid] <- submitMulti (toList settlers) [publicParty] do exerciseCmd result.batchCid Batch.Settle with actors = settlers
 
   -- Assert state
   Holding.verifyOwnerOfHolding
-    [ (csd, csdGenericTransferableCid)
-    , (investor, investorGenericTransferableCid)
-    , (bank, coerceContractId bankCashTransferableCid)
-    , (investor, coerceContractId investorCashTransferableCid)
+    [ (csd, csdBondHoldingCid)
+    , (investor, investorBondHoldingCid)
+    , (bank, coerceContractId bankCashHoldingCid)
+    , (investor, coerceContractId investorCashHoldingCid)
     ]
 
   pure ()
