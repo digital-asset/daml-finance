@@ -9,7 +9,7 @@ import DA.Date
 import DA.Foldable (foldMap)
 import DA.List (head, last)
 import DA.Optional (fromOptional, fromSome, isNone, isSome)
-import Daml.Finance.Instrument.Generic.Util (getHolidayCalendars, prepareAndTagClaims)
+import Daml.Finance.Instrument.Generic.Util (createFixRatePaymentClaims, getHolidayCalendars, prepareAndTagClaims)
 import Daml.Finance.Interface.Claims.Types (Deliverable, Observable, TaggedClaim(..))
 import Daml.Finance.Interface.Types.Common (Id(..))
 import Daml.Finance.Interface.Types.Date.Calendar
@@ -85,22 +85,34 @@ adjustDateAccordingToBusinessDayAdjustments unadjustedDate businessDayAdjustment
     _ -> getCalendarsAndAdjust unadjustedDate businessDayAdjustments issuer calendarDataAgency
 
 -- TODO: remove this when merged with FpML functions below
-createFixRatePaymentClaimsList : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> [Claim Date Decimal Deliverable Observable]
-createFixRatePaymentClaimsList schedule periodicSchedule useAdjustedDatesForDcf couponRate issuerPays dayCountConvention notional cashInstrumentCid = do
+createFixRateAmortizingNotionalPaymentClaimsList : SwapStream -> [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> [Claim Date Decimal Deliverable Observable]
+createFixRateAmortizingNotionalPaymentClaimsList s calculationSchedule periodicSchedule useAdjustedDatesForDcf couponRate issuerPays dayCountConvention notional cashInstrumentCid = do
   let
-    couponDatesAdjusted = map (.adjustedEndDate) schedule
-    couponAmounts = map (\p -> couponRate * (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency)) schedule
+    c = s.calculationPeriodAmount.calculation
+    n = fromSome c.notionalSchedule
+    steps = n.notionalStepSchedule.step
+  debug steps
+  debug calculationSchedule
+  --assertMsg "Number of notional steps do not match the number of calculationSchedule periods" $ length steps == length calculationSchedule
+  if length steps == length calculationSchedule then
+    if any (\(a,b) -> a.stepDate /= b.unadjustedStartDate) $ zip steps calculationSchedule then error("notional step schedule does not match calculationSchedule")
+    else
+      error "return no error, void"
+  else
+    error("Number of notional steps do not match the number of calculationSchedule periods")
+  let
+    couponDatesAdjusted = map (.adjustedEndDate) calculationSchedule
+    couponAmounts = map (\p -> couponRate * (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency)) calculationSchedule
     couponClaimAmounts = mconcat $ zipWith (\d a -> when (TimeGte d) $ scale (Const a) $ scale (Const notional) $ one cashInstrumentCid) couponDatesAdjusted couponAmounts
     couponClaims = if issuerPays then couponClaimAmounts else give couponClaimAmounts
   debug couponDatesAdjusted
   debug couponAmounts
   pure couponClaims
--- FIXED_RATE_BOND_COUPON_CLAIMS_END
 
 -- TODO: remove this when merged with FpML functions below
-createFixRatePaymentClaims : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> TaggedClaim
-createFixRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf couponRate issuerPays dayCountConvention notional cashInstrumentCid = do
-  let couponClaims = createFixRatePaymentClaimsList schedule periodicSchedule useAdjustedDatesForDcf couponRate issuerPays dayCountConvention notional cashInstrumentCid
+createFixRateAmortizingNotionalPaymentClaims : SwapStream -> [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> TaggedClaim
+createFixRateAmortizingNotionalPaymentClaims s schedule calculationSchedule useAdjustedDatesForDcf couponRate issuerPays dayCountConvention notional cashInstrumentCid = do
+  let couponClaims = createFixRateAmortizingNotionalPaymentClaimsList s schedule calculationSchedule useAdjustedDatesForDcf couponRate issuerPays dayCountConvention notional cashInstrumentCid
   prepareAndTagClaims couponClaims "Fix rate payment"
 
 -- | Create claims from swapStream that describes a fix coupon stream.
@@ -113,7 +125,10 @@ calculateClaimsFromFixSwapStream s periodicSchedule calculationSchedule paymentS
   assertMsg "The payment schedule must match the calculation schedule" $ paymentSchedule == calculationSchedule
   assertMsg "Non-standard stub rates not supported for the fixed rate leg" $ isNone s.stubCalculationPeriodAmount
   let f = fromSome s.calculationPeriodAmount.calculation.fixedRateSchedule
-  pure $ createFixRatePaymentClaims calculationSchedule periodicSchedule useAdjustedDatesForDcf f.initialValue issuerPaysLeg s.calculationPeriodAmount.calculation.dayCountFraction notional currency
+  case null n.notionalStepSchedule.step of
+    True -> pure $ createFixRatePaymentClaims calculationSchedule periodicSchedule useAdjustedDatesForDcf f.initialValue issuerPaysLeg s.calculationPeriodAmount.calculation.dayCountFraction notional currency
+    False -> pure $ createFixRateAmortizingNotionalPaymentClaims s calculationSchedule periodicSchedule useAdjustedDatesForDcf f.initialValue issuerPaysLeg s.calculationPeriodAmount.calculation.dayCountFraction notional currency
+      where a=1
 
 -- | Define observable part of claim when one specific floating rate is provided for a stub period.
 getSingleStubRate : StubFloatingRate -> Optional O
