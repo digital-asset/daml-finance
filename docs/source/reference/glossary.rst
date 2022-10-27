@@ -13,9 +13,9 @@ We strive to use descriptive names and stay as close as possible to the traditio
 Account
 -------
 
-An account contract is a relationship between a custodian (or account provider) and an asset owner.
+An account contract is a relationship between two parties: a custodian (or account provider) and an owner.
 
-An account is referenced by `holdings <#holding>`__ and is used to limit the parties who are entitled to receive holding transfers.
+An account is referenced by `holdings <#holding>`__ and it is used to control who is entitled to instruct and receive holding transfers.
 
 .. _instrument:
 
@@ -58,7 +58,7 @@ The issuer is the party issuing new units of an `Instrument <#instrument>`__.
 Fungibility
 -----------
 
-Fungability refers to the ability of an `Instrument <#instrument>`__ to be interchanged with other individual instruments of the same type.
+Fungibility refers to the ability of an `Instrument <#instrument>`__ to be interchanged with other individual instruments of the same type.
 
 Only a fungible instrument can be held for an amount other than ``1.0``.
 
