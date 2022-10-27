@@ -16,11 +16,11 @@ let
   sphinx-exts = pkgs.python3Packages.sphinx.overridePythonAttrs (attrs: rec {
     propagatedBuildInputs = attrs.propagatedBuildInputs ++ [sphinx-copybutton];
   });
-  dependencies = [ sphinx-exts
-    pkgs.pipenv
-    pkgs.python39
-    pkgs.sass
-    pkgs.yarn
-    pkgs.nodePackages.grunt-cli ];
+  dependencies = with pkgs; [ sphinx-exts
+    pipenv
+    python39
+    sass
+    yarn
+    nodePackages.grunt-cli ];
 in
   dependencies
