@@ -210,22 +210,26 @@ alignPaymentSchedule calculationSchedule paymentSchedule = do
 -- The floating rate is observed according to the FpML ResetDates component and used for the corresponding payment on the last day of that payment period.
 createFloatingRatePaymentClaims : [SchedulePeriod] -> [SchedulePeriod] -> Optional NotionalSchedule -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Deliverable -> Observable -> HolidayCalendarData -> [Date] -> SwapStream -> Party -> Party -> Update TaggedClaim
 createFloatingRatePaymentClaims calculationSchedule paymentSchedule constantNotionalScheduleReference periodicSchedule useAdjustedDatesForDcf floatingRateSpread issuerPays dayCountConvention cashInstrumentCid referenceRateId rateFixingCalendars rateFixingDates s issuer calendarDataAgency = do
-  fxRateId <- getFxRateId calculationSchedule paymentSchedule constantNotionalScheduleReference periodicSchedule useAdjustedDatesForDcf floatingRateSpread issuerPays dayCountConvention cashInstrumentCid referenceRateId rateFixingCalendars rateFixingDates s issuer calendarDataAgency
+  (fxRateId, fxLinkedNotionalInitialValue) <- getFxRateId calculationSchedule paymentSchedule constantNotionalScheduleReference periodicSchedule useAdjustedDatesForDcf floatingRateSpread issuerPays dayCountConvention cashInstrumentCid referenceRateId rateFixingCalendars rateFixingDates s issuer calendarDataAgency
   let
+    fxAdjustmentRequired = isSome fxRateId
     c = s.calculationPeriodAmount.calculation
     n = if isSome constantNotionalScheduleReference then fromSome constantNotionalScheduleReference else fromSome c.notionalSchedule
     notionalSteps = n.notionalStepSchedule.step
-    notionals
+    notionalBase
       | length notionalSteps == length calculationSchedule
           = if any (\(n, p) -> n.stepDate /= p.unadjustedStartDate) $ zip notionalSteps calculationSchedule then
               error ("notional step schedule does not match calculationSchedule")
             else
-              map (.stepValue) notionalSteps
+              map (\e -> (e.stepValue, fxAdjustmentRequired)) notionalSteps
       | null notionalSteps
-          = replicate (length calculationSchedule) n.notionalStepSchedule.initialValue
+          = replicate (length calculationSchedule) (n.notionalStepSchedule.initialValue, fxAdjustmentRequired)
       | otherwise
           = error
             ("Number of notional steps do not match the number of calculationSchedule periods")
+    notionals = case fxLinkedNotionalInitialValue of
+      None -> notionalBase
+      Some iv -> (iv, False) :: (drop 1 notionalBase)
     resetDates = fromSome s.resetDates
     bdc = s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessDayConvention
   paymentScheduleAligned <- alignPaymentSchedule calculationSchedule paymentSchedule
@@ -233,15 +237,16 @@ createFloatingRatePaymentClaims calculationSchedule paymentSchedule constantNoti
   assertMsg "Only Business day type supported" $ resetDates.fixingDates.dayType == Business
   assertMsg "Only fixing dates relative to calculation start dates supported" $ resetDates.resetRelativeTo == CalculationPeriodStartDate
   assertMsg "No adjustement (besides business day type) supported" $ resetDates.fixingDates.businessDayConvention == NoAdjustment
+  assertMsg "notionals list must be of same length as calculationSchedule" $ length notionals == length calculationSchedule
   let
-    createClaim (c, n) p f =
+    createClaim (c, (n, fxAdjRequired)) p f =
       when (TimeGte f) $ scale notional $ scale (rate * (Const (calcPeriodDcf dayCountConvention c useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency))) $
       when (TimeGte p.adjustedEndDate) $ one cashInstrumentCid
         where
           notionalConst = Const n
           notional = case fxRateId of
             None -> notionalConst
-            Some fxRateId -> notionalConst * fxRateObs
+            Some fxRateId -> if fxAdjRequired then notionalConst * fxRateObs else notionalConst
               where
                 fxRateObs = Observe fxRateId
           regularRate = Observe referenceRateId + Const floatingRateSpread
@@ -252,7 +257,7 @@ createFloatingRatePaymentClaims calculationSchedule paymentSchedule constantNoti
     floatingClaims = if issuerPays then floatingClaimAmounts else give floatingClaimAmounts
   pure $ prepareAndTagClaims [floatingClaims] "Floating rate payment"
 
-verifyFxScheduleAndGetId : [SchedulePeriod] -> [SchedulePeriod] -> Optional NotionalSchedule -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Deliverable -> Observable -> HolidayCalendarData -> [Date] -> SwapStream -> Party -> Party -> Update (Optional Text)
+verifyFxScheduleAndGetId : [SchedulePeriod] -> [SchedulePeriod] -> Optional NotionalSchedule -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Deliverable -> Observable -> HolidayCalendarData -> [Date] -> SwapStream -> Party -> Party -> Update (Optional Text, Optional Decimal)
 verifyFxScheduleAndGetId calculationSchedule paymentSchedule constantNotionalScheduleReference periodicSchedule useAdjustedDatesForDcf floatingRateSpread issuerPays dayCountConvention cashInstrumentCid referenceRateId rateFixingCalendars rateFixingDates s issuer calendarDataAgency = do
   let
     fx = fromSome s.calculationPeriodAmount.calculation.fxLinkedNotionalSchedule
@@ -260,12 +265,12 @@ verifyFxScheduleAndGetId calculationSchedule paymentSchedule constantNotionalSch
   let
     fxFixingDates = map (\p -> addBusinessDays (merge fxFixingCalendars) fx.varyingNotionalFixingDates.periodMultiplier p.adjustedStartDate) calculationSchedule
   assertMsg "fxFixingDates must match rateFixingDates" $ fxFixingDates == rateFixingDates
-  pure $ Some fx.fxSpotRateSource.primaryRateSource.rateSourcePage
+  pure $ (Some fx.fxSpotRateSource.primaryRateSource.rateSourcePage, fx.initialValue)
 
-getFxRateId : [SchedulePeriod] -> [SchedulePeriod] -> Optional NotionalSchedule -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Deliverable -> Observable -> HolidayCalendarData -> [Date] -> SwapStream -> Party -> Party -> Update (Optional Text)
+getFxRateId : [SchedulePeriod] -> [SchedulePeriod] -> Optional NotionalSchedule -> PeriodicSchedule -> Bool -> Decimal -> Bool -> DayCountConventionEnum -> Deliverable -> Observable -> HolidayCalendarData -> [Date] -> SwapStream -> Party -> Party -> Update (Optional Text, Optional Decimal)
 getFxRateId calculationSchedule paymentSchedule constantNotionalScheduleReference periodicSchedule useAdjustedDatesForDcf floatingRateSpread issuerPays dayCountConvention cashInstrumentCid referenceRateId rateFixingCalendars rateFixingDates s issuer calendarDataAgency = do
   case s.calculationPeriodAmount.calculation.fxLinkedNotionalSchedule of
-    None -> pure None
+    None -> pure (None, None)
     Some fx -> verifyFxScheduleAndGetId calculationSchedule paymentSchedule constantNotionalScheduleReference periodicSchedule useAdjustedDatesForDcf floatingRateSpread issuerPays dayCountConvention cashInstrumentCid referenceRateId rateFixingCalendars rateFixingDates s issuer calendarDataAgency
 
 -- | Create claims from swapStream that describes a floating coupon stream.
@@ -273,8 +278,9 @@ calculateClaimsFromFloatingSwapStream : SwapStream -> PeriodicSchedule -> [Sched
 calculateClaimsFromFloatingSwapStream s periodicSchedule calculationSchedule paymentSchedule constantNotionalScheduleReference useAdjustedDatesForDcf issuerPaysLeg currency issuer calendarDataAgency = do
   let
     c = s.calculationPeriodAmount.calculation
-    n = fromSome c.notionalSchedule
-    notional = if Id n.notionalStepSchedule.currency == currency.id then n.notionalStepSchedule.initialValue else error "swapStream currency does not match swap currency"
+    --n = fromSome c.notionalSchedule
+    --notional = if Id n.notionalStepSchedule.currency == currency.id then n.notionalStepSchedule.initialValue else error "swapStream currency does not match swap currency"
+    -- todo: check swapStream currency
   let
     fxl = s.calculationPeriodAmount.calculation.fxLinkedNotionalSchedule
     f = fromSome s.calculationPeriodAmount.calculation.floatingRateCalculation
