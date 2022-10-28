@@ -5,17 +5,17 @@ module Daml.Finance.Instrument.Swap.Fpml.Instrument where
 
 import DA.Date
 import DA.List (head, last)
-import DA.Optional (fromSome, isNone, isSome)
+import DA.Optional (fromSome)
 import DA.Set (singleton)
 import Daml.Finance.Instrument.Generic.Util
 import Daml.Finance.Instrument.Swap.Fpml.Util
 import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, GetClaims(..), View(..))
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, K, View(..), disclosureUpdateReference)
+import Daml.Finance.Interface.Instrument.Swap.Fpml.FpmlTypes
 import Daml.Finance.Interface.Instrument.Swap.Fpml.Instrument qualified as Fpml (HasImplementation, I, View(..))
 import Daml.Finance.Interface.Instrument.Swap.Fpml.Types (Fpml(..))
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..), View(..))
 import Daml.Finance.Interface.Types.Common (Id(..), InstrumentKey(..), PartiesMap)
-import Daml.Finance.Interface.Types.Fpml
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
 import Prelude hiding (key)
 
@@ -44,8 +44,8 @@ template Instrument
       -- ^ Used to the identify which counterparty is the issuer in the swapStream.
     calendarDataProvider : Party
       -- ^ The reference data provider to use for the holiday calendar.
-    currency : BaseInstrument.K
-      -- ^ The currency of the swap. For example, if the swap pays in USD this should be a USD cash instrument.
+    currencies : [BaseInstrument.K]
+      -- ^ The currencies of the different swap legs, one for each swapStream. For example, if one leg pays in USD this should be a USD cash instrument.
     observers : PartiesMap
       -- ^ The observers of the instrument.
     lastEventTimestamp : Time
@@ -63,15 +63,24 @@ template Instrument
       getClaims Claim.GetClaims{actor} = do
         -- get the initial claims tree (as of the swap's acquisition time)
         let
-          calculateClaimsFromSwapStream s = do
+          getNotionalFromOtherSwapStream ref =
+            sOther.calculationPeriodAmount.calculation.notionalSchedule
+              where
+                s2 = find (\e -> case e.calculationPeriodAmount.calculation.notionalSchedule of
+                    None -> False
+                    Some notionalSchedule -> notionalSchedule.id == ref)
+                  swapStreams
+                sOther = fromSome s2
+
+
+          calculateClaimsFromSwapStream (s, ccy) = do
             let
               c = s.calculationPeriodAmount.calculation
               calculationPeriodicSchedule = createCalculationPeriodicSchedule s.calculationPeriodDates
               paymentPeriodicSchedule = createPaymentPeriodicSchedule s
               useAdjustedDatesForDcf = True
               issuerPaysLeg = if s.payerPartyReference == s.receiverPartyReference then error "payer and receiver must be different counterparties" else (s.payerPartyReference == issuerPartyRef)
-              n = c.notionalSchedule.notionalStepSchedule
-              notional = if Id n.currency == currency.id then n.initialValue else error "swapStream currency does not match swap currency"
+
               e = s.calculationPeriodDates.effectiveDate
               t = s.calculationPeriodDates.terminationDate
 
@@ -89,12 +98,20 @@ template Instrument
             let l = last calculationSchedule
             assertMsg "The adjusted terminationDate must match the adjusted end date of the last period" $ l.adjustedEndDate == terminationDateAdjusted
 
-            -- Calculate the claims from the current leg (either fix or float)
-            if isSome c.fixedRateSchedule && isNone c.floatingRateCalculation then calculateClaimsFromFixSwapStream s calculationPeriodicSchedule calculationSchedule paymentSchedule useAdjustedDatesForDcf issuerPaysLeg notional currency
-            else if isNone c.fixedRateSchedule && isSome c.floatingRateCalculation then calculateClaimsFromFloatingSwapStream s calculationPeriodicSchedule calculationSchedule paymentSchedule useAdjustedDatesForDcf issuerPaysLeg notional currency issuer calendarDataProvider
-            else error "leg type not supported"
+            -- If there is an fxLinkedNotionalSchedule, look up the base notional from a different swap leg
+            let
+              constantNotionalScheduleReference = case c.fxLinkedNotionalSchedule of
+                None -> None
+                Some fxl -> getNotionalFromOtherSwapStream fxl.constantNotionalScheduleReference
 
-        mapA calculateClaimsFromSwapStream swapStreams
+            -- Calculate the claims from the current leg (either fix or float)
+            case (c.fixedRateSchedule, c.floatingRateCalculation) of
+              (Some _, None) -> calculateClaimsFromFixSwapStream s calculationPeriodicSchedule calculationSchedule paymentSchedule useAdjustedDatesForDcf issuerPaysLeg ccy
+              (None, Some _) -> calculateClaimsFromFloatingSwapStream s calculationPeriodicSchedule calculationSchedule paymentSchedule constantNotionalScheduleReference useAdjustedDatesForDcf issuerPaysLeg ccy issuer calendarDataProvider
+              _ -> error "leg type not supported"
+
+        allClaims <- mapA calculateClaimsFromSwapStream $ zip swapStreams currencies
+        pure $ concat allClaims
 
     interface instance BaseInstrument.I for Instrument where
       asDisclosure = toInterface @Disclosure.I this
@@ -103,7 +120,7 @@ template Instrument
 
     interface instance Fpml.I for Instrument where
       asBaseInstrument = toInterface @BaseInstrument.I this
-      view = Fpml.View with fpml = Fpml with instrument = instrumentKey; description; swapStreams; issuerPartyRef; calendarDataProvider; currency; lastEventTimestamp
+      view = Fpml.View with fpml = Fpml with instrument = instrumentKey; description; swapStreams; issuerPartyRef; calendarDataProvider; currencies; lastEventTimestamp
 
     interface instance Lifecycle.I for Instrument where
       view = Lifecycle.View with lifecycler = issuer
