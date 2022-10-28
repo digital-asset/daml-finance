@@ -5,7 +5,7 @@ module Daml.Finance.Instrument.Swap.Fpml.Instrument where
 
 import DA.Date
 import DA.List (head, last)
-import DA.Optional (fromSome, isNone, isSome)
+import DA.Optional (fromSome)
 import DA.Set (singleton)
 import Daml.Finance.Instrument.Generic.Util
 import Daml.Finance.Instrument.Swap.Fpml.Util
@@ -63,14 +63,15 @@ template Instrument
       getClaims Claim.GetClaims{actor} = do
         -- get the initial claims tree (as of the swap's acquisition time)
         let
-          getNotionalFromOtherSwapStream ref = do
-            let
-              s2 = find (\e -> case e.calculationPeriodAmount.calculation.notionalSchedule of
-                  None -> False
-                  Some notionalSchedule -> notionalSchedule.id == ref)
-                swapStreams
-              sOther = fromSome s2
+          getNotionalFromOtherSwapStream ref =
             sOther.calculationPeriodAmount.calculation.notionalSchedule
+              where
+                s2 = find (\e -> case e.calculationPeriodAmount.calculation.notionalSchedule of
+                    None -> False
+                    Some notionalSchedule -> notionalSchedule.id == ref)
+                  swapStreams
+                sOther = fromSome s2
+
 
           calculateClaimsFromSwapStream (s, ccy) = do
             let
@@ -98,15 +99,16 @@ template Instrument
             assertMsg "The adjusted terminationDate must match the adjusted end date of the last period" $ l.adjustedEndDate == terminationDateAdjusted
 
             -- If there is an fxLinkedNotionalSchedule, look up the base notional from a different swap leg
-            let constNotionalScheduleReference = getNotionalFromOtherSwapStream . (.constantNotionalScheduleReference) <$> c.fxLinkedNotionalSchedule
+            let
               constantNotionalScheduleReference = case c.fxLinkedNotionalSchedule of
                 None -> None
                 Some fxl -> getNotionalFromOtherSwapStream fxl.constantNotionalScheduleReference
 
             -- Calculate the claims from the current leg (either fix or float)
-            if isSome c.fixedRateSchedule && isNone c.floatingRateCalculation then calculateClaimsFromFixSwapStream s calculationPeriodicSchedule calculationSchedule paymentSchedule useAdjustedDatesForDcf issuerPaysLeg ccy
-            else if isNone c.fixedRateSchedule && isSome c.floatingRateCalculation then calculateClaimsFromFloatingSwapStream s calculationPeriodicSchedule calculationSchedule paymentSchedule constantNotionalScheduleReference useAdjustedDatesForDcf issuerPaysLeg ccy issuer calendarDataProvider
-            else error "leg type not supported"
+            case (c.fixedRateSchedule, c.floatingRateCalculation) of
+              (Some _, None) -> calculateClaimsFromFixSwapStream s calculationPeriodicSchedule calculationSchedule paymentSchedule useAdjustedDatesForDcf issuerPaysLeg ccy
+              (None, Some _) -> calculateClaimsFromFloatingSwapStream s calculationPeriodicSchedule calculationSchedule paymentSchedule constantNotionalScheduleReference useAdjustedDatesForDcf issuerPaysLeg ccy issuer calendarDataProvider
+              _ -> error "leg type not supported"
 
         allClaims <- mapA calculateClaimsFromSwapStream $ zip swapStreams currencies
         pure $ concat allClaims
