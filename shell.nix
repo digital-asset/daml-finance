@@ -6,12 +6,15 @@ let
   pkgs = import sources.nixpkgs {};
   daml = import ./nix/daml.nix;
   docs = import ./nix/docs.nix;
+  # haskell = import ./nix/haskell.nix;
+  # packagell = import .tools/packagell/default.nix;
   damlYaml = builtins.fromJSON (builtins.readFile (pkgs.runCommand "daml.yaml.json" { yamlFile = ./daml.yaml; } ''
                 ${pkgs.yj}/bin/yj < "$yamlFile" > $out
               ''));
 in
 pkgs.mkShell {
   SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+  # nativeBuildInputs = (haskell { pkgs = pkgs; });
   buildInputs = with pkgs; [
     (daml { stdenv = stdenv;
             jdk = openjdk11_headless;
