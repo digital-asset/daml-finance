@@ -14,7 +14,6 @@ import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Instrument.Generic.Test.Util (originateGeneric, mapClaimToUTCTime)
 import Daml.Finance.Interface.Account.Account qualified as Account (K)
 import Daml.Finance.Interface.Holding.Base qualified as Base (I)
-import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I)
 import Daml.Finance.Interface.Holding.Util (getInstrument)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (K)
 import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (SetProvider(..), GetView(..), I)
@@ -212,7 +211,7 @@ runIntermediatedLifecyclingNonAtomic = script do
   let [investorBondInstructionCid, csdBondInstructionCid, csdCashInstructionCid, bankCashInstructionCid] = result.instructionCids
 
   -- Allocate instructions
-  (investorBondInstructionCid, _) <- submit investor do exerciseCmd investorBondInstructionCid Instruction.Allocate with actors = singleton investor; allocation = Pledge $ coerceContractId investorBondHoldingCid
+  (investorBondInstructionCid, _) <- submit investor do exerciseCmd investorBondInstructionCid Instruction.Allocate with actors = singleton investor; allocation = Pledge investorBondHoldingCid
   (csdBondInstructionCid, _) <- submit csd do exerciseCmd csdBondInstructionCid Instruction.Allocate with actors = singleton csd; allocation = CreditReceiver
   (csdCashInstructionCid, _) <- submit csd do exerciseCmd csdCashInstructionCid Instruction.Allocate with actors = singleton csd; allocation = Pledge cashHolding
   (bankCashInstructionCid, _) <- submit bank do exerciseCmd bankCashInstructionCid Instruction.Allocate with actors = singleton bank; allocation = CreditReceiver
@@ -233,8 +232,8 @@ runIntermediatedLifecyclingNonAtomic = script do
   -- Assert state
   Holding.verifyOwnerOfHolding
     [ (investor, investorBondHoldingCid)
-    , (bank, coerceContractId bankCashHoldingCid)
-    , (investor, coerceContractId investorCashHoldingCid)
+    , (bank, bankCashHoldingCid)
+    , (investor, investorCashHoldingCid)
     ]
 
   pure ()
@@ -321,10 +320,10 @@ runIntermediatedLifecyclingAtomic = script do
         id = csdCashInstruction.id
 
   -- Allocate instructions
-  (csdBondInstructionCid1, _) <- submit csd do exerciseCmd csdBondInstructionCid1 Instruction.Allocate with actors = singleton csd; allocation = Pledge $ coerceContractId csdBondHoldingCid
+  (csdBondInstructionCid1, _) <- submit csd do exerciseCmd csdBondInstructionCid1 Instruction.Allocate with actors = singleton csd; allocation = Pledge csdBondHoldingCid
   (issuerBondInstructionCid, _) <- submit issuer do exerciseCmd issuerBondInstructionCid Instruction.Allocate with actors = singleton issuer; allocation = CreditReceiver
-  (issuerCashInstructionCid, _) <- submit issuer do exerciseCmd issuerCashInstructionCid Instruction.Allocate with actors = singleton issuer; allocation = Pledge $ coerceContractId issuerCashHoldingCid
-  (investorBondInstructionCid, _) <- submit investor do exerciseCmd investorBondInstructionCid Instruction.Allocate with actors = singleton investor; allocation = Pledge $ coerceContractId investorBondHoldingCid
+  (issuerCashInstructionCid, _) <- submit issuer do exerciseCmd issuerCashInstructionCid Instruction.Allocate with actors = singleton issuer; allocation = Pledge issuerCashHoldingCid
+  (investorBondInstructionCid, _) <- submit investor do exerciseCmd investorBondInstructionCid Instruction.Allocate with actors = singleton investor; allocation = Pledge investorBondHoldingCid
   (csdBondInstructionCid2, _) <- submit csd do exerciseCmd csdBondInstructionCid2 Instruction.Allocate with actors = singleton csd; allocation = CreditReceiver
   (csdCashInstructionCid, _) <- submit csd do exerciseCmd csdCashInstructionCid Instruction.Allocate with actors = singleton csd; allocation = PassthroughFrom (csdCashAccount, issuerCashInstructionKey)
   (bankCashInstructionCid, _) <- submit bank do exerciseCmd bankCashInstructionCid Instruction.Allocate with actors = singleton bank; allocation = CreditReceiver
@@ -352,8 +351,8 @@ runIntermediatedLifecyclingAtomic = script do
   Holding.verifyOwnerOfHolding
     [ (csd, csdBondHoldingCid)
     , (investor, investorBondHoldingCid)
-    , (bank, coerceContractId bankCashHoldingCid)
-    , (investor, coerceContractId investorCashHoldingCid)
+    , (bank, bankCashHoldingCid)
+    , (investor, investorCashHoldingCid)
     ]
 
   pure ()
@@ -383,11 +382,11 @@ template EffectSettlementService
       issuerCashAccount.owner == issuer &&
       csdCashAccount.owner == csd
 
-    nonconsuming choice ClaimAndSettle : (ContractId Effect.I, Optional (ContractId Base.I), [ContractId Transferable.I])
+    nonconsuming choice ClaimAndSettle : (ContractId Effect.I, Optional (ContractId Base.I), [ContractId Base.I])
       with
         instrumentHoldingCid : ContractId Base.I
           -- ^ Holding of CSD @ issuer for the old instrument.
-        cashHoldingCid : ContractId Transferable.I
+        cashHoldingCid : ContractId Base.I
           -- ^ Cash holding of issuer @ central bank, used to settle the effect's consequences.
         effectCid : ContractId Effect.I
           -- ^ Effect to claim.
@@ -434,8 +433,8 @@ template EffectSettlementService
         let [csdInstrumentInstructionCid, issuerInstrumentInstructionCid, issuerCashInstructionCouponCid] = result.instructionCids
 
         -- Allocate instructions
-        (csdInstrumentInstructionCid, _) <- exercise csdInstrumentInstructionCid Instruction.Allocate with actors = singleton csd; allocation = Pledge $ coerceContractId instrumentHoldingCid
-        (issuerCashInstructionCouponCid, _) <- exercise issuerCashInstructionCouponCid Instruction.Allocate with actors = singleton issuer; allocation = Pledge $ coerceContractId cashHoldingCid
+        (csdInstrumentInstructionCid, _) <- exercise csdInstrumentInstructionCid Instruction.Allocate with actors = singleton csd; allocation = Pledge instrumentHoldingCid
+        (issuerCashInstructionCouponCid, _) <- exercise issuerCashInstructionCouponCid Instruction.Allocate with actors = singleton issuer; allocation = Pledge cashHoldingCid
         (issuerInstrumentInstructionCid, _) <- exercise issuerInstrumentInstructionCid Instruction.Allocate with actors = singleton issuer; allocation = CreditReceiver
 
         -- Approve instructions
