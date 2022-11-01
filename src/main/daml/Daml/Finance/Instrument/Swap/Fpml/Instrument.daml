@@ -5,7 +5,6 @@ module Daml.Finance.Instrument.Swap.Fpml.Instrument where
 
 import DA.Date
 import DA.List (head, last)
-import DA.Optional (fromSome)
 import DA.Set (singleton)
 import Daml.Finance.Instrument.Generic.Util
 import Daml.Finance.Instrument.Swap.Fpml.Util
@@ -63,24 +62,12 @@ template Instrument
       getClaims Claim.GetClaims{actor} = do
         -- get the initial claims tree (as of the swap's acquisition time)
         let
-          getNotionalFromOtherSwapStream ref =
-            sOther.calculationPeriodAmount.calculation.notionalSchedule
-              where
-                s2 = find (\e -> case e.calculationPeriodAmount.calculation.notionalSchedule of
-                    None -> False
-                    Some notionalSchedule -> notionalSchedule.id == ref)
-                  swapStreams
-                sOther = fromSome s2
-
-
-          calculateClaimsFromSwapStream (s, ccy) = do
+          calculateSwapStreamClaims (s, ccy) = do
             let
-              c = s.calculationPeriodAmount.calculation
               calculationPeriodicSchedule = createCalculationPeriodicSchedule s.calculationPeriodDates
               paymentPeriodicSchedule = createPaymentPeriodicSchedule s
               useAdjustedDatesForDcf = True
               issuerPaysLeg = if s.payerPartyReference == s.receiverPartyReference then error "payer and receiver must be different counterparties" else (s.payerPartyReference == issuerPartyRef)
-
               e = s.calculationPeriodDates.effectiveDate
               t = s.calculationPeriodDates.terminationDate
 
@@ -88,7 +75,7 @@ template Instrument
             assertMsg "The payment schedule must refer to the calculationPeriodDates of the current swapStream" $ s.paymentDates.calculationPeriodDatesReference == s.calculationPeriodDates.id
             assertMsg "Only payment schedules relative to CalculationPeriodEndDate supported" $ s.paymentDates.payRelativeTo == CalculationPeriodEndDate
             calculationSchedule <- rollPaymentSchedule calculationPeriodicSchedule s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessCenters issuer calendarDataProvider
-            paymentSchedule <- rollPaymentSchedule paymentPeriodicSchedule (fromSome s.paymentDates.paymentDatesAdjustments.businessCenters) issuer calendarDataProvider
+            paymentSchedule <- rollPaymentSchedule paymentPeriodicSchedule s.paymentDates.paymentDatesAdjustments.businessCenters issuer calendarDataProvider
 
             -- Verify the effectiveDate and the terminationDate
             effectiveDateAdjusted <- adjustDateAccordingToBusinessDayAdjustments e.unadjustedDate e.dateAdjustments issuer calendarDataProvider
@@ -98,19 +85,20 @@ template Instrument
             let l = last calculationSchedule
             assertMsg "The adjusted terminationDate must match the adjusted end date of the last period" $ l.adjustedEndDate == terminationDateAdjusted
 
-            -- If there is an fxLinkedNotionalSchedule, look up the base notional from a different swap leg
+            -- If there is an fxLinkedNotionalSchedule, look up which swap leg contains the base notional
             let
-              constantNotionalScheduleReference = case c.fxLinkedNotionalSchedule of
-                None -> None
-                Some fxl -> getNotionalFromOtherSwapStream fxl.constantNotionalScheduleReference
+              swapStreamNotionalRef = case s.calculationPeriodAmount.calculation.notionalScheduleValue of
+                NotionalSchedule_FxLinked fxl ->
+                  find (\e -> case e.calculationPeriodAmount.calculation.notionalScheduleValue of
+                    NotionalSchedule_FxLinked fxl -> False
+                    NotionalSchedule_Regular notionalSchedule -> notionalSchedule.id == fxl.constantNotionalScheduleReference)
+                  swapStreams
+                NotionalSchedule_Regular n -> None
 
             -- Calculate the claims from the current leg (either fix or float)
-            case (c.fixedRateSchedule, c.floatingRateCalculation) of
-              (Some _, None) -> calculateClaimsFromFixSwapStream s calculationPeriodicSchedule calculationSchedule paymentSchedule useAdjustedDatesForDcf issuerPaysLeg ccy
-              (None, Some _) -> calculateClaimsFromFloatingSwapStream s calculationPeriodicSchedule calculationSchedule paymentSchedule constantNotionalScheduleReference useAdjustedDatesForDcf issuerPaysLeg ccy issuer calendarDataProvider
-              _ -> error "leg type not supported"
+            calculateClaimsFromSwapStream s calculationPeriodicSchedule calculationSchedule paymentSchedule swapStreamNotionalRef useAdjustedDatesForDcf issuerPaysLeg ccy issuer calendarDataProvider
 
-        allClaims <- mapA calculateClaimsFromSwapStream $ zip swapStreams currencies
+        allClaims <- mapA calculateSwapStreamClaims $ zip swapStreams currencies
         pure $ concat allClaims
 
     interface instance BaseInstrument.I for Instrument where
