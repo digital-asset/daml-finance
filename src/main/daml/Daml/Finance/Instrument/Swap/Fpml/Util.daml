@@ -173,8 +173,8 @@ getFxRateId calculationSchedule s issuer calendarDataAgency = do
     _ -> pure (None, None, None)
 
 -- | Create claims from swapStream that describes a fixed or floating coupon stream.
-calculateFixPaymentClaimsFromSwapStream : SwapStream -> PeriodicSchedule -> [SchedulePeriod] -> [SchedulePeriod] -> Bool -> Bool -> Deliverable -> Party -> Party -> Optional Text -> Optional [Date] -> [(Decimal, Bool)] -> Update [TaggedClaim]
-calculateFixPaymentClaimsFromSwapStream s periodicSchedule calculationSchedule paymentScheduleAligned useAdjustedDatesForDcf issuerPaysLeg currency issuer calendarDataAgency fxRateId fxFixingDates notionals = do
+calculateFixPaymentClaimsFromSwapStream : FixedRateSchedule -> SwapStream -> PeriodicSchedule -> [SchedulePeriod] -> [SchedulePeriod] -> Bool -> Bool -> Deliverable -> Party -> Party -> Optional Text -> Optional [Date] -> [(Decimal, Bool)] -> Update [TaggedClaim]
+calculateFixPaymentClaimsFromSwapStream fixedRateSchedule s periodicSchedule calculationSchedule paymentScheduleAligned useAdjustedDatesForDcf issuerPaysLeg currency issuer calendarDataAgency fxRateId fxFixingDates notionals = do
   debug "fix"
 
   -- todo: which of these checks are required for fxDates as well? write function, apply for both.
@@ -212,8 +212,7 @@ calculateFixPaymentClaimsFromSwapStream s periodicSchedule calculationSchedule p
             Some fxRateId -> if fxAdjRequired then notionalConst * fxRateObs else notionalConst
               where
                 fxRateObs = Observe fxRateId
-          fr = fromSome s.calculationPeriodAmount.calculation.fixedRateSchedule
-          fixRate = fr.initialValue
+          fixRate = fixedRateSchedule.initialValue
           regularRate = Const fixRate
           rate = regularRate
 {-
@@ -234,8 +233,8 @@ calculateFixPaymentClaimsFromSwapStream s periodicSchedule calculationSchedule p
   pure allTaggedClaims
 
 -- | Create claims from swapStream that describes a fixed or floating coupon stream.
-calculateFloatingPaymentClaimsFromSwapStream : SwapStream -> PeriodicSchedule -> [SchedulePeriod] -> [SchedulePeriod] -> Bool -> Bool -> Deliverable -> Party -> Party -> Optional Text -> Optional [Date] -> [(Decimal, Bool)] -> Update [TaggedClaim]
-calculateFloatingPaymentClaimsFromSwapStream s periodicSchedule calculationSchedule paymentScheduleAligned useAdjustedDatesForDcf issuerPaysLeg currency issuer calendarDataAgency fxRateId fxFixingDates notionals = do
+calculateFloatingPaymentClaimsFromSwapStream : FloatingRateCalculation -> SwapStream -> PeriodicSchedule -> [SchedulePeriod] -> [SchedulePeriod] -> Bool -> Bool -> Deliverable -> Party -> Party -> Optional Text -> Optional [Date] -> [(Decimal, Bool)] -> Update [TaggedClaim]
+calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s periodicSchedule calculationSchedule paymentScheduleAligned useAdjustedDatesForDcf issuerPaysLeg currency issuer calendarDataAgency fxRateId fxFixingDates notionals = do
   debug "float"
   -- todo: which of these checks are required for fxDates as well? write function, apply for both.
   let r = fromSome s.resetDates
@@ -277,9 +276,8 @@ calculateFloatingPaymentClaimsFromSwapStream s periodicSchedule calculationSched
               where
                 fxRateObs = Observe fxRateId
 
-          fr = fromSome s.calculationPeriodAmount.calculation.floatingRateCalculation
-          floatingRateSpread = fr.spreadSchedule.initialValue
-          referenceRateId = fr.floatingRateIndex
+          floatingRateSpread = floatingRateCalculation.spreadSchedule.initialValue
+          referenceRateId = floatingRateCalculation.floatingRateIndex
           regularRate = Observe referenceRateId + Const floatingRateSpread
           rate = case c.stubType of
             None -> regularRate
@@ -338,7 +336,6 @@ calculateClaimsFromSwapStream s periodicSchedule calculationSchedule paymentSche
   debug "before align"
   paymentScheduleAligned <- alignPaymentSchedule calculationSchedule paymentSchedule
   debug "after align"
-  case (c.fixedRateSchedule, c.floatingRateCalculation) of
-    (Some _, None) -> calculateFixPaymentClaimsFromSwapStream s periodicSchedule calculationSchedule paymentScheduleAligned useAdjustedDatesForDcf issuerPaysLeg currency issuer calendarDataAgency fxRateId fxFixingDates notionals
-    (None, Some _) -> calculateFloatingPaymentClaimsFromSwapStream s periodicSchedule calculationSchedule paymentScheduleAligned useAdjustedDatesForDcf issuerPaysLeg currency issuer calendarDataAgency fxRateId fxFixingDates notionals
-    _ -> error "leg type not supported"
+  case s.calculationPeriodAmount.calculation.rateTypeValue of
+    RateType_Fixed fixedRateSchedule -> calculateFixPaymentClaimsFromSwapStream fixedRateSchedule s periodicSchedule calculationSchedule paymentScheduleAligned useAdjustedDatesForDcf issuerPaysLeg currency issuer calendarDataAgency fxRateId fxFixingDates notionals
+    RateType_Floating floatingRateCalculation -> calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s periodicSchedule calculationSchedule paymentScheduleAligned useAdjustedDatesForDcf issuerPaysLeg currency issuer calendarDataAgency fxRateId fxFixingDates notionals
