@@ -10,8 +10,8 @@ import System.Directory
 import System.Directory.Internal.Prelude (getArgs)
 import Control.Monad (filterM)
 import Daml.Package (getLocalPackages)
-import Daml.Source (processPackages)
 import Package.Yaml (getPackageYaml)
+import Daml.Import (updateImports)
 
 main :: IO ()
 main = parseInputs >>= run
@@ -24,4 +24,4 @@ run arguments@Arguments{packageConfigPath} = do
   -- print packageYaml
   packages <- getLocalPackages packageYaml packageRoot
   -- print packages
-  processPackages packageRoot packageYaml packages
+  updateImports packageRoot packageYaml packages

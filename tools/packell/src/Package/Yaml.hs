@@ -19,9 +19,9 @@ data Repo = Repo {
 
 -- | A locally defined package.
 data Local = Local {
-    path :: String
+    name :: String
+  , path :: String
   , baseModule :: String
-  , tagPrefix :: String
   } deriving (Eq, Show)
 
 -- | A wrapper for a local package.
@@ -37,8 +37,8 @@ data LocalPackages = LocalPackages {
 -- | A remotely defined package.
 data Remote = Remote {
     name :: String
-  , baseModule :: String
   , repo :: Repo
+  , baseModule :: String
   , tag :: String
   , darName :: String
   } deriving (Eq, Show)
@@ -68,9 +68,9 @@ instance FromJSON Repo where
 instance FromJSON Local where
   parseJSON (Object v) =
     Local <$>
+      v .: "name" <*>
       v .: "path" <*>
-      v .: "base-module" <*>
-      v .: "tag-prefix"
+      v .: "base-module"
   parseJSON _          = error "Cannot parse local from YAML"
 
 instance FromJSON LocalPackage where
@@ -88,8 +88,8 @@ instance FromJSON Remote where
   parseJSON (Object v) =
     Remote <$>
       v .: "name" <*>
-      v .: "base-module" <*>
       v .: "repo" <*>
+      v .: "base-module" <*>
       v .: "tag" <*>
       v .: "dar-name"
   parseJSON _ = error "Cannot parse remote from YAML"
@@ -126,14 +126,28 @@ getRemotePackages = map remotePackage . remotePackages . remote
 getlocalPackages :: Config -> [Local]
 getlocalPackages = map localPackage . localPackages . local
 
--- | Extract base module from a local package.
--- Required as 'baseModule' isnt exported due to a name clash
---  > consider putting local configs into its own module
+-- These functions are required due to multiple declarations of the same record fields.
+-- We should refactor these out of the code base if possible.
 getLocalBaseModule :: Local -> String
 getLocalBaseModule = baseModule
 
--- | Extract base module from a remote package
--- Required as 'baseModule' isnt exported due to a name clash
---  > consider putting remote configs into its own module
 getRemoteBaseModule :: Remote -> String
 getRemoteBaseModule = baseModule
+
+getRepoName :: Repo -> String
+getRepoName = name
+
+getRemoteRepo :: Remote -> Repo
+getRemoteRepo = repo
+
+getRemoteRepoName :: Remote -> String
+getRemoteRepoName = getRepoName . getRemoteRepo
+
+getLocalRepo :: LocalPackages -> Repo
+getLocalRepo = repo
+
+getLocalRepoName :: LocalPackages -> String
+getLocalRepoName = getRepoName . getLocalRepo
+
+getLocalName :: Local -> String
+getLocalName = name

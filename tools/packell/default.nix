@@ -3,15 +3,16 @@ with pkgs;
 
 let
   haskellDeps = ps: with ps; [
+    aeson
     base
     directory
     filepath
     filepattern
-    # Glob
     lens
     mtl
     optparse-applicative
     random
+    utf8-string
     vector
     yaml
   ];
