@@ -64,14 +64,14 @@ run = script do
   let
     maturity = addDays (toDateUTC now) 1
     observations = M.fromList [(dateToDateClockTime maturity, 200.0)]
-  observableCid <- coerceContractId <$> submit broker do createCmd Observation with provider = broker; id = Id "SPOT/AAPL"; observations; observers = M.empty
+  observableCid <- toInterfaceContractId <$> submit broker do createCmd Observation with provider = broker; id = Id "SPOT/AAPL"; observations; observers = M.empty
 
   -- Create and distribute a gerneric derivative
   let
     equityObservable = "SPOT/AAPL"
     claims = when (TimeGte $ dateToDateClockTime maturity) $ scale (Observe equityObservable - Const 150.0) $ one cashInstrument
   genericInstrument <- originateGeneric bank broker "FWD-AAPL" "Forward Contract" now claims pp now
-  investorGenericTransferableCid <- Account.credit [publicParty] genericInstrument 1_000.0 investorAccount
+  investorGenericHoldingCid <- Account.credit [publicParty] genericInstrument 1_000.0 investorAccount
 
   -- create clock and clock update event
   (clockCid, clockEventCid) <- createClockAndEvent (singleton broker) maturity empty
@@ -94,14 +94,14 @@ run = script do
   result <- submitMulti [bank] [publicParty] do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
       claimer = bank
-      holdingCids = [coerceContractId investorGenericTransferableCid]
+      holdingCids = [investorGenericHoldingCid]
       effectCid
       batchId = Id "ForwardCashSettlement"
 
   let [investorInstrumentInstructionCid, bankCashInstructionCid] = result.instructionCids
 
   -- Allocate instructions
-  (investorInstrumentInstructionCid, _) <- submit investor do exerciseCmd investorInstrumentInstructionCid Instruction.Allocate with actors = singleton investor; allocation = Pledge investorGenericTransferableCid
+  (investorInstrumentInstructionCid, _) <- submit investor do exerciseCmd investorInstrumentInstructionCid Instruction.Allocate with actors = singleton investor; allocation = Pledge investorGenericHoldingCid
   (bankCashInstructionCid, _) <- submit bank do exerciseCmd bankCashInstructionCid Instruction.Allocate with actors = singleton bank; allocation = CreditReceiver
 
   -- Approve instructions
@@ -109,10 +109,10 @@ run = script do
   bankCashInstructionCid <- submit investor do exerciseCmd bankCashInstructionCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorAccount
 
   -- Settle batch
-  [investorCashTransferableCid] <- submitMulti (toList settlers) [publicParty] do exerciseCmd result.batchCid Batch.Settle with actors = settlers
+  [investorCashHoldingCid] <- submitMulti (toList settlers) [publicParty] do exerciseCmd result.batchCid Batch.Settle with actors = settlers
 
   -- Assert state
-  Holding.verifyOwnerOfHolding [(investor, investorCashTransferableCid)]
+  Holding.verifyOwnerOfHolding [(investor, investorCashHoldingCid)]
 
   pure ()
 

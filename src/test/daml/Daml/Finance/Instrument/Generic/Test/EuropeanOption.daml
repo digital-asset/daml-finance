@@ -89,15 +89,15 @@ run = script do
   let
     maturity = addDays (toDateUTC now) 1
     observations = M.fromList [(dateToDateClockTime maturity, 200.0)]
-  observableCid <- coerceContractId <$> submit broker do createCmd Observation with provider = broker; id = Id "SPOT/AAPL"; observations; observers = M.empty
+  observableCid <- toInterfaceContractId <$> submit broker do createCmd Observation with provider = broker; id = Id "SPOT/AAPL"; observations; observers = M.empty
 
   -- Create and distribute a generic derivative
   let
     equityObservable = "SPOT/AAPL"
     (option, exercised, notExercised) = bootstrapOption maturity 150.0 equityObservable cashInstrumentCid
   genericInstrument <- originateGeneric bank broker "OPTION-AAPL" "European Option" now option pp now
-  investor1GenericTransferableCid <- Account.credit [publicParty] genericInstrument 1_000.0 investor1Account
-  investor2GenericTransferableCid <- Account.credit [publicParty] genericInstrument 1_000.0 investor2Account
+  investor1GenericHoldingCid <- Account.credit [publicParty] genericInstrument 1_000.0 investor1Account
+  investor2GenericHoldingCid <- Account.credit [publicParty] genericInstrument 1_000.0 investor2Account
 
   -- Create election factory to allow holders to create elections
   exerciseElectionFactoryCid <- submit broker do
@@ -130,7 +130,7 @@ run = script do
     exerciseCmd exerciseElectionFactoryCid CreateElection with
       elector = investor1
       electionTime = dateToDateClockTime maturity
-      holdingCid = investor1GenericTransferableCid
+      holdingCid = investor1GenericHoldingCid
       amount = 5000.0
 
   -- Create election
@@ -138,7 +138,7 @@ run = script do
     exerciseCmd exerciseElectionFactoryCid CreateElection with
       elector = investor1
       electionTime = dateToDateClockTime maturity
-      holdingCid = investor1GenericTransferableCid
+      holdingCid = investor1GenericHoldingCid
       amount = 500.0
 
   -- Apply election to generate new instrument version + effects
@@ -164,25 +164,25 @@ run = script do
   submitMultiMustFail [investor1] [publicParty] do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
       claimer = investor1
-      holdingCids = [toInterfaceContractId investor1GenericTransferableCid]
+      holdingCids = [investor1GenericHoldingCid]
       effectCid
       batchId = Id "OptionExerciseSettlement"
 
   -- Split fungible in order to claim with the right amount
-  let fungibleCid : ContractId Fungible.I = coerceContractId investor1GenericTransferableCid
+  let fungibleCid : ContractId Fungible.I = coerceContractId investor1GenericHoldingCid
   Fungible.SplitResult [splitCid] (Some restCid) <- submit investor1 do exerciseCmd (fungibleCid) Fungible.Split with amounts = [500.0]
 
   result <- submitMulti [investor1] [publicParty] do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
       claimer = investor1
-      holdingCids = [coerceContractId splitCid]
+      holdingCids = [toInterfaceContractId splitCid]
       effectCid
       batchId = Id "OptionExerciseSettlement"
 
   let [investorInstrumentInstructionCid, bankCashInstructionCid] = result.instructionCids
 
   -- Allocate instructions
-  (investorInstrumentInstructionCid, _) <- submit investor1 do exerciseCmd investorInstrumentInstructionCid Instruction.Allocate with actors = singleton investor1; allocation = Pledge $ coerceContractId splitCid
+  (investorInstrumentInstructionCid, _) <- submit investor1 do exerciseCmd investorInstrumentInstructionCid Instruction.Allocate with actors = singleton investor1; allocation = Pledge $ toInterfaceContractId splitCid
   (bankCashInstructionCid, _) <- submit bank do exerciseCmd bankCashInstructionCid Instruction.Allocate with actors = singleton bank; allocation = CreditReceiver
 
   -- Approve instructions
@@ -190,10 +190,10 @@ run = script do
   bankCashInstructionCid <- submit investor1 do exerciseCmd bankCashInstructionCid Instruction.Approve with actors = singleton investor1; approval = TakeDelivery investor1Account
 
   -- Settle batch
-  [investorCashTransferableCid] <- submitMulti (toList settlers) [publicParty] do exerciseCmd result.batchCid Batch.Settle with actors = settlers
+  [investorCashHoldingCid] <- submitMulti (toList settlers) [publicParty] do exerciseCmd result.batchCid Batch.Settle with actors = settlers
 
   -- Assert state
-  Some investorCash <- queryContractId @Fungible.T investor1 $ coerceContractId investorCashTransferableCid
+  Some investorCash <- queryContractId investor1 $ fromInterfaceContractId @Fungible.T investorCashHoldingCid
   getAmount investorCash === 25_000.0
   getOwner investorCash === investor1
 
@@ -205,7 +205,7 @@ run = script do
     exerciseCmd expireElectionFactoryCid CreateElection with
       elector = investor2
       electionTime = dateToDateClockTime maturity
-      holdingCid = investor2GenericTransferableCid
+      holdingCid = investor2GenericHoldingCid
       amount = 1000.0
 
   (_, [effectCid]) <- submit broker do
@@ -229,7 +229,7 @@ run = script do
   submitMultiMustFail [investor1] [publicParty] do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
       claimer = investor1
-      holdingCids = [toInterfaceContractId investor1GenericTransferableCid]
+      holdingCids = [investor1GenericHoldingCid]
       effectCid
       batchId = Id "OptionExpirySettlement"
 
@@ -237,14 +237,14 @@ run = script do
   result <- submitMulti [investor2] [publicParty] do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
       claimer = investor2
-      holdingCids = [toInterfaceContractId investor2GenericTransferableCid]
+      holdingCids = [investor2GenericHoldingCid]
       effectCid
       batchId = Id "OptionExpirySettlement"
 
   let [investorInstrumentInstructionCid] = result.instructionCids
 
   -- Allocate instructions
-  (investorInstrumentInstructionCid, _) <- submit investor2 do exerciseCmd investorInstrumentInstructionCid Instruction.Allocate with actors = singleton investor2; allocation = Pledge $ coerceContractId investor2GenericTransferableCid
+  (investorInstrumentInstructionCid, _) <- submit investor2 do exerciseCmd investorInstrumentInstructionCid Instruction.Allocate with actors = singleton investor2; allocation = Pledge investor2GenericHoldingCid
 
   -- Approve instructions
   investorInstrumentInstructionCid <- submit bank do exerciseCmd investorInstrumentInstructionCid Instruction.Approve with actors = singleton bank; approval = DebitSender
