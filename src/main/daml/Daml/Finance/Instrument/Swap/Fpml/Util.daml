@@ -7,7 +7,7 @@ import ContingentClaims.Core.Claim (Inequality(..), give, one, scale, when)
 import ContingentClaims.Core.Observation (Observation(..))
 import DA.Date
 import DA.Foldable (foldMap)
-import DA.List (head, last)
+import DA.List (head, init, last, tail)
 import DA.Optional (fromOptional, fromSome, isNone, isSome)
 import Daml.Finance.Instrument.Generic.Util (getHolidayCalendars, prepareAndTagClaims)
 import Daml.Finance.Interface.Claims.Types (Deliverable, Observable, TaggedClaim(..))
@@ -192,6 +192,7 @@ getRateFixingsAndCalendars s r calculationSchedule issuer calendarDataAgency = d
 -- | Create claims from swapStream that describes a fixed or floating coupon stream.
 calculateFixPaymentClaimsFromSwapStream : FixedRateSchedule -> SwapStream -> PeriodicSchedule -> [SchedulePeriod] -> [SchedulePeriod] -> Bool -> Bool -> Deliverable -> Party -> Party -> Optional Text -> Optional [Date] -> [(Decimal, Bool)] -> Update [TaggedClaim]
 calculateFixPaymentClaimsFromSwapStream fixedRateSchedule s periodicSchedule calculationSchedule paymentScheduleAligned useAdjustedDatesForDcf issuerPaysLeg currency issuer calendarDataAgency fxRateId fxFixingDates notionals = do
+  assertMsg "Principal exchange not yet supported for fixed rate leg" $ isNone s.principalExchanges
   assertMsg "Non-standard stub rates not supported for the fixed rate leg" $ isNone s.stubCalculationPeriodAmount
   let
     -- calculate fix rate claims
@@ -210,11 +211,44 @@ calculateFixPaymentClaimsFromSwapStream fixedRateSchedule s periodicSchedule cal
     claims = if issuerPaysLeg then claimAmounts else give claimAmounts
     claimsTagged = prepareAndTagClaims [claims] "Fix rate payment"
 
-    -- todo: implement principal claims here:
-    --allTaggedClaims = [floatingClaimsTagged, principalClaimsTagged]
     allTaggedClaims = [claimsTagged]
 
   pure allTaggedClaims
+
+-- | Create principal exchange claims
+calculatePrincipalExchangePaymentClaims : [SchedulePeriod] -> Bool -> Deliverable -> Optional Text -> [(Decimal, Bool)] -> [Date] -> PrincipalExchanges -> TaggedClaim
+calculatePrincipalExchangePaymentClaims paymentScheduleAligned issuerPaysLeg currency fxRateId notionals rateFixingDates pe = do
+  let
+    createPrincipalClaim fixingDate p (n, fxAdjRequired) startOrEndDate =
+      when (TimeGte fixingDate) $ scale notional $ when (TimeGte paymentDate) $ one currency
+        where
+          paymentDate = startOrEndDate p
+          notionalConst = Const n
+          notional = case fxRateId of
+            None -> notionalConst
+            Some fxRateId -> if fxAdjRequired then notionalConst * fxRateObs else notionalConst
+              where fxRateObs = Observe fxRateId
+
+    createInitialClaim f p (n, fxAdjRequired) =
+      if issuerPaysLeg then give principalInitialClaim else principalInitialClaim
+        where principalInitialClaim = createPrincipalClaim f p (n, fxAdjRequired) (.adjustedStartDate)
+
+    createIntermediateClaim f p (n, fxAdjRequired) = createPrincipalClaim f p (n, fxAdjRequired) (.adjustedEndDate)
+
+    createClaim f p (n, fxAdjRequired) =
+      if issuerPaysLeg then give principalClaim else principalClaim
+        where principalClaim = createIntermediateClaim f p (n, fxAdjRequired)
+
+    undoClaim f p (n, fxAdjRequired) = give $ createClaim f p (n, fxAdjRequired)
+
+    initialClaims = if pe.initialExchange then [createInitialClaim (head rateFixingDates) (head paymentScheduleAligned) (head notionals)] else []
+    intermediateUndoClaims = if pe.intermediateExchange then zipWith3 undoClaim (init rateFixingDates) (init paymentScheduleAligned) (init notionals) else error "intermediate exchange disabled, unclear which FX rate to use"
+    intermediateNewClaims = if pe.intermediateExchange then zipWith3 createClaim (tail rateFixingDates) (init paymentScheduleAligned) (tail notionals) else error "intermediate exchange disabled, unclear which FX rate to use"
+    principalFinalClaims = if pe.finalExchange then [undoClaim (last rateFixingDates) (last paymentScheduleAligned) (last notionals)] else []
+
+    principalClaims = initialClaims ++ intermediateUndoClaims ++ intermediateNewClaims ++ principalFinalClaims
+
+  prepareAndTagClaims principalClaims "Principal exchange payment"
 
 -- | Create claims from swapStream that describes a fixed or floating coupon stream.
 calculateFloatingPaymentClaimsFromSwapStream : FloatingRateCalculation -> SwapStream -> PeriodicSchedule -> [SchedulePeriod] -> [SchedulePeriod] -> Bool -> Bool -> Deliverable -> Party -> Party -> Optional Text -> Optional [Date] -> [(Decimal, Bool)] -> Update [TaggedClaim]
@@ -250,9 +284,10 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s periodicS
     claims = if issuerPaysLeg then claimAmounts else give claimAmounts
     claimsTagged = prepareAndTagClaims [claims] "Floating rate payment"
 
-    -- todo: implement principal claims here:
-    --allTaggedClaims = [floatingClaimsTagged, principalClaimsTagged]
-    allTaggedClaims = [claimsTagged]
+    allTaggedClaims = case s.principalExchanges of
+      None -> [claimsTagged]
+      Some principalExchanges -> [claimsTagged, principalClaimsTagged]
+        where principalClaimsTagged = calculatePrincipalExchangePaymentClaims paymentScheduleAligned issuerPaysLeg currency fxRateId notionals rateFixingDates principalExchanges
 
   pure allTaggedClaims
 
@@ -263,7 +298,6 @@ calculateClaimsFromSwapStream s periodicSchedule calculationSchedule paymentSche
     NotionalSchedule_FxLinked fxl -> assertMsg "swapStream currency does not match swap currency" $ currency.id == Id fxl.varyingNotionalCurrency
     NotionalSchedule_Regular n -> assertMsg "swapStream currency does not match swap currency" $ currency.id == Id n.notionalStepSchedule.currency
   assertMsg "stub must refer to the calculationPeriodDates of the current swapStream" $ isNone s.stubCalculationPeriodAmount || getField @"calculationPeriodDatesReference" (fromSome s.stubCalculationPeriodAmount) == s.calculationPeriodDates.id
-  assertMsg "Principal exchange not yet supported" $ isNone s.principalExchanges
 
   -- calculate the notional to be used for each calculation period (either fix, amortizing or fx linked)
   (fxRateId, fxLinkedNotionalInitialValue, fxFixingDates) <- getFxRateId calculationSchedule s issuer calendarDataAgency
