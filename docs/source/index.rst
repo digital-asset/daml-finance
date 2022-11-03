@@ -6,7 +6,7 @@ Daml Finance Documentation
 
 Welcome to the Daml Finance documentation. Daml Finance is currently an `Early Access Feature <https://docs.daml.com/support/status-definitions.html>`_ in Alpha status.
 This page provides an overview of the documentation content as well as suggested starting points. Use the left-hand menu to explore the various sections, or the search bar above for quick navigation.
-If you are missing content from the documentation, have feedback on the library, or need any help using it, don't hesitate to `open an issue <https://github.com/digital-asset/daml-finance/issues>`_ on the repository.
+If you are missing content from the documentation, have feedback on the library, or need any help using it, do not hesitate to `open an issue <https://github.com/digital-asset/daml-finance/issues>`_ on the repository.
 
 Content
 *******
