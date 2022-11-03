@@ -7,7 +7,7 @@ import ContingentClaims.Core.Claim (Inequality(..), give, one, scale, when)
 import ContingentClaims.Core.Observation (Observation(..))
 import DA.Date
 import DA.Foldable (foldMap)
-import DA.List (head, last)
+import DA.List ((!!), head, last)
 import DA.Optional (fromOptional, fromSome, isNone, isSome)
 import Daml.Finance.Instrument.Generic.Util (getHolidayCalendars, prepareAndTagClaims)
 import Daml.Finance.Interface.Claims.Types (Deliverable, Observable, TaggedClaim(..))
@@ -252,24 +252,66 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s periodicS
 
   -- todo:
   -- 1. if initial principal exchange: exchange according to observed fx rate (or fixed one, if override)
-    principalClaim =
+    principalInitialClaim =
       when (TimeGte p.adjustedStartDate) $ scale notional $ one currency
         where
-          --p = head calculationSchedule
           p = head paymentScheduleAligned
           (n, fxAdjRequired) = head notionals
           notionalConst = Const n
           notional = case fxRateId of
             None -> notionalConst
-            Some fxRateId -> if fxAdjRequired then error "fx adjusted notional not yet supported for fix rate leg" else notionalConst
+            Some fxRateId -> if fxAdjRequired then notionalConst * fxRateObs else notionalConst
+              where fxRateObs = Observe fxRateId
+    principalInitialClaimIncludingSign = if issuerPaysLeg then give principalInitialClaim else principalInitialClaim
 
   -- 2. if intermediate principal exchange: repeat 1. above with today as date but with reversed sign,
   --                                        and repeat again for current date.
-  -- 3. if final principal exchange: exchange according to observed fx rate (or fixed one, if override)
+  -- 2a: undo previous notional exchange: calculate amount as in previous step but payment date as of current step
+    principalIntermediateUndo1Claim =
+      when (TimeGte f) $ scale notional $
+      when (TimeGte p.adjustedEndDate) $ one currency
+        where
+          f = rateFixingDates !! 0
+          p = paymentScheduleAligned !! 0
+          (n, fxAdjRequired) = notionals !! 0
+          notionalConst = Const n
+          notional = case fxRateId of
+            None -> notionalConst
+            Some fxRateId -> if fxAdjRequired then notionalConst * fxRateObs else notionalConst
+              where fxRateObs = Observe fxRateId
+    principalIntermediateUndo1ClaimIncludingSign = if issuerPaysLeg then principalIntermediateUndo1Claim else give principalIntermediateUndo1Claim
 
-    principalClaimAmounts = principalClaim
-    principalClaims = if issuerPaysLeg then principalClaimAmounts else give principalClaimAmounts
-    principalClaimsTagged = prepareAndTagClaims [principalClaims] "Fix principal payment"
+  -- 2b: create current notional exchange: calculate both amount and payment date as of current step
+    principalIntermediateNew1Claim =
+      when (TimeGte f) $ scale notional $
+      when (TimeGte p.adjustedEndDate) $ one currency
+        where
+          f = rateFixingDates !! 1
+          p = paymentScheduleAligned !! 0
+          (n, fxAdjRequired) = notionals !! 1
+          notionalConst = Const n
+          notional = case fxRateId of
+            None -> notionalConst
+            Some fxRateId -> if fxAdjRequired then notionalConst * fxRateObs else notionalConst
+              where fxRateObs = Observe fxRateId
+    principalIntermediateNew1ClaimIncludingSign = if issuerPaysLeg then give principalIntermediateNew1Claim else principalIntermediateNew1Claim
+
+  -- 3. if final principal exchange: exchange according to observed fx rate (or fixed one, if override)
+    principalFinalClaim =
+      when (TimeGte f) $ scale notional $
+      when (TimeGte p.adjustedEndDate) $ one currency
+        where
+          f = last rateFixingDates
+          p = last paymentScheduleAligned
+          (n, fxAdjRequired) = last notionals
+          notionalConst = Const n
+          notional = case fxRateId of
+            None -> notionalConst
+            Some fxRateId -> if fxAdjRequired then notionalConst * fxRateObs else notionalConst
+              where fxRateObs = Observe fxRateId
+    principalFinalClaimIncludingSign = if issuerPaysLeg then principalFinalClaim else give principalFinalClaim
+
+    principalClaimsTagged = prepareAndTagClaims [principalInitialClaimIncludingSign, principalIntermediateUndo1ClaimIncludingSign, principalIntermediateNew1ClaimIncludingSign, principalFinalClaimIncludingSign] "Floating leg principal payment"
 
     -- todo: implement principal claims here:
     --allTaggedClaims = if isSome s.principalExchanges then [claimsTagged, principalClaimsTagged] else [claimsTagged]
@@ -278,8 +320,10 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s periodicS
     allTaggedClaims = if isNone s.principalExchanges then [claimsTagged] else [claimsTagged, principalClaimsTagged]
 
   --if isSome s.principalExchanges then error("not supported") else error("")
-  debug principalClaimAmounts
-  debug principalClaims
+  debug rateFixingDates
+  debug paymentScheduleAligned
+  debug notionals
+
   debug principalClaimsTagged
   debug s.principalExchanges
   debug allTaggedClaims
