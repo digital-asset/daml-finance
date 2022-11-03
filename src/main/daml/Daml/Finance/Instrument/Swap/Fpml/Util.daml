@@ -216,40 +216,9 @@ calculateFixPaymentClaimsFromSwapStream fixedRateSchedule s periodicSchedule cal
   pure allTaggedClaims
 
 -- | Create claims from swapStream that describes a fixed or floating coupon stream.
-calculateFloatingPaymentClaimsFromSwapStream : FloatingRateCalculation -> SwapStream -> PeriodicSchedule -> [SchedulePeriod] -> [SchedulePeriod] -> Bool -> Bool -> Deliverable -> Party -> Party -> Optional Text -> Optional [Date] -> [(Decimal, Bool)] -> Update [TaggedClaim]
-calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s periodicSchedule calculationSchedule paymentScheduleAligned useAdjustedDatesForDcf issuerPaysLeg currency issuer calendarDataAgency fxRateId fxFixingDates notionals = do
-  (rateFixingDates, rateFixingCalendar) <- getRateFixingsAndCalendars s (fromSome s.resetDates) calculationSchedule issuer calendarDataAgency
-  case fxFixingDates of
-    Some fxDates -> assertMsg "fxFixingDates must match rateFixingDates" $ fxDates == rateFixingDates
-    None -> assertMsg "" True
-
+calculatePrincipalExchangePaymentClaimsFromSwapStream : FloatingRateCalculation -> SwapStream -> PeriodicSchedule -> [SchedulePeriod] -> [SchedulePeriod] -> Bool -> Bool -> Deliverable -> Party -> Party -> Optional Text -> Optional [Date] -> [(Decimal, Bool)] -> [Date] -> HolidayCalendarData -> TaggedClaim
+calculatePrincipalExchangePaymentClaimsFromSwapStream floatingRateCalculation s periodicSchedule calculationSchedule paymentScheduleAligned useAdjustedDatesForDcf issuerPaysLeg currency issuer calendarDataAgency fxRateId fxFixingDates notionals rateFixingDates rateFixingCalendar = do
   let
-    fixLeg = False
-    -- calculate floating rate claims
-    createClaim (c, (n, fxAdjRequired)) p f =
-      when (TimeGte f) $ scale notional $ scale (rate * (Const (calcPeriodDcf s.calculationPeriodAmount.calculation.dayCountFraction c useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency))) $
-      when (TimeGte p.adjustedEndDate) $ one currency
-        where
-          notionalConst = Const n
-          notional = case fxRateId of
-            None -> notionalConst
-            Some fxRateId -> if fxAdjRequired then notionalConst * fxRateObs else notionalConst
-              where fxRateObs = Observe fxRateId
-
-          floatingRateSpread = floatingRateCalculation.spreadSchedule.initialValue
-          referenceRateId = floatingRateCalculation.floatingRateIndex
-          regularRate = Observe referenceRateId + Const floatingRateSpread
-          rate = case c.stubType of
-            None -> regularRate
-            Some stubType -> case s.stubCalculationPeriodAmount of
-              None -> regularRate
-              Some scpa -> fromOptional regularRate $ getStubRate scpa (stubType == LongInitial || stubType == ShortInitial) p rateFixingCalendar s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessDayConvention fixLeg
-
-    claimAmounts = mconcat $ zipWith3 createClaim (zip calculationSchedule notionals) paymentScheduleAligned rateFixingDates
-    claims = if issuerPaysLeg then claimAmounts else give claimAmounts
-    claimsTagged = prepareAndTagClaims [claims] "Floating rate payment"
-
-
   -- todo:
   -- 1. if initial principal exchange: exchange according to observed fx rate (or fixed one, if override)
     principalInitialClaim =
@@ -377,14 +346,65 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s periodicS
     --allTaggedClaims = if isSome s.principalExchanges then [claimsTagged, principalClaimsTagged] else [claimsTagged]
     --allTaggedClaims = [claimsTagged, principalClaimsTagged]
     --allTaggedClaims = [claimsTagged]
-    allTaggedClaims = if isNone s.principalExchanges then [claimsTagged] else [claimsTagged, principalClaimsTagged]
+  --if isSome s.principalExchanges then error("not supported") else error("")
+{-   debug rateFixingDates
+  debug paymentScheduleAligned
+  debug notionals
+
+  debug principalClaimsTagged
+ -}
+  principalClaimsTagged
+
+-- | Create claims from swapStream that describes a fixed or floating coupon stream.
+calculateFloatingPaymentClaimsFromSwapStream : FloatingRateCalculation -> SwapStream -> PeriodicSchedule -> [SchedulePeriod] -> [SchedulePeriod] -> Bool -> Bool -> Deliverable -> Party -> Party -> Optional Text -> Optional [Date] -> [(Decimal, Bool)] -> Update [TaggedClaim]
+calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s periodicSchedule calculationSchedule paymentScheduleAligned useAdjustedDatesForDcf issuerPaysLeg currency issuer calendarDataAgency fxRateId fxFixingDates notionals = do
+  (rateFixingDates, rateFixingCalendar) <- getRateFixingsAndCalendars s (fromSome s.resetDates) calculationSchedule issuer calendarDataAgency
+  case fxFixingDates of
+    Some fxDates -> assertMsg "fxFixingDates must match rateFixingDates" $ fxDates == rateFixingDates
+    None -> assertMsg "" True
+
+  let
+    fixLeg = False
+    -- calculate floating rate claims
+    createClaim (c, (n, fxAdjRequired)) p f =
+      when (TimeGte f) $ scale notional $ scale (rate * (Const (calcPeriodDcf s.calculationPeriodAmount.calculation.dayCountFraction c useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency))) $
+      when (TimeGte p.adjustedEndDate) $ one currency
+        where
+          notionalConst = Const n
+          notional = case fxRateId of
+            None -> notionalConst
+            Some fxRateId -> if fxAdjRequired then notionalConst * fxRateObs else notionalConst
+              where fxRateObs = Observe fxRateId
+
+          floatingRateSpread = floatingRateCalculation.spreadSchedule.initialValue
+          referenceRateId = floatingRateCalculation.floatingRateIndex
+          regularRate = Observe referenceRateId + Const floatingRateSpread
+          rate = case c.stubType of
+            None -> regularRate
+            Some stubType -> case s.stubCalculationPeriodAmount of
+              None -> regularRate
+              Some scpa -> fromOptional regularRate $ getStubRate scpa (stubType == LongInitial || stubType == ShortInitial) p rateFixingCalendar s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessDayConvention fixLeg
+
+    claimAmounts = mconcat $ zipWith3 createClaim (zip calculationSchedule notionals) paymentScheduleAligned rateFixingDates
+    claims = if issuerPaysLeg then claimAmounts else give claimAmounts
+    claimsTagged = prepareAndTagClaims [claims] "Floating rate payment"
+
+
+    -- todo: implement principal claims here:
+    --allTaggedClaims = if isSome s.principalExchanges then [claimsTagged, principalClaimsTagged] else [claimsTagged]
+    --allTaggedClaims = [claimsTagged, principalClaimsTagged]
+    --allTaggedClaims = [claimsTagged]
+    --allTaggedClaims = if isNone s.principalExchanges then [claimsTagged] else [claimsTagged, principalClaimsTagged]
+    allTaggedClaims = case s.principalExchanges of
+      None -> [claimsTagged]
+      Some principalExchanges -> [claimsTagged, principalClaimsTagged]
+        where principalClaimsTagged = calculatePrincipalExchangePaymentClaimsFromSwapStream floatingRateCalculation s periodicSchedule calculationSchedule paymentScheduleAligned useAdjustedDatesForDcf issuerPaysLeg currency issuer calendarDataAgency fxRateId fxFixingDates notionals rateFixingDates rateFixingCalendar
 
   --if isSome s.principalExchanges then error("not supported") else error("")
   debug rateFixingDates
   debug paymentScheduleAligned
   debug notionals
 
-  debug principalClaimsTagged
   debug s.principalExchanges
   debug allTaggedClaims
 
