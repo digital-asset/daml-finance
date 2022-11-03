@@ -99,9 +99,9 @@ Let us assume, for instance, that Alice's EUR holding in the example above is he
 
 In this case, a direct holding transfer from Alice and Bob cannot generally be instructed. The original step needs to be broken down by the Settlement Factory into three separate ``Instructions``:
 
-- **1A** Alice sends 1000 EUR (held at Bank A) back to Bank A
-- **1B** Bank A sends 1000 EUR (held at the Central Bank) to Bank B.
-- **1C** Bank B credits 1000 EUR to Bob's account (held at Bank B)
+- **1A**: Alice sends 1000 EUR (held at Bank A) back to Bank A
+- **1B**: Bank A sends 1000 EUR (held at the Central Bank) to Bank B.
+- **1C**: Bank B credits 1000 EUR to Bob's account (held at Bank B)
 
 .. image:: ../images/settlement_hierarchy_instructed.png
    :alt: Instructions for intermediated settlement: Alice sends 1000 EUR to Bank A. Bank A sends 1000 EUR to Bank B. Bank B sends 1000 EUR to Bob.
