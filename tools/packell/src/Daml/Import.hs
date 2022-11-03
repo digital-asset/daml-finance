@@ -1,19 +1,28 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE LambdaCase #-}
 
-module Daml.Import where
+module Daml.Import (
+    updateImports
+  , printImportsToUpdate
+  , validateImports
+) where
 
+import Colourista.IO (errorMessage, successMessage, boldMessage, redMessage, infoMessage, greenMessage, warningMessage, yellowMessage, skipMessage, cyanMessage)
+import Daml.Source (Source(..), getSource)
+import qualified Daml.Package as Daml (Package(..), damlConfig,  packageConfig)
+import qualified Daml.Yaml as Daml (Config(..), damlConfigFile, source, version, writeDamlConfig)
 import Data.Functor ((<&>))
 import Data.List (sort, group, nub, isPrefixOf, find, delete)
-import Daml.Source (Source(..), getSource)
-import qualified Daml.Package as Daml (Package(..), damlConfig, packageConfig)
-import qualified Daml.Yaml as Daml (Config(..), source, version)
+import Data.Maybe (catMaybes, maybeToList)
+import qualified Data.Text as T (pack)
 import qualified GHC.List as L (concat)
 import qualified Package.Yaml as Package (Config(..), Remote(..), Local(..), local, getLocalBaseModule, getLocalName, getLocalRepoName, getRemoteBaseModule, getRemotePackages, getRemoteRepoName, path)
 import System.Directory (listDirectory, makeAbsolute, doesFileExist, doesDirectoryExist)
 import System.FilePath ((</>), isExtensionOf)
 import System.FilePattern.Directory (getDirectoryFiles, FilePattern)
-import Daml.Yaml (Config(dataDependencies), writeDamlConfig, damlConfigFile)
-import Data.Maybe (catMaybes)
 
 -- | The daml syntax to import a module.
 damlImport :: String = "import"
@@ -28,20 +37,51 @@ data UpdateImport = UpdateImport {
 
 -- | Checks the dependencies of a list of packages matches the usage in their sources.
 updateImports :: FilePath -> Package.Config -> [Daml.Package] -> IO ()
-updateImports root config localPackages = do
-  -- results <- catMaybes <$> mapM (updateImport root config localPackages) localPackages
-  results <- catMaybes <$> mapM (updateImport root config localPackages) [localPackages !! 14]
-  -- print results
-  let getDamlPath package = root </> (Package.path . Daml.packageConfig) package </> damlConfigFile
-  mapM_ (\(UpdateImport package updateConfig) -> writeDamlConfig (getDamlPath package) updateConfig) results
+updateImports root config localPackages =
+  let
+    getDamlPath package = root </> (Package.path . Daml.packageConfig) package </> Daml.damlConfigFile
+    writeUpdate (UpdateImport package updateConfig) = do
+      cyanMessage . T.pack $ "Updating package '" ++ (Package.getLocalName . Daml.packageConfig $ package) ++ "'"
+      flip Daml.writeDamlConfig updateConfig $ getDamlPath package
+    writeSuccessMessage = successMessage . T.pack $ "Packages successfully updated!"
+  in
+    processImports root config localPackages
+      >>= mapM_ writeUpdate
+      >>= const writeSuccessMessage
 
-  -- updateImport root config localPackages (localPackages !! 14) -- for testing - Account
-  -- updateImport root config localPackages (localPackages !! 30) -- for testing - Contingent.Test
-  -- updateImport root config localPackages (head localPackages) -- for testing
+-- | Prints out packages which require their imports to be updated.
+printImportsToUpdate :: FilePath -> Package.Config -> [Daml.Package] -> IO ()
+printImportsToUpdate root config localPackages = -- If nothing, print success "nothing to update"
+  processImports root config localPackages >>= mapM_ printUpdate
+    where
+      printUpdate (UpdateImport package updateConfig) = do
+        warningMessage . T.pack $ "Package to update : " ++ (Package.getLocalName . Daml.packageConfig $ package)
+        redMessage . T.pack $ "Current data dependencies :"
+        mapM_ (redMessage . T.pack) $ L.concat . maybeToList . Daml.dataDependencies . Daml.damlConfig $ package
+        cyanMessage . T.pack $ "Updated data dependencies :"
+        mapM_ (cyanMessage . T.pack) $ L.concat . maybeToList . Daml.dataDependencies $ updateConfig
+        putStr "\n"
+
+-- | Throws an exception if any package requires updating.
+validateImports :: FilePath -> Package.Config -> [Daml.Package] -> IO ()
+validateImports root config localPackages =
+  processImports root config localPackages >>= \case
+    [] -> successMessage . T.pack $ "All packages are up-to-date!"
+    xs -> do
+      errorMessage . T.pack $ show (length xs) ++ " package/s require updating."
+      errorMessage . T.pack $ "Packages=[" ++ foldl f "" xs ++ "]."
+      error "Run 'packell imports update' to resolve this error."
+        where
+        getPackageName = Package.getLocalName . Daml.packageConfig . package
+        f acc p = if acc == "" then getPackageName p else acc <> ", " <> getPackageName p
+
+-- | Process all provided imports.
+processImports :: FilePath -> Package.Config -> [Daml.Package] -> IO [UpdateImport]
+processImports root config localPackages = catMaybes <$> mapM (processImport root config localPackages) localPackages
 
 -- | Processes an individual package.
-updateImport :: FilePath -> Package.Config -> [Daml.Package] -> Daml.Package -> IO (Maybe UpdateImport)
-updateImport root config allLocalPackages localPackage = do
+processImport :: FilePath -> Package.Config -> [Daml.Package] -> Daml.Package -> IO (Maybe UpdateImport)
+processImport root config allLocalPackages localPackage = do
   Source _ damlFiles <- getSource root localPackage
   damlImports <- L.concat <$> mapM getDamlImports damlFiles
 
@@ -53,15 +93,15 @@ updateImport root config allLocalPackages localPackage = do
     remoteDataDependencies = getDataDependencies Package.getRemoteBaseModule remotePackages
     localDataDependencies = getDataDependencies (Package.getLocalBaseModule . Daml.packageConfig) localPackages
     dataDependencies = sort $ map (generateRemoteDependency config) remoteDataDependencies ++ map (generateLocalDependency config) localDataDependencies
-    currentDependenciesMaybe = Daml.dataDependencies . Daml.damlConfig $ localPackage
+    currentDataDependenciesMaybe = Daml.dataDependencies . Daml.damlConfig $ localPackage
 
-  pure $ currentDependenciesMaybe >>= \cur ->
+  pure $ currentDataDependenciesMaybe >>= \cur ->
       if cur == dataDependencies then
         Nothing
       else do
         let
           curDamlConfig = Daml.damlConfig localPackage
-          updatedDamlConfig = curDamlConfig { dataDependencies = Just dataDependencies }
+          updatedDamlConfig = curDamlConfig { Daml.dataDependencies = Just dataDependencies }
         Just (UpdateImport localPackage updatedDamlConfig)
 
 -- | Generate a data-dependency for remote packages.
@@ -123,4 +163,3 @@ getImportModule :: [String] -> String
 getImportModule (_:"qualified":x:_) = x
 getImportModule (_:x:_) = x
 getImportModule i = error $ "Import string in unexpected format. string=" ++ unwords i
-

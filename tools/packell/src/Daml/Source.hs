@@ -1,6 +1,13 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Daml.Source where
+module Daml.Source (
+    Source (..)
+  , getSources
+  , getSource
+) where
 
 import Control.Monad (filterM)
 import Data.Functor ((<&>))
@@ -24,7 +31,7 @@ data Source = Source {
 
 -- | Gets the sources for a list of local packages.
 getSources :: FilePath -> [Daml.Package] -> IO [Source]
-getSources root = mapM (getSource root)
+getSources = mapM . getSource
 
 -- | Processes an individual package.
 getSource :: FilePath -> Daml.Package -> IO Source

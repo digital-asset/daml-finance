@@ -1,8 +1,32 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# Language DuplicateRecordFields #-}
 
-module Package.Yaml where
+module Package.Yaml (
+    Config(..)
+  , Local(..)
+  , LocalPackage(..)
+  , LocalPackages(..)
+  , Repo(..)
+  , Remote(..)
+  , RemotePackage(..)
+  , RemotePackages(..)
+  , T
+  , readPackageYaml
+  , getLocalBaseModule
+  , getLocalName
+  , getlocalPackages
+  , getLocalRepo
+  , getLocalRepoName
+  , getRemoteBaseModule
+  , getRemotePackages
+  , getRemoteRepo
+  , getRemoteRepoName
+  , getRepoName
+) where
 
 import Control.Applicative
 import Data.Yaml (FromJSON(parseJSON), (.:), Value(Object), decodeFileEither, ParseException, Parser, withArray, parseJSONList, withObject)
@@ -111,11 +135,11 @@ instance FromJSON Config where
   parseJSON _          = error "Cannot parse daml config from YAML"
 
 -- | Given a file path to the package config file, this will extract and return the contents.
-getPackageYaml :: FilePath -> IO Config
-getPackageYaml filePath = do
+readPackageYaml :: FilePath -> IO Config
+readPackageYaml filePath = do
   packageConfig :: (Either ParseException Config) <- decodeFileEither filePath
   case packageConfig of
-    Left exception -> error (show exception)
+    Left exception -> error $ "Exception occured while reading package yaml. filePath=" ++ filePath ++ ", exception=" ++ show exception
     Right dc -> pure dc
 
 -- | Extract the remote packages from a package config.

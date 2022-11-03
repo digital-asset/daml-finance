@@ -5,6 +5,7 @@ let
   haskellDeps = ps: with ps; [
     aeson
     base
+    colourista
     directory
     filepath
     filepattern
@@ -12,6 +13,7 @@ let
     mtl
     optparse-applicative
     random
+    text
     utf8-string
     vector
     yaml

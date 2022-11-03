@@ -1,7 +1,16 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Daml.Yaml where
+module Daml.Yaml (
+    T
+  , Config(..)
+  , damlConfigFile
+  , readDamlConfig
+  , writeDamlConfig
+) where
 
 import Control.Applicative
 import Data.Yaml (FromJSON(parseJSON), (.:), Value(Object), decodeFileEither, ParseException, (.:?), encodeFile, ToJSON(toJSON, toEncoding), object, (.=), encode, defaultEncodeOptions)
@@ -66,7 +75,7 @@ readDamlConfig :: FilePath -> IO Config
 readDamlConfig filePath = do
   damlConfig :: (Either ParseException Config) <- decodeFileEither filePath
   case damlConfig of
-    Left exception -> error (show exception)
+    Left exception -> error $ "Exception occured while reading daml yaml. filePath=" ++ filePath ++ ", exception=" ++ show exception
     Right dc -> pure dc
 
 -- | Writes a daml config file to the specified path.

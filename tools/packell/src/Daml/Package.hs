@@ -1,4 +1,12 @@
-module Daml.Package where
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Package (
+    T
+  , Package(..)
+  , getLocalPackages
+  , getLocalPackage
+) where
 
 import Control.Monad (filterM)
 import Data.List (zipWith4)
