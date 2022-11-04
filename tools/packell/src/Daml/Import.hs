@@ -2,12 +2,11 @@
 -- SPDX-License-Identifier: Apache-2.0
 
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE LambdaCase #-}
 
 module Daml.Import (
-    updateImports
-  , printImportsToUpdate
-  , validateImports
+    -- PackageImports(..)
+    getPackageModules
+  , getDamlImports
 ) where
 
 import Colourista.IO (errorMessage, successMessage, boldMessage, redMessage, infoMessage, greenMessage, warningMessage, yellowMessage, skipMessage, cyanMessage)
@@ -26,108 +25,16 @@ import System.FilePattern.Directory (getDirectoryFiles, FilePattern)
 
 -- | The daml syntax to import a module.
 damlImport :: String = "import"
--- | The dar file extension.
-darExtension :: String = ".dar"
 
--- | Details a daml config to update alongside the related package information.
-data UpdateImport = UpdateImport {
-    package :: Daml.Package
-  , updatedConfig :: Daml.Config
-} deriving (Eq, Show)
-
--- | Checks the dependencies of a list of packages matches the usage in their sources.
-updateImports :: FilePath -> Package.Config -> [Daml.Package] -> IO ()
-updateImports root config localPackages =
-  let
-    getDamlPath package = root </> (Package.path . Daml.packageConfig) package </> Daml.damlConfigFile
-    writeUpdate (UpdateImport package updateConfig) = do
-      cyanMessage . T.pack $ "Updating package '" ++ (Package.getLocalName . Daml.packageConfig $ package) ++ "'"
-      flip Daml.writeDamlConfig updateConfig $ getDamlPath package
-    writeSuccessMessage = successMessage . T.pack $ "Packages successfully updated!"
-  in
-    processImports root config localPackages
-      >>= mapM_ writeUpdate
-      >>= const writeSuccessMessage
-
--- | Prints out packages which require their imports to be updated.
-printImportsToUpdate :: FilePath -> Package.Config -> [Daml.Package] -> IO ()
-printImportsToUpdate root config localPackages = -- If nothing, print success "nothing to update"
-  processImports root config localPackages >>= mapM_ printUpdate
-    where
-      printUpdate (UpdateImport package updateConfig) = do
-        warningMessage . T.pack $ "Package to update : " ++ (Package.getLocalName . Daml.packageConfig $ package)
-        redMessage . T.pack $ "Current data dependencies :"
-        mapM_ (redMessage . T.pack) $ L.concat . maybeToList . Daml.dataDependencies . Daml.damlConfig $ package
-        cyanMessage . T.pack $ "Updated data dependencies :"
-        mapM_ (cyanMessage . T.pack) $ L.concat . maybeToList . Daml.dataDependencies $ updateConfig
-        putStr "\n"
-
--- | Throws an exception if any package requires updating.
-validateImports :: FilePath -> Package.Config -> [Daml.Package] -> IO ()
-validateImports root config localPackages =
-  processImports root config localPackages >>= \case
-    [] -> successMessage . T.pack $ "All packages are up-to-date!"
-    xs -> do
-      errorMessage . T.pack $ show (length xs) ++ " package/s require updating."
-      errorMessage . T.pack $ "Packages=[" ++ foldl f "" xs ++ "]."
-      error "Run 'packell imports update' to resolve this error."
-        where
-        getPackageName = Package.getLocalName . Daml.packageConfig . package
-        f acc p = if acc == "" then getPackageName p else acc <> ", " <> getPackageName p
-
--- | Process all provided imports.
-processImports :: FilePath -> Package.Config -> [Daml.Package] -> IO [UpdateImport]
-processImports root config localPackages = catMaybes <$> mapM (processImport root config localPackages) localPackages
-
--- | Processes an individual package.
-processImport :: FilePath -> Package.Config -> [Daml.Package] -> Daml.Package -> IO (Maybe UpdateImport)
-processImport root config allLocalPackages localPackage = do
+-- | Acquire modules utilised in a package based off their daml imports.
+getPackageModules :: FilePath -> Daml.Package -> IO [String]
+getPackageModules root localPackage = do
   Source _ damlFiles <- getSource root localPackage
   damlImports <- L.concat <$> mapM getDamlImports damlFiles
 
-  let
-    damlModules = sort . nub $ map (getImportModule . words) damlImports
-    remotePackages = Package.getRemotePackages config
-    localPackages = localPackage `delete` allLocalPackages
-    getDataDependencies getBaseModule packages = nub $ foldl (\acc m -> acc ++ filter (flip isPrefixOf m . getBaseModule) packages) [] damlModules
-    remoteDataDependencies = getDataDependencies Package.getRemoteBaseModule remotePackages
-    localDataDependencies = getDataDependencies (Package.getLocalBaseModule . Daml.packageConfig) localPackages
-    dataDependencies = sort $ map (generateRemoteDependency config) remoteDataDependencies ++ map (generateLocalDependency config) localDataDependencies
-    currentDataDependenciesMaybe = Daml.dataDependencies . Daml.damlConfig $ localPackage
+  pure . sort . nub $ map (getImportModule . words) damlImports
 
-  pure $ currentDataDependenciesMaybe >>= \cur ->
-      if cur == dataDependencies then
-        Nothing
-      else do
-        let
-          curDamlConfig = Daml.damlConfig localPackage
-          updatedDamlConfig = curDamlConfig { Daml.dataDependencies = Just dataDependencies }
-        Just (UpdateImport localPackage updatedDamlConfig)
-
--- | Generate a data-dependency for remote packages.
--- Format is <installDir>/<repo_name>/<tag>/<darname>
-generateRemoteDependency :: Package.Config -> Package.Remote -> FilePath
-generateRemoteDependency config remote =
-  Package.installDir config
-    </> Package.getRemoteRepoName remote
-    </> Package.tag remote
-    </> Package.darName remote
-
--- | Generate a data-dependency for local packages.
--- Format is <installDir>/<repo_name>/<package_name>/<package_version>/<darname>
-generateLocalDependency :: Package.Config -> Daml.Package -> String
-generateLocalDependency config package =
-  Package.installDir config
-    </> Package.getLocalRepoName (Package.local config)
-    </> (Package.getLocalName . Daml.packageConfig) package
-    </> (Daml.version . Daml.damlConfig) package
-    </> generateDarName ((Daml.name . Daml.damlConfig) package) ((Daml.version . Daml.damlConfig) package)
-
--- Generate a daml dar file name.
-generateDarName :: String -> String -> String
-generateDarName name version = name <> "-" <> version <> darExtension
-
--- | For a Daml file, extract the import lines.
+-- | For a Daml file, extract the full import lines.
 getDamlImports :: FilePath -> IO [String]
 getDamlImports damlFile = getImportLines [] False . lines <$> readFile damlFile
 

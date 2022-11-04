@@ -7,27 +7,26 @@
 
 module Main where
 
-import Parameters (Arguments(..), parseInputs)
-import System.FilePath
-import System.Directory
-import System.Directory.Internal.Prelude (getArgs)
-import Control.Monad (filterM)
+import Options.Arguments (Arguments(..), Command(..), DataDependenciesCommand(..), parseInputs)
+import System.FilePath (takeDirectory)
+import System.Directory (makeAbsolute)
 import Daml.Package (getLocalPackages)
 import Package.Yaml (readPackageYaml)
-import Daml.Import (printImportsToUpdate, updateImports, validateImports)
+import Daml.DataDependencies (update, validate, dryRun)
 
 main :: IO ()
 main = parseInputs >>= run
 
 run :: Arguments -> IO ()
-run arguments@Arguments{optPackageConfigPath, optCommand} = do
-  print optCommand
+run Arguments{optPackageConfigPath, optCommand} = do
+  packageConfigPath <- makeAbsolute optPackageConfigPath
+  let packageRoot = takeDirectory optPackageConfigPath
+  packageYaml <- readPackageYaml packageConfigPath
+  packages <- getLocalPackages packageYaml packageRoot
 
-  -- packageConfigPath <- makeAbsolute optPackageConfigPath
-  -- let packageRoot = takeDirectory packageConfigPath
-  -- packageYaml <- readPackageYaml packageConfigPath
-  -- packages <- getLocalPackages packageYaml packageRoot
-
-  -- updateImports packageRoot packageYaml packages
-  -- printImportsToUpdate packageRoot packageYaml packages
-  -- validateImports packageRoot packageYaml packages
+  case optCommand of
+    DataDependencies command -> case command of
+      Update -> update packageRoot packageYaml packages
+      Validate -> validate packageRoot packageYaml packages
+      DryRun -> dryRun packageRoot packageYaml packages
+    Info -> print "Congratulations, you have called a placeholder for future commands!"

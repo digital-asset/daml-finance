@@ -1,14 +1,17 @@
 -- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
-module Parameters (
+module Options.Arguments (
     Arguments(..)
+  , Command(..)
+  , DataDependenciesCommand(..)
   , parameters
   , parseInputs
 ) where
 
 import Options.Applicative(
     (<**>)
+  , (<|>)
   , Parser
   , auto
   , fullDesc
@@ -30,41 +33,44 @@ import Options.Applicative(
   , customExecParser
   , prefs, hsubparser, command, strArgument, Alternative (many), Mod, CommandFields, commandGroup)
 
--- https://github.com/pcapriotti/optparse-applicative
-
--- | Main set of commands.
+-- | Packell main commands set.
 data Command
-    = Dependencies DependenciesCommand
+    = DataDependencies DataDependenciesCommand
     | Info
   deriving (Show)
 
--- | Commands for imports.
-data DependenciesCommand
+-- | Commands for working with dependencies.
+data DataDependenciesCommand
     = Update
     | Validate
     | DryRun
   deriving (Show)
 
--- | Input variables to the application
+-- | Input arguments to the application.
 data Arguments = Arguments {
     optPackageConfigPath :: FilePath
   , optCommand :: Command
   } deriving (Show)
 
-dependencyParser :: Parser Command
-dependencyParser =
-  Dependencies
-    <$> hsubparser (command "update" (info (pure Update) (progDesc "Update package data-dependencies based of package imports."))
-      <> command "validate" (info (pure Validate) (progDesc "Validate if any data-dependencies require updating."))
-      <> command "dryrun" (info (pure DryRun) (progDesc "Print out any data-dependencies that require updating.")))
+-- | The main command parser.
+commandParser :: Parser Command
+commandParser =
+  hsubparser (
+    command "data-dependencies" (info dataDependenciesParser (progDesc "Update package data-dependencies based on package sources."))
+      <> metavar "data-dependencies COMMAND")
+  <|> hsubparser (
+    command "info" (info (pure Info) (progDesc "Test command - a stub for future commands."))
+      <> metavar "info")
 
-dependenciesCommand :: Mod CommandFields Command
-dependenciesCommand = command "dependencies" (info dependencyParser (progDesc "Update package data-dependencies based on package imports."))
+-- | Command parser for dependencies.
+dataDependenciesParser :: Parser Command
+dataDependenciesParser =
+  DataDependencies
+    <$> hsubparser (command "update" (info (pure Update) (progDesc "Update package data-dependencies based on imports in package sources."))
+      <> command "validate" (info (pure Validate) (progDesc "Validate if package data-dependencies require updating. Throws an exception if any updates are found. This does not update any data-dependencies."))
+      <> command "dryrun" (info (pure DryRun) (progDesc "Displays all package data-dependencies that require updating. This does not update any data-dependencies.")))
 
-infoCommand :: Mod CommandFields Command
-infoCommand = command "info" (info (pure Info) (progDesc "Update package data-dependencies based on package imports."))
-
--- | Input Parameters to the application
+-- | Input Parameters to the application.
 parameters :: Parser Arguments
 parameters =
   Arguments
@@ -74,8 +80,7 @@ parameters =
       <> showDefault
       <> value "package/package.yaml"
       <> help "Path to the package configuration")
-    <*> hsubparser (dependenciesCommand
-      <> metavar "dependencies COMMAND")
+    <*> commandParser
 
 -- | Custom exex parser to display options, subcommands, help, etc. on error.
 showHelpOnErrorExecParser :: ParserInfo a -> IO a
