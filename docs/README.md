@@ -93,7 +93,7 @@ In order to update it, you need to
 
 In order to publish to the main documentation website at [docs.daml.com](http://docs.daml.com), we need to execute the following steps :
 
-1. Update the `version` in [daml.yaml](daml.yaml)
+1. Update the `version` in [daml.yaml](daml.yaml). Merge this new version into main.
 2. Create a branch beginning with `assembly` or `Assembly`
 3. Log into [CircleCi](https://app.circleci.com/) and navigate to the Daml-Finance [pipeline](https://app.circleci.com/pipelines/github/digital-asset/daml-finance)
 4. Navigate to the branch that you created in step 2 with the CircleCi workflow `assembly`
