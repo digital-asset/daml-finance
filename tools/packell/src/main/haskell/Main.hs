@@ -1,22 +1,22 @@
 -- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
 module Main where
 
-import Options.Arguments (Arguments(..), Command(..), DataDependenciesCommand(..), parseInputs)
-import System.FilePath (takeDirectory)
-import System.Directory (makeAbsolute)
-import Daml.Package (getLocalPackages)
-import Package.Yaml (readPackageYaml)
 import Daml.DataDependencies (update, validate, dryRun)
+import Daml.Package (getLocalPackages)
+import Options.Arguments (Arguments(..), Command(..), DataDependenciesCommand(..), parseInputs)
+import Package.Yaml (readPackageYaml)
+import System.Directory (makeAbsolute)
+import System.FilePath (takeDirectory)
 
+-- | Entry to the Packell application.
 main :: IO ()
 main = parseInputs >>= run
 
+-- | Runs the specified command based of the passed arguments.
 run :: Arguments -> IO ()
 run Arguments{optPackageConfigPath, optCommand} = do
   packageConfigPath <- makeAbsolute optPackageConfigPath

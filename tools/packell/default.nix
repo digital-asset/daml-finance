@@ -9,10 +9,7 @@ let
     directory
     filepath
     filepattern
-    lens
-    mtl
     optparse-applicative
-    random
     text
     utf8-string
     vector
