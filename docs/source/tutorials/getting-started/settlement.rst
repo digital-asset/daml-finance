@@ -11,7 +11,7 @@ We are going to
 
 #. create a new ``TOKEN`` instrument
 #. credit a token holding to Alice’s account
-#. setup a delivery-vs-payment (DvP) transaction to exchange the two holdings
+#. setup a delivery-vs-payment (DvP) transaction to give Alice's token holding to Bob in exchange for a ``USD`` holding
 #. settle this transaction atomically
 
 This example builds on the previous :doc:`Transfer <transfer>` tutorial script such that the same
