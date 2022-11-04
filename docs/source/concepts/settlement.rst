@@ -8,7 +8,7 @@ Settlement
 a financial transaction.
 
 The library provides facilities to execute these transfers atomically (i.e., within the same Daml transaction).
-Interfaces are defined in the ``Daml.Finance.Interface.Settlement`` package, whereas implementations are is provided in ``Daml.Finance.Settlement``.
+Interfaces are defined in the ``Daml.Finance.Interface.Settlement`` package, whereas implementations are provided in ``Daml.Finance.Settlement``.
 
 In this page we illustrate the settlement workflow with the help
 of an example FX transaction, where Alice transfers a EUR-denominated holding
@@ -21,10 +21,10 @@ Workflow
 
 Our initial state looks as follows:
 
-* Alice owns a holding on an `EUR` instrument, for an amount of `1000`
-* Bob owns a holding on a `USD` instrument, for an amount of `1000`
+* Alice owns a holding on a ``EUR`` instrument, for an amount of ``1000``
+* Bob owns a holding on a ``USD`` instrument, for an amount of ``1000``
 
-These holding are generally held at different custodians.
+These holdings are generally held at different custodians.
 
 .. image:: ../images/settlement_initial_state.png
    :alt: Alice owns a EUR holding, Bob owns a USD holding.
@@ -52,12 +52,12 @@ In order to perform the transfer, we now need to specify for each ``Instruction`
 #. which holding should be used
 #. to which account it should be transferred.
 
-Alice and Bob ``allocate`` the instruction where they are, respectively, the sender by pledging their holding.
+Alice ``allocates`` the instruction where she is the sender by pledging her holding. Bob does the same on the instruction where he is the sender.
 
 .. image:: ../images/settlement_allocated.png
    :alt: Settlement is allocated.
 
-Each receiver can then specify to which account the holding should be sent to by ``approving`` the corresponding instruction.
+Each receiver can then specify to which account the holding should be sent by ``approving`` the corresponding instruction.
 
 .. image:: ../images/settlement_allocated_approved.png
    :alt: Settlement is allocated and approved.
@@ -70,7 +70,7 @@ Once instructions are allocated and approved, a Settler party uses the ``Batch``
 .. image:: ../images/settlement_executed.png
    :alt: Settlement is allocated and approved.
 
-The instructions and batch are archived following a successful execution.
+The instructions and the batch are archived following a successful execution.
 
 Remarks
 =======
@@ -79,7 +79,7 @@ There are some assumptions that need to be verified in order for the transaction
 
 - Bob needs to have an account at the custodian where Alice's holding is held
 - Alice's holding needs to be :ref:`Transferable <type-daml-finance-interface-holding-transferable-transferable-24986>`
-- The transfer must be fully authorized (TODO : add a link to a page where we describe the role of account instructors and approvers, probably somewhere in the asset model)
+- The transfer must be fully authorized
 
 Also, note that the allocation and approval steps can happen in any order.
 
@@ -107,7 +107,7 @@ In this case, a direct holding transfer from Alice and Bob cannot generally be i
    :alt: Instructions for intermediated settlement: Alice sends 1000 EUR to Bank A. Bank A sends 1000 EUR to Bank B. Bank B sends 1000 EUR to Bob.
 
 We refer to this scenario as *settlement with intermediaries*, or just *intermediated settlement*.
-The Settlement Factory is responsible for generating the correct set of instructions, such that full allocation and approval are possible.
+The Settlement Factory is responsible for generating the correct set of instructions, such that their allocation and approval are effectively possible.
 
 Instruction
 ===========
