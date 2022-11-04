@@ -107,7 +107,7 @@ In this case, a direct holding transfer from Alice and Bob cannot generally be i
    :alt: Instructions for intermediated settlement: Alice sends 1000 EUR to Bank A. Bank A sends 1000 EUR to Bank B. Bank B sends 1000 EUR to Bob.
 
 We refer to this scenario as *settlement with intermediaries*, or just *intermediated settlement*.
-The Settlement Factory is responsible for generating the correct set of instructions, such that their allocation and approval are effectively possible.
+The Settlement Factory is responsible for generating the correct set of instructions, so that they can be allocated and approved by the respective parties.
 
 Instruction
 ===========
