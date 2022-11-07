@@ -68,7 +68,7 @@ dataDependenciesParser =
   DataDependencies
     <$> hsubparser (command "update" (info (pure Update) (progDesc "Update package data-dependencies based on imports in package sources."))
       <> command "validate" (info (pure Validate) (progDesc "Validate if package data-dependencies require updating. Throws an exception if any updates are found. This does not update any data-dependencies."))
-      <> command "dryrun" (info (pure DryRun) (progDesc "Displays all package data-dependencies that require updating. This does not update any data-dependencies.")))
+      <> command "dry-run" (info (pure DryRun) (progDesc "Displays all package data-dependencies that require updating. This does not update any data-dependencies.")))
 
 -- | Input Parameters to the application.
 parameters :: Parser Arguments

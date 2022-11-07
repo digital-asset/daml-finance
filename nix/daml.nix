@@ -17,4 +17,4 @@ in
       mkdir -p $out/nix-support
       echo export DAML_HOME=$out > $out/nix-support/setup-hook
     '';
-}
+  }

@@ -17,10 +17,9 @@ let
   ];
   haskellEnv = haskell.packages.ghc8107.ghcWithPackages haskellDeps;
   hls = haskell-language-server.override { supportedGhcVersions = [ "8107"]; };
-in mkShell {
-  buildInputs = [
-    haskellEnv
+  dependencies = with pkgs; [ haskellEnv
     haskellPackages.cabal-install
     hls
-  ];
-}
+    ];
+in
+  dependencies
