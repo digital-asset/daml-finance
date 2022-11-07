@@ -5,6 +5,7 @@ module Daml.Finance.Claims.Util.Lifecycle
   ( electionEvent
   , lifecycle
   , lifecycleClaims
+  , mergeProducedAndConsumed
   , net
   , netOnTag
   , splitPending
@@ -13,9 +14,11 @@ module Daml.Finance.Claims.Util.Lifecycle
 
 import ContingentClaims.Lifecycle.Lifecycle qualified as CC (exercise, lifecycle)
 import DA.Action (foldlA)
+import DA.Date
 import DA.Either (partitionEithers)
 import DA.List (head, groupOn, sort)
 import DA.Map as M (fromList, lookup)
+import DA.Time
 import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, GetClaims(..), getAcquisitionTime, getClaims)
 import Daml.Finance.Interface.Claims.Types (C, Observable, Pending(..), TaggedClaim(..))
 import Daml.Finance.Interface.Data.NumericObservable qualified as NumericObservable (I, observe)
@@ -144,3 +147,35 @@ splitPending =
       f p acc | p.amount < 0.0 = Left (Instrument.qty (- 1.0 * p.amount) p.instrument) :: acc
       f p acc | p.amount > 0.0 = Right (Instrument.qty p.amount p.instrument) :: acc
       f _ acc = acc
+
+-- | Merge consumed and produced instruments into a list of pending settlements.
+-- This will only reproduce instrument and quantity, not tag or time.
+mergeProducedAndConsumed : [Instrument.Q] -> [Instrument.Q] -> [Pending]
+mergeProducedAndConsumed consumed produced =
+  pendingConsumed ++ pendingProduced
+    where
+      pendingConsumed = map (\q -> Pending with tag = "", t = (time (daysSinceEpochToDate 0) 0 0 0), instrument = q.unit, amount = q.amount) consumed
+      pendingProduced = map (\q -> Pending with tag = "", t = (time (daysSinceEpochToDate 0) 0 0 0), instrument = q.unit, amount = -1.0 * q.amount) produced
+
+{-
+
+  partitionEithers . foldr f []
+    where
+      f p acc | p.amount < 0.0 = Left (Instrument.qty (- 1.0 * p.amount) p.instrument) :: acc
+      f p acc | p.amount > 0.0 = Right (Instrument.qty p.amount p.instrument) :: acc
+      f _ acc = acc
+
+  let
+    groupedPending = groupOn (.instrument) pending
+    createPendingNode p =
+      let
+        (aggregatedTag, aggregatedAmount) = foldl (\acc e -> ("|" <> e.tag <> acc._1, acc._2 + e.amount)) ("", 0.0) p
+      in
+        Pending with
+          tag = "netted " <> aggregatedTag
+          t = (.t) $ head p
+          instrument = (.instrument) $ head p
+          amount = aggregatedAmount
+  in
+    map createPendingNode groupedPending
+ -}
