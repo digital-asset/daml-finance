@@ -1,0 +1,70 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Generic.Test.Example where
+
+import ContingentClaims.Core.Claim (Inequality(..), one, scale, when)
+import ContingentClaims.Core.Observation (Observation(..))
+import DA.Date
+import DA.Map qualified as M (empty, fromList)
+import DA.Set (empty, singleton)
+import Daml.Finance.Data.Observable.Observation (Observation(..))
+import Daml.Finance.Instrument.Generic.Test.Util (originateGeneric, dateToDateClockTime, mapClaimToUTCTime)
+import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I)
+import Daml.Finance.Interface.Types.Common (Id(..))
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate, submitExerciseInterfaceByKeyCmd)
+import Daml.Finance.Test.Util.Lifecycle (createClockAndEvent)
+import Daml.Script
+
+-- | Parties involved in the test script.
+data TestParties = TestParties
+  with
+    bank : Party
+      -- ^ Acts as custodian in the respective holdings (both cash holdings and instrument holdings). It also acts as depository in the forward instrument.
+    broker : Party
+      -- ^ Acts as issuer of the forward contract. It is also the party tasked with lifecycling of the contract.
+    centralBank : Party
+      -- ^ The Central Bank is the depository and the issuer of the cash instrument.
+    publicParty : Party
+      -- ^ The public party. Every party can readAs the public party.
+
+-- Cash-settled forward trade lifecycling and settlement (needs observations)
+run : Script ()
+run = script do
+  TestParties{..} <- setupParties
+
+  -- Cash instrument
+  let pp = [("PublicParty", singleton publicParty)]
+  now <- getTime
+  cashInstrument <- Instrument.originate centralBank centralBank "USD" "United States Dollar" pp now
+
+  -- Create and distribute a gerneric derivative
+  let
+    claims =
+      when (TimeGte $ date 2022 Nov 08) $
+        scale (Observe "SPOT/AAPL" - Const 150.0) $
+          one cashInstrument
+
+  genericInstrument <- originateGeneric bank broker "FWD-AAPL" "Forward Contract" now (mapClaimToUTCTime claims) pp now
+
+  -- Create observable
+  let
+    observations = M.fromList $ (\(t,x) -> (dateToDateClockTime t,x)) <$>
+      [(date 2022 Nov 08, 200.0)
+      ]
+  observableCid <- toInterfaceContractId <$> submit broker do createCmd Observation with provider = broker; id = Id "SPOT/AAPL"; observations; observers = M.empty
+
+  -- Define current time
+  (clockCid, clockEventCid) <- createClockAndEvent (singleton broker) (date 2022 Nov 08) empty
+
+  -- Lifecycle claim
+  (updatedInstrumentCid, [effectCid]) <- Instrument.submitExerciseInterfaceByKeyCmd @Lifecycle.I [broker] [] genericInstrument Lifecycle.Evolve with eventCid = clockEventCid; observableCids = [observableCid]; ruleName = "Time"; timeObservableCid = clockCid
+
+  pure ()
+
+setupParties : Script TestParties
+setupParties = do
+  [bank, broker, centralBank, publicParty] <-
+    createParties ["Bank", "Broker", "Central Bank", "PublicParty"]
+  pure $ TestParties with bank; broker; centralBank; publicParty
