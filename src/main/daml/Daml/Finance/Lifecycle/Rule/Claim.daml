@@ -12,6 +12,7 @@ import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimResu
 import Daml.Finance.Interface.Settlement.Factory qualified as Factory (I, Instruct(..))
 import Daml.Finance.Interface.Settlement.Types (Step(..))
 import Daml.Finance.Interface.Types.Common (Parties)
+import Daml.Finance.Lifecycle.Rule.Util
 
 -- | Type synonym for `Rule`.
 type T = Rule
@@ -29,6 +30,8 @@ template Rule
       -- ^ Any of the parties can trigger settlement of the resulting batch.
     settlementFactoryCid : ContractId Factory.I
       -- ^ Settlement factory contract used to create a `Batch` of `Instruction`\s.
+    netInstructions : Bool
+      -- ^ Configure whether netting should be enabled for quantities having the same (instrument, sender, receiver).
   where
     signatory providers
     observer claimers
@@ -53,8 +56,9 @@ template Rule
           calculateSteps holding holdingCid = do
             Effect.CalculationResult with consumed; produced <- exercise effectCid Effect.Calculate with actor = claimer; holdingCid
             let
-              consumedSteps = createSteps True consumed holding
-              producedSteps = createSteps False produced holding
+              (consumedNetted, producedNetted) = if netInstructions then splitPending . net $ mergeConsumedAndProduced consumed produced else (consumed, produced)
+              consumedSteps = createSteps True consumedNetted holding
+              producedSteps = createSteps False producedNetted holding
             pure $ consumedSteps <> producedSteps
 
         steps <- mconcat <$> sequence (zipWith calculateSteps holdings holdingCids)
