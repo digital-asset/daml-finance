@@ -5,10 +5,17 @@ module Daml.Finance.Lifecycle.Rule.Util where
 
 import DA.Either (partitionEithers)
 import DA.List (head, groupOn)
-import DA.Time
-import DA.Date
-import Daml.Finance.Interface.Claims.Types (Pending(..))
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (Q, qty)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (K, Q, qty)
+
+-- | Type used to reference assets in the claim tree.
+type Deliverable = Instrument.K
+
+-- | Type used to record pending payments.
+data Pending = Pending
+  with
+    instrument : Deliverable
+    amount : Decimal
+  deriving (Eq, Show)
 
 -- | Merge consumed and produced instruments into a list of pending settlements.
 -- This will only reproduce instrument and quantity, not tag or time.
@@ -16,8 +23,8 @@ mergeConsumedAndProduced : [Instrument.Q] -> [Instrument.Q] -> [Pending]
 mergeConsumedAndProduced consumed produced =
   pendingConsumed ++ pendingProduced
     where
-      pendingConsumed = map (\q -> Pending with tag = "", t = (time (daysSinceEpochToDate 0) 0 0 0), instrument = q.unit, amount = -1.0 * q.amount) consumed
-      pendingProduced = map (\q -> Pending with tag = "", t = (time (daysSinceEpochToDate 0) 0 0 0), instrument = q.unit, amount = q.amount) produced
+      pendingConsumed = map (\q -> Pending with instrument = q.unit, amount = -1.0 * q.amount) consumed
+      pendingProduced = map (\q -> Pending with instrument = q.unit, amount = q.amount) produced
 
 -- | Map pending settlements into corresponding instrument quantities and split them into consumed and produced.
 -- Pending items with an amount of `0.0` are discarded.
@@ -36,11 +43,9 @@ net pending =
     groupedPending = groupOn (.instrument) pending
     createPendingNode p =
       let
-        (aggregatedTag, aggregatedAmount) = foldl (\acc e -> ("|" <> e.tag <> acc._1, acc._2 + e.amount)) ("", 0.0) p
+        aggregatedAmount = foldl (\acc e -> acc + e.amount) 0.0 p
       in
         Pending with
-          tag = "netted " <> aggregatedTag
-          t = (.t) $ head p
           instrument = (.instrument) $ head p
           amount = aggregatedAmount
   in
