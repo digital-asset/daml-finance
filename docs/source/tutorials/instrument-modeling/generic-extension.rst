@@ -1,7 +1,7 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-How To Use the Derivative Extension To Model Generic Instruments
+How To Use the Generic Extension To Model Generic Instruments
 ################################################################
 
 To follow the script used in this tutorial you can `clone the Daml Finance repository <https://github.com/digital-asset/daml-finance>`_.
@@ -11,7 +11,7 @@ of this tutorial.
 How To Create a Generic Instrument
 **********************************
 
-The ``Derivative`` extension provides a flexible framework to model generic instruments in Daml Finance.
+The ``Generic`` extension provides a flexible framework to model generic instruments in Daml Finance.
 It encapsulates the ``Contingent Claims`` library, which allows us to model the economic terms of an instrument.
 
 Define the Claim
@@ -26,7 +26,7 @@ This could be modeled in the following way using ``Contingent Claims``:
   :start-after: -- CREATE_CC_INSTRUMENT_VARIABLES_BEGIN
   :end-before: -- CREATE_CC_INSTRUMENT_VARIABLES_END
 
-Now that we have specified the economic terms we can create a derivative instrument:
+Now that we have specified the economic terms we can create a generic instrument:
 
 .. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Generic/Test/Intermediated/BondCoupon.daml
   :language: daml

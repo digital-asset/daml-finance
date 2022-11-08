@@ -12,7 +12,7 @@ We have now seen two different ways of modeling a fixed coupon bond using ``Cont
 Explicitly Storing the Contingent Claims Tree on the Ledger
 ===========================================================
 
-When we use the :doc:`Derivative extension <derivative-extension>` we create the
+When we use the :doc:`Generic extension <generic-extension>` we create the
 claims tree at instrument inception and store this representation explicitly
 on the ledger. Since the tree is stored statically it can only change if the instrument is
 updated on ledger. For example, after a coupon payment a new version of the instrument (excluding
