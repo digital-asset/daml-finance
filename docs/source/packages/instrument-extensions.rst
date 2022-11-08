@@ -109,4 +109,4 @@ Generic
     - :ref:`Instrument <module-daml-finance-instrument-generic-instrument-67364>`: An instrument representing a generic payoff, modelled using ``Contingent Claims``
     - :ref:`Util <module-daml-finance-instrument-generic-util-13331>`: Utility functions related to creating Contingent Claims for bonds/swaps including lifecycling logic
 
-    The tutorial :doc:`How to use the Derivative extension to model generic instruments <../tutorials/instrument-modeling/derivative-extension>` describes how a payoff is defined using ``Contingent Claims`` in practice.
+    The tutorial :doc:`How to use the Generic extension to model generic instruments <../tutorials/instrument-modeling/generic-extension>` describes how a payoff is defined using ``Contingent Claims`` in practice.
