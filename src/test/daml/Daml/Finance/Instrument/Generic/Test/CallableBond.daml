@@ -75,13 +75,11 @@ run = script do
     createCmd Fungible.Factory with provider = bank; observers = M.fromList pp
 
   -- Create accounts
-  [bankAccount, investorAccount] <- mapA (Account.createAccount "Default Account" [] accountFactoryCid holdingFactoryCid [] Account.Owner bank) [bank, investor]
+  investorAccount <- Account.createAccount "Default Account" [] accountFactoryCid holdingFactoryCid [] Account.Owner bank investor
 
-  -- Distribute cash
+  -- Originate cash
   now <- getTime
   cashInstrumentCid <- Instrument.originate centralBank centralBank "USD" "United States Dollar" pp now
-  bankCashTransferableCouponCid <- Account.credit [publicParty] cashInstrumentCid 1_000.0 bankAccount
-  bankCashTransferablePrincipalCid <- Account.credit [publicParty] cashInstrumentCid 100_000.0 bankAccount
 
   -- Create and distribute a generic derivative
   let
@@ -92,7 +90,7 @@ run = script do
     principalAmount = 100_000.0
     (bond, called, _) = bootstrapBond intermediateDate maturityDate couponAmount principalAmount cashInstrumentCid
   genericInstrument <- originateGeneric bank issuer "ABC.DE 1% 07/07/23 Corp" "Callable Bond" acquisitionTime bond pp now
-  investorGenericTransferableCid <- Account.credit [publicParty] genericInstrument 1.0 investorAccount
+  investorGenericHoldingCid <- Account.credit [publicParty] genericInstrument 1.0 investorAccount
 
   -- Create election factory to allow custodian to create elections
   callElectionFactoryCid <- submit issuer do
@@ -116,7 +114,7 @@ run = script do
     exerciseCmd callElectionFactoryCid CreateElection with
       elector = bank
       electionTime = dateToDateClockTime intermediateDate
-      holdingCid = investorGenericTransferableCid
+      holdingCid = investorGenericHoldingCid
       amount = 5000.0
 
   -- Create election
@@ -124,7 +122,7 @@ run = script do
     exerciseCmd callElectionFactoryCid CreateElection with
       elector = bank
       electionTime = dateToDateClockTime intermediateDate
-      holdingCid = fromInterfaceContractId investorGenericTransferableCid
+      holdingCid = fromInterfaceContractId investorGenericHoldingCid
       amount = 1.0
 
   -- Apply election to generate new instrument version + effects
@@ -132,48 +130,45 @@ run = script do
     exerciseCmd callBondCid Election.Apply
       with
         clockCid
-        settlers
         observableCids = []
 
   -- Create settlement factory
   settlementFactoryCid <- toInterfaceContractId <$> submit bank do createCmd Factory with provider = bank; observers = empty
 
-  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [bank, investor] [] do
+  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit bank do
     createCmd Claim.Rule
       with
-        providers = fromList [bank, investor]
-        claimers = singleton bank
+        providers = singleton bank
+        claimers = fromList [bank, investor]
         settlers
         settlementFactoryCid
+        netInstructions = True
 
   -- Claim effect
   result <- submitMulti [bank] [publicParty] do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
       claimer = bank
-      holdingCids = [investorGenericTransferableCid]
+      holdingCids = [investorGenericHoldingCid]
       effectCid
       batchId = Id "BondCallSettlement"
 
-  let [bankCashInstructionCouponCid, bankCashInstructionPrincipalCid] = result.instructionCids
+  let [investorInstrumentInstructionCid, bankCashInstructionCouponAndPrincipalCid] = result.instructionCids
 
   -- Allocate instructions
-  (bankCashInstructionCouponCid, _) <- submit bank do exerciseCmd bankCashInstructionCouponCid Instruction.Allocate with actors = singleton bank; allocation = Pledge bankCashTransferableCouponCid
-  (bankCashInstructionPrincipalCid, _) <- submit bank do exerciseCmd bankCashInstructionPrincipalCid Instruction.Allocate with actors = singleton bank; allocation = Pledge bankCashTransferablePrincipalCid
+  (investorInstrumentInstructionCid, _) <- submit investor do exerciseCmd investorInstrumentInstructionCid Instruction.Allocate with actors = singleton investor; allocation = Pledge investorGenericHoldingCid
+  (bankCashInstructionCouponAndPrincipalCid, _) <- submit bank do exerciseCmd bankCashInstructionCouponAndPrincipalCid Instruction.Allocate with actors = singleton bank; allocation = CreditReceiver
 
   -- Approve instructions
-  bankCashInstructionCouponCid <- submit investor do exerciseCmd bankCashInstructionCouponCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorAccount
-  bankCashInstructionPrincipalCid <- submit investor do exerciseCmd bankCashInstructionPrincipalCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorAccount
+  investorInstrumentInstructionCid <- submit bank do exerciseCmd investorInstrumentInstructionCid Instruction.Approve with actors = singleton bank; approval = DebitSender
+  bankCashInstructionCouponAndPrincipalCid <- submit investor do exerciseCmd bankCashInstructionCouponAndPrincipalCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorAccount
 
   -- Settle batch
-  [investorCashTransferableCouponCid, investorCashTransferablePrincipalCid] <- submitMulti (toList settlers) [publicParty] do exerciseCmd result.batchCid Batch.Settle with actors = settlers
+  [investorCashHoldingCouponAndPrincipalCid] <- submitMulti (toList settlers) [publicParty] do exerciseCmd result.batchCid Batch.Settle with actors = settlers
 
   -- Assert state
-  Some investorCoupon <- queryContractId @Fungible.T investor $ coerceContractId investorCashTransferableCouponCid
-  Some investorPrincipal <- queryContractId @Fungible.T investor $ coerceContractId investorCashTransferablePrincipalCid
-  getAmount investorCoupon === 1_000.0
-  getOwner investorCoupon === investor
-  getAmount investorPrincipal === 100_000.0
-  getOwner investorPrincipal === investor
+  Some investorCouponAndPrincipal <- queryContractId investor $ fromInterfaceContractId @Fungible.T investorCashHoldingCouponAndPrincipalCid
+  getAmount investorCouponAndPrincipal === couponAmount + principalAmount
+  getOwner investorCouponAndPrincipal === investor
 
   pure ()
 

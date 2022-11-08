@@ -46,13 +46,14 @@ run = script do
 
   -- Create lifecycle rules
   distributionRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit issuer do createCmd Distribution.Rule with providers = singleton issuer; lifecycler = issuer; observers = singleton public
-  claimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [issuer, investor] [] do
+  claimRuleCid <- toInterfaceContractId @Claim.I <$> submit issuer do
     createCmd Claim.Rule
       with
-        providers = fromList [issuer, investor]
-        claimers = singleton investor
-        settlers = singleton investor
+        providers = singleton issuer
+        claimers = fromList [investor, issuer]
+        settlers = fromList [investor, issuer]
         settlementFactoryCid
+        netInstructions = False
 
   -- Create clock
   now <- getTime
@@ -77,31 +78,34 @@ run = script do
       perUnitDistribution = [Instrument.qty 2.0 cashInstrument]
 
   -- Lifecycle cash dividend
-  (_, [effectCid]) <- submit issuer do exerciseCmd distributionRuleCid Lifecycle.Evolve with ruleName = "Dividend"; settlers = singleton investor; observableCids = []; eventCid = distributionEventCid; timeObservableCid = clockCid
+  (_, [effectCid]) <- submit issuer do exerciseCmd distributionRuleCid Lifecycle.Evolve with ruleName = "Dividend"; observableCids = []; eventCid = distributionEventCid; timeObservableCid = clockCid
 
   -- Claim effect
-  result <- submitMulti [investor] [public] do
+  -- The effect is claimed and then settled by the issuer, but it could also be claimed and then settled by the investor.
+  result <- submit issuer do
     exerciseCmd claimRuleCid Claim.ClaimEffect
       with
-        claimer = investor
+        claimer = issuer
         holdingCids = [investorEquityCid]
         effectCid
         batchId = Id "DividendSettlement"
 
-  let
-    Some [investorEquityTransferableCid] = result.newInstrumentHoldingCids
-    [issuerCashInstructionCid] = result.instructionCids
+  let [investorInstrumentInstructionCid, issuerInstrumentInstructionCid, issuerCashInstructionCid] = result.instructionCids
 
   -- Allocate instructions
+  (investorInstrumentInstructionCid, _) <- submit investor do exerciseCmd investorInstrumentInstructionCid Instruction.Allocate with actors = singleton investor; allocation = Pledge $ coerceContractId investorEquityCid
+  (issuerInstrumentInstructionCid, _) <- submit issuer do exerciseCmd issuerInstrumentInstructionCid Instruction.Allocate with actors = singleton issuer; allocation = CreditReceiver
   (issuerCashInstructionCid, _) <- submit issuer do exerciseCmd issuerCashInstructionCid Instruction.Allocate with actors = singleton issuer; allocation = Pledge issuerCashCid
 
   -- Approve instructions
+  investorInstrumentInstructionCid <- submit issuer do exerciseCmd investorInstrumentInstructionCid Instruction.Approve with actors = singleton issuer; approval = DebitSender
+  issuerInstrumentInstructionCid <- submit investor do exerciseCmd issuerInstrumentInstructionCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorSecuritiesAccount
   issuerCashInstructionCid <- submit investor do exerciseCmd issuerCashInstructionCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorCashAccount
 
   -- Settle batch
-  [investorCashTransferableCid] <- submitMulti [investor] [public] do exerciseCmd result.batchCid Batch.Settle with actors = singleton investor
+  [investorEquityHoldingCid, investorCashHoldingCid] <- submit issuer do exerciseCmd result.batchCid Batch.Settle with actors = singleton issuer
 
   -- Assert state
-  Holding.verifyOwnerOfHolding [(investor, investorEquityTransferableCid), (investor, coerceContractId investorCashTransferableCid)]
+  Holding.verifyOwnerOfHolding [(investor, investorEquityHoldingCid), (investor, coerceContractId investorCashHoldingCid)]
 
   pure ()

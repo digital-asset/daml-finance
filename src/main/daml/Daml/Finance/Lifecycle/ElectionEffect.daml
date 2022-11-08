@@ -5,7 +5,7 @@ module Daml.Finance.Lifecycle.ElectionEffect where
 
 import DA.Assert ((===))
 import Daml.Finance.Interface.Holding.Util (getAmount, getInstrument)
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (K, Q, scale)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (K, Q, qty, scale)
 import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (Calculate(..), CalculationResult(..), HasImplementation, I, SetProvider(..), View(..))
 import Daml.Finance.Interface.Types.Common (Id, Parties, PartiesMap)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (flattenObservers)
@@ -21,8 +21,6 @@ template ElectionEffect
   with
     providers : Parties
       -- ^ The effect provider.
-    settlers : Parties
-      -- ^ Any of the parties can settle the effect's consequences.
     custodian : Party
       -- ^ The custodian of the holding put forward for election.
     owner : Party
@@ -37,9 +35,9 @@ template ElectionEffect
       -- ^ The produced instrument, when it exists.
     amount : Decimal
       -- ^ The elected amount.
-    consumed : [Instrument.Q]
+    otherConsumed : [Instrument.Q]
       -- ^ Consumed quantities (not including the target instrument).
-    produced : [Instrument.Q]
+    otherProduced : [Instrument.Q]
       -- ^ Produced quantities (not including the produced instrument).
     settlementDate : Date
       -- ^ The effect's settlement date.
@@ -50,7 +48,7 @@ template ElectionEffect
     observer Disclosure.flattenObservers observers
 
     interface instance Effect.I for ElectionEffect where
-      view = Effect.View with providers; settlers; id; description; targetInstrument; producedInstrument; consumed; produced; settlementDate
+      view = Effect.View with providers; id; description; targetInstrument; producedInstrument; otherConsumed; otherProduced; settlementDate
 
       calculate Effect.Calculate{actor; holdingCid} self = do
         holding <- fetch holdingCid
@@ -61,7 +59,9 @@ template ElectionEffect
         let scaleAll = fmap $ Instrument.scale $ getAmount holding
         pure Effect.CalculationResult
           with
-            consumed = scaleAll consumed
-            produced = scaleAll produced
+          consumed = scaleAll $ Instrument.qty 1.0 targetInstrument :: otherConsumed
+          produced = scaleAll $ case producedInstrument of
+            Some pi -> Instrument.qty 1.0 pi :: otherProduced
+            None -> otherProduced
 
       setProvider Effect.SetProvider{newProviders} = toInterfaceContractId <$> create this with providers = newProviders

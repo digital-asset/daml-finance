@@ -5,15 +5,14 @@ module Daml.Finance.Lifecycle.Rule.Claim where
 
 import DA.Foldable (forA_)
 import DA.Set (member)
-import Daml.Finance.Interface.Account.Account qualified as Account (exerciseInterfaceByKey, Debit(..), Credit(..), I)
-import Daml.Finance.Interface.Account.Util (getAccount, getCustodian, getOwner)
-import Daml.Finance.Interface.Holding.Util (getAmount, getInstrument)
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (qty)
+import Daml.Finance.Interface.Account.Util (getCustodian, getOwner)
+import Daml.Finance.Interface.Holding.Util (getInstrument)
 import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (CalculationResult(..), Calculate(..), GetView(..))
 import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimResult(..), ClaimEffect(..), HasImplementation(..), I, View(..))
 import Daml.Finance.Interface.Settlement.Factory qualified as Factory (I, Instruct(..))
 import Daml.Finance.Interface.Settlement.Types (Step(..))
 import Daml.Finance.Interface.Types.Common (Parties)
+import Daml.Finance.Lifecycle.Rule.Util
 
 -- | Type synonym for `Rule`.
 type T = Rule
@@ -31,8 +30,11 @@ template Rule
       -- ^ Any of the parties can trigger settlement of the resulting batch.
     settlementFactoryCid : ContractId Factory.I
       -- ^ Settlement factory contract used to create a `Batch` of `Instruction`\s.
+    netInstructions : Bool
+      -- ^ Configure whether netting should be enabled for quantities having the same (instrument, sender, receiver).
   where
     signatory providers
+    observer claimers
 
     interface instance Claim.I for Rule where
       view = Claim.View with providers; claimers; settlers; settlementFactoryCid
@@ -42,8 +44,6 @@ template Rule
         holdings <- mapA fetch holdingCids
         forA_ holdings \h -> do
           assertMsg "The provided holding does not reference the expected instrument." $ getInstrument h == effectView.targetInstrument
-          assertMsg "The settlement rule is missing the signature of a holding custodian" $ getCustodian h `member` providers
-          assertMsg "The settlement rule is missing the signature of a holding owner" $ getOwner h `member` providers
 
         -- Calculate settlement steps
         let
@@ -56,26 +56,12 @@ template Rule
           calculateSteps holding holdingCid = do
             Effect.CalculationResult with consumed; produced <- exercise effectCid Effect.Calculate with actor = claimer; holdingCid
             let
-              consumedSteps = createSteps True consumed holding
-              producedSteps = createSteps False produced holding
+              (consumedNetted, producedNetted) = if netInstructions then splitPending . net $ mergeConsumedAndProduced consumed produced else (consumed, produced)
+              consumedSteps = createSteps True consumedNetted holding
+              producedSteps = createSteps False producedNetted holding
             pure $ consumedSteps <> producedSteps
 
         steps <- mconcat <$> sequence (zipWith calculateSteps holdings holdingCids)
-
-        -- Update holding on target instrument
-        let
-          updateInstrumentHolding (holding, holdingCid) = do
-            let
-              account = getAccount holding
-              amount = getAmount holding
-            -- Debit old instrument
-            Account.exerciseInterfaceByKey @Account.I account claimer Account.Debit with holdingCid
-            -- Credit new instrument
-            case effectView.producedInstrument of
-              Some pi -> Some <$> Account.exerciseInterfaceByKey @Account.I account claimer Account.Credit with quantity = Instrument.qty amount pi
-              None -> pure None
-
-        newInstrumentHoldingCids <- fmap sequence . mapA updateInstrumentHolding $ zip holdings holdingCids
 
         -- Generate settlement instructions for other instruments
         (batchCid, instructionCids) <- exercise settlementFactoryCid Factory.Instruct
@@ -86,4 +72,4 @@ template Rule
             description = effectView.description
             contextId = Some effectView.id
             steps
-        pure Claim.ClaimResult with newInstrumentHoldingCids; batchCid; instructionCids
+        pure Claim.ClaimResult with batchCid; instructionCids

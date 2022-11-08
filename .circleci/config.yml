@@ -63,10 +63,17 @@ commands:
             nix-shell \
               --pure \
               --keep gpg_code_signing \
-              --run 'echo ${gpg_code_signing} | base64 -d | gpg --import --quiet'
+              --run bash \<<'EOF'
+                  set -euo pipefail
+
+                  echo ${gpg_code_signing} | base64 -d | gpg --import --quiet
+            EOF
   run_release:
     description: "GitHub Release"
     steps:
+      - restore_cache:
+          keys:
+            - daml-finance-dars-{{ .Revision }}
       - run:
           name: "Run GitHub Release"
           command: |
@@ -75,8 +82,9 @@ commands:
               --keep GITHUB_TOKEN \
               --keep CIRCLE_BRANCH \
               --run bash \<<'EOF'
-                  PACKAGES=(`ls package/main/daml/*/daml.yaml`)
+                  set -euo pipefail
 
+                  PACKAGES=(`ls package/main/daml/*/daml.yaml`)
                   for package in ${PACKAGES[@]}; do
                     PACKAGE=`echo ${package} | cut -f4 -d "/"`
                     VERSION=`yq e '.version' ${package}`
@@ -102,18 +110,25 @@ commands:
   run_assembly:
     description: "Build Assembly for docs.daml.com"
     steps:
+      - restore_cache:
+          keys:
+            - docs-build-{{ .Revision }}
       - run:
           name: Run assembly build
           command: |
+            set -euo pipefail
+
             # Build assembly
             make ci-assembly
 
             nix-shell \
               --pure \
               --keep GITHUB_TOKEN \
-              --keep ARTIFACTORY_USER \
+              --keep ARTIFACTORY_USERNAME \
               --keep ARTIFACTORY_PASSWORD \
               --run bash \<<'EOF'
+                  set -euo pipefail
+
                   # Compress and zip assembly
                   ASSEMBLY_VERSION=`yq e '.version' daml.yaml`
                   DOC_SOURCES_TAR="daml-finance-doc-sources-${ASSEMBLY_VERSION}.tar.gz"
@@ -121,7 +136,7 @@ commands:
 
                   # Push assembly to Artifactory
                   URL="https://digitalasset.jfrog.io/artifactory/assembly/daml-finance/${ASSEMBLY_VERSION}/${DOC_SOURCES_TAR}"
-                  curl -u "${ARTIFACTORY_USER}:${ARTIFACTORY_PASSWORD}" -sSf -X PUT -T ${DOC_SOURCES_TAR} ${URL}
+                  curl -u "${ARTIFACTORY_USERNAME}:${ARTIFACTORY_PASSWORD}" -sSf -X PUT -T "${DOC_SOURCES_TAR}" "${URL}"
 
                   # Tag assembly in GitHub
                   TAG="assembly/${ASSEMBLY_VERSION}"
@@ -176,18 +191,12 @@ jobs:
       - checkout
       - setup_nix
       - import_gpg_key
-      - restore_cache:
-          keys:
-            - daml-finance-dars-{{ .Revision }}
       - run_release
   assembly:
     executor: daml-finance-executor
     steps:
       - checkout
       - setup_nix
-      - restore_cache:
-          keys:
-            - docs-build-{{ .Revision }}
       - run_assembly
 
 workflows:

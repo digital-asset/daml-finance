@@ -57,7 +57,7 @@ clean-all: clean clean-packages
 
 ##################################
 # CI                             #
-#  - utilises nix dependencies   #
+#  - utilises nix                #
 #  - avoids unnecessary rebuilds #
 ##################################
 

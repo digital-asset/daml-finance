@@ -5,7 +5,7 @@ module Daml.Finance.Lifecycle.Effect where
 
 import DA.Assert ((===))
 import Daml.Finance.Interface.Holding.Util (getAmount, getInstrument)
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (K, Q, scale)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (K, Q, scale, qty)
 import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (Calculate(..), CalculationResult(..), HasImplementation, I, SetProvider(..), View(..))
 import Daml.Finance.Interface.Types.Common (Id, Parties)
 
@@ -19,8 +19,6 @@ template Effect
   with
     providers : Parties
       -- ^ The effect provider.
-    settlers : Parties
-      -- ^ Any of the parties can settle the effect's consequences.
     id : Id
       -- ^ The effect's identifier.
     description : Text
@@ -29,10 +27,10 @@ template Effect
       -- ^ The target instrument.
     producedInstrument : Optional Instrument.K
       -- ^ The produced instrument, when it exists.
-    consumed : [Instrument.Q]
-      -- ^ Consumed quantities (not including the target instrument).
-    produced : [Instrument.Q]
-      -- ^ Produced quantities (not including the produced instrument).
+    otherConsumed : [Instrument.Q]
+      -- ^ Consumed quantities (in addition to the target instrument).
+    otherProduced : [Instrument.Q]
+      -- ^ Produced quantities (in additon to the produced instrument).
     settlementDate : Date
       -- ^ The effect's settlement date.
     observers : Parties
@@ -42,14 +40,16 @@ template Effect
     observer observers
 
     interface instance Effect.I for Effect where
-      view = Effect.View with providers; settlers; id; description; targetInstrument; producedInstrument; consumed; produced; settlementDate
+      view = Effect.View with providers; id; description; targetInstrument; producedInstrument; otherConsumed; otherProduced; settlementDate
 
       calculate Effect.Calculate{holdingCid} _ = do
         holding <- fetch holdingCid
         getInstrument holding === targetInstrument
         let scaleAll = fmap . Instrument.scale $ getAmount holding
         pure Effect.CalculationResult with
-          consumed = scaleAll consumed
-          produced = scaleAll produced
+          consumed = scaleAll $ Instrument.qty 1.0 targetInstrument :: otherConsumed
+          produced = scaleAll $ case producedInstrument of
+            Some pi -> Instrument.qty 1.0 pi :: otherProduced
+            None -> otherProduced
 
       setProvider Effect.SetProvider{newProviders} = toInterfaceContractId <$> create this with providers = newProviders

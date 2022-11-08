@@ -1,0 +1,50 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Lifecycle.Rule.Util where
+
+import DA.Either (partitionEithers)
+import DA.List (head, groupOn)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (K, Q, qty)
+
+-- | Type used to record pending payments.
+data Pending = Pending
+  with
+    instrument : Instrument.K
+    amount : Decimal
+  deriving (Eq, Show)
+
+-- | Merge consumed and produced instruments into a list of pending settlements.
+-- This will only reproduce instrument and quantity, not tag or time.
+mergeConsumedAndProduced : [Instrument.Q] -> [Instrument.Q] -> [Pending]
+mergeConsumedAndProduced consumed produced =
+  pendingConsumed ++ pendingProduced
+    where
+      pendingConsumed = map (\q -> Pending with instrument = q.unit, amount = -1.0 * q.amount) consumed
+      pendingProduced = map (\q -> Pending with instrument = q.unit, amount = q.amount) produced
+
+-- | Map pending settlements into corresponding instrument quantities and split them into consumed and produced.
+-- Pending items with an amount of `0.0` are discarded.
+splitPending : [Pending] -> ([Instrument.Q],[Instrument.Q])
+splitPending =
+  partitionEithers . foldr f []
+    where
+      f p acc | p.amount < 0.0 = Left (Instrument.qty (- 1.0 * p.amount) p.instrument) :: acc
+      f p acc | p.amount > 0.0 = Right (Instrument.qty p.amount p.instrument) :: acc
+      f _ acc = acc
+
+-- | Net pending payments on the same instrument (regardless of tags).
+net : [Pending] -> [Pending]
+net pending =
+  let
+    groupedPending = groupOn (.instrument) pending
+    createPendingNode p =
+      let
+        aggregatedAmount = foldl (\acc e -> acc + e.amount) 0.0 p
+      in
+        Pending with
+          instrument = (.instrument) $ head p
+          amount = aggregatedAmount
+  in
+    map createPendingNode groupedPending
+

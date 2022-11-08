@@ -40,18 +40,18 @@ run = script do
   settlementFactoryCid <- toInterfaceContractId <$> submit custodian do createCmd Factory with provider = custodian; observers = singleton public
 
   -- Create accounts
-  bankOwnAccount <- Account.createAccount "Internal Account" [] accountFactoryCid holdingFactoryCid [] Account.Owner custodian custodian
   investorSecuritiesAccount <- Account.createAccount "Securities Account" [] accountFactoryCid holdingFactoryCid [] Account.Owner custodian investor
 
   -- Create lifecycle rules
   replacementRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit merging do createCmd Replacement.Rule with providers = singleton merging; lifecycler = merging; observers = singleton public
-  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [custodian, investor] [] do
+  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit custodian do
     createCmd Claim.Rule
       with
-        providers = fromList [custodian, investor]
-        claimers = singleton investor
-        settlers = singleton investor
+        providers = singleton custodian
+        claimers = fromList [custodian, investor]
+        settlers = fromList [custodian, investor]
         settlementFactoryCid
+        netInstructions = False
 
   -- Create clock
   now <- getTime
@@ -62,7 +62,6 @@ run = script do
   mergedInstrument <- originateEquity merged merged "INST-2" "0" "XYZ" pp now
 
   -- Distribute holdings
-  bankEquityCid <- Account.credit [] mergedInstrument 1_000.0 bankOwnAccount
   investorEquityCid <- Account.credit [] mergingInstrument 2_000.0 investorSecuritiesAccount
 
   -- Create replacement event
@@ -74,26 +73,28 @@ run = script do
       perUnitReplacement = [Instrument.qty 0.5 mergedInstrument]
 
   -- Lifecycle replacement event
-  (_, [effectCid]) <- submit merging do exerciseCmd replacementRuleCid Lifecycle.Evolve with ruleName = "Merger"; settlers = singleton investor; eventCid = replacementEventCid; observableCids = []; timeObservableCid = clockCid
+  (_, [effectCid]) <- submit merging do exerciseCmd replacementRuleCid Lifecycle.Evolve with ruleName = "Merger"; eventCid = replacementEventCid; observableCids = []; timeObservableCid = clockCid
 
   -- Claim effect
-  result <- submitMulti [investor] [public] do
+  result <- submitMulti [custodian] [public] do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect
       with
-        claimer = investor
+        claimer = custodian
         holdingCids = [investorEquityCid]
         effectCid
         batchId = Id "MergerSettlement"
 
   -- Allocate instructions
-  let [instructionCid] = result.instructionCids
-  (instructionCid, _) <- submit custodian do exerciseCmd instructionCid Instruction.Allocate with actors = singleton custodian; allocation = Pledge bankEquityCid
+  let [consumeInstructionCid, produceInstructionCid] = result.instructionCids
+  (consumeInstructionCid, _) <- submit investor do exerciseCmd consumeInstructionCid Instruction.Allocate with actors = singleton investor; allocation = Pledge $ coerceContractId investorEquityCid
+  (produceInstructionCid, _) <- submit custodian do exerciseCmd produceInstructionCid Instruction.Allocate with actors = singleton custodian; allocation = CreditReceiver
 
   -- Approve instructions
-  instructionCid <- submit investor do exerciseCmd instructionCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorSecuritiesAccount
+  consumeInstructionCid <- submit custodian do exerciseCmd consumeInstructionCid Instruction.Approve with actors = singleton custodian; approval = DebitSender
+  produceInstructionCid <- submit investor do exerciseCmd produceInstructionCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorSecuritiesAccount
 
   -- Settle batch
-  [investorEquityCid] <- submitMulti [investor] [public] do exerciseCmd result.batchCid Batch.Settle with actors = singleton investor
+  [investorEquityCid] <- submit custodian do exerciseCmd result.batchCid Batch.Settle with actors = singleton custodian
 
   -- Assert state
   Holding.verifyOwnerOfHolding [(investor, investorEquityCid)]
