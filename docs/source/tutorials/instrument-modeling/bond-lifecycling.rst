@@ -88,8 +88,6 @@ We start by creating a settlement factory:
 
 The investor then claims the effect:
 
-.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
-
 .. code-block:: daml
 
   -- Claim effect
