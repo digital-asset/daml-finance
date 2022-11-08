@@ -31,7 +31,10 @@ import Options.Applicative(
   , showHelpOnError
   , ParserInfo
   , customExecParser
-  , prefs, hsubparser, command, strArgument, Alternative (many), Mod, CommandFields, commandGroup)
+  , prefs
+  , hsubparser
+  , command
+  )
 
 -- | Packell main commands set.
 data Command
@@ -78,7 +81,7 @@ parameters =
       <> short 'p'
       <> metavar "CONFIG"
       <> showDefault
-      <> value "package/package.yaml"
+      <> value "package/packages.yaml"
       <> help "Path to the package configuration")
     <*> commandParser
 

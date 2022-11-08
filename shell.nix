@@ -9,28 +9,28 @@ let
   pkgsGhc = import sources.nixpkgs-ghc8107 {};
   daml = import ./nix/daml.nix;
   docs = import ./nix/docs.nix;
-  haskell = import ./tools/packell/default.nix;
+  packell = import ./tools/packell/default.nix;
   damlYaml = builtins.fromJSON (builtins.readFile (pkgs.runCommand "daml.yaml.json" { yamlFile = ./daml.yaml; } ''
                 ${pkgs.yj}/bin/yj < "$yamlFile" > $out
               ''));
 in
 pkgs.mkShell {
   SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
-  buildInputs = with pkgs; [
-    (daml { stdenv = stdenv;
-            jdk = openjdk11_headless;
+  buildInputs = [
+    (daml { stdenv = pkgs.stdenv;
+            jdk = pkgs.openjdk11_headless;
             version = damlYaml.sdk-version; })
-    bash
-    binutils # cp, grep, etc.
-    cacert
-    circleci-cli
-    curl
-    gh
-    git
-    gnupg
-    jq
-    yq-go]
+    pkgs.bash
+    pkgs.binutils # cp, grep, etc.
+    pkgs.cacert
+    pkgs.circleci-cli
+    pkgs.curl
+    pkgs.gh
+    pkgs.git
+    pkgs.gnupg
+    pkgs.jq
+    pkgs.yq-go]
     ++ (docs { pkgs = pkgs; })
-    ++ (haskell { pkgs = pkgsGhc; })
+    ++ (packell { pkgs = pkgsGhc; })
   ;
 }
