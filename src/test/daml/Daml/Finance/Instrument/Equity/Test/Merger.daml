@@ -37,21 +37,12 @@ run = script do
   let pp = [("Public", singleton public)]
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory custodian pp
   holdingFactoryCid <- toInterfaceContractId <$> submit custodian do createCmd Fungible.Factory with provider = custodian; observers = M.fromList pp
-  settlementFactoryCid <- toInterfaceContractId <$> submit custodian do createCmd Factory with provider = custodian; observers = singleton public
 
   -- Create accounts
   investorSecuritiesAccount <- Account.createAccount "Securities Account" [] accountFactoryCid holdingFactoryCid [] Account.Owner custodian investor
 
   -- Create lifecycle rules
   replacementRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit merging do createCmd Replacement.Rule with providers = singleton merging; lifecycler = merging; observers = singleton public
-  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit custodian do
-    createCmd Claim.Rule
-      with
-        providers = singleton custodian
-        claimers = fromList [custodian, investor]
-        settlers = fromList [custodian, investor]
-        settlementFactoryCid
-        netInstructions = False
 
   -- Create clock
   now <- getTime
@@ -76,6 +67,16 @@ run = script do
   (_, [effectCid]) <- submit merging do exerciseCmd replacementRuleCid Lifecycle.Evolve with ruleName = "Merger"; eventCid = replacementEventCid; observableCids = []; timeObservableCid = clockCid
 
   -- Claim effect
+  settlementFactoryCid <- toInterfaceContractId <$> submit custodian do createCmd Factory with provider = custodian; observers = singleton public; custodians = M.fromList [(mergingInstrument.id, custodian), (mergedInstrument.id, custodian)]
+  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit custodian do
+    createCmd Claim.Rule
+      with
+        providers = singleton custodian
+        claimers = fromList [custodian, investor]
+        settlers = fromList [custodian, investor]
+        settlementFactoryCid
+        netInstructions = False
+
   result <- submitMulti [custodian] [public] do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect
       with

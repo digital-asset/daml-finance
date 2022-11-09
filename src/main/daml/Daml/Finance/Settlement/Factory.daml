@@ -8,7 +8,7 @@ import DA.Map qualified as M (Map, fromList, lookup)
 import DA.Optional (fromSomeNote)
 import DA.Set (empty)
 import Daml.Finance.Interface.Settlement.Factory qualified as Factory (I, Instruct(..), View(..))
-import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
+import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), RoutedStep(..))
 import Daml.Finance.Interface.Types.Common (Id(..), Parties)
 import Daml.Finance.Settlement.Batch (Batch(..))
 import Daml.Finance.Settlement.Hierarchy (Hierarchy(..), unfoldStep)
@@ -23,6 +23,7 @@ template Factory
       -- ^ Party providing the facility to create settlement instructions.
     observers : Parties
       -- ^ Observers.
+    custodians : M.Map Id Party
   where
     signatory provider
     observer observers
@@ -31,12 +32,19 @@ template Factory
       view = Factory.View with provider; observers
       instruct Factory.Instruct{instructors; settlers; id; description; contextId; steps} = do
         let
+          routeStep step =
+            let
+              instrumentLabel = step.quantity.unit.id
+              custodian = fromSomeNote ("Could not find custodian for instrument " <> show instrumentLabel) $ M.lookup instrumentLabel custodians
+            in
+              RoutedStep with sender = step.sender, receiver = step.receiver; quantity = step.quantity; custodian
           createInstruction step index =
             Instruction with requestors = instructors; signed = empty; settlers; step; allocation = Unallocated; approval = Unapproved; batchId = id; id = Id (show index); observers = M.fromList [(show id, settlers)]
-          instructions = mapWithIndex createInstruction steps
+          routedSteps = map routeStep steps
+          instructions = mapWithIndex createInstruction routedSteps
           instructionIds = map (.id) instructions
         instructionCids <- mapA (fmap toInterfaceContractId . create) instructions
-        batchCid <- toInterfaceContractId <$> create Batch with requestors = instructors; settlers; id; description; contextId; stepsWithInstructionId = zip steps instructionIds
+        batchCid <- toInterfaceContractId <$> create Batch with requestors = instructors; settlers; id; description; contextId; stepsWithInstructionId = zip routedSteps instructionIds
         pure (batchCid, instructionCids)
 
 -- | Factory template that implements the `Factory` interface.

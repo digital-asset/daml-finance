@@ -35,21 +35,12 @@ run = script do
   let pp = [("Public", singleton public)]
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory issuer pp
   holdingFactoryCid <- toInterfaceContractId <$> submit issuer do createCmd Fungible.Factory with provider = issuer; observers = M.fromList pp
-  settlementFactoryCid <- toInterfaceContractId <$> submit issuer do createCmd Factory with provider = issuer; observers = singleton public
 
   -- Create accounts
   investorSecuritiesAccount <- Account.createAccount "Securities Account" [] accountFactoryCid holdingFactoryCid [] Account.Owner issuer investor
 
-  -- Create lifecycle rules
+  -- Create lifecycle rule
   replacementRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit issuer do createCmd Replacement.Rule with providers = singleton issuer; lifecycler = issuer; observers = singleton public
-  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit issuer do
-    createCmd Claim.Rule with
-      providers = singleton issuer
-      claimers = fromList [investor, issuer]
-      settlers = fromList [investor, issuer]
-      settlementFactoryCid
-      netInstructions = False
-
   -- Create clock
   now <- getTime
   (clockCid, clockEventCid) <- createClockAndEvent (singleton issuer) (toDateUTC now) (singleton public)
@@ -74,6 +65,15 @@ run = script do
   (_, [effectCid]) <- submit issuer do exerciseCmd replacementRuleCid Lifecycle.Evolve with ruleName = "Dividend"; observableCids = []; eventCid = replacementEventCid; timeObservableCid = clockCid
 
   -- Claim effect
+  settlementFactoryCid <- toInterfaceContractId <$> submit issuer do createCmd Factory with provider = issuer; observers = singleton public; custodians = M.fromList [(preEquityInstrument.id, issuer), (postEquityInstrument.id, issuer)]
+  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit issuer do
+    createCmd Claim.Rule with
+      providers = singleton issuer
+      claimers = fromList [investor, issuer]
+      settlers = fromList [investor, issuer]
+      settlementFactoryCid
+      netInstructions = False
+
   result <- submit issuer do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect
       with

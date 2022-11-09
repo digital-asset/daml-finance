@@ -15,7 +15,8 @@ import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (A
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), Step(..))
 import Daml.Finance.Interface.Types.Common (Id(..))
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (AddObservers(..), I, RemoveObservers(..))
-import Daml.Finance.Settlement.Factory (Factory(..))
+import Daml.Finance.Settlement.Factory (FactoryWithIntermediaries(..))
+import Daml.Finance.Settlement.Hierarchy (Hierarchy(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit, submitExerciseInterfaceByKeyCmd)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyNoObservers, verifyOwnerOfHolding)
@@ -120,17 +121,20 @@ run useDelegatee = script do
     cashQuantity = Instrument.qty 200_000.0 cashInstrument
     assetQuantity = Instrument.qty 1_250.0 assetInstrument
     steps =
-      [ -- Payment route
-        Step with sender = buyer; receiver = bank1; quantity = cashQuantity
-      , Step with sender = bank1; receiver = bank2; quantity = cashQuantity
-      , Step with sender = bank2; receiver = seller; quantity = cashQuantity
-        -- Delivery route
-      , Step with sender = seller; receiver = custodian1; quantity = assetQuantity
-      , Step with sender = custodian1; receiver = custodian2; quantity = assetQuantity
-      , Step with sender = custodian2; receiver = buyer; quantity = assetQuantity
+      [ -- Payment step
+        Step with sender = buyer; receiver = seller; quantity = cashQuantity
+        -- Delivery step
+      , Step with sender = seller; receiver = buyer; quantity = assetQuantity
       ]
+    paymentRoute = Hierarchy with
+      rootCustodian = cb
+      pathsToRootCustodian = [[buyer, bank1], [seller, bank2]]
+    deliveryRoute = Hierarchy with
+      rootCustodian = csd
+      pathsToRootCustodian = [[buyer, custodian2], [seller, custodian1]]
+    settlementRoutes = M.fromList [("USD", paymentRoute), ("SHARE", deliveryRoute)]
   -- Create settlement factory
-  settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submit agent do createCmd Factory with provider = agent; observers = empty
+  settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submit agent do createCmd FactoryWithIntermediaries with provider = agent; observers = empty; paths = settlementRoutes
 
   -- Instruct settlement
   (batchCid, [buyerInstructionCid, bank1InstructionCid, bank2InstructionCid, sellerInstructionCid, custodian1InstructionCid, custodian2InstructionCid]) <-
