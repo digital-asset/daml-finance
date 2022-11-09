@@ -3,7 +3,11 @@
 
 module Daml.Finance.Interface.Holding.Base where
 
-import Daml.Finance.Interface.Types.Common (AccountKey, InstrumentKey)
+import DA.Assert ((===))
+import DA.Optional (fromSomeNote, whenSome)
+import DA.Set (Set, fromList, intersection, notMember)
+import Daml.Finance.Interface.Types.Common (AccountKey, Parties, InstrumentKey)
+import Daml.Finance.Interface.Util.Common (verify)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, Implementation)
 
 -- | Type synonym for `Base`.
@@ -11,6 +15,25 @@ type I = Base
 
 -- | Type synonym for `View`.
 type V = View
+
+-- | Type of lock held.
+data LockType
+    = Semaphore
+        -- ^ A one time only lock.
+    | Reentrant
+        -- ^ A mutual exclusion lock where the same lockers may lock a contract multiple times.
+  deriving (Eq, Show)
+
+-- | Locking details.
+data Lock = Lock
+  with
+    lockers : Parties
+      -- ^ Parties which are locking the contract.
+    context : Set Text
+      -- ^ Why this lock is held by the locking parties.
+    lockType : LockType
+      -- ^ The type of lock applied.
+  deriving (Eq, Show)
 
 -- | View for `Base`.
 data View = View
@@ -21,6 +44,8 @@ data View = View
       -- ^ Key of the account holding the assets.
     amount : Decimal
       -- ^ Size of the holding.
+    lock : Optional Lock
+      -- ^ When a contract is locked, contains the locking details.
   deriving (Eq, Show)
 
 -- | Base interface for a holding.
@@ -29,6 +54,10 @@ interface Base where
 
   asDisclosure : Disclosure.I
     -- ^ Conversion to `Disclosure` interface.
+  acquire : Acquire -> Update (ContractId Base)
+    -- ^ Implementation of the `Acquire` choice.
+  release : Release -> Update (ContractId Base)
+    -- ^ Implementation of the `Release` choice.
 
   nonconsuming choice GetView : V
     -- ^ Retrieves the interface view.
@@ -39,8 +68,51 @@ interface Base where
     do
       pure $ view this
 
+  choice Acquire : ContractId Base
+    -- ^ Lock a contract.
+    with
+      newLockers : Parties
+        -- ^ Parties which restrain the contract's ability to perform specified actions.
+      context : Text
+        -- ^ Reason for acquiring a lock.
+      lockType : LockType
+        -- ^ Type of lock to acquire
+    controller (view this).account.owner, newLockers
+    do
+      validateRequest this arg
+      baseCid <- acquire this arg
+      base <- fetch baseCid
+      let lock = fromSomeNote "Contract has not been locked." (view base).lock
+      lock.lockers === newLockers
+      fromList (signatory base) `intersection` newLockers === newLockers
+      pure baseCid
+
+  choice Release : ContractId Base
+    -- ^ Unlock a locked contract.
+    with
+      context : Text
+    controller case (view this).lock of None -> mempty; Some lock -> lock.lockers
+    do
+      release this arg
+
 -- | Type constraint for requiring templates to implement `Holding` along with `Disclosure`.
 type Implementation t = (HasToInterface t I, Disclosure.Implementation t)
 instance HasToInterface I Disclosure.I where _toInterface = asDisclosure
 class (Implementation t) => HasImplementation t
 instance HasImplementation I
+
+-- | Get the lockers of a base holding.
+getLockers : (HasToInterface t I) => t -> Parties
+getLockers base = optional mempty (.lockers) (view $ toInterface @I base).lock
+
+-- | HIDE
+-- Validate a new acquire request.
+validateRequest : Base -> Acquire -> Update (Optional Lock)
+validateRequest this (Acquire with newLockers; context; lockType) = do
+  let lock = (view this).lock
+  whenSome lock \lock -> do
+    lock.lockers === newLockers
+    lock.lockType === lockType
+    verify (lock.lockType == Reentrant) "Contract is already locked."
+    verify (context `notMember` lock.context) "This contract has already been locked for this context."
+  pure lock
