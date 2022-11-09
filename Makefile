@@ -106,7 +106,7 @@ ci-assembly:
 ci-data-dependencies:
 	@nix-shell \
 		--pure \
-		--run 'packell -p package/packages.yaml data-dependencies validate'
+		--run 'packell data-dependencies validate'
 
 .PHONY: ci-local
 ci-local: clean-all ci-headers-check ci-data-dependencies ci-build ci-test ci-validate ci-docs
