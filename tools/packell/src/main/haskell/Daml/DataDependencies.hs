@@ -86,15 +86,14 @@ processDataDependency root config allPackages package = do
   let
     newDataDependencies = generateDataDependencies config allPackages package damlModules
     currentDataDependenciesMaybe = Daml.dataDependencies . Daml.damlConfig $ package
+    currentDamlConfig = Daml.damlConfig package
 
-  pure $ currentDataDependenciesMaybe >>= \cur ->
-    if cur == newDataDependencies then
-      Nothing
-    else do
-      let
-        curDamlConfig = Daml.damlConfig package
-        updatedDamlConfig = curDamlConfig { Daml.dataDependencies = Just newDataDependencies }
-      Just (UpdateImport package updatedDamlConfig)
+  pure $ case (currentDataDependenciesMaybe, newDataDependencies) of
+     (Nothing, []) -> Nothing
+     (Nothing, xs) -> Just . UpdateImport package $ updateDamlConfig currentDamlConfig xs
+     (Just cur, xs)
+      | cur == newDataDependencies -> Nothing
+      | otherwise -> Just . UpdateImport package $ updateDamlConfig currentDamlConfig xs
 
 -- | Creates the data dependencies for a package based of the sourced daml modules.
 generateDataDependencies :: Package.Config -> [Daml.Package] -> Daml.Package -> [String] -> [FilePath]
@@ -130,3 +129,8 @@ generateLocalDependency config package =
 -- Generate a daml dar file name.
 generateDarName :: String -> String -> String
 generateDarName name version = name <> "-" <> version <> darExtension
+
+-- Update the data-dependencies of a daml config file.
+updateDamlConfig :: Daml.Config -> [FilePath] -> Daml.Config
+updateDamlConfig config [] = config { Daml.dataDependencies = Nothing }
+updateDamlConfig config xs = config { Daml.dataDependencies = Just xs }

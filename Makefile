@@ -41,6 +41,11 @@ test-packages: build-packages
 validate-packages: build-packages
 	./$(SCRIPTS_DIR)/validate-packages.sh
 
+.PHONY: update-data-dependencies-packages
+update-data-dependencies-packages:
+	packell data-dependencies update
+	make headers-update
+
 ###############################
 # Project Source and Packages #
 ###############################
@@ -97,8 +102,14 @@ ci-assembly:
 		--pure \
 		--run './docs/scripts/build-assembly.sh'
 
+.PHONY: ci-data-dependencies
+ci-data-dependencies:
+	@nix-shell \
+		--pure \
+		--run 'packell -p package/packages.yaml data-dependencies validate'
+
 .PHONY: ci-local
-ci-local: clean-all ci-headers-check ci-build ci-test ci-validate ci-docs
+ci-local: clean-all ci-headers-check ci-data-dependencies ci-build ci-test ci-validate ci-docs
 
 #########
 # Cache #

@@ -13,43 +13,12 @@ if ls package/*/daml/*/.lib/ 1> /dev/null 2>&1; then
   rm -r ${root_dir}/package/*/daml/*/.lib/
 fi
 
-## Build Core
-# Contingent Claims
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/ContingentClaims.Core
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/ContingentClaims.Lifecycle
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/ContingentClaims.Valuation
-# Interfaces
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Types
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Util
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Data
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Holding
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Account
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Base
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Claims
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Settlement
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Lifecycle
-# Implementations
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Util
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Holding
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Account
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Settlement
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Lifecycle
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Claims
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Data
-
-## Build Extensions
-# Interfaces
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Token
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Generic
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Bond
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Equity
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Interface.Instrument.Swap
-# Implementations
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Instrument.Token
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Instrument.Generic
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Instrument.Bond
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Instrument.Equity
-${script_dir}/build-package.sh ${root_dir}/package/main/daml/Daml.Finance.Instrument.Swap
+# Read the list of packages in order from the package config file and build each package
+packages_yaml=${root_dir}/package/packages.yaml
+package_paths=($(yq e '.local.packages | to_entries | map(.value.package.path) | .[]' ${packages_yaml}))
+for package_path in "${package_paths[@]}"; do
+  ${script_dir}/build-package.sh ${root_dir}/package/${package_path}
+done
 
 # Copy package dars into a dedicated folder
 if [[ -d ${root_dir}/.dars ]]; then
@@ -58,24 +27,6 @@ fi
 mkdir ${root_dir}/.dars
 cp ${root_dir}/package/main/daml/*/.daml/dist/* ${root_dir}/.dars/
 
-## Build Tests
-# Util
-${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Test.Util
-# Contingent Claims
-${script_dir}/build-package.sh ${root_dir}/package/test/daml/ContingentClaims.Test
-# Core
-${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Util.Test
-${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Holding.Test
-${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Account.Test
-${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Settlement.Test
-${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Data.Test
-# Extensions
-${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Instrument.Generic.Test
-${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Instrument.Bond.Test
-${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Instrument.Equity.Test
-${script_dir}/build-package.sh ${root_dir}/package/test/daml/Daml.Finance.Instrument.Swap.Test
-
 boldCyan='\033[1;96m'
 colour_off='\033[0m'
-
 echo -e "\n${boldCyan}All packages successfully built!${colour_off}"
