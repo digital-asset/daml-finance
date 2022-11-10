@@ -5,8 +5,7 @@ Getting Started
 ###############
 
 .. toctree::
-   :titlesonly:
-   :maxdepth: 1
+   :hidden:
 
    transfer
    settlement
@@ -42,13 +41,13 @@ Create your own App
 *******************
 
 It is possible to generate *JavaScript* code from the Daml Finance packages you need, by running
-daml with the `js` codegen option, for example:
+daml with the `js <https://docs.daml.com/app-dev/bindings-ts/daml2js.html>`_ codegen option, for example:
 
 .. code-block:: shell
 
    daml codegen js -o ./output daml-finance-interface-swap-0.1.7.dar daml-finance-interface-instrument-bond-0.1.7.dar
 
-Alternatively, if your app uses *Java*, you can also run the `java` codegen in a similar way:
+Alternatively, if your app uses *Java*, you can also run the `java <https://docs.daml.com/app-dev/bindings-java/index.html>`_ codegen in a similar way:
 
 .. code-block:: shell
 
