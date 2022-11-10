@@ -13,25 +13,24 @@ import DA.Action (foldlA)
 import DA.Set qualified as S (delete, insert, isSubsetOf, null, singleton, toList)
 import Daml.Finance.Interface.Account.Account qualified as Account (CreditAndDebit(..), I, R, exerciseInterfaceByKey)
 import Daml.Finance.Interface.Account.Util (fetchAccount)
-import Daml.Finance.Interface.Holding.Lockable (getLockers)
-import Daml.Finance.Interface.Holding.Lockable qualified as Lockable (Acquire(..), I, Lock(..), LockType(..), Release(..))
+import Daml.Finance.Interface.Holding.Base (getLockers)
+import Daml.Finance.Interface.Holding.Base qualified as Base (Acquire(..), I, Lock(..), LockType(..), Release(..))
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
 import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey)
 import Prelude hiding (null)
 
 -- | Utility function to reapply holding locks.
-reapplyLocks :  ContractId Lockable.I -> Lockable.Lock -> Update (ContractId Lockable.I)
-reapplyLocks cid lock = foldlA (\acc context -> exercise acc Lockable.Acquire with newLockers = lock.lockers; context; lockType = lock.lockType) cid (S.toList lock.context)
+reapplyLocks :  ContractId Base.I -> Base.Lock -> Update (ContractId Base.I)
+reapplyLocks cid lock = foldlA (\acc context -> exercise acc Base.Acquire with newLockers = lock.lockers; context; lockType = lock.lockType) cid (S.toList lock.context)
 
 -- | Utility function to unlock all holding locks.
-releaseAll : ContractId Lockable.I -> Lockable.Lock -> Update (ContractId Lockable.I)
-releaseAll cid lock = foldlA (\acc context -> exercise acc Lockable.Release with context) cid (S.toList lock.context)
+releaseAll : ContractId Base.I -> Base.Lock -> Update (ContractId Base.I)
+releaseAll cid lock = foldlA (\acc context -> exercise acc Base.Release with context) cid (S.toList lock.context)
 
 -- | Implementation of transfer for the Transferable interface.
-transferImpl : forall t. (HasToInterface t Transferable.I) => ContractId t -> Transferable.Transfer -> Update (ContractId Transferable.I)
+transferImpl : ContractId Transferable.I -> Transferable.Transfer -> Update (ContractId Transferable.I)
 transferImpl self Transferable.Transfer{actors; newOwnerAccount} = do
-  let transferableCid = toInterfaceContractId @Transferable.I self
-  transferable <- fetch transferableCid
+  transferable <- fetch self
   vAccount <- view <$> fetchAccount transferable
   vNewAccount <- view <$> fetchInterfaceByKey @Account.R newOwnerAccount
   let lockers = getLockers transferable
@@ -39,29 +38,25 @@ transferImpl self Transferable.Transfer{actors; newOwnerAccount} = do
   assertMsg "actors must contain all transfer approvers of the receiving account" $ S.isSubsetOf vNewAccount.controllers.approvers actors
   assertMsg "actors must contain all lockers" $ S.isSubsetOf lockers actors
   coerceContractId <$> Account.exerciseInterfaceByKey @Account.I newOwnerAccount vAccount.custodian
-    Account.CreditAndDebit with actors = lockers <> S.singleton vAccount.owner; lockableCid = toInterfaceContractId @Lockable.I transferableCid
+    Account.CreditAndDebit with actors = lockers <> S.singleton vAccount.owner; baseCid = toInterfaceContractId @Base.I self
 
--- | Default implementation of `acquire` from the Lockable interface.
-acquireImpl : forall t. (HasCreate t, DA.Internal.Record.HasField "lock" t (Optional Lockable.Lock), HasFromInterface t Lockable.I, HasToInterface t Lockable.I) => t -> Lockable.I -> Lockable.Acquire -> Update (ContractId Lockable.I)
-acquireImpl _ lockable Lockable.Acquire{newLockers; context; lockType} = do
-  let v = view lockable
-  newLock <- case (v.lock, lockType) of
-    (Some existingLock, Lockable.Reentrant) -> pure existingLock with context = context `S.insert` existingLock.context
-    (None, _) -> pure Lockable.Lock with lockers = newLockers; context = S.singleton context; lockType
+-- | Default implementation of `acquire` from the Base interface.
+acquireImpl : forall t. (HasCreate t, DA.Internal.Record.HasField "lock" t (Optional Base.Lock), HasFromInterface t Base.I, HasToInterface t Base.I) => t -> Base.Acquire -> Update (ContractId Base.I)
+acquireImpl base Base.Acquire{newLockers; context; lockType} = do
+  newLock <- case (base.lock, lockType) of
+    (Some existingLock, Base.Reentrant) -> pure existingLock with context = context `S.insert` existingLock.context
+    (None, _) -> pure Base.Lock with lockers = newLockers; context = S.singleton context; lockType
     _ -> abort "Contract is already locked."
-  let Some this = fromInterface @t lockable
-  toInterfaceContractId <$> create this with lock = Some newLock
+  toInterfaceContractId <$> create base with lock = Some newLock
 
--- | Default implementation of release from the Lockable interface.
-releaseImpl : forall t. (HasCreate t, DA.Internal.Record.HasField "lock" t (Optional Lockable.Lock), HasFromInterface t Lockable.I, HasToInterface t Lockable.I) => t -> Lockable.I -> Lockable.Release -> Update (ContractId Lockable.I)
-releaseImpl _ lockable Lockable.Release{context} = do
+-- | Default implementation of release from the Base interface.
+releaseImpl : forall t. (HasCreate t, DA.Internal.Record.HasField "lock" t (Optional Base.Lock), HasFromInterface t Base.I, HasToInterface t Base.I) => t -> Base.Release -> Update (ContractId Base.I)
+releaseImpl base Base.Release{context} = do
   let
-    v = view lockable
     f currentLock = do
       let newContext = context `S.delete` currentLock.context
       case (currentLock.lockType, S.null newContext) of
-        (Lockable.Reentrant, False) -> Some currentLock with context = newContext
+        (Base.Reentrant, False) -> Some currentLock with context = newContext
         _ -> None
-    releasedLock = v.lock >>= f
-  let Some this = fromInterface @t lockable
-  toInterfaceContractId <$> create this with lock = releasedLock
+    releasedLock = base.lock >>= f
+  toInterfaceContractId <$> create base with lock = releasedLock

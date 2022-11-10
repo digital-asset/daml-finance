@@ -8,11 +8,10 @@ Core Interfaces
 
     This package contains the *interface* and utility functions for holdings. It has the following modules:
 
-    - :ref:`Factory <module-daml-finance-interface-holding-factory-6211>`: Holding factory contract used to create (credit) and archive (debit) holdings
-    - :ref:`Base <module-daml-finance-interface-holding-base-24195>`: Base interface for a holding
-    - :ref:`Fungible <module-daml-finance-interface-holding-fungible-63712>`: Interface for a fungible holding, which allows splitting and merging
-    - :ref:`Lockable <module-daml-finance-interface-holding-lockable-23737>`: An interface respresenting contracts which allow a set of parties to restrict certain actions on a contract
-    - :ref:`Transferable <module-daml-finance-interface-holding-transferable-88121>`: Interface respresenting a contract where ownership can be transferred to other parties
+    - :ref:`Factory <module-daml-finance-interface-holding-factory-6211>`: Interface for a holding factory used to create (credit) and archive (debit) holdings
+    - :ref:`Base <module-daml-finance-interface-holding-base-24195>`: Interface for a base holding which includes locking capabilities
+    - :ref:`Fungible <module-daml-finance-interface-holding-fungible-63712>`: Interface for a fungible holding which allows splitting and merging
+    - :ref:`Transferable <module-daml-finance-interface-holding-transferable-88121>`: Interface for a transferable holding, i.e., where ownership can be transferred to other parties
     - :ref:`Util <module-daml-finance-interface-holding-util-81618>`: Utility functions related to holdings, e.g. getting the account / instrument / owner of a holding
 
     The :doc:`Asset Model <../concepts/asset-model>` page explains the relationship between instruments, holdings, and accounts.
