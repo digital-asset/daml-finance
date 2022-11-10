@@ -5,24 +5,29 @@ Copyright © 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All Ri
 
 # Daml Finance
 
-Welcome to Daml Finance, a collection of purpose-built libraries to enable rapid development of enterprise-grade tokenization solutions.
+Welcome to Daml Finance, a collection of purpose-built libraries to enable rapid development of
+enterprise-grade tokenization solutions.
 
 ## Why do I need it?
 
-Implementing basic financial concepts like ownership or economic terms of an asset is a complex and tedious task. By providing common building blocks, Daml Finance increases delivery velocity and shortens the time-to-market when developing Daml applications.
+Implementing basic financial concepts like ownership or economic terms of an asset is a complex and
+tedious task. By providing common building blocks, Daml Finance increases delivery velocity and
+shortens the time-to-market when developing Daml applications.
 
 ## Getting started using the library
 
-The [Daml Finance documentation](https://digital-asset.github.io/daml-finance/) provides a number of options to get started using the library.
+The [Daml Finance documentation](https://digital-asset.github.io/daml-finance/) provides a number of
+options to get started using the library.
 
-The [Daml Finance Reference App](https://github.com/digital-asset/daml-finance-app/) showcases how the library can be integrated into a fully-fledged Daml application.
+The [Daml Finance Reference App](https://github.com/digital-asset/daml-finance-app/) showcases how
+the library can be integrated into a fully-fledged Daml application.
 
 ## Contributing to Daml Finance
 
 ### Dependencies
 
-This repo assumes the use of [direnv] for local development, along with a
-working [Nix] installation.
+This repo assumes the use of [direnv] for local development, along with a working [Nix]
+installation.
 
 [direnv]: https://github.com/direnv/direnv
 [Nix]: https://nixos.org/download.html
