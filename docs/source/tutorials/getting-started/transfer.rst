@@ -18,13 +18,15 @@ We are going to
 #. transfer the holding from Alice to Bob
 
 We expect the reader to be familiar with the basic building blocks of Daml.
-If that is not the case, a suitable introduction can be found in `this page <https://www.digitalasset.com/developers/learn>`_.
+If that is not the case, a suitable introduction can be found in
+`this page <https://www.digitalasset.com/developers/learn>`_.
 
 Download the Code for the Tutorial
 **********************************
 
-As a prerequisite, the `Daml SDK <https://docs.daml.com/getting-started/installation.html>`_ needs to be installed on your
-machine.
+As a prerequisite, the
+`Daml SDK <https://docs.daml.com/getting-started/installation.html>`_ needs to
+be installed on your machine.
 
 Open a terminal and run:
 
@@ -58,8 +60,8 @@ The code includes
 - four workflows defined in the ``Workflows`` folder
 - two Daml scripts defined in the ``Scripts`` folder
 
-The first encapsulate the core business logic of the application, whereas the latter includes scripts that are
-executed on a one-off basis.
+The first encapsulate the core business logic of the application, whereas the
+latter includes scripts that are executed on a one-off basis.
 
 If you take a closer look at the ``Workflows``, you will recognize three
 initiate / accept patterns to
@@ -68,15 +70,16 @@ initiate / accept patterns to
 - make a deposit to the account
 - execute a holding transfer
 
-The ``DvP`` workflow will be used in the next tutorial, so please ignore that one for now.
+The ``DvP`` workflow will be used in the next tutorial, so please ignore that
+one for now.
 
-Files in the ``Workflows`` folder depend only on interface packages of ``daml-finance``
-(the ones that start with ``Daml.Finance.Interface.*``), as you can see from
-the import list.
+Files in the ``Workflows`` folder depend only on interface packages of
+``daml-finance`` (the ones that start with ``Daml.Finance.Interface.*``), as
+you can see from the import list.
 
 This is important, as it decouples the user-defined business logic from
-the template implementations used in ``daml-finance`` and, thus, makes it easier
-to upgrade the one without being forced to upgrade the other.
+the template implementations used in ``daml-finance`` and, thus, makes it
+easier to upgrade the one without being forced to upgrade the other.
 
 On the other hand, the script in the ``Scripts`` folder depends also on
 implementation packages (in this case, ``Daml.Finance.Holding`` and
@@ -120,8 +123,9 @@ are defined in ``Daml.Finance.Holding.Fungible`` and are
 :ref:`transferable <transferability>`.
 
 We are adding a so-called *public party* as an observer to the holding factory.
-This is done to ensure that every other party has visibility over this contract, as all parties can `readAs` the public party.
-The reason why this is necessary will come into play at the end of this tutorial.
+This is done to ensure that every other party has visibility over this
+contract, as all parties can `readAs` the public party. The reason why this is
+necessary will come into play at the end of this tutorial.
 
 Open Alice’s and Bob’s Accounts
 ===============================
@@ -158,8 +162,9 @@ this case) or it can include complex on-ledger lifecycling logic.
 To hold one unit of the cash instrument in this scenario means that we
 can claim 1 USD from the custodian of the holding.
 
-Notice how in this case the Bank acts both as the issuer and depository of the cash instrument. This means that we fully trust the Bank with
-any action concerning the instrument.
+Notice how in this case the Bank acts both as the issuer and depository of the
+cash instrument. This means that we fully trust the Bank with any action
+concerning the instrument.
 
 Deposit Cash in Alice’s Account
 ===============================
@@ -193,8 +198,9 @@ using the ``Transfer`` workflow.
 Bob requests the cash to be transferred to his account. Alice
 then accepts the request.
 
-You notice that here we make explicit use of the fact that Alice can ``readAs`` the public party.
-This is needed as, in order to complete the transfer, visibility on the receiving account's holding factory is required.
+You notice that here we make explicit use of the fact that Alice can ``readAs``
+the public party. This is needed as, in order to complete the transfer,
+visibility on the receiving account's holding factory is required.
 
 Frequently Asked Questions
 **************************
@@ -220,11 +226,13 @@ interface, is invoked.
 Finally, the new holding is converted back to a ``Holding.I`` before it
 is returned. This is done using ``toInterfaceContractId``.
 
-In order to fully understand these instructions, we need to keep it mind
+In order to fully understand these instructions, we need to keep in mind
 the interface hierarchy used by our holding implementation.
 
 .. image:: ../../images/interface_hierarchy.png
-  :alt: A diagram of the interface heirarchy. From left to right, Disclosure, Holding, Lockable, Transferable, and Fungible are each linked by arrows pointing left. Below is an arrow, also pointing left, labelled Implements.
+  :alt: A diagram of t he interface heirarchy. From left to right, Disclosure,
+        Holding, Transferable, and Fungible are each linked by arrows pointing
+        left. Below is an arrow, also pointing left, labelled Implements.
 
 We use ``coerceContractId`` to convert the ``Holding`` to a
 ``Transferable``. The success of this operation is not guaranteed and
@@ -281,46 +289,62 @@ contracts which are setup on ledger initialization.
 Exercises
 *********
 
-There are a couple of improvements to the code that can be implemented as an exercise.
-They will help you familiarize yourself with the library and with Daml interfaces.
+There are a couple of improvements to the code that can be implemented as an
+exercise. They will help you familiarize yourself with the library and with
+Daml interfaces.
 
 Split the Holding to Transfer the Right Amount
 ==============================================
 
-In the example, Bob requests ``1,000 USD`` from Alice and Alice allocates a holding for exactly the right amount, because the transfer would otherwise fail.
-We want the transfer to be successful also if Alice allocates a holding for a larger amount e.g., ``1,500 USD``.
+In the example, Bob requests ``1,000 USD`` from Alice and Alice allocates a
+holding for exactly the right amount, because the transfer would otherwise
+fail. We want the transfer to be successful also if Alice allocates a holding
+for a larger amount e.g., ``1,500 USD``.
 
-We can leverage the fact that the holding implements the :ref:`Fungible <type-daml-finance-interface-holding-fungible-fungible-60176>` interface, which makes it possible to ``Split`` it into a holding of ``1,000 USD`` and one of ``500 USD``.
-In the implementation of the ``CashTransferRequest_Accept`` choice
+We can leverage the fact that the holding implements the
+:ref:`Fungible <type-daml-finance-interface-holding-fungible-fungible-60176>`
+interface, which makes it possible to ``Split`` it into a holding of
+``1,000 USD`` and one of ``500 USD``. In the implementation of the
+``CashTransferRequest_Accept`` choice
 
 - cast the allocated holding to the ``Fungible`` interface
 - use the ``Split`` choice to split the larger holding into two holdings
 - execute the transfer, allocating the holding on the correct amount
 
-In the last step, you will need to cast the ``Fungible`` to a ``Transferable`` using ``toInterfaceContractId``.
+In the last step, you will need to cast the ``Fungible`` to a ``Transferable``
+using ``toInterfaceContractId``.
 
 Temporary Account Disclosure
 ============================
 
-There is no reason for Alice to be an observer on Bob's account before the transfer is initiated by Bob (and after the transfer is executed).
+There is no reason for Alice to be an observer on Bob's account before the
+transfer is initiated by Bob (and after the transfer is executed).
 
 Modify the original code, such that
 
 - Bob's account is disclosed to Alice once the transfer is initiated
-- When the Transfer is executed, Alice removes herself from the account observers
+- When the Transfer is executed, Alice removes herself from the account
+  observers
 
-In order to do that, you can leverage the fact that ``Account`` implements the :ref:`Disclosure <type-daml-finance-interface-util-disclosure-disclosure-97052>` interface.
-This interface exposes the ``AddObservers`` and ``RemoveObservers`` choices, which can be used to disclose / undisclose Bob's account contract to Alice.
+In order to do that, you can leverage the fact that ``Account`` implements the
+:ref:`Disclosure <type-daml-finance-interface-util-disclosure-disclosure-97052>`
+interface. This interface exposes the ``AddObservers`` and ``RemoveObservers``
+choices, which can be used to disclose / undisclose Bob's account contract to
+Alice.
 
 Summary
 *******
 
-You now know how to setup basic accounts, holdings and instruments. You also learned how to perform a simple transfer. The key concepts to take away are:
+You now know how to setup basic accounts, holdings and instruments. You also
+learned how to perform a simple transfer. The key concepts to take away are:
 
 * Holdings represent the ownership of a financial instrument at a custodian
 * Instruments define the economic terms of a financial contract
 * Accounts ensure that only known parties can obtain ownership
-* Factories are used to create the respective contracts without having to depend on implementation packages
+* Factories are used to create the respective contracts without having to
+  depend on implementation packages
 * Transfers change ownership of a holding
 
-Ownership transfers typically happen within a larger financial transaction. The next tutorial will show you how to create such a transaction and how to settle it atomically.
+Ownership transfers typically happen within a larger financial transaction. The
+next tutorial will show you how to create such a transaction and how to settle
+it atomically.

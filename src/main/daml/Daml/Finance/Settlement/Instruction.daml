@@ -7,12 +7,12 @@ import DA.Assert ((===))
 import DA.Set qualified as S (fromList, insert, intersection, isSubsetOf, member, null, singleton)
 import Daml.Finance.Interface.Account.Account qualified as Account (I, Credit(..), Debit(..), R, disclose, exerciseInterfaceByKey, undisclose)
 import Daml.Finance.Interface.Account.Util (getAccount)
+import Daml.Finance.Interface.Holding.Base qualified as Base (I, getLockers)
 import Daml.Finance.Interface.Holding.Base qualified as Holding (I)
-import Daml.Finance.Interface.Holding.Lockable qualified as Lockable (I, getLockers)
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
 import Daml.Finance.Interface.Holding.Util (disclose, getAmount, getInstrument, undisclose)
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..), Execute(..), HasImplementation, I, View(..))
-import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), InstructionKey(..), Step)
+import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), InstructionKey(..), RoutedStep)
 import Daml.Finance.Interface.Types.Common (Id(..), Parties, PartiesMap)
 import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
@@ -37,7 +37,7 @@ template Instruction
       -- ^ Trade identifier.
     id : Id
       -- ^ Instruction identifier.
-    step : Step
+    step : RoutedStep
       -- ^ Settlement step.
     allocation : Allocation
       -- ^ Allocation from the sender.
@@ -87,11 +87,12 @@ template Instruction
             holding <- fetch holdingCid
             let
               senderAccount = getAccount holding
-            lockable : Lockable.I <- fetch $ coerceContractId holdingCid
+            base : Base.I <- fetch $ coerceContractId holdingCid
             discloseA senderAccount
             vSenderAccount <- view <$> fetchInterfaceByKey @Account.R senderAccount
             assertMsg "actors must include instructors" $ S.isSubsetOf vSenderAccount.controllers.instructors actors
-            assertMsg "actors must include lockers" $ S.isSubsetOf (Lockable.getLockers lockable) actors
+            assertMsg "actors must include lockers" $ S.isSubsetOf (Base.getLockers base) actors
+            assertMsg "the custodian of the pledged asset must match the target custodian" $ step.custodian == senderAccount.custodian
             getAmount holding === step.quantity.amount
             getInstrument holding === step.quantity.unit
             pure $ Pledge holdingCid
@@ -100,6 +101,10 @@ template Instruction
             vSenderAccount <- view <$> fetchInterfaceByKey @Account.R passthroughAccount
             assertMsg "actors must include instructors" $ S.isSubsetOf vSenderAccount.controllers.instructors actors
             pure $ PassthroughFrom (passthroughAccount, fromInstruction)
+          CreditReceiver -> do
+            assertMsg "the sender must match the target custodian" $ step.custodian == step.sender
+            assertMsg "actors must include sender" $ S.member step.sender actors
+            pure CreditReceiver
           a -> do
             assertMsg "actors must include sender" $ S.member step.sender actors
             pure a
@@ -119,10 +124,14 @@ template Instruction
             discloseA receiverAccount
             vReceiverAccount <- view <$> fetchInterfaceByKey @Account.R receiverAccount
             assertMsg "actors must include approvers" $ S.isSubsetOf vReceiverAccount.controllers.approvers actors
+            assertMsg "the custodian of the receiver account does not match the target custodian" $ step.custodian == receiverAccount.custodian
           PassthroughTo (passthroughAccount, toInstruction) -> do
             discloseA passthroughAccount
             vReceiverAccount <- view <$> fetchInterfaceByKey @Account.R passthroughAccount
             assertMsg "actors must include approvers" $ S.isSubsetOf vReceiverAccount.controllers.approvers actors
+          DebitSender -> do
+            assertMsg "the receiver must match the target custodian" $ step.custodian == step.receiver
+            assertMsg "actors must include receiver" $ S.member step.receiver actors
           _ ->
             assertMsg "actors must include receiver" $ S.member step.receiver actors
 

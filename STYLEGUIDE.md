@@ -1,6 +1,7 @@
 # Style Guide
 
-This style guide details the formatting and styling of Daml and client-side code that is contained within this repository.
+This style guide details the formatting and styling of Daml and client-side code that is contained
+within this repository.
 
 ## Daml
 
@@ -260,8 +261,10 @@ we let the `actor : Party` be the first argument of the choice.
   let foo = Foo with a; b; c
   ```
 
-- Don't use `..` as it makes code harder to understand (and might cause bugs in case of code changes)
-- Don't use positional constructors as they are harder to read (and might cause bugs in case of code changes)
+- Don't use `..` as it makes code harder to understand (and might cause bugs in case of code
+  changes)
+- Don't use positional constructors as they are harder to read (and might cause bugs in case of code
+  changes)
 
 ## Javascript / Typescript
 

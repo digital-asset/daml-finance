@@ -8,7 +8,7 @@ import ContingentClaims.Core.Observation (Observation(..))
 import DA.Assert ((===))
 import DA.Date (addDays, toDateUTC)
 import DA.Foldable qualified as F (forA_)
-import DA.Map qualified as M (fromList)
+import DA.Map qualified as M (Map, fromList)
 import DA.Set (empty, fromList, singleton, toList)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Instrument.Generic.Test.Util (originateGeneric, mapClaimToUTCTime)
@@ -25,7 +25,7 @@ import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), In
 import Daml.Finance.Interface.Types.Common (Id(..), Parties)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, AddObservers(..))
 import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
-import Daml.Finance.Settlement.Factory (Factory(..), FactoryWithIntermediaries(..))
+import Daml.Finance.Settlement.Factory (FactoryWithIntermediaries(..))
 import Daml.Finance.Settlement.Hierarchy (Hierarchy(..))
 import Daml.Finance.Settlement.Instruction qualified as Instruction (T)
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit, submitExerciseInterfaceByKeyCmd)
@@ -159,6 +159,9 @@ runIntermediatedLifecyclingNonAtomic = script do
   -- Lifecycle bond
   (_, [effectCid]) <- BaseInstrument.submitExerciseInterfaceByKeyCmd @Lifecycle.I [issuer] [] bondInstrument Lifecycle.Evolve with eventCid = clockEventCid; observableCids = []; ruleName = "Time"; timeObservableCid = clockCid
 
+  -- Define settlement routes across intermediaries
+  let routes = M.fromList [cashRoute, bondRoute]
+
   -- Setup settlement contract between issuer and CSD
   -- In order for the workflow to be successful, we need to disclose the CSD's cash account to the Issuer.
   Account.submitExerciseInterfaceByKeyCmd @Disclosure.I [csd] [] csdCashAccount Disclosure.AddObservers with disclosers = singleton csd; observersToAdd = ("Issuer", singleton issuer)
@@ -172,6 +175,7 @@ runIntermediatedLifecyclingNonAtomic = script do
         securitiesAccount = csdAccountAtIssuer
         issuerCashAccount
         csdCashAccount
+        settlementRoutes = routes
 
   -- CSD claims and settles effect against issuer
   (effectCid, newInstrumentHoldingCid, [cashHolding]) <- submitMulti [issuer] [publicParty] do
@@ -182,9 +186,6 @@ runIntermediatedLifecyclingNonAtomic = script do
         effectCid
 
   -- investor claims effect against CSD
-
-  -- Define settlement routes from CSD to Investor and create batch factory
-  let routes = M.fromList [cashRoute, bondRoute]
 
   settlementFactoryCid <- submit csd do
     toInterfaceContractId <$> createCmd FactoryWithIntermediaries
@@ -374,6 +375,7 @@ template EffectSettlementService
       -- ^ Cash account of Issuer @ Central Bank.
     csdCashAccount : Account.K
       -- ^ Cash account of CSD @ Central Bank. Needs to be disclosed to the Issuer (ideally as part of the creation of this contract).
+    settlementRoutes : M.Map Text Hierarchy
   where
     signatory csd, issuer
 
@@ -414,7 +416,7 @@ template EffectSettlementService
         assertMsg "wrong fungible" $ getInstrument fungible == oldInstrument
 
         -- 1. csd claims effect against issuer
-        settlementFactoryCid <- create Factory with provider = csd; observers = empty
+        settlementFactoryCid <- create FactoryWithIntermediaries with provider = csd; observers = empty; paths = settlementRoutes
 
         lifecycleClaimRuleCid <- create Claim.Rule
           with
