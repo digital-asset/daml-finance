@@ -16,12 +16,11 @@
 # $ touch some/directory/NO_AUTO_COPYRIGHT
 # $ git add some/directory/NO_AUTO_COPYRIGHT
 
-import subprocess
-import re
 import os
+import re
 import string
+import subprocess
 import sys
-
 
 #########################
 # File-type configuration
