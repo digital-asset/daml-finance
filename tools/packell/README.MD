@@ -22,8 +22,7 @@ To develop the Packell application, open `VS Code` at the root of the Packell pr
 
 ## Usage
 
-As part of nix setup, the `Packall` application is build and installed as a derivative into the nix
-store and added to the `PATH`. Running the following command will display all the available options:
+As part of nix setup, the `Packell` application is build and installed as a derivative into the nix store and added to the `PATH`. Running the following command will display all the available options :
 
 ```
 packell -h

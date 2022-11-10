@@ -33,6 +33,14 @@ clean-packages:
 build-packages: clean-packages
 	./$(SCRIPTS_DIR)/build-packages.sh
 
+.PHONY: build-java-packages
+build-java-packages: build-packages
+	daml codegen java -o .dars/.java .dars/*
+
+.PHONY: build-js-packages
+build-js-packages: build-packages
+	daml codegen js -o .dars/.js .dars/*
+
 .PHONY: test-packages
 test-packages: build-packages
 	./$(SCRIPTS_DIR)/test-packages.sh
@@ -40,6 +48,11 @@ test-packages: build-packages
 .PHONY: validate-packages
 validate-packages: build-packages
 	./$(SCRIPTS_DIR)/validate-packages.sh
+
+.PHONY: update-data-dependencies-packages
+update-data-dependencies-packages:
+	packell data-dependencies update
+	make headers-update
 
 ###############################
 # Project Source and Packages #
@@ -65,13 +78,25 @@ clean-all: clean clean-packages
 ci-build:
 	@nix-shell \
 		--pure \
-		--run 'make build && ./$(SCRIPTS_DIR)/build-packages.sh'
+		--run 'make build; ./$(SCRIPTS_DIR)/build-packages.sh'
+
+.PHONY: ci-build-java
+ci-build-java:
+	@nix-shell \
+		--pure \
+		--run 'daml codegen java -o .dars/.java .dars/*'
+
+.PHONY: ci-build-js
+ci-build-js:
+	@nix-shell \
+		--pure \
+		--run 'daml codegen js -o .dars/.js .dars/*'
 
 .PHONY: ci-test
 ci-test:
 	@nix-shell \
 		--pure \
-		--run 'daml test && ./$(SCRIPTS_DIR)/test-packages.sh'
+		--run 'daml test; ./$(SCRIPTS_DIR)/test-packages.sh'
 
 .PHONY: ci-validate
 ci-validate:
@@ -97,8 +122,14 @@ ci-assembly:
 		--pure \
 		--run './docs/scripts/build-assembly.sh'
 
+.PHONY: ci-data-dependencies
+ci-data-dependencies:
+	@nix-shell \
+		--pure \
+		--run 'export LANG=C.UTF-8; packell data-dependencies validate'
+
 .PHONY: ci-local
-ci-local: clean-all ci-headers-check ci-build ci-test ci-validate ci-docs
+ci-local: clean-all ci-headers-check ci-data-dependencies ci-build ci-build-java ci-build-js ci-test ci-validate ci-docs
 
 #########
 # Cache #
@@ -126,6 +157,7 @@ headers-update:
 
 DAML_SRC := $(shell find src/main/daml -name '*.daml')
 SDK_VERSION := $(shell yq e '.sdk-version' daml.yaml)
+DAML_ROOT := $(shell if [ -z ${DAML_HOME} ]; then echo ~/.daml; else echo ${DAML_HOME}; fi)
 
 .PHONY: doc-code-json
 doc-code-json: $(DAML_SRC)
@@ -146,7 +178,7 @@ doc-code: doc-code-json
 		--template=docs/code-documentation-templates/base-rst-template.rst \
 		--index-template=docs/code-documentation-templates/base-rst-index-template.rst \
 		--base-url=https://docs.daml.com/daml/daml-finance \
-		--input-anchor=$(DAML_HOME)/sdk/$(SDK_VERSION)/damlc/resources/daml-base-anchors.json \
+		--input-anchor=$(DAML_ROOT)/sdk/$(SDK_VERSION)/damlc/resources/daml-base-anchors.json \
 		docs/build/daml-finance.json
 
 # Build doc theme
