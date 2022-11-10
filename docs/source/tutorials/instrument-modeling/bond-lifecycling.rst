@@ -4,17 +4,19 @@
 How to Lifecycle a Bond Instrument
 ##################################
 
-This tutorial describes the :ref:`lifecycle <lifecycling>` flow of a bond instrument between two counterparties.
-We will illustrate the following steps:
+This tutorial describes the :ref:`lifecycle <lifecycling>` flow of a bond instrument between two
+counterparties. We will illustrate the following steps:
 
 #. Creating a fixed-rate bond instrument
 #. Defining the clock for time-based events
 #. Lifecycling the bond instrument
 #. Settling the instructions
 
-To follow the script used in this tutorial you can `clone the Daml Finance repository <https://github.com/digital-asset/daml-finance>`_.
-In particular, the file ``src/test/daml/Daml/Finance/Instrument/Bond/Test/FixedRate.daml`` is the starting point
-of this tutorial. It also refers to some utility functions in ``src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml``.
+To follow the script used in this tutorial you can
+`clone the Daml Finance repository <https://github.com/digital-asset/daml-finance>`_. In particular,
+the file ``src/test/daml/Daml/Finance/Instrument/Bond/Test/FixedRate.daml`` is the starting point
+of this tutorial. It also refers to some utility functions in
+``src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml``.
 
 Create a Fixed-Rate Bond Instrument
 ***********************************
@@ -42,11 +44,10 @@ We also credit the account of an investor:
 Define the Clock for Time-Based Events
 **************************************
 
-Since the bond pays a coupon on a yearly basis, payment is a time-based event.
-The requirement to pay the coupon is governed by actual time.
-However, in a trading and settlement system, it is useful to be able to control
-the time variable, in order to simulate previous/future payments, or to have some flexibility
-regarding when to process events.
+Since the bond pays a coupon on a yearly basis, payment is a time-based event. The requirement to
+pay the coupon is governed by actual time. However, in a trading and settlement system, it is useful
+to be able to control the time variable, in order to simulate previous/future payments, or to have
+some flexibility regarding when to process events.
 
 We define a clock contract to control the passage of time:
 
@@ -59,32 +60,36 @@ We define a clock contract to control the passage of time:
 Lifecycle the Bond Instrument
 *****************************
 
-We use the ``Lifecyclable`` interface, which is defined in ``Daml.Finance.Interface.Lifecycle.Lifecyclable``.
+We use the ``Lifecyclable`` interface, which is defined in
+``Daml.Finance.Interface.Lifecycle.Lifecyclable``.
 
-The issuer of the bond is responsible for initiating the coupon payment,
-by calling ``Lifecycle`` on the coupon date:
+The issuer of the bond is responsible for initiating the coupon payment, by calling ``Lifecycle`` on
+the coupon date:
 
 .. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
   :language: daml
   :start-after: -- LIFECYCLE_BOND_BEGIN
   :end-before: -- LIFECYCLE_BOND_END
 
-This internally uses the ``Event`` interface, which is defined in ``Daml.Finance.Interface.Lifecycle.Event``. In our case, the event
-is a clock update event, since the coupon payment is triggered by the passage of time.
+This internally uses the ``Event`` interface, which is defined in
+``Daml.Finance.Interface.Lifecycle.Event``. In our case, the event is a clock update event, since
+the coupon payment is triggered by the passage of time.
 
-The ``effectCids`` will contain the effect(s) of the lifecycling, in this case a coupon payment.
-If there is nothing to lifecycle, for example because there is no coupon to be paid today, ``effectCids`` would be empty.
-The ``Effect`` interface is defined in ``Daml.Finance.Interface.Lifecycle.Effect``.
+The ``effectCids`` will contain the effect(s) of the lifecycling, in this case a coupon payment. If
+there is nothing to lifecycle, for example because there is no coupon to be paid today,
+``effectCids`` would be empty. The ``Effect`` interface is defined in
+``Daml.Finance.Interface.Lifecycle.Effect``.
 
 Settle the Instructions
 ***********************
 
-In order to process the effect(s) of the lifecycling (in this case: pay the coupon), we need to create settlement instructions.
-We start by creating a settlement factory:
+In order to process the effect(s) of the lifecycling (in this case: pay the coupon), we need to
+create settlement instructions. We start by creating a settlement factory:
 
 .. code-block:: daml
 
-  settlementFactoryCid <- toInterfaceContractId <$> submit investor do createCmd Factory with provider = investor; observers = empty
+  settlementFactoryCid <- toInterfaceContractId <$> submit investor do createCmd Factory with
+  provider = investor; observers = empty
 
 The investor then claims the effect:
 
@@ -107,7 +112,9 @@ The investor then claims the effect:
       batchId = Id "CouponSettlement"
 
 Claiming the effect has two consequences:
-- the investor's holding is upgraded to the new instrument version (the one where the coupon has been paid)
+
+- the investor's holding is upgraded to the new instrument version (the one where the coupon has
+  been paid)
 - settlement instructions are generated in order to process the coupon payment
 
 Finally, the settlement instructions are allocated, approved and then settled.
@@ -130,4 +137,3 @@ Finally, the settlement instructions are allocated, approved and then settled.
   [investorCashTransferableCid] <- submitMulti [settlerUsed] readAs do exerciseCmd result.batchCid Batch.Settle with actors = singleton settlerUsed
 
 Following settlement, the investor receives a cash holding for the due coupon amount.
-
