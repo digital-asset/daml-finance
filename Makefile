@@ -157,7 +157,7 @@ headers-update:
 
 DAML_SRC := $(shell find src/main/daml -name '*.daml')
 SDK_VERSION := $(shell yq e '.sdk-version' daml.yaml)
-DAML_ROOT := $(shell if [[ -z ${DAML_HOME} ]]; then ~/.daml; else echo ${DAML_HOME}; fi)
+DAML_ROOT := $(shell if [ -z ${DAML_HOME} ]; then ~/.daml; else echo ${DAML_HOME}; fi)
 
 .PHONY: doc-code-json
 doc-code-json: $(DAML_SRC)

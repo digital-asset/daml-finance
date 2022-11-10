@@ -15,6 +15,7 @@ let
   };
   sphinx-exts = pkgs.python3Packages.sphinx.overridePythonAttrs (attrs: rec {
     propagatedBuildInputs = attrs.propagatedBuildInputs ++ [sphinx-copybutton];
+    doCheck = false;
   });
 in
   [ sphinx-exts
