@@ -116,13 +116,13 @@ In this case, a direct holding transfer from Alice and Bob cannot generally be i
 original ``Instruction`` between Alice and Bob needs to be replaced by three separate
 ``Instructions``:
 
-- **1A**: Alice sends 1000 EUR (held at Bank A) back to Bank A
-- **1B**: Bank A sends 1000 EUR (held at the Central Bank) to Bank B.
-- **1C**: Bank B credits 1000 EUR to Bob's account (held at Bank B)
+- **1A**: Alice sends EUR 1000 (held at Bank A) back to Bank A
+- **1B**: Bank A sends EUR 1000 (held at the Central Bank) to Bank B.
+- **1C**: Bank B credits EUR 1000 to Bob's account (held at Bank B)
 
 .. image:: ../images/settlement_hierarchy_instructed.png
-   :alt: Instructions for intermediated settlement: Alice sends 1000 EUR to Bank A. Bank A sends
-         1000 EUR to Bank B. Bank B sends 1000 EUR to Bob.
+   :alt: Instructions for intermediated settlement: Alice sends EUR 1000 to Bank A. Bank A sends
+         EUR 1000 to Bank B. Bank B sends EUR 1000 to Bob.
 
 We refer to this scenario as *settlement with intermediaries*, or just *intermediated settlement*.
 The Settlement Factory is responsible for generating the correct set of instructions, so that they
@@ -155,11 +155,11 @@ be allocated / approved.
 +--------------------------------------------+----------------------------------------+------------------------------------------+
 | Instruction                                | Allocation                             | Approval                                 |
 +============================================+========================================+==========================================+
-| 1A : 1000 EUR from Alice to Bank A         | Alice pledges her holding              | Bank A approves with DebitSender         |
+| 1A : EUR 1000 from Alice to Bank A         | Alice pledges her holding              | Bank A approves with DebitSender         |
 +--------------------------------------------+----------------------------------------+------------------------------------------+
-| 2A : 1000 EUR from Bank A to Bank B        | Bank A pledges their holding           | Bank B takes delivery to their account   |
+| 2A : EUR 1000 from Bank A to Bank B        | Bank A pledges their holding           | Bank B takes delivery to their account   |
 +--------------------------------------------+----------------------------------------+------------------------------------------+
-| 3A : 1000 EUR from Bank B to Bob           | Bank B allocates with CreditReceiver   | Bob takes delivery to his account        |
+| 3A : EUR 1000 from Bank B to Bob           | Bank B allocates with CreditReceiver   | Bob takes delivery to his account        |
 +--------------------------------------------+----------------------------------------+------------------------------------------+
 
 Finally, the Instruction supports two additional settlement modes:

@@ -99,7 +99,7 @@ Bob then accepts the proposal, agreeing to the terms of the trade.
 Once the proposal is accepted, three contracts are created:
 
 - an instruction to transfer ``10 TOKEN`` from Alice to Bob
-- an instruction to transfer ``1000 USD`` from Bob to Alice
+- an instruction to transfer ``USD 1000`` from Bob to Alice
 - a batch contract to settle the two instructions atomically
 
 The workflow to create these contracts makes use of the settlement factory.
@@ -145,12 +145,12 @@ implementations of ``Batch`` or ``Instruction``.
 
 A second aspect has to do with intermediated settlement.
 
-Consider a real-world example where Alice instructs a bank transfer to send 100 USD to Bob. The
+Consider a real-world example where Alice instructs a bank transfer to send USD 100 to Bob. The
 following happens:
 
-- 100 USD are debited from Alice's account at her bank
-- 100 USD are transferred from Alice's bank to Bob's bank (via their accounts at the central bank)
-- 100 USD are credited to Bob's account at his bank
+- USD 100 are debited from Alice's account at her bank
+- USD 100 are transferred from Alice's bank to Bob's bank (via their accounts at the central bank)
+- USD 100 are credited to Bob's account at his bank
 
 A single ``Step`` requires three instructions to settle.
 
