@@ -32,14 +32,12 @@ potentially acting maliciously.
 Keys and Versioning
 ===================
 
-An instrument is identified by an ``Id``, which comprises a textual label and a textual version.
-
-It is usually referenced by key, the ``InstrumentKey`` comprising
+Instruments are keyed by an ``InstrumentKey``, which comprises
 
 -  the instrument ``issuer``
 -  the instrument ``depository``
 -  a textual ``id``
--  a ``version``
+-  a textual ``version``
 
 The version is used to keep track of the linear evolution of an instrument.
 
@@ -102,8 +100,8 @@ Properties of Holdings
 A holding implementation can have specific properties such as being :ref:`fungible <fungibility>` or
 :ref:`transferable <transferability>`.
 
-When, for instance, a holding is transferable, the owner has the right to transfer ownership to a
-different party at the same custodian.
+When, for instance, a holding is transferable, the ownership can be transferred to a different party
+at the same custodian.
 
 These properties are exposed by implementing the corresponding interface (``Fungible`` and
 ``Transferable``, respectively).
@@ -128,20 +126,21 @@ Implementations are provided in ``Daml.Finance.Holding`` for
 Account
 *******
 
-Finally, account contracts are used as proof of a relationship between a
-``custodian`` and an ``owner``.
+Finally, account contracts are used as proof of a relationship between a ``custodian`` and an
+``owner``.
 
-An ``owner`` must have an account contract with a ``custodian`` before a holding
-contract can be created between the two parties.
+An ``owner`` must have an account contract with a ``custodian`` before a holding contract can be
+created between the two parties.
 
-This is similar to how, in the real world, you need to open a bank account
-before you can use the bank’s services.
+This is similar to how, in the real world, you need to open a bank account before you can use the
+bank’s services.
 
 The account contract controls which parties are authorized to transfer holdings in and out of the
 account.
 
 Accounts are also used to prevent holding transfers to unvetted third parties: Alice can transfer a
-holding to Bob only if Bob has an account at the Bank (and has therefore been vetted by the Bank).
+holding to Bob only if Bob has an account at the same Bank (and has therefore been vetted by the
+Bank).
 
 .. _signatories-2:
 
@@ -201,6 +200,7 @@ account.
    :alt: Currency asset setup.
 
 In this scenario, we can see how
+
 - the instrument defines what is held
 - the holding defines where the rights and obligations lie, as well as the corresponding amount
 
@@ -235,7 +235,7 @@ for this purpose.
 In this case, all contracts are agreed and co-signed by both parties. In the instrument contract,
 it does not really matter whether Party A is the ``issuer`` and Party B the ``depository``, or the
 other way around. However, the role matters in the Holding contract, as it defines the direction of
-the trade (that is, which party receives the fixed leg and which party receives the floating one).
+the trade, i.e., which party receives the fixed leg and which party receives the floating one.
 
 .. image:: ../images/asset_model_otc.png
    :alt: OTC Swap asset setup.

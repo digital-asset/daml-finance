@@ -24,9 +24,10 @@ definitions) interact with each other.
 This layer includes several Daml packages, each grouping related business functions. These packages
 can in principle be used independently from each other:
 
--  ``Daml.Finance.Interface.Holding`` defines interfaces for holdings, accounts, and holding
-   properties such as :ref:`fungibility <fungibility>`, :ref:`transferability <transferability>`, or
-   :ref:`locking <locking>`
+-  ``Daml.Finance.Interface.Holding`` defines interfaces for holdings and related properties such
+   as :ref:`locking <locking>`, :ref:`transferability <transferability>`, or
+   :ref:`fungibility <fungibility>`
+-  ``Daml.Finance.Interface.Account`` defines interfaces for accounts
 -  ``Daml.Finance.Interface.Settlement`` defines interfaces for settlement instructions and batched
    settlements
 -  ``Daml.Finance.Interface.Lifecycle`` defines interfaces used for instrument lifecycling
@@ -51,7 +52,8 @@ implements interfaces defined in ``Daml.Finance.Interface.Holding``.
 
 The implementation layer consists of the following packages:
 
--  ``Daml.Finance.Holding`` defines default implementations for holdings, accounts and instruments
+-  ``Daml.Finance.Holding`` defines default implementations for holdings
+-  ``Daml.Finance.Account`` defines default implementations for accounts
 -  ``Daml.Finance.Settlement`` defines templates for settlement instructions and arbitrary batched
    settlements
 -  ``Daml.Finance.Lifecycle`` defines an implementation of lifecycle effects and a rule template to
@@ -82,12 +84,12 @@ The :doc:`Getting Started <../tutorials/getting-started/intro>` examples showcas
 pattern.
 
 .. image:: ../images/customer_integration_example.png
-   :alt: A flowchart with six boxes: Interface.Asset, Interface.Settlement, Asset, Settlement,
+   :alt: A flowchart with six boxes: Interface.Holding, Interface.Settlement, Holding, Settlement,
          Customer model, and Customer initialization script. The Customer model feeds into
-         Interface.Asset and Interface.Settlement. Customer initialization script feeds into Asset
-         and Interface.Asset. Settlement feeds into Interface.Asset and Interface.Settlement. Asset
-         feeds into Interface.Asset. Interface.Settlement feeds into Interface.Asset.
-         Interface.Asset does not have any outgoing arrows.
+         Interface.Holding and Interface.Settlement. Customer initialization script feeds into
+         Holding and Interface.Holding. Settlement feeds into Interface.Holding and
+         Interface.Settlement. Holding feeds into Interface.Holding. Interface.Settlement feeds into
+         Interface.Holding. Interface.Holding does not have any outgoing arrows.
 
 Extension Points
 ****************
@@ -98,10 +100,11 @@ important extension points are:
 -  *Holding interface hierarchy*: can be implemented to support specific requirements around
    fungibility (e.g. fixed divisibility), transferability (e.g. transfer restrictions), or just to
    hold additional information required on a holding contract
+-  *Account interface*: can be implemented to support different account types (e.g. gold bars
+   located at shelfs in vaults) and controllers of incoming and outgoing transfers (e.g.
+   custodian-only or owner-only controlled)
 -  *Instrument interface*: can be implemented to support specific financial instruments and data
    models (e.g. a CDM-based instrument)
--  *Account interface*: can be implemented to support different account types (e.g. gold bars
-   located at shelfs in vaults)
 -  *Settlement interfaces*: can be implemented to support new settlement modes (e.g. involving
-   off-ledger legs, or HTLC-type mechanisms)
+   off-ledger legs, or hased timelock contract (HTLC) mechanisms)
 -  *Lifecycle interfaces*: can be implemented to support new lifecycle events, or observation types
