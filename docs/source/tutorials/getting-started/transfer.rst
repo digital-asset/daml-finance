@@ -146,7 +146,7 @@ An instrument is a representation of what it is that we are holding against the 
 simple as just a textual label (like in this case) or it can include complex on-ledger lifecycling
 logic.
 
-To hold one unit of the cash instrument in this scenario means that we can claim 1 USD from the
+To hold one unit of the cash instrument in this scenario means that we can claim USD 1 from the
 custodian of the holding.
 
 Notice how in this case the Bank acts both as the issuer and depository of the cash instrument. This
@@ -162,7 +162,7 @@ We can now deposit cash in Alice’s account, using the ``Deposit`` workflow.
   :start-after: -- CREATE_ALICE_HOLDING_BEGIN
   :end-before: -- CREATE_ALICE_HOLDING_END
 
-Alice creates a request to deposit ``1,000 USD`` at the Bank, the Bank then accepts the request and
+Alice creates a request to deposit ``USD 1,000`` at the Bank, the Bank then accepts the request and
 a corresponding ``Holding`` is created.
 
 You can imagine that the latter step happens only after Alice has showed up at the bank and
@@ -268,14 +268,14 @@ help you familiarize yourself with the library and with Daml interfaces.
 Split the Holding to Transfer the Right Amount
 ==============================================
 
-In the example, Bob requests ``1,000 USD`` from Alice and Alice allocates a holding for exactly the
+In the example, Bob requests ``USD 1,000`` from Alice and Alice allocates a holding for exactly the
 right amount, because the transfer would otherwise fail. We want the transfer to be successful also
-if Alice allocates a holding for a larger amount e.g., ``1,500 USD``.
+if Alice allocates a holding for a larger amount e.g., ``USD 1,500``.
 
 We can leverage the fact that the holding implements the
 :ref:`Fungible <type-daml-finance-interface-holding-fungible-fungible-60176>`
-interface, which makes it possible to ``Split`` it into a holding of ``1,000 USD`` and one of
-``500 USD``. In the implementation of the ``CashTransferRequest_Accept`` choice
+interface, which makes it possible to ``Split`` it into a holding of ``USD 1,000`` and one of
+``USD 500``. In the implementation of the ``CashTransferRequest_Accept`` choice
 
 - cast the allocated holding to the ``Fungible`` interface
 - use the ``Split`` choice to split the larger holding into two holdings
