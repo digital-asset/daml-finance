@@ -69,7 +69,9 @@ to note here:
 - The :ref:`StubPeriodTypeEnum <type-daml-finance-interface-types-date-schedule-stubperiodtypeenum-69372>`
   allows you to explicitly specify what kind of stub period the bond should have. This is optional
   and not used in the example above. Instead, we defined the stub implicitly by specifying a
-  ``firstRegularPeriodStartDate``.
+  ``firstRegularPeriodStartDate``: since the time between the issue date and the first regular
+  period start date is less than 12M (our regular coupon period), this implies a short initial
+  stub period.
 
 Now that we have defined the terms we can create the bond instrument:
 
@@ -93,15 +95,15 @@ Here is an example of a bond paying Euribor 3M + 1.1% p.a. with a 3M coupon peri
   :start-after: -- CREATE_FLOATING_RATE_BOND_VARIABLES_BEGIN
   :end-before: -- CREATE_FLOATING_RATE_BOND_VARIABLES_END
 
-Here is how we create the floating rate bond instrument:
+Using these terms we can create the floating rate bond instrument:
 
 .. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
   :language: daml
   :start-after: -- CREATE_FLOATING_RATE_BOND_INSTRUMENT_BEGIN
   :end-before: -- CREATE_FLOATING_RATE_BOND_INSTRUMENT_END
 
-The reference rate is observed once at the beginning of each coupon period and used for the coupon
-payment at the end of that period.
+The reference rate (Euribor 3M) is observed once at the beginning of each coupon period and used
+for the coupon payment at the end of that period.
 
 Inflation Linked
 ================
@@ -117,7 +119,7 @@ Here is an example of a bond paying 1.1% p.a. (on a CPI adjusted principal) with
   :start-after: -- CREATE_INFLATION_LINKED_BOND_VARIABLES_BEGIN
   :end-before: -- CREATE_INFLATION_LINKED_BOND_VARIABLES_END
 
-Then, we create the inflation linked bond instrument:
+Based on these terms we can create the inflation linked bond instrument:
 
 .. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
   :language: daml
@@ -142,7 +144,7 @@ Here is an example of a zero coupon bond:
   :start-after: -- CREATE_ZERO_COUPON_BOND_VARIABLES_BEGIN
   :end-before: -- CREATE_ZERO_COUPON_BOND_VARIABLES_END
 
-Finally, we create the zero coupon bond instrument:
+Based on this we create the zero coupon bond instrument:
 
 .. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
   :language: daml
