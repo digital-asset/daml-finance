@@ -16,7 +16,7 @@ Core Implementations
     - :ref:`NonTransferable <module-daml-finance-holding-nontransferable-44402>`: Implementation of
       a non-transferable holding
     - :ref:`Util <module-daml-finance-holding-util-87323>`: Utility functions related to holdings,
-      e.g. locking a holding
+      e.g., locking a holding
 
     The :doc:`Asset Model <../concepts/asset-model>` page explains the relationship between
     instruments, holdings, and accounts. Check out the
@@ -45,9 +45,9 @@ Core Implementations
       set of settlement steps
 
     The :doc:`Settlement <../concepts/settlement>` page contains an overview of the settlement
-    process and explains the relationship between ``Step``, ``Instruction`` and ``Batch``. Check out
-    the :doc:`Settlement tutorial <../tutorials/getting-started/settlement>` for a description on
-    how to implement the settlement workflow in practice.
+    process and explains the relationship between ``Instruction`` and ``Batch``. Check out the
+    :doc:`Settlement tutorial <../tutorials/getting-started/settlement>` for a description on how to
+    implement the settlement workflow in practice.
 
 - ``Daml.Finance.Lifecycle``
 
@@ -91,7 +91,7 @@ Core Implementations
     contingent-claim-based instruments. It includes the following modules:
 
     - :ref:`Util <module-daml-finance-claims-util-5254>`:
-      Contains utility functions for claims, e.g. checking content of a claim and converting claim
+      Contains utility functions for claims, e.g., checking content of a claim and converting claim
       time
     - :ref:`Util.Lifecycle <module-daml-finance-claims-util-lifecycle-9534>`:
       Defines different types of events and how to lifecycle them
@@ -102,7 +102,7 @@ Core Implementations
 
     - :ref:`Observation <module-daml-finance-data-observable-observation-7524>`:
       An implementation of an ``Observation`` that explicitly stores time-dependent numerical values
-      on the ledger. It can be used to e.g. store equity or rate fixings
+      on the ledger. It can be used to, e.g., store equity or rate fixings
     - :ref:`HolidayCalendar <module-daml-finance-data-reference-holidaycalendar-10773>`:
       Holiday calendar of an entity (typically an exchange or a currency)
     - :ref:`DateClock <module-daml-finance-data-time-dateclock-65212>`:

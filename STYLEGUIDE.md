@@ -100,14 +100,15 @@ within this repository.
     ...
   ```
 
-- Define `I` and `V` type aliases for the interface resp. view type:
+- Define `I` and `V` type aliases for the interface and view type, respectively:
 
   ```haskell
   type I = Account
   type V = View
   ```
 
-- Use qualified imports `I` and `V` to refer to interface resp. view types in consuming code:
+- In consuming code, use qualified imports `I` and `V` to refer to interface and view types,
+- respectively:
 
   ```haskell
   let iCid : ContractId Holding.I = ...

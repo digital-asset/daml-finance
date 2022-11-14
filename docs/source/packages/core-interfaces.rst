@@ -19,7 +19,7 @@ Core Interfaces
       Interface for a transferable holding, i.e., where ownership can be transferred to other
       parties
     - :ref:`Util <module-daml-finance-interface-holding-util-81618>`:
-      Utility functions related to holdings, e.g. getting the account / instrument / owner of a
+      Utility functions related to holdings, e.g., getting the account / instrument / owner of a
       holding
 
     The :doc:`Asset Model <../concepts/asset-model>` page explains the relationship between
@@ -48,10 +48,10 @@ Core Interfaces
     - :ref:`Batch <module-daml-finance-interface-settlement-batch-39188>`:
       Interface for atomically settling `Transferable`\s
     - :ref:`Types <module-daml-finance-interface-settlement-types-44085>`:
-      Types required in the settlement process, e.g. Step, Allocation and Approval
+      Types required in the settlement process, e.g., RoutedStep, Allocation and Approval
 
     The :doc:`Settlement <../concepts/settlement>` page contains an overview of the settlement
-    process and explains the relationship between steps, instructions, and batches. Check out the
+    process and explains the relationship between instructions and batches. Check out the
     :doc:`Settlement tutorial <../tutorials/getting-started/settlement>` for a description on how to
     use settlement workflow in practice.
 
@@ -62,9 +62,9 @@ Core Interfaces
 
     - :ref:`Event <module-daml-finance-interface-lifecycle-event-43586>`:
       Interface for a lifecycle event. An event is any contract that triggers the processing of a
-      lifecycle rule. Events can be e.g. dividend announcements or simply the passing of time.
+      lifecycle rule. Events can be, e.g., dividend announcements or simply the passing of time.
     - :ref:`Effect <module-daml-finance-interface-lifecycle-effect-16050>`:
-      Interface for contracts exposing effects of lifecycling processes, e.g. the payment resulting
+      Interface for contracts exposing effects of lifecycling processes, e.g., the payment resulting
       from a bond coupon
     - :ref:`Rule.Claim <module-daml-finance-interface-lifecycle-rule-claim-6739>`:
       Interface for contracts that allow holders to claim an ``Effect`` and generate settlement
