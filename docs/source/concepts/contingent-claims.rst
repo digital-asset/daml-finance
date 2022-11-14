@@ -9,7 +9,7 @@ Contingent Claims
 
    Quickstart <contingent-claims/quickstart>
 
-Contingent Claims is a library for modeling contingent claims, i.e. derivatives, written in the
+Contingent Claims is a library for modeling contingent claims, i.e., derivatives, written in the
 smart contract language `Daml <https://www.digitalasset.com/developers>`__. Briefly, a derivative is
 represented by a tree of ``Claim``\ s, which describe future cashflows between two parties as well
 as the conditions under which these cashflows occur.
@@ -17,7 +17,7 @@ as the conditions under which these cashflows occur.
 The library offers life-cycling capabilities, as well as a valuation semantics that maps a claim to
 a mathematical expression that can be used for no-arbitrage pricing.
 
-The implementation closely follows the model outlined in the papers [Cit1]_, [Cit2]_.
+The implementation closely follows the model outlined in the papers [Cit1]_ and [Cit2]_.
 
 To get started, we recommend reading through the :doc:`quickstart <./contingent-claims/quickstart>`
 page.

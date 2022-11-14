@@ -4,7 +4,7 @@
 How To Use the Generic Extension To Model Generic Instruments
 ################################################################
 
-To follow the script used in this tutorial you can
+To follow the script used in this tutorial, you can
 `clone the Daml Finance repository <https://github.com/digital-asset/daml-finance>`_. In particular,
 the file ``src/test/daml/Daml/Finance/Instrument/Generic/Test/Intermediated/BondCoupon.daml`` is the
 starting point of this tutorial.
@@ -40,7 +40,7 @@ This will create an instrument containing the ``Contingent Claims`` tree on the 
 How To Trade and Transfer a Generic Instrument
 **********************************************
 
-When you have created a holding on the instrument above it can be transfered to another party. This
+When you have created a holding on the above instrument it can be transfered to another party. This
 is described in :doc:`Getting Started: Transfer <../getting-started/transfer>`.
 
 In order to trade the instrument (transfer it in exchange for cash) you can also initiate a delivery

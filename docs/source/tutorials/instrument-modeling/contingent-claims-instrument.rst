@@ -9,7 +9,7 @@ In this chapter we will look at how to create a strongly typed instrument, which
 implemented in Daml Finance. The goal is that you will learn how to implement your own instrument
 template, if you need an instrument type that is not already implemented in Daml Fincance.
 
-To follow the script used in this tutorial you can
+To follow the script used in this tutorial, you can
 `clone the Daml Finance repository <https://github.com/digital-asset/daml-finance>`_. In particular,
 the file ``src/test/daml/Daml/Finance/Instrument/Bond/Test/FixedRate.daml`` is the starting point of
 this tutorial. It also refers to some utility functions in
@@ -32,10 +32,10 @@ described in the next sections.
 HasClaims Interface
 ===================
 
-In order for the instrument to work with the general Daml Finance lifecycling framework we will
+In order for the instrument to work with the general Daml Finance lifecycling framework, we will
 implement the HasClaims interface. This provides a generic mechanism to process coupon payments and
-the redemption amount. The good thing here is that it will work in a similar way for all instrument
-types, regardless of their economic terms.
+the redemption amount. It will work in a similar way for all instrument types, regardless of their
+economic terms.
 
 Here is a high level implementation of HasClaims:
 
@@ -46,7 +46,7 @@ Here is a high level implementation of HasClaims:
 
 First, we create a coupon schedule, which depends on the coupon dates and a holiday calendar. This
 is then used to create the actual coupon claims. The redemption claim is also created. Finally, the
-the coupon claims and the redemption claim define the economic terms of the instrument.
+coupon claims and the redemption claim define the economic terms of the instrument.
 
 How to Define the Redemption Claim
 ==================================
@@ -74,7 +74,7 @@ Here is how we create the ``Contingent Claims`` representation of the coupons:
   :start-after: -- FIXED_RATE_BOND_COUPON_CLAIMS_BEGIN
   :end-before: -- FIXED_RATE_BOND_COUPON_CLAIMS_END
 
-For each coupon period we calculate the adjusted end date and the amount of the coupon. We then
+For each coupon period, we calculate the adjusted end date and the amount of the coupon. We then
 create each coupon claim in a way similar to the redemption claim above.
 
 How the Instrument Evolves Over Time
@@ -85,7 +85,7 @@ At issuance, this means all the coupons, since they are all in the future. Howev
 coupon is paid, the holder of the instrument is no longer entitled to receive this coupon again.
 In other words, the claims representation of the instrument changes. It evolves over time.
 
-In our implementation of the fixed rate bond we want a simple and reliable mechanism for evolving
+In our implementation of the fixed rate bond, we want a simple and reliable mechanism for evolving
 the instrument. Luckily for us, when the lifecycle function returns a coupon to be paid today, it
 also returns the remaining claims of the instrument (excluding today's and any previous coupons).
 Hence, we can use this to evolve our instrument, in a way that is guaranteed to be consistent with

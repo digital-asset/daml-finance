@@ -8,7 +8,7 @@ This tutorial introduces the :ref:`lifecycling <lifecycling>` framework of the l
 example. The purpose is to demonstrate how lifecycle rules and events can be used to process a
 dividend payment.
 
-We are going to
+We are going to:
 
 #. create a new version of the token instrument
 #. create the required lifecycle rules
@@ -108,11 +108,11 @@ the associated entitlements.
   :start-after: -- CLAIM_EVENT_BEGIN
   :end-before: -- CLAIM_EVENT_END
 
-As a side-effect of claiming the effect the presented holding is exchanged for the new token
-version. This is to prevent a holder from claiming a given effect twice.
+As a side-effect of claiming the effect the presented holding is exchanged for a holding of the new
+token version. This is to prevent a holder from claiming a given effect twice.
 
-In our example of a cash dividend only a single instruction is generated: the movement of cash from
-the bank to the token holder. This instruction along with its batch is now settled the usual way, as
+In our example of a cash dividend, only a single instruction is generated: the movement of cash from
+the bank to the token holder. This instruction along with its batch is settled the usual way, as
 described in the previous :doc:`Settlement <settlement>` tutorial.
 
 .. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Lifecycling.daml
@@ -131,8 +131,8 @@ Frequently Asked Questions
 Which party should create and sign the lifecycle rules and events?
 ==================================================================
 
-In the simplified scenario for this tutorial we have used the bank as both the *issuer* and
-*depository* for the instruments involved. In a real-world case instruments and their corresponding
+In the simplified scenario for this tutorial, we have used the bank as both the *issuer* and
+*depository* for the instruments involved. In a real-world case, instruments and their corresponding
 lifecycle rules and events would be maintained by an actual issuer, with the depository acting as a
 3rd-party trust anchor.
 
@@ -163,15 +163,15 @@ contracts:
   upgrade or patch them without affecting your live instruments.
 * Having separate rules allows to change the lifecycle properties of an instrument dynamically at
   runtime. For example, an instrument can initially be created without support for doing asset
-  distributions. Then, at a later point the issuer might decide to start paying dividends. They can
+  distributions. Then, at a later point, the issuer might decide to start paying dividends. They can
   now simply add a distribution rule to the running system to enable this new lifecycle event for
   their instrument without affecting the actual live instrument itself (or any holdings on it).
 
 Summary
 *******
 
-You have now learned how to use lifecycle rules and events to describe the behavior of an
-instrument. The key concepts to take away are:
+You have learned how to use lifecycle rules and events to describe the behavior of an instrument.
+The key concepts to take away are:
 
 * Lifecycle events represent different ways of how an instrument can evolve.
 * A lifecycle rule contains logic to calculate the effects an event has on an instrument and its

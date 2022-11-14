@@ -7,7 +7,7 @@ Settlement
 This tutorial introduces the settlement features of the library through a simple example. The
 purpose is to demonstrate how multiple holding transfers can be executed atomically.
 
-We are going to
+We are going to:
 
 #. create a new ``TOKEN`` instrument
 #. credit a token holding to Alice’s account
@@ -169,12 +169,12 @@ delicate, as this party acquires visibility on the entire transaction and hence 
 Summary
 *******
 
-You now know how to define complex transactions and settle them atomically. The main points to take
-away are:
+You know how to define complex transactions and settle them atomically. The main points to take away
+are:
 
-* A settlement factory is used to instruct settlement for an arbitrary list of steps
-* Instructions are used to collect authorizations, assets to be moved, and means of settlement
-* Batches group together instructions to be settled atomically
+* A settlement factory is used to instruct settlement for an arbitrary list of steps.
+* Instructions are used to collect authorizations, assets to be moved, and means of settlement.
+* Batches group together instructions to be settled atomically.
 
 In the next tutorial, we will introduce the lifecycling framework of the library, which is used to
 model the evolution of instruments. The concepts introduced in this tutorial will be used to settle

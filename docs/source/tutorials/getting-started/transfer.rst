@@ -8,7 +8,7 @@ This tutorial introduces the core asset model of the library through a simple ex
 is to illustrate the concepts of :ref:`account <account>`, :ref:`instrument <instrument>`, and
 :ref:`holding <holding>`, as well as showing how to work with Daml interfaces.
 
-We are going to
+We are going to:
 
 #. create accounts for Alice and Bob at the Bank
 #. issue a cash instrument
@@ -121,8 +121,8 @@ Open Alice’s and Bob’s Accounts
 Once the factory templates are setup, we leverage our ``CreateAccount`` workflow to create accounts
 at the Bank for Alice and Bob.
 
-The creation of an account needs to be authorized by both the ``custodian`` and the ``owner`` (resp.
-the Bank and Alice in our case). Authorization is collected using an initiate / accept pattern.
+The creation of an account needs to be authorized by both the ``custodian`` and the ``owner``, i.e.,
+by the Bank and Alice in our case. Authorization is collected using an initiate / accept pattern.
 
 .. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Transfer.daml
   :language: daml
@@ -134,8 +134,8 @@ Bob’s account is created in a similar fashion.
 Create the Cash Instrument
 ==========================
 
-In order to credit Alice’s account with some cash, we first need to introduce a cash ``Instrument``
-in our model.
+In order to credit Alice’s account with some cash, we first introduce a cash ``Instrument`` in our
+model.
 
 .. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Transfer.daml
   :language: daml
@@ -303,8 +303,8 @@ used to disclose / undisclose Bob's account contract to Alice.
 Summary
 *******
 
-You now know how to setup basic accounts, holdings and instruments. You also learned how to perform
-a simple transfer. The key concepts to take away are:
+You know how to setup basic accounts, holdings and instruments. You also learned how to perform a
+simple transfer. The key concepts to take away are:
 
 * Holdings represent the ownership of a financial instrument at a custodian.
 * Instruments define the economic terms of a financial contract.
