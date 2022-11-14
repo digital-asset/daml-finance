@@ -185,8 +185,10 @@ Implementations
 
 A base account implementation is provided in ``Daml.Finance.Account``.
 
-Although the ``controllers`` field can be set arbitrarly, we typically let accounts be
-owners-controlled for our examples.
+The account can be created with arbitrary ``controllers`` (for incoming and outgoing transfers).
+
+In our examples, we typically let accounts be owners-controlled, i.e., the owner and the new owner
+must authorize transfers.
 
 Examples
 ********
