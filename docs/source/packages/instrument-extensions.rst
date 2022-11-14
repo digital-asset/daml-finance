@@ -62,7 +62,7 @@ Bonds
 
     Check out the tutorial on
     :doc:`How to use the Bond extension package <../tutorials/instrument-modeling/bond-extension>`
-    for a description how to use the bond extension in practice. There is also the tutorial
+    for a description of how to use the bond extension in practice. There is also the tutorial
     :doc:`How to implement a Contingent Claims-based instrument <../tutorials/instrument-modeling/contingent-claims-instrument>`,
     which describes how the claims are defined and how the lifecycle interface is implemented for
     bonds.
@@ -111,6 +111,10 @@ Swaps
     - :ref:`Fpml <module-daml-finance-instrument-swap-fpml-instrument-17241>`:
       This template models interest rate swaps and currency swaps using the
       `FpML swap schema <https://www.fpml.org/spec/fpml-5-11-3-lcwd-1/html/confirmation/schemaDocumentation/schemas/fpml-ird-5-11_xsd/complexTypes/Swap.html>`_
+
+    Check out the tutorial on
+    :doc:`How to use the Swap extension package <../tutorials/instrument-modeling/swap-extension>`
+    for a description of how to use the swap extension in practice.
 
 Equity
 ======
