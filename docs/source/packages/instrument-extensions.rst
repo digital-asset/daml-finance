@@ -86,7 +86,7 @@ Swaps
     - :ref:`InterestRate <module-daml-finance-interface-instrument-swap-interestrate-instrument-49463>`:
       Interface that allows implementing templates to create interest rate swaps
     - :ref:`Fpml <module-daml-finance-interface-instrument-swap-fpml-instrument-38654>`:
-      Interface that allows implementing templates to create FpML swaps
+      Interface that allows implementing templates to create swaps using the `FpML swap schema <https://www.fpml.org/spec/fpml-5-11-3-lcwd-1/html/confirmation/schemaDocumentation/schemas/fpml-ird-5-11_xsd/complexTypes/Swap.html>`_
 
 - ``Daml.Finance.Instrument.Swap``
 
@@ -109,7 +109,7 @@ Swaps
       This template models an interest rate swap that pays a fixed vs floating interest rate at the
       end of every payment period
     - :ref:`Fpml <module-daml-finance-instrument-swap-fpml-instrument-17241>`:
-      This template models interest rate swaps using the
+      This template models interest rate swaps and currency swaps using the
       `FpML swap schema <https://www.fpml.org/spec/fpml-5-11-3-lcwd-1/html/confirmation/schemaDocumentation/schemas/fpml-ird-5-11_xsd/complexTypes/Swap.html>`_
 
 Equity
