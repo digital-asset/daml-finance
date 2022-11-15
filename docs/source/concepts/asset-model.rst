@@ -244,6 +244,8 @@ corresponding Account and Holding contracts.
 It is worth noting that the ``issuer`` of the Equity Instrument has the right to perform certain
 Corporate Actions, such as declaring dividends. This topic is covered in the lifecycling section.
 
+.. _otc-swap-asset-model:
+
 OTC Swap
 ========
 
