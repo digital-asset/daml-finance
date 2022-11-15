@@ -23,79 +23,134 @@ run = script do
   tp@TestParties{custodian; issuer; investor; lockers; publicParty} <- setupParties
 
   -- Initialize state with `Fungible.Factory`
-  TestInitialState {investorAccount; issuerAccount; issuerHoldingCid} <- setupInitialState tp (Fungible.Factory with provider = custodian; observers = M.fromList [("PublicParty", S.singleton publicParty)]) [] Account.Owner
+  TestInitialState {investorAccount; issuerAccount; issuerHoldingCid} <- setupInitialState
+      tp
+      Fungible.Factory with
+        provider = custodian; observers = M.fromList [("PublicParty", S.singleton publicParty)]
+      [] Account.Owner
 
   -- Lock asset
-  baseCid <- submitMulti [issuer, lockers] [] do exerciseCmd (coerceContractId issuerHoldingCid : ContractId Base.I) Base.Acquire with newLockers = S.singleton lockers; context = "Test Lock"; lockType = Base.Semaphore
+  baseCid <- submitMulti [issuer, lockers] [] do
+    exerciseCmd (coerceContractId issuerHoldingCid : ContractId Base.I)
+      Base.Acquire with
+        newLockers = S.singleton lockers; context = "Test Lock"; lockType = Base.Semaphore
 
   -- Cannot split
-  submitMultiMustFail [issuer, investor] [] do exerciseCmd (coerceContractId baseCid : ContractId Fungible.I) Fungible.Split with amounts = [500.0, 250.0]
+  submitMultiMustFail [issuer, investor] [] do
+    exerciseCmd (coerceContractId baseCid : ContractId Fungible.I) Fungible.Split with
+      amounts = [500.0, 250.0]
 
   -- Cannot transfer
-  submitMultiMustFail [issuer, investor] [] do exerciseCmd (coerceContractId baseCid : ContractId Transferable.I) Transferable.Transfer with actors = S.fromList [issuer, investor]; newOwnerAccount = investorAccount
+  submitMultiMustFail [issuer, investor] [] do
+    exerciseCmd (coerceContractId baseCid : ContractId Transferable.I)
+      Transferable.Transfer with
+        actors = S.fromList [issuer, investor]; newOwnerAccount = investorAccount
 
   -- Cannot debit
-  Account.submitMustFailExerciseInterfaceByKeyCmd @Account.I [custodian, issuer] [] issuerAccount (Account.Debit with holdingCid = toInterfaceContractId baseCid)
+  Account.submitMustFailExerciseInterfaceByKeyCmd @Account.I [custodian, issuer] [] issuerAccount
+    (Account.Debit with holdingCid = toInterfaceContractId baseCid)
 
   -- Unlock asset
-  fungibleCid : ContractId Fungible.I <- coerceContractId <$> submit lockers do exerciseCmd baseCid Base.Release with context = "Test Lock"
+  fungibleCid : ContractId Fungible.I <- coerceContractId <$> submit lockers do
+    exerciseCmd baseCid Base.Release with context = "Test Lock"
 
   -- Attempt to split more than the amount available fails
-  submitMultiMustFail [issuer, investor] [] do exerciseCmd fungibleCid Fungible.Split with amounts = [1_000.1]
-  submitMultiMustFail [issuer, investor] [] do exerciseCmd fungibleCid Fungible.Split with amounts = [1_000.0, 0.1]
+  submitMultiMustFail [issuer, investor] [] do
+    exerciseCmd fungibleCid Fungible.Split with amounts = [1_000.1]
+  submitMultiMustFail [issuer, investor] [] do
+    exerciseCmd fungibleCid Fungible.Split with amounts = [1_000.0, 0.1]
 
   -- Attempt to split negative amount fails
-  submitMultiMustFail [issuer, investor] [] do exerciseCmd fungibleCid Fungible.Split with amounts = [-20.0]
-  submitMultiMustFail [issuer, investor] [] do exerciseCmd fungibleCid Fungible.Split with amounts = [100.0, -20.0]
-  submitMultiMustFail [issuer, investor] [] do exerciseCmd fungibleCid Fungible.Split with amounts = [0.0]
-  submitMultiMustFail [issuer, investor] [] do exerciseCmd fungibleCid Fungible.Split with amounts = []
+  submitMultiMustFail [issuer, investor] [] do
+    exerciseCmd fungibleCid Fungible.Split with amounts = [-20.0]
+  submitMultiMustFail [issuer, investor] [] do
+    exerciseCmd fungibleCid Fungible.Split with amounts = [100.0, -20.0]
+  submitMultiMustFail [issuer, investor] [] do
+    exerciseCmd fungibleCid Fungible.Split with amounts = [0.0]
+  submitMultiMustFail [issuer, investor] [] do
+    exerciseCmd fungibleCid Fungible.Split with amounts = []
 
   -- Fungible (before split)
-  fungible <- fmap (\o -> toInterface @Fungible.I $ fromSome o) <$> queryContractId @Fungible.T issuer $ coerceContractId fungibleCid
+  fungible <- fmap (\o -> toInterface @Fungible.I $ fromSome o) <$>
+    queryContractId @Fungible.T issuer $ coerceContractId fungibleCid
 
   -- Split fungible
-  Fungible.SplitResult [splitCid1, splitCid2] (Some restCid) <- submitMulti [issuer, investor] [] do exerciseCmd fungibleCid Fungible.Split with amounts = [500.0, 250.0]
+  Fungible.SplitResult [splitCid1, splitCid2] (Some restCid) <-
+    submitMulti [issuer, investor] [] do
+      exerciseCmd fungibleCid Fungible.Split with amounts = [500.0, 250.0]
 
   -- Fungibles (after split)
-  [fungible1, fungible2, rest] <- fmap (\f -> toInterface @Fungible.I $ fromSome f) <$> mapA (\cid -> queryContractId @Fungible.T issuer $ coerceContractId cid) [splitCid1, splitCid2, restCid]
+  [fungible1, fungible2, rest] <- fmap (\f -> toInterface @Fungible.I $ fromSome f) <$>
+    mapA
+      (\cid -> queryContractId @Fungible.T issuer $ coerceContractId cid)
+      [splitCid1, splitCid2, restCid]
 
   -- Test utility function `verifyAmountPreserving`
   Fungible.verifyAmountPreserving [] []
   Fungible.verifyAmountPreserving [fungible] [fungible1, fungible2, rest]
-  Fungible.verifyAmountPreserving [fungible, fungible] [fungible1, fungible2, rest, fungible1, fungible2, rest]
+  Fungible.verifyAmountPreserving
+    [fungible, fungible] [fungible1, fungible2, rest, fungible1, fungible2, rest]
   Fungible.verifyAmountPreserving [fungible, fungible, fungible] [fungible, fungible, fungible]
-  validateAssertionFailure (Fungible.verifyAmountPreserving [fungible, fungible] [fungible]) "Fungible::verifyAmountPreserving - Sum of fungible amounts do not match the expected amount. newAmounTotal=2000.0, previousAmountTotal=1000.0"
-  validateAssertionFailure (Fungible.verifyAmountPreserving [fungible] []) "Fungible::verifyAmountPreserving - Sum of fungible amounts do not match the expected amount. newAmounTotal=1000.0, previousAmountTotal=0.0"
-  validateAssertionFailure (Fungible.verifyAmountPreserving [] [fungible]) "Fungible::verifyAmountPreserving - Sum of fungible amounts do not match the expected amount. newAmounTotal=0.0, previousAmountTotal=1000.0"
+  validateAssertionFailure (Fungible.verifyAmountPreserving [fungible, fungible] [fungible]) $
+    "Fungible::verifyAmountPreserving - Sum of fungible amounts do not match the expected " <>
+    "amount. newAmounTotal=2000.0, previousAmountTotal=1000.0"
+  validateAssertionFailure (Fungible.verifyAmountPreserving [fungible] []) $
+    "Fungible::verifyAmountPreserving - Sum of fungible amounts do not match the expected " <>
+    "amount. newAmounTotal=1000.0, previousAmountTotal=0.0"
+  validateAssertionFailure (Fungible.verifyAmountPreserving [] [fungible]) $
+    "Fungible::verifyAmountPreserving - Sum of fungible amounts do not match the expected " <>
+    "amount. newAmounTotal=0.0, previousAmountTotal=1000.0"
 
   -- Test utility function `verifySplit`
   Fungible.verifySplit [1.0] 10.0
-  validateAssertionFailure(Fungible.verifySplit [1.0, 2.0, 3.0, 4.0] 9.0) "Fungible::verifySplit - Amounts must be non-empty, strictly positive, and not exceed current amount. amounts=[1.0,2.0,3.0,4.0], splitAmountSum=10.0, currentAmount=9.0"
+  validateAssertionFailure(Fungible.verifySplit [1.0, 2.0, 3.0, 4.0] 9.0) $
+    "Fungible::verifySplit - Amounts must be non-empty, strictly positive, and not exceed " <>
+    "current amount. amounts=[1.0,2.0,3.0,4.0], splitAmountSum=10.0, currentAmount=9.0"
   Fungible.verifySplit [1.0, 2.0, 3.0, 4.0] 10.0
-  validateAssertionFailure (Fungible.verifySplit [1.0, 0.0, 3.0, 4.0] 10.0) "Fungible::verifySplit - Amounts must be non-empty, strictly positive, and not exceed current amount. amounts=[1.0,0.0,3.0,4.0], splitAmountSum=8.0, currentAmount=10.0"
+  validateAssertionFailure (Fungible.verifySplit [1.0, 0.0, 3.0, 4.0] 10.0) $
+    "Fungible::verifySplit - Amounts must be non-empty, strictly positive, and not exceed " <>
+    "current amount. amounts=[1.0,0.0,3.0,4.0], splitAmountSum=8.0, currentAmount=10.0"
   Fungible.verifySplit [1.0, 3.0, 4.0] 10.0
   Fungible.verifySplit [1.0, 2.0, 3.0, 4.0] 11.0
-  validateAssertionFailure (Fungible.verifySplit [1.0, -2.0, 3.0, 4.0, 2.0] 10.0) "Fungible::verifySplit - Amounts must be non-empty, strictly positive, and not exceed current amount. amounts=[1.0,-2.0,3.0,4.0,2.0], splitAmountSum=8.0, currentAmount=10.0"
-  validateAssertionFailure (Fungible.verifySplit [1.0, 2.0, 30.0, 4.0] 10.0) "Fungible::verifySplit - Amounts must be non-empty, strictly positive, and not exceed current amount. amounts=[1.0,2.0,30.0,4.0], splitAmountSum=37.0, currentAmount=10.0"
-  validateAssertionFailure (Fungible.verifySplit [] 10.0) "Fungible::verifySplit - Amounts must be non-empty, strictly positive, and not exceed current amount. amounts=[], splitAmountSum=0.0, currentAmount=10.0"
-  validateAssertionFailure (Fungible.verifySplit [-1.0] 10.0) "Fungible::verifySplit - Amounts must be non-empty, strictly positive, and not exceed current amount. amounts=[-1.0], splitAmountSum=-1.0, currentAmount=10.0"
-  validateAssertionFailure (Fungible.verifySplit [] 0.0) "Fungible::verifySplit - Amounts must be non-empty, strictly positive, and not exceed current amount. amounts=[], splitAmountSum=0.0, currentAmount=0.0"
-  validateAssertionFailure (Fungible.verifySplit [] (-1.0)) "Fungible::verifySplit - Amounts must be non-empty, strictly positive, and not exceed current amount. amounts=[], splitAmountSum=0.0, currentAmount=-1.0"
+  validateAssertionFailure (Fungible.verifySplit [1.0, -2.0, 3.0, 4.0, 2.0] 10.0) $
+    "Fungible::verifySplit - Amounts must be non-empty, strictly positive, and not exceed " <>
+    "current amount. amounts=[1.0,-2.0,3.0,4.0,2.0], splitAmountSum=8.0, currentAmount=10.0"
+  validateAssertionFailure (Fungible.verifySplit [1.0, 2.0, 30.0, 4.0] 10.0) $
+    "Fungible::verifySplit - Amounts must be non-empty, strictly positive, and not exceed " <>
+    "current amount. amounts=[1.0,2.0,30.0,4.0], splitAmountSum=37.0, currentAmount=10.0"
+  validateAssertionFailure (Fungible.verifySplit [] 10.0) $
+    "Fungible::verifySplit - Amounts must be non-empty, strictly positive, and not exceed " <>
+    "current amount. amounts=[], splitAmountSum=0.0, currentAmount=10.0"
+  validateAssertionFailure (Fungible.verifySplit [-1.0] 10.0) $
+    "Fungible::verifySplit - Amounts must be non-empty, strictly positive, and not exceed " <>
+    "current amount. amounts=[-1.0], splitAmountSum=-1.0, currentAmount=10.0"
+  validateAssertionFailure (Fungible.verifySplit [] 0.0) $
+    "Fungible::verifySplit - Amounts must be non-empty, strictly positive, and not exceed " <>
+    "current amount. amounts=[], splitAmountSum=0.0, currentAmount=0.0"
+  validateAssertionFailure (Fungible.verifySplit [] (-1.0)) $
+    "Fungible::verifySplit - Amounts must be non-empty, strictly positive, and not exceed " <>
+    "current amount. amounts=[], splitAmountSum=0.0, currentAmount=-1.0"
 
   -- Merge fungibles
-  fungibleCid <- submitMulti [issuer, investor] [] do exerciseCmd restCid Fungible.Merge with fungibleCids = [splitCid1, splitCid2]
+  fungibleCid <- submitMulti [issuer, investor] [] do
+    exerciseCmd restCid Fungible.Merge with fungibleCids = [splitCid1, splitCid2]
 
   -- Fungibles (after merge)
-  fungible' <- fmap (\o -> toInterface @Fungible.I $ fromSome o) <$> queryContractId @Fungible.T issuer $ coerceContractId fungibleCid
+  fungible' <- fmap (\o -> toInterface @Fungible.I $ fromSome o) <$>
+    queryContractId @Fungible.T issuer $ coerceContractId fungibleCid
   Fungible.verifyAmountPreserving [fungible] [fungible']
 
   -- Transfer
-  transferableCid <- submitMulti [issuer, investor] [publicParty] do exerciseCmd (coerceContractId fungibleCid : ContractId Transferable.I) Transferable.Transfer with actors = S.fromList [issuer, investor]; newOwnerAccount = investorAccount
+  transferableCid <- submitMulti [issuer, investor] [publicParty] do
+    exerciseCmd (coerceContractId fungibleCid : ContractId Transferable.I)
+      Transferable.Transfer with
+        actors = S.fromList [issuer, investor]; newOwnerAccount = investorAccount
 
   -- Assert state
   Holding.verifyOwnerOfHolding [(investor, transferableCid)]
 
   -- Debit asset
-  Account.submitExerciseInterfaceByKeyCmd @Account.I [custodian, investor] [] investorAccount (Account.Debit with holdingCid = toInterfaceContractId transferableCid)
+  Account.submitExerciseInterfaceByKeyCmd @Account.I [custodian, investor] [] investorAccount $
+    Account.Debit with holdingCid = toInterfaceContractId transferableCid
 
   pure ()

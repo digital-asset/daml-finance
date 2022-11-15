@@ -21,36 +21,52 @@ import Prelude hiding (null)
 
 -- | Utility function to reapply holding locks.
 reapplyLocks :  ContractId Base.I -> Base.Lock -> Update (ContractId Base.I)
-reapplyLocks cid lock = foldlA (\acc context -> exercise acc Base.Acquire with newLockers = lock.lockers; context; lockType = lock.lockType) cid (S.toList lock.context)
+reapplyLocks cid lock = foldlA (\acc context -> exercise acc Base.Acquire with
+  newLockers = lock.lockers; context; lockType = lock.lockType) cid (S.toList lock.context)
 
 -- | Utility function to unlock all holding locks.
 releaseAll : ContractId Base.I -> Base.Lock -> Update (ContractId Base.I)
-releaseAll cid lock = foldlA (\acc context -> exercise acc Base.Release with context) cid (S.toList lock.context)
+releaseAll cid lock =
+  foldlA (\acc context -> exercise acc Base.Release with context) cid (S.toList lock.context)
 
 -- | Implementation of transfer for the Transferable interface.
-transferImpl : ContractId Transferable.I -> Transferable.Transfer -> Update (ContractId Transferable.I)
+transferImpl : ContractId Transferable.I -> Transferable.Transfer -> Update
+  (ContractId Transferable.I)
 transferImpl self Transferable.Transfer{actors; newOwnerAccount} = do
   transferable <- fetch self
   vAccount <- view <$> fetchAccount transferable
   vNewAccount <- view <$> fetchInterfaceByKey @Account.R newOwnerAccount
   let lockers = getLockers transferable
-  assertMsg "actors must contain all transfer instructors of the sender account" $ S.isSubsetOf vAccount.controllers.instructors actors
-  assertMsg "actors must contain all transfer approvers of the receiving account" $ S.isSubsetOf vNewAccount.controllers.approvers actors
+  assertMsg "actors must contain all transfer instructors of the sender account" $
+    S.isSubsetOf vAccount.controllers.instructors actors
+  assertMsg "actors must contain all transfer approvers of the receiving account" $
+    S.isSubsetOf vNewAccount.controllers.approvers actors
   assertMsg "actors must contain all lockers" $ S.isSubsetOf lockers actors
   coerceContractId <$> Account.exerciseInterfaceByKey @Account.I newOwnerAccount vAccount.custodian
-    Account.CreditAndDebit with actors = lockers <> S.singleton vAccount.owner; baseCid = toInterfaceContractId @Base.I self
+    Account.CreditAndDebit with
+      actors = lockers <> S.singleton vAccount.owner; baseCid = toInterfaceContractId @Base.I self
 
 -- | Default implementation of `acquire` from the Base interface.
-acquireImpl : forall t. (HasCreate t, DA.Internal.Record.HasField "lock" t (Optional Base.Lock), HasFromInterface t Base.I, HasToInterface t Base.I) => t -> Base.Acquire -> Update (ContractId Base.I)
+acquireImpl : forall t.
+  ( HasCreate t
+  , DA.Internal.Record.HasField "lock" t (Optional Base.Lock)
+  , HasFromInterface t Base.I, HasToInterface t Base.I
+  ) => t -> Base.Acquire -> Update (ContractId Base.I)
 acquireImpl base Base.Acquire{newLockers; context; lockType} = do
   newLock <- case (base.lock, lockType) of
-    (Some existingLock, Base.Reentrant) -> pure existingLock with context = context `S.insert` existingLock.context
+    (Some existingLock, Base.Reentrant) -> pure existingLock with
+      context = context `S.insert` existingLock.context
     (None, _) -> pure Base.Lock with lockers = newLockers; context = S.singleton context; lockType
     _ -> abort "Contract is already locked."
   toInterfaceContractId <$> create base with lock = Some newLock
 
 -- | Default implementation of release from the Base interface.
-releaseImpl : forall t. (HasCreate t, DA.Internal.Record.HasField "lock" t (Optional Base.Lock), HasFromInterface t Base.I, HasToInterface t Base.I) => t -> Base.Release -> Update (ContractId Base.I)
+releaseImpl : forall t.
+  ( HasCreate t
+  , DA.Internal.Record.HasField "lock" t (Optional Base.Lock)
+  , HasFromInterface t Base.I
+  , HasToInterface t Base.I
+  ) => t -> Base.Release -> Update (ContractId Base.I)
 releaseImpl base Base.Release{context} = do
   let
     f currentLock = do
