@@ -135,12 +135,27 @@ created between the two parties.
 This is similar to how, in the real world, you need to open a bank account before you can use the
 bank’s services.
 
-The account contract controls which parties are authorized to transfer holdings in and out of the
-account.
+The account contract also controls which parties are authorized to transfer holdings in and out of
+the account. To be more precise, the ``controllers`` field of the account contains:
 
-Accounts are also used to prevent holding transfers to unvetted third parties: Alice can transfer a
-holding to Bob only if Bob has an account at the same Bank (and has therefore been vetted by the
-Bank).
+-  ``instructors`` a set of parties authorizing outgoing transfers
+-  ``approvers`` a set of parties authorizing incoming transfers
+
+This allows for modeling various controllers of transfers between Alice's and Bob's accounts. For
+example:
+
+-  owners-controlled: If the ``owner`` is the sole member of ``instructors`` and ``approvers`` for
+   the accounts, a transfer of a holding from Alice's account to Bob's account needs to be
+   authorized jointly by Alice and Bob.
+-  owner-only-controlled: If, instead, the ``approvers`` (of Bob's account) is the empty set, it is
+   enough that Alice authorizes the transfer alone.
+-  custodian-controlled: If, as often is the case, the ``custodian`` needs to control what is being
+   transferred, we can instead let the ``custodian`` be the sole member of ``instructors`` and
+   ``approvers`` for the accounts.
+
+Accounts also serve to prevent holding transfers to unvetted third parties: a holding of Alice can
+only be transferred to Bob if Bob has an account at the same Bank (and has therefore been vetted by
+the Bank).
 
 .. _signatories-2:
 
@@ -169,6 +184,11 @@ Implementations
 ===============
 
 A base account implementation is provided in ``Daml.Finance.Account``.
+
+The account can be created with arbitrary ``controllers`` (for incoming and outgoing transfers).
+
+In our examples, we typically let accounts be owners-controlled, i.e., the owner and the new owner
+must authorize transfers.
 
 Examples
 ********
