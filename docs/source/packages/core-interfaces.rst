@@ -19,8 +19,7 @@ Core Interfaces
       Interface for a transferable holding, i.e., where ownership can be transferred to other
       parties
     - :ref:`Util <module-daml-finance-interface-holding-util-81618>`:
-      Utility functions related to holdings, e.g., getting the account / instrument / owner of a
-      holding
+      Utility functions related to holdings, e.g., getting the amount or instrument of a holding
 
     The :doc:`Asset Model <../concepts/asset-model>` page explains the relationship between
     instruments, holdings, and accounts. Check out the
@@ -33,22 +32,28 @@ Core Interfaces
      modules:
 
     - :ref:`Factory <module-daml-finance-interface-account-factory-11691>`:
-      Interface that allows implementing templates to create accounts
+      Interface that allows implementing templates to create and remove accounts
     - :ref:`Account <module-daml-finance-interface-account-account-92922>`:
-      Interface which represents an established relationship between a provider and an owner
+      Interface which represents an established relationship between a custodian and an owner. It
+      specifies parties controlling incoming and outgoing transfers, and allows for crediting and
+      debiting holdings
+    - :ref:`Util <module-daml-finance-interface-account-util-56106>`:
+      Utility functions related to accounts, e.g., getting the custodian or owner of an account
+
 
 - ``Daml.Finance.Interface.Settlement``
 
     This package contains the *interface* for settlement. It has the following modules:
 
     - :ref:`Instruction <module-daml-finance-interface-settlement-instruction-10970>`:
-      Interface for providing a single instruction to transfer an asset
-    - :ref:`Factory <module-daml-finance-interface-settlement-factory-75196>`:
-      Interface used to generate settlement instructions
+      Interface for providing a single instruction to transfer an asset at a custodian
     - :ref:`Batch <module-daml-finance-interface-settlement-batch-39188>`:
-      Interface for atomically settling `Transferable`\s
+      Interface for atomically executing instructions, i.e., settling `Transferable`\s
+    - :ref:`Factory <module-daml-finance-interface-settlement-factory-75196>`:
+      Interface used to generate a batch and associated instructions
     - :ref:`Types <module-daml-finance-interface-settlement-types-44085>`:
-      Types required in the settlement process, e.g., RoutedStep, Allocation and Approval
+      Types required in the settlement process, e.g., `Step`, `RoutedStep`, `Allocation`, and
+      `Approval`
 
     The :doc:`Settlement <../concepts/settlement>` page contains an overview of the settlement
     process and explains the relationship between instructions and batches. Check out the
