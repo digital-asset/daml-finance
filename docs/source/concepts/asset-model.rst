@@ -136,7 +136,7 @@ This is similar to how, in the real world, you need to open a bank account befor
 bank’s services.
 
 The account contract also controls which parties are authorized to transfer holdings in and out of
-the account. To be more precise, the ``controllers`` field of the account comprises:
+the account. To be more precise, the ``controllers`` field of the account contains:
 
 -  ``instructors`` a set of parties authorizing outgoing transfers
 -  ``approvers`` a set of parties authorizing incoming transfers
@@ -153,7 +153,7 @@ example:
    transferred, we can instead let the ``custodian`` be the sole member of ``instructors`` and
    ``approvers`` for the accounts.
 
-Accounts also serves to prevent holding transfers to unvetted third parties: a holding of Alice can
+Accounts also serve to prevent holding transfers to unvetted third parties: a holding of Alice can
 only be transferred to Bob if Bob has an account at the same Bank (and has therefore been vetted by
 the Bank).
 
