@@ -32,7 +32,7 @@ Core Interfaces
      modules:
 
     - :ref:`Factory <module-daml-finance-interface-account-factory-11691>`:
-      Interface that allows implementing templates to create / remove accounts
+      Interface that allows implementing templates to create and remove accounts
     - :ref:`Account <module-daml-finance-interface-account-account-92922>`:
       Interface which represents an established relationship between a custodian and an owner. It
       specifies parties controlling incoming / outgoing transfers, and allows for crediting /
