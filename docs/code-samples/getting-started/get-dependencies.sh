@@ -2,15 +2,15 @@
 # Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-set -eu
+set -euo pipefail
 
-# Target Daml Finance version
-version="0.1.3"
-
-# Create .lib directory if it doesn't exist
+# Create .lib directory
 if [[ ! -d .lib ]]; then
-  mkdir .lib
+  rm -r .lib
 fi
+mkdir .lib
+
+version=$(grep '^version' daml.yaml)
 
 if [[ ! -a ".lib/daml-finance-holding-${version}.dar" ]]; then curl -Lf# "https://github.com/digital-asset/daml-finance/releases/download/Daml.Finance.Holding/${version}/daml-finance-holding-${version}.dar" -o .lib/daml-finance-holding-${version}.dar; fi
 if [[ ! -a ".lib/daml-finance-account-${version}.dar" ]]; then curl -Lf# "https://github.com/digital-asset/daml-finance/releases/download/Daml.Finance.Account/${version}/daml-finance-account-${version}.dar" -o .lib/daml-finance-account-${version}.dar; fi
