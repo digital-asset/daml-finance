@@ -46,13 +46,14 @@ Core Interfaces
     This package contains the *interface* for settlement. It has the following modules:
 
     - :ref:`Instruction <module-daml-finance-interface-settlement-instruction-10970>`:
-      Interface for providing a single instruction to transfer an asset
+      Interface for providing a single instruction to transfer an asset at a custodian
     - :ref:`Batch <module-daml-finance-interface-settlement-batch-39188>`:
       Interface for atomically executing instructions, i.e., settling `Transferable`\s
     - :ref:`Factory <module-daml-finance-interface-settlement-factory-75196>`:
       Interface used to generate a batch and associated instructions
     - :ref:`Types <module-daml-finance-interface-settlement-types-44085>`:
-      Types required in the settlement process, e.g., RoutedStep, Allocation, and Approval
+      Types required in the settlement process, e.g., `Step`, `RoutedStep`, `Allocation`, and
+      `Approval`
 
     The :doc:`Settlement <../concepts/settlement>` page contains an overview of the settlement
     process and explains the relationship between instructions and batches. Check out the

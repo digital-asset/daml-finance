@@ -42,7 +42,7 @@ Core Implementations
     following modules:
 
     - :ref:`Instruction <module-daml-finance-settlement-instruction-87187>`: Used to settle a single
-      settlement step at a custodian, i.e., a `RoutedStep`
+      settlement `Step` at custodian (i.e., a `RoutedStep`)
     - :ref:`Batch <module-daml-finance-settlement-batch-95573>`: Allows you to atomically settle a
       set of settlement `Instruction`\s
     - :ref:`Factory <module-daml-finance-settlement-factory-257>`: Used to create a set of
