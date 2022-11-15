@@ -9,11 +9,11 @@ financial transaction.
 
 The library provides facilities to execute these transfers atomically (i.e., within the same Daml
 transaction). Interfaces are defined in the ``Daml.Finance.Interface.Settlement`` package, whereas
-implementations are provided in ``Daml.Finance.Settlement``.
+implementations are provided in the ``Daml.Finance.Settlement`` package.
 
-In this page we illustrate the settlement workflow with the help of an example FX transaction, where
-Alice transfers a EUR-denominated holding to Bob, in exchange for a USD-denominated holding of the
-same amount.
+In this section, we first illustrate the settlement workflow with the help of an example FX
+transaction, where Alice transfers a EUR-denominated holding to Bob, in exchange for a
+USD-denominated holding of the same amount.
 
 We then delve into the details of each of the settlement components.
 
@@ -34,25 +34,28 @@ Instruct
 ========
 
 Alice and Bob want to exchange their holdings and agree to enter into the transaction by being
-signatories on a transaction contract. Settlement can then be instructed: this generates
+signatories on a transaction contract. Settlement can then be instructed which results in 3
+contract instances being created:
 
-#. an ``Instruction`` to transfer 1000 EUR from Alice to Bob
-#. an ``Instruction`` to transfer 1000 USD from Bob to Alice
-#. a ``Batch`` contract which is used to execute the above Instructions.
+#. an ``Instruction`` to transfer EUR 1000 from Alice to Bob
+#. an ``Instruction`` to transfer USD 1000 from Bob to Alice
+#. a ``Batch`` used to execute the above Instructions
 
 .. image:: ../images/settlement_instructed.png
    :alt: Settlement is instructed.
 
-Each instruction defines, for a step of the settlement chain, who is the sender, who is the receiver
-and what should be transferred (instrument and amount).
+Each instruction defines who is the sender, who is the receiver, and what should be transferred
+(instrument and amount) at which custodian.
 
 Allocate and Approve
 ====================
 
-In order to perform the transfer, we now need to specify for each ``Instruction``
+In order to execute the FX transaction, we first need to
 
-#. which holding should be used
-#. to which account it should be transferred.
+- allocate, i.e., specify which holding should be used
+- approve, i.e., specify which account the asset should be transferred to
+
+for each ``Instruction``.
 
 Alice ``allocates`` the instruction where she is the sender by pledging her holding. Bob does the
 same on the instruction where he is the sender.
@@ -69,7 +72,7 @@ corresponding instruction.
 Execute
 =======
 
-Once instructions are allocated and approved, a Settler party uses the ``Batch`` contract to
+Once both instructions are allocated and approved, a Settler party uses the ``Batch`` contract to
 ``execute`` them and finalize settlement in one atomic transaction.
 
 .. image:: ../images/settlement_executed.png
@@ -80,13 +83,14 @@ The instructions and the batch are archived following a successful execution.
 Remarks
 =======
 
-There are some assumptions that need to be verified in order for the transaction above to settle
-successfully in practice. On the first instruction
+There are some assumptions that needs to holdo in order for the settlement to work in practice:
 
-- Bob needs to have an account at the custodian where Alice's holding is held
-- Alice's holding needs to be
+- Bob needs to have an account at the custodian where Alice's holding is held and vice versa.
+- Both holdings need to be
   :ref:`Transferable <type-daml-finance-interface-holding-transferable-transferable-24986>`
-- The transfer must be fully authorized
+- The transfer must be fully authorized (i.e., the parties allocating and approving an instruction
+  must be the controllers of outgoing and incoming transfers of the corresponding accounts,
+  respectively)
 
 Also, note that the allocation and approval steps can happen in any order.
 
@@ -109,16 +113,16 @@ Bank.
          Bank B. Bank A and Bank B have an account at the Central Bank.
 
 In this case, a direct holding transfer from Alice and Bob cannot generally be instructed. The
-original step needs to be broken down by the Settlement Factory into three separate
+original ``Instruction`` between Alice and Bob needs to be replaced by three separate
 ``Instructions``:
 
-- **1A**: Alice sends 1000 EUR (held at Bank A) back to Bank A
-- **1B**: Bank A sends 1000 EUR (held at the Central Bank) to Bank B.
-- **1C**: Bank B credits 1000 EUR to Bob's account (held at Bank B)
+- **1A**: Alice sends EUR 1000 (held at Bank A) back to Bank A
+- **1B**: Bank A sends EUR 1000 (held at the Central Bank) to Bank B.
+- **1C**: Bank B credits EUR 1000 to Bob's account (held at Bank B)
 
 .. image:: ../images/settlement_hierarchy_instructed.png
-   :alt: Instructions for intermediated settlement: Alice sends 1000 EUR to Bank A. Bank A sends
-         1000 EUR to Bank B. Bank B sends 1000 EUR to Bob.
+   :alt: Instructions for intermediated settlement: Alice sends EUR 1000 to Bank A. Bank A sends
+         EUR 1000 to Bank B. Bank B sends EUR 1000 to Bob.
 
 We refer to this scenario as *settlement with intermediaries*, or just *intermediated settlement*.
 The Settlement Factory is responsible for generating the correct set of instructions, so that they
@@ -128,21 +132,22 @@ Instruction
 ===========
 
 The :ref:`Instruction <type-daml-finance-interface-settlement-instruction-instruction-30569>` is
-used to settle a single holding transfer, once it is ``allocated`` and ``approved``.
+used to settle a single holding transfer at a specific custodian, once it is ``allocated`` and
+``approved``.
 
 In the :ref:`Allocation <type-daml-finance-interface-settlement-types-allocation-46483>` step, the
-sender allocates a suitable holding to the instruction. This is usually done by pledging an existing
-holding with the correct instrument and amount. When the sender is also the holding's custodian, the
-instruction can be allocated with ``CreditReceiver``. In this case, a new holding is minted at the
-custodian and then transferred to the target receiver.
+sender acknowledges the transfer and determines how to send the holding. This is usually done by
+pledging one of the sender's existing holdings at the custodian (which has the correct instrument
+and amount). When the sender is also the custodian, the instruction can be allocated with
+``CreditReceiver``. In this case, a new holding is minted at the custodian and then transferred to
+the target receiver.
 
 In the :ref:`Approval <type-daml-finance-interface-settlement-types-approval-84286>` step, the
 receiver acknowledges the transfer and determines how to receive the holding. This is usually done
-by taking delivery of the holding at a specified account. The provided account must be at the same
-custodian as the incoming holding. When the receiver is also the incoming holding's custodian, the
-instruction can be approved with ``DebitSender``.In this case, the holding is archived after being
-transferred to the receiver (a holding owned by the custodian at the custodian has no economical
-value and can be archived).
+by taking delivery to one of the receiver's accounts at the custodian. When the receiver is also the
+incoming holding's custodian, the instruction can be approved with ``DebitSender``. In this case,
+the holding is immediately archived after being transferred to the receiver (a holding owned by the
+custodian at the custodian has no economical value and can be archived).
 
 To clarify these concepts, here is how the 3 instructions in the intermediated example above would
 be allocated / approved.
@@ -150,11 +155,11 @@ be allocated / approved.
 +--------------------------------------------+----------------------------------------+------------------------------------------+
 | Instruction                                | Allocation                             | Approval                                 |
 +============================================+========================================+==========================================+
-| 1A : 1000 EUR from Alice to Bank A         | Alice pledges her holding              | Bank A approves with DebitSender         |
+| 1A : EUR 1000 from Alice to Bank A         | Alice pledges her holding              | Bank A approves with DebitSender         |
 +--------------------------------------------+----------------------------------------+------------------------------------------+
-| 2A : 1000 EUR from Bank A to Bank B        | Bank A pledges their holding           | Bank B takes delivery to their account   |
+| 2A : EUR 1000 from Bank A to Bank B        | Bank A pledges their holding           | Bank B takes delivery to their account   |
 +--------------------------------------------+----------------------------------------+------------------------------------------+
-| 3A : 1000 EUR from Bank B to Bob           | Bank B allocates with CreditReceiver   | Bob takes delivery to his account        |
+| 3A : EUR 1000 from Bank B to Bob           | Bank B allocates with CreditReceiver   | Bob takes delivery to his account        |
 +--------------------------------------------+----------------------------------------+------------------------------------------+
 
 Finally, the Instruction supports two additional settlement modes:

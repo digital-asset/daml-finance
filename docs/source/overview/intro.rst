@@ -68,10 +68,11 @@ be modeled:
 * Simple tokens: digital representation of traditional assets
 * Central bank digital currency: retail or wholesale distribution models
 * Standard asset classes: equities with corporate actions, bonds with flexible cashflow modeling
-* Complex assets: time- and path-dependent derivatives with optionality
+* Derivatives: time- and path-dependent derivatives with optionality
 * Synchronized lifecycling: atomic, intermediated lifecycling and settlement of cash flows across
   investors and custodians
-* Cross-entity issuance: atomic, multi-party issuance across investors, issuer, risk book, treasury
+* Cross-entity issuance: atomic, multi-party issuance across investors, issuer, risk book, and
+  treasury
 * Asset-agnostic trading facility: generic delivery-vs-payment and immediate, guaranteed settlement
 * Exotic asset types: non-fungible and non-transferable assets
 

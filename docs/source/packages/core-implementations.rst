@@ -16,7 +16,7 @@ Core Implementations
     - :ref:`NonTransferable <module-daml-finance-holding-nontransferable-44402>`: Implementation of
       a non-transferable holding
     - :ref:`Util <module-daml-finance-holding-util-87323>`: Utility functions related to holdings,
-      e.g. locking a holding
+      e.g., locking a holding
 
     The :doc:`Asset Model <../concepts/asset-model>` page explains the relationship between
     instruments, holdings, and accounts. Check out the
@@ -28,9 +28,13 @@ Core Implementations
     This package contains the *implementation* and utility functions for accounts. It has the
     following modules:
 
-    - :ref:`Account <module-daml-finance-account-account-19369>`: A relationship between a custodian
-      and an asset owner, referenced by holdings
-
+    - :ref:`Account <module-daml-finance-account-account-19369>`: Implementation of an account,
+      i.e., a relationship between a custodian and an asset owner, referenced by holdings. It also
+      provides an implementation of a factory from which you can create and remove accounts. Upon
+      creation of an account, it allows you to specify controlling parties for incoming / outgoing
+      transfers
+    - :ref:`Util <module-daml-finance-account-util-35751>`: Utility functions related to accounts,
+      e.g., an atomic credit-and-debit of holdings
 
 - ``Daml.Finance.Settlement``
 
@@ -38,16 +42,16 @@ Core Implementations
     following modules:
 
     - :ref:`Instruction <module-daml-finance-settlement-instruction-87187>`: Used to settle a single
-      settlement `Step`
+      settlement `Step` at custodian (i.e., a `RoutedStep`)
+    - :ref:`Batch <module-daml-finance-settlement-batch-95573>`: Allows you to atomically settle a
+      set of settlement `Instruction`\s
     - :ref:`Factory <module-daml-finance-settlement-factory-257>`: Used to create a set of
       settlement `Instruction`\s, and a `Batch` to atomically settle them
-    - :ref:`Batch <module-daml-finance-settlement-batch-95573>`: Allows you to atomically settle a
-      set of settlement steps
 
     The :doc:`Settlement <../concepts/settlement>` page contains an overview of the settlement
-    process and explains the relationship between ``Step``, ``Instruction`` and ``Batch``. Check out
-    the :doc:`Settlement tutorial <../tutorials/getting-started/settlement>` for a description on
-    how to implement the settlement workflow in practice.
+    process and explains the relationship between ``Instruction`` and ``Batch``. Check out the
+    :doc:`Settlement tutorial <../tutorials/getting-started/settlement>` for a description on how to
+    implement the settlement workflow in practice.
 
 - ``Daml.Finance.Lifecycle``
 
@@ -91,7 +95,7 @@ Core Implementations
     contingent-claim-based instruments. It includes the following modules:
 
     - :ref:`Util <module-daml-finance-claims-util-5254>`:
-      Contains utility functions for claims, e.g. checking content of a claim and converting claim
+      Contains utility functions for claims, e.g., checking content of a claim and converting claim
       time
     - :ref:`Util.Lifecycle <module-daml-finance-claims-util-lifecycle-9534>`:
       Defines different types of events and how to lifecycle them
@@ -102,7 +106,7 @@ Core Implementations
 
     - :ref:`Observation <module-daml-finance-data-observable-observation-7524>`:
       An implementation of an ``Observation`` that explicitly stores time-dependent numerical values
-      on the ledger. It can be used to e.g. store equity or rate fixings
+      on the ledger. It can be used to, e.g., store equity or rate fixings
     - :ref:`HolidayCalendar <module-daml-finance-data-reference-holidaycalendar-10773>`:
       Holiday calendar of an entity (typically an exchange or a currency)
     - :ref:`DateClock <module-daml-finance-data-time-dateclock-65212>`:

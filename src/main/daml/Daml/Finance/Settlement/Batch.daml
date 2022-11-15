@@ -42,8 +42,8 @@ template Batch
       -- ^ Batch description.
     contextId : Optional Id
       -- ^ Identifier to link a batch to a context (eg. the `Effect` it originated from).
-    stepsWithInstructionId : [(RoutedStep, Id)]
-      -- ^ The settlement `Step`\s and the identifiers of the corresponding `Instruction`\s.
+    routedStepsWithInstructionId : [(RoutedStep, Id)]
+      -- ^ The settlement `RoutedStep`\s and the identifiers of the corresponding `Instruction`\s.
   where
     signatory requestors
     observer settlers
@@ -52,16 +52,16 @@ template Batch
     maintainer key.requestors
 
     let
-      (steps, instructionIds) = unzip stepsWithInstructionId
+      (routedSteps, instructionIds) = unzip routedStepsWithInstructionId
       undiscloseT actors = undisclose @Holding.I (show id, actors) actors
 
     interface instance Batch.I for Batch where
-      view = Batch.View with requestors; settlers; id; description; contextId; steps
+      view = Batch.View with requestors; settlers; id; description; contextId; routedSteps
       settle Batch.Settle{actors} = do
         -- order instructions (such that they can be executed with passthroughs)
         let buildKey instructionId = InstructionKey with requestors; batchId = id; id = instructionId
-        orderedInstructions <- orderPassThroughChains . fmap (fmap buildKey) $ stepsWithInstructionId
-        assertMsg "ordering must be complete" $ length orderedInstructions == length stepsWithInstructionId
+        orderedInstructions <- orderPassThroughChains . fmap (fmap buildKey) $ routedStepsWithInstructionId
+        assertMsg "ordering must be complete" $ length orderedInstructions == length routedStepsWithInstructionId
         -- settle
         let
           settleInstruction instruction = do
@@ -71,7 +71,7 @@ template Batch
               _ -> pure None
             oSettledHoldingCid <- exercise (toInterfaceContractId @Instruction.I instructionCid) Instruction.Execute with actors
             oSettledHolding <- T.mapA fetch oSettledHoldingCid
-            let usedTypeRepOpts = fmap (\t -> (instruction.step.quantity.unit, interfaceTypeRep t)) <$> [oAllocatedHolding, oSettledHolding]
+            let usedTypeRepOpts = fmap (\t -> (instruction.routedStep.quantity.unit, interfaceTypeRep t)) <$> [oAllocatedHolding, oSettledHolding]
             oHoldingCid <- T.mapA (\tCid -> fromOptional tCid <$> undiscloseT actors tCid) oSettledHoldingCid
             pure (oHoldingCid, usedTypeRepOpts)
         -- execute instructions
@@ -84,16 +84,16 @@ template Batch
 -- | HIDE
 -- Partially order instructions, so that pass-through chains can be executed in order.
 orderPassThroughChains : [(RoutedStep, InstructionKey)] -> Update [Instruction]
-orderPassThroughChains stepsWithInstructionKeys =
+orderPassThroughChains routedStepsWithInstructionKeys =
   reverse . fst <$> foldlA
-    (\(orderedInstructions, usedInstructionIds) (step, instructionKey) ->
+    (\(orderedInstructions, usedInstructionIds) (routedStep, instructionKey) ->
       if member instructionKey.id usedInstructionIds
       then
         -- instruction has already been visited, do not re-insert in list
         pure (orderedInstructions, usedInstructionIds)
       else do
         (instructionCid, instruction) <- fetchByKey @Instruction instructionKey
-        assertMsg "step must match" $ step == instruction.step
+        assertMsg "routed step must match" $ routedStep == instruction.routedStep
         let
           orderedInstructions' = instruction :: orderedInstructions
           usedInstructionIds' = insert instruction.id usedInstructionIds
@@ -108,7 +108,7 @@ orderPassThroughChains stepsWithInstructionKeys =
             pure (orderedInstructions', usedInstructionIds')
     )
     ([], empty)
-    stepsWithInstructionKeys
+    routedStepsWithInstructionKeys
 
 -- | HIDE
 -- Follows the pass-through chain and collects the corresponding instructions in an ordered list.

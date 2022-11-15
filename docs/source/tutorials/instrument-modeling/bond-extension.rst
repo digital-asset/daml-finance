@@ -4,7 +4,7 @@
 How to Use the Bond Extension Package
 #####################################
 
-To follow the script used in this tutorial you can
+To follow the script used in this tutorial, you can
 `clone the Daml Finance repository <https://github.com/digital-asset/daml-finance>`_. In particular,
 the Bond test folder ``src/test/daml/Daml/Finance/Instrument/Bond/Test/`` is the starting point
 of this tutorial.
@@ -47,7 +47,7 @@ We start by defining the terms:
   :end-before: -- CREATE_FIXED_RATE_BOND_VARIABLES_END
 
 The :ref:`day count convention <type-daml-finance-interface-types-date-daycount-daycountconventionenum-67281>`
-is used to determine how many days (i.e. what fraction of a full year) each coupon period has. This
+is used to determine how many days, i.e., what fraction of a full year, each coupon period has. This
 will determine the exact coupon amount that will be paid each period.
 
 The :ref:`business day convention <type-daml-finance-interface-types-date-calendar-businessdayconventionenum-88986>`
@@ -65,11 +65,13 @@ to note here:
 
 - The :ref:`RollConventionEnum <type-daml-finance-interface-types-date-rollconvention-rollconventionenum-73360>`
   defines whether dates are rolled on month end or on a given date of the month. In our example
-  above we went for the latter option.
+  above, we went for the latter option.
 - The :ref:`StubPeriodTypeEnum <type-daml-finance-interface-types-date-schedule-stubperiodtypeenum-69372>`
   allows you to explicitly specify what kind of stub period the bond should have. This is optional
   and not used in the example above. Instead, we defined the stub implicitly by specifying a
-  ``firstRegularPeriodStartDate``.
+  ``firstRegularPeriodStartDate``: since the time between the issue date and the first regular
+  period start date is less than 12M (our regular coupon period), this implies a short initial
+  stub period.
 
 Now that we have defined the terms we can create the bond instrument:
 
@@ -93,15 +95,15 @@ Here is an example of a bond paying Euribor 3M + 1.1% p.a. with a 3M coupon peri
   :start-after: -- CREATE_FLOATING_RATE_BOND_VARIABLES_BEGIN
   :end-before: -- CREATE_FLOATING_RATE_BOND_VARIABLES_END
 
-Here is how we create the floating rate bond instrument:
+Using these terms we can create the floating rate bond instrument:
 
 .. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
   :language: daml
   :start-after: -- CREATE_FLOATING_RATE_BOND_INSTRUMENT_BEGIN
   :end-before: -- CREATE_FLOATING_RATE_BOND_INSTRUMENT_END
 
-The reference rate is observed once at the beginning of each coupon period and used for the coupon
-payment at the end of that period.
+The reference rate (Euribor 3M) is observed once at the beginning of each coupon period and used
+for the coupon payment at the end of that period.
 
 Inflation Linked
 ================
@@ -117,7 +119,7 @@ Here is an example of a bond paying 1.1% p.a. (on a CPI adjusted principal) with
   :start-after: -- CREATE_INFLATION_LINKED_BOND_VARIABLES_BEGIN
   :end-before: -- CREATE_INFLATION_LINKED_BOND_VARIABLES_END
 
-Then, we create the inflation linked bond instrument:
+Based on these terms we can create the inflation linked bond instrument:
 
 .. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
   :language: daml
@@ -142,7 +144,7 @@ Here is an example of a zero coupon bond:
   :start-after: -- CREATE_ZERO_COUPON_BOND_VARIABLES_BEGIN
   :end-before: -- CREATE_ZERO_COUPON_BOND_VARIABLES_END
 
-Finally, we create the zero coupon bond instrument:
+Based on this we create the zero coupon bond instrument:
 
 .. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
   :language: daml
@@ -173,5 +175,5 @@ lifecycle effect for the coupon, which can be cash settled. This is described in
 How do I redeem a bond?
 =======================
 
-On the redemption date, both the last coupon and the redemption amount with be paid. This is
+On the redemption date, both the last coupon and the redemption amount will be paid. This is
 processed in the same way as a single coupon payment described above.

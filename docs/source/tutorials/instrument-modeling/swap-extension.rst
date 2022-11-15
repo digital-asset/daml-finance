@@ -4,7 +4,7 @@
 How To Use the Swap Extension Package
 #####################################
 
-To follow the script used in this tutorial you can
+To follow the script used in this tutorial, you can
 `clone the Daml Finance repository <https://github.com/digital-asset/daml-finance>`_. In particular,
 the Swap test folder ``src/test/daml/Daml/Finance/Instrument/Swap/Test/`` is the starting point of
 this tutorial.
@@ -21,7 +21,7 @@ How To Create a Swap Instrument
 *******************************
 
 There are different types of swaps, which differ both in the way regular payments are defined and
-whether notional is exchanged. In order to create a swap instrument you first have to decide what
+whether notional is exchanged. In order to create a swap instrument, you first have to decide what
 type of swap you need. The swap extension package currently supports the following types of swaps:
 
 Interest Rate
@@ -31,7 +31,7 @@ Interest rate swap is the type of swap that shares most similarities with a bond
 one which pays a fix rate and another one which pays a floating rate. These rates are paid at the
 end of every payment period.
 
-As an example we will create a swap instrument paying Libor 3M vs a 2.01% p.a. with a 3M payment
+As an example, we will create a swap instrument paying Libor 3M vs a 2.01% p.a. with a 3M payment
 period. This example is taken from
 ``src/test/daml/Daml/Finance/Instrument/Swap/Test/InterestRate.daml``, where all the details are
 available.
@@ -83,8 +83,8 @@ currencies. Consequently, we need to create two cash instruments:
 
 In the swap template they are referred to as *base currency* and *foreign currency*.
 
-Here is an example of a fix vs fix currency swap: 3% p.a. in USD vs 2% p.a. in EUR, payment every
-3M:
+Here is an example of a fix vs fix currency swap: 3% p.a. in USD vs 2% p.a. in EUR with payments
+every 3M:
 
 .. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Swap/Test/Currency.daml
   :language: daml
@@ -155,8 +155,8 @@ A credit default swap (CDS) pays a protection amount in case of a credit default
 for a fix rate at the end of every payment period. The protection amount is defined as
 *1-recoveryRate*.
 
-If a credit event occurs, the swap expires after the protection amount has been paid (i.e. no more
-rate payments are required afterwards).
+If a credit event occurs, the swap expires after the protection amount has been paid, i.e., no more
+rate payments are required afterwards.
 
 Here is an example of a CDS that pays *1-recoveryRate* in the case of a default on TSLA bonds:
 
@@ -245,7 +245,7 @@ We start by defining the general terms:
   :end-before: -- CREATE_FPML_SWAP_VARIABLES_END
 
 The *issuerPartyRef* and the *clientPartyRef* variables are used to specify who pays each leg (see
-*payerPartyReference* below)
+*payerPartyReference* below).
 
 The fixed leg of the swap can now be defined using Daml data types that correspond to the
 `swapStream <https://www.fpml.org/spec/fpml-5-11-3-lcwd-1/html/confirmation/schemaDocumentation/schemas/fpml-ird-5-11_xsd/complexTypes/Swap/swapStream.html>`_

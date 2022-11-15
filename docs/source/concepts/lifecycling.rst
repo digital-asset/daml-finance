@@ -22,7 +22,7 @@ Intrinsic
 Intrinsic events are contractual cash flows. The contract terms pre-define exactly what triggers
 these events, for example:
 
-- A certain date is reached, which results in a coupon payent of a bond. Time-based events are
+- A certain date is reached, which results in a coupon payment of a bond. Time-based events are
   controlled using the ``DateClock`` template (not ledger time).
 - The price of a stock reaches a certain level, resulting in a barrier hit. The relevant stock price
   is defined in an ``Observation`` template.
@@ -53,7 +53,7 @@ Effects
 
 When an event is lifecycled, an ``Effect`` is produced. This is defined in
 ``Daml.Finance.Interface.Lifecycle.Effect``. The ``Effect`` can be settled in order to produce the
-relevant cash flows and to create the new instrument version (reflecting the remaining cash flows).
+relevant cash flows and holdings of the new instrument version (reflecting the remaining cash flows).
 
 These lifecycle concepts are also explained with example code in the
 :doc:`Lifecycling tutorial <../tutorials/getting-started/lifecycling>`.
