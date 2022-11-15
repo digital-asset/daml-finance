@@ -27,11 +27,10 @@ rate instrument:
   :start-after: -- FIXED_RATE_BOND_TEMPLATE_BEGIN
   :end-before: -- FIXED_RATE_BOND_TEMPLATE_END
 
-These template variables describe the payoff of the fixed rate bond.
-They will be used to create a :doc:`Contingent Claims <../../concepts/contingent-claims>` tree,
-which is the internal representation used for modelling and lifecycling in Daml Finance.
-Note that this tree is not part the template above.
-Instead, it will be created dynamically, as described in the next sections.
+These template variables describe the payoff of the fixed rate bond. They will be used to create a
+:doc:`Contingent Claims <../../concepts/contingent-claims>` tree, which is the internal
+representation used for modelling and lifecycling in Daml Finance. Note that this tree is not part
+of the template above. Instead, it will be created dynamically, as described in the next sections.
 
 The Claims Interface
 ====================
