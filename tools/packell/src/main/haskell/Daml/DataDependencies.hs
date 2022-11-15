@@ -50,16 +50,18 @@ update root config localPackages =
 
 -- | Writes to console packages which require their imports to be updated.
 dryRun :: FilePath -> Package.Config -> [Daml.Package] -> IO ()
-dryRun root config localPackages = -- If nothing, print success "nothing to update"
-  processDataDependencies root config localPackages >>= mapM_ printUpdate
-    where
-      printUpdate (UpdateImport package updateConfig) = do
-        warningMessage . T.pack $ "Package to update : " ++ (Package.getLocalName . Daml.packageConfig $ package)
-        redMessage . T.pack $ "Current data dependencies :"
-        mapM_ (redMessage . T.pack) $ L.concat . maybeToList . Daml.dataDependencies . Daml.damlConfig $ package
-        cyanMessage . T.pack $ "Updated data dependencies :"
-        mapM_ (cyanMessage . T.pack) $ L.concat . maybeToList . Daml.dataDependencies $ updateConfig
-        putStr "\n"
+dryRun root config localPackages = do
+  processDataDependencies root config localPackages >>= \case
+    [] -> greenMessage . T.pack $ "All packages are uptodate!"
+    xs -> mapM_ printUpdate xs
+  where
+    printUpdate (UpdateImport package updateConfig) = do
+      warningMessage . T.pack $ "Package to update : " ++ (Package.getLocalName . Daml.packageConfig $ package)
+      redMessage . T.pack $ "Current data dependencies :"
+      mapM_ (redMessage . T.pack) $ L.concat . maybeToList . Daml.dataDependencies . Daml.damlConfig $ package
+      cyanMessage . T.pack $ "Updated data dependencies :"
+      mapM_ (cyanMessage . T.pack) $ L.concat . maybeToList . Daml.dataDependencies $ updateConfig
+      putStr "\n"
 
 -- | Validates if any package data-dependences requires updating. Throws an exception if any package requires updating.
 validate :: FilePath -> Package.Config -> [Daml.Package] -> IO ()
@@ -85,8 +87,8 @@ processDataDependency root config allPackages package = do
 
   let
     newDataDependencies = generateDataDependencies config allPackages package damlModules
-    currentDataDependenciesMaybe = Daml.dataDependencies . Daml.damlConfig $ package
     currentDamlConfig = Daml.damlConfig package
+    currentDataDependenciesMaybe = Daml.dataDependencies currentDamlConfig
 
   pure $ case (currentDataDependenciesMaybe, newDataDependencies) of
      (Nothing, []) -> Nothing
@@ -124,7 +126,7 @@ generateLocalDependency config package =
     </> Package.getLocalRepoName (Package.local config)
     </> (Package.getLocalName . Daml.packageConfig) package
     </> (Daml.version . Daml.damlConfig) package
-    </> generateDarName ((Daml.name . Daml.damlConfig) package) ((Daml.version . Daml.damlConfig) package)
+    </> generateDarName (Daml.name . Daml.damlConfig $ package) (Daml.version . Daml.damlConfig $ package)
 
 -- Generate a daml dar file name.
 generateDarName :: String -> String -> String

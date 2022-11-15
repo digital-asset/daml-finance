@@ -11,6 +11,7 @@ import Options.Arguments (Arguments(..), Command(..), DataDependenciesCommand(..
 import Package.Yaml (readPackageYaml)
 import System.Directory (makeAbsolute)
 import System.FilePath (takeDirectory)
+import Git.Commands (fetch, hasDiff)
 
 -- | Entry to the Packell application.
 main :: IO ()
@@ -23,6 +24,9 @@ run Arguments{optPackageConfigPath, optCommand} = do
   let packageRoot = takeDirectory optPackageConfigPath
   packageYaml <- readPackageYaml packageConfigPath
   packages <- getLocalPackages packageYaml packageRoot
+
+  -- res <- hasDiff "Daml.Finance.Interface.Instrument.Generic/0.1.7" ["/Users/brianweir/git/daml-finance/package/main/daml/ContingentClaims.Lifecycle/daml/ContingentClaims/Lifecycle/Lifecycle.daml"]
+  -- print res
 
   case optCommand of
     DataDependencies command -> case command of
