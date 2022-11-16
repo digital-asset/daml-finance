@@ -30,9 +30,12 @@ import Prelude hiding (and)
 data TestParties = TestParties
   with
     bank : Party
-      -- ^ Acts as custodian in the respective holdings (both cash holdings and instrument holdings). It also acts as depository in the forward instrument and the equity instrument.
+      -- ^ Acts as custodian in the respective holdings (both cash holdings and instrument
+      --   holdings). It also acts as depository in the forward instrument and the equity
+      --   instrument.
     broker : Party
-      -- ^ Acts as issuer of the forward contract. It is also the party tasked with lifecycling of the contract.
+      -- ^ Acts as issuer of the forward contract. It is also the party tasked with lifecycling of
+      --   the contract.
     centralBank : Party
       -- ^ The Central Bank is the depository and the issuer of the cash instrument.
     equityIssuer : Party
@@ -56,7 +59,8 @@ run = script do
     createCmd Fungible.Factory with provider = bank; observers = M.fromList pp
 
   -- Create accounts
-  investorAccount <- Account.createAccount "Default Account" [] accountFactoryCid holdingFactoryCid [] Account.Owner bank investor
+  investorAccount <- Account.createAccount "Default Account" [] accountFactoryCid holdingFactoryCid
+    [] Account.Owner bank investor
 
   -- Distribute assets
   now <- getTime
@@ -69,18 +73,28 @@ run = script do
     maturity = addDays (toDateUTC now) 1
     cashInstrumentDeliverable = one cashInstrument
     equityInstrumentDeliverable = one equityInstrument
-    claims = when (TimeGte $ dateToDateClockTime maturity) $ and equityInstrumentDeliverable $ scale (Const 200.0) $ give cashInstrumentDeliverable
-  genericInstrument <- originateGeneric bank broker "FWD-AAPL" "Forward Contract" now claims [("PublicParty", singleton publicParty)] now
-  investorGenericHoldingCid <- Account.credit [publicParty] genericInstrument 1_000.0 investorAccount
+    claims = when (TimeGte $ dateToDateClockTime maturity)
+             $ and equityInstrumentDeliverable
+             $ scale (Const 200.0)
+             $ give cashInstrumentDeliverable
+  genericInstrument <- originateGeneric bank broker "FWD-AAPL" "Forward Contract" now claims
+    [("PublicParty", singleton publicParty)] now
+  investorGenericHoldingCid <- Account.credit [publicParty] genericInstrument 1_000.0
+    investorAccount
 
   -- create clock and clock update event
   (clockCid, clockEventCid) <- createClockAndEvent (singleton broker) maturity empty
 
   -- Lifecycle a generic derivative
-  (_, [effectCid]) <- Instrument.submitExerciseInterfaceByKeyCmd @Lifecycle.I [broker] [] genericInstrument Lifecycle.Evolve with eventCid = clockEventCid; observableCids = []; ruleName = "Time"; timeObservableCid = clockCid
+  (_, [effectCid]) <-
+    Instrument.submitExerciseInterfaceByKeyCmd @Lifecycle.I [broker] [] genericInstrument
+      Lifecycle.Evolve with
+        eventCid = clockEventCid; observableCids = []; ruleName = "Time"
+        timeObservableCid = clockCid
 
   -- Create settlement factory
-  settlementFactoryCid <- toInterfaceContractId <$> submit investor do createCmd Factory with provider = investor; observers = empty; custodian = bank
+  settlementFactoryCid <- toInterfaceContractId <$> submit investor do
+    createCmd Factory with provider = investor; observers = empty; custodian = bank
 
   -- Claim effect
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [bank, investor] [] do
@@ -99,21 +113,36 @@ run = script do
       effectCid
       batchId = Id "ForwardPhysicalSettlement"
 
-  let [investorInstrumentInstructionCid, investorCashInstructionCid, bankEquityInstructionCid] = result.instructionCids
+  let
+    [investorInstrumentInstructionCid, investorCashInstructionCid,
+      bankEquityInstructionCid] = result.instructionCids
 
   -- Allocate instructions
-  (investorInstrumentInstructionCid, _) <- submit investor do exerciseCmd investorInstrumentInstructionCid Instruction.Allocate with actors = singleton investor; allocation = Pledge investorGenericHoldingCid
-  (bankEquityInstructionCid, _) <- submit bank do exerciseCmd bankEquityInstructionCid Instruction.Allocate with actors = singleton bank; allocation = CreditReceiver
-  (investorCashInstructionCid, _) <- submit investor do exerciseCmd investorCashInstructionCid Instruction.Allocate with actors = singleton investor; allocation = Pledge investorCashHoldingCid
+  (investorInstrumentInstructionCid, _) <- submit investor do
+    exerciseCmd investorInstrumentInstructionCid Instruction.Allocate with
+      actors = singleton investor; allocation = Pledge investorGenericHoldingCid
+  (bankEquityInstructionCid, _) <- submit bank do
+    exerciseCmd bankEquityInstructionCid Instruction.Allocate with
+      actors = singleton bank; allocation = CreditReceiver
+  (investorCashInstructionCid, _) <- submit investor do
+    exerciseCmd investorCashInstructionCid Instruction.Allocate with
+      actors = singleton investor; allocation = Pledge investorCashHoldingCid
 
   -- Approve instructions
-  investorInstrumentInstructionCid <- submit bank do exerciseCmd investorInstrumentInstructionCid Instruction.Approve with actors = singleton bank; approval = DebitSender
-  investorCashInstructionCid <- submit bank do exerciseCmd investorCashInstructionCid Instruction.Approve with actors = singleton bank; approval = DebitSender
-  bankEquityInstructionCid <- submit investor do exerciseCmd bankEquityInstructionCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorAccount
+  investorInstrumentInstructionCid <- submit bank do
+    exerciseCmd investorInstrumentInstructionCid Instruction.Approve with
+      actors = singleton bank; approval = DebitSender
+  investorCashInstructionCid <- submit bank do
+    exerciseCmd investorCashInstructionCid Instruction.Approve with
+      actors = singleton bank; approval = DebitSender
+  bankEquityInstructionCid <- submit investor do
+    exerciseCmd bankEquityInstructionCid Instruction.Approve with
+      actors = singleton investor; approval = TakeDelivery investorAccount
 
   -- Settle batch
   [investorEquityHoldingCid] <-
-    submitMulti (toList settlers) [publicParty] do exerciseCmd result.batchCid Batch.Settle with actors = settlers
+    submitMulti (toList settlers) [publicParty] do
+      exerciseCmd result.batchCid Batch.Settle with actors = settlers
 
   -- Assert state
   Holding.verifyOwnerOfHolding [(investor, investorEquityHoldingCid)]
@@ -122,6 +151,7 @@ run = script do
 
 setupParties : Script TestParties
 setupParties = do
-  [bank, broker, centralBank, equityIssuer, investor, settler, publicParty] <-
-    createParties ["Bank", "Broker", "Central Bank", "Equity Issuer", "Investor", "Settler", "PublicParty"]
-  pure $ TestParties with bank; broker; centralBank; equityIssuer; investor; settlers = singleton settler; publicParty
+  [bank, broker, centralBank, equityIssuer, investor, settler, publicParty] <- createParties
+    ["Bank", "Broker", "Central Bank", "Equity Issuer", "Investor", "Settler", "PublicParty"]
+  pure $ TestParties with
+    bank; broker; centralBank; equityIssuer; investor; settlers = singleton settler; publicParty

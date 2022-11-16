@@ -7,7 +7,7 @@ Contingent Claims Quickstart
 This is a user guide for getting started with the ``contingent-claims`` library. The library is used
 for modelling arbitrary financial instruments, typically derivatives. This guide is meant to help
 you get to grips with the library as quickly as possible; it’s not meant to cover every aspect. The
-work is based on the papers [Cit1]_, [Cit2]_, and we recommend that you refer to these for an
+work is based on the papers [Cit1]_ and [Cit2]_, and we recommend that you refer to these for an
 in-depth understanding of how it works.
 
 The Model
@@ -57,12 +57,12 @@ Let’s look at the constructors used in the above expression in more detail:
 -  ``one "USD"`` means that the acquirer of the contract receives one unit of the asset,
    parametrised by ``a``, *immediately*. In this case we use a 3-letter ISO code to represent a
    currency. But you can use your own type to represent any asset.
--  ``scale (pure coupon)`` modifies the *magnitude* of the arrow in the diagram. So for example, in
-   the diagram, the big arrow would have a distinct scale factor from the small arrows. Note also,
-   that in our example the scale factor is constant : ``pure coupon = const coupon``. However, it’s
-   possible to have a scale factor that varies on an unobserved value, such as a stock price, the
-   weather, or any other measurable quantity.
--  ``when (time == t_0)`` tells us where along the x-axis the arrow is placed. i.e. it modifies the
+-  ``scale (pure coupon)`` modifies the *magnitude* of the arrow in the diagram. For example, in the
+   diagram, the big arrow would have a distinct scale factor from the small arrows. In our example,
+   the scale factor is constant: ``pure coupon = const coupon``, however, it’s possible to have a
+   scale factor that varies on an unobserved value, such as a stock price, the weather, or any other
+   measurable quantity.
+-  ``when (time == t_0)`` tells us where along the x-axis the arrow is placed, i.e., it modifies the
    moment the claim is acquired. The convention is that this must be the first instant that the
    predicate (``time == t_0`` in this case) is true. In our example it is a point, but again, we
    could have used an expression with an unknown quantity, for example ``spotPrice > pure k``, and
@@ -75,13 +75,13 @@ Additionally we have several constructors which we’ve not used in this example
 
 -  ``zero``, used to indicate an absence of obligations. While it may not make sense to create a
    ``zero`` claim, it could, for example, result from applying a function on a tree of claims.
--  ``give`` would flip the direction of the arrows in our diagram. So for example, in a swap we
-   could use ``give`` to distinguishing the received/paid legs.
+-  ``give`` would flip the direction of the arrows in our diagram. For example, in a swap we could
+   use ``give`` to distinguishing the received/paid legs.
 -  ``or`` is used to give the bearer the right to choose between two different claims.
 -  ``anytime`` is like ``when``, except it allows the bearer to choose (vs. no choice) acquisition
    in a *region* (vs. a point).
--  ``until`` is used to adjust the expiration (*horizon* in [Cit1]_) of a claim. Typically used with
-   ``anytime`` to limit  aforesaid acquisition region.
+-  ``until`` is used to adjust the expiration (*horizon* in [Cit1]_) of a claim. Typically it is
+   used with ``anytime`` to limit aforesaid acquisition region.
 
 The tree produced by our expression is pictured below:
 
@@ -92,8 +92,8 @@ Composition and Extensibility
 =============================
 
 Although we could model every subsequent arrow the way we did the first one, as good programmers we
-wish to avoid repeating ourselves. Hence we could write functions to re-use subexpressions of the
-tree. But which parts should we factor out? It turns out, that Finance 101 comes to the rescue
+wish to avoid repeating ourselves. Hence, we could write functions to re-use subexpressions of the
+tree. But which parts should we factor out? It turns out that Finance 101 comes to the rescue
 again. Fixed income practitioners will typically model a fixed-rate bond as a sum of zero-coupon
 bonds. That’s how we model them in ```Financial.daml`` <./daml/ContingentClaims/Financial.daml>`__.
 Below are slightly simplified versions:
@@ -114,11 +114,13 @@ reuse to build the ``fixed``-rate bond:
    fixed principal coupon asset (t :: ts) = zcb t coupon asset `and` fixed principal coupon asset ts
 
 We define the fixed rate bond by induction, iterating over a list of dates ``[t]``, and producing
-multiple zero-coupon bonds ``zcb`` combined together with ``and``. \* The first definition covers
-the trivial case where we pass an empty list of dates. \* The second definition handles the base
-case, at maturity: we create both a coupon (interest) payment, and the principal payment. \* The
-third definition is the induction step; it peels the first element off the list, and calls itself
-recursively on the tail of the list, until it reaches the base case at maturity.
+multiple zero-coupon bonds ``zcb`` combined together with ``and``:
+
+-  The first definition covers the trivial case where we pass an empty list of dates.
+-  The second definition handles the base case, at maturity: we create both a coupon (interest)
+   payment, and the principal payment.
+-  The third definition is the induction step; it peels the first element off the list, and calls
+   itself recursively on the tail of the list, until it reaches the base case at maturity.
 
 This re-use of code is prevalent throughout the library. It’s great as it mirrors how instruments
 are defined in the industry. Let’s look at yet another example, a fixed vs floating USD/EUR swap.
@@ -139,10 +141,10 @@ instruments are modelled in finance.
 Another major advantage of this approach is its extensibility. Unlike a traditional approach, where
 we might in an object-oriented language represent different instruments as classes, in the cashflow
 approach, we do not need to enumerate possible asset classes/instruments *a priori*. This is
-especially relevant in a distributed setting, where parties must execute the same code i.e. have the
-same ``*.dar``\ s on their ledger to interact. In other words, party A can issue a new instrument,
-or even write a new combinator function that is in a private ``*.dar``, while being able to trade
-with party B, who has no knowledge of this new ``*.dar``.
+especially relevant in a distributed setting, where parties must execute the same code, i.e., have
+the same ``*.dar``\ s on their ledger to interact. In other words, party A can issue a new
+instrument, or even write a new combinator function that is in a private ``*.dar``, while being able
+to trade with party B, who has no knowledge of this new ``*.dar``.
 
 Concerning Type Parameters
 ==========================
@@ -187,7 +189,7 @@ The Value Parameter
 -------------------
 
 ``x`` is the ‘output’ type of an ``Observation``, but it can also serve as input when defining a
-constant observation using e.g. ``Observation.pure 10.08``.
+constant observation using, e.g., ``Observation.pure 10.08``.
 
 Lifecycling
 ===========
@@ -198,7 +200,7 @@ cashflows. We’ve seen that these trees can be constructed using the type const
 composition. But now that we have these trees, what can we do with them?
 
 The original paper [Cit1]_ focuses on using these trees for valuing the instruments they represent,
-i.e. finding the ‘fair price’ that one should pay for these cashflows. Instead, we’ll focus here on
+i.e., finding the ‘fair price’ that one should pay for these cashflows. Instead, we’ll focus here on
 a different use-case: the lifecycling (aka safekeeping, processing corporate actions) of these
 instruments.
 
@@ -247,7 +249,7 @@ pruned (depicted greyed-out below):
 
 You may wonder why we’ve separated the settlement procedure from the lifecycling function. The
 reason is that we can’t assume that settlement will happen on-chain; if it does, that is great, as
-we can embed this call into a template choice, and lifecycle & settle atomically. However, in the
+we can embed this call into a template choice, and lifecycle and settle atomically. However, in the
 case where settlement must happen off-chain, there’s no way to to do this in one step. This design
 supports both choices.
 

@@ -31,15 +31,18 @@ import Daml.Script
 run : Script ()
 run = script do
   -- Create parties
-  [cb, issuer, custodian, investor, public] <- createParties ["CentralBank", "Issuer", "Custodian", "Investor", "Public"]
+  [cb, issuer, custodian, investor, public] <-
+    createParties ["CentralBank", "Issuer", "Custodian", "Investor", "Public"]
 
   -- Create holding and account factory
   let pp = [("Public", singleton public)]
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory issuer pp
-  holdingFactoryCid <- toInterfaceContractId <$> submit issuer do createCmd Fungible.Factory with provider = issuer; observers = M.fromList pp
+  holdingFactoryCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Fungible.Factory with provider = issuer; observers = M.fromList pp
 
   -- Create accounts
-  investorAccount <- Account.createAccount "Account" [public] accountFactoryCid holdingFactoryCid [] Account.Owner custodian investor
+  investorAccount <- Account.createAccount "Account" [public] accountFactoryCid holdingFactoryCid []
+    Account.Owner custodian investor
 
   -- Create clock
   now <- getTime
@@ -54,20 +57,28 @@ run = script do
   investorEquityCid <- Account.credit [public] cumEquityInstrument 1_000.0 investorAccount
 
   -- Create cash dividend event
-  distributionRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit issuer do createCmd Distribution.Rule with providers = singleton issuer; lifecycler = issuer; observers = singleton public
-  distributionEventCid <- Instrument.submitExerciseInterfaceByKeyCmd @Equity.I [issuer] [] cumEquityInstrument Equity.DeclareDividend
-    with
-      id = Id $ "APPL - " <> show now
-      description = "Cash Dividend"
-      effectiveDate = toDateUTC now
-      newInstrument = exEquityInstrument
-      perUnitDistribution = [Instrument.qty 2.0 cashInstrument]
+  distributionRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit issuer do
+    createCmd Distribution.Rule with
+      providers = singleton issuer; lifecycler = issuer; observers = singleton public
+  distributionEventCid <-
+    Instrument.submitExerciseInterfaceByKeyCmd @Equity.I [issuer] [] cumEquityInstrument
+      Equity.DeclareDividend with
+        id = Id $ "APPL - " <> show now
+        description = "Cash Dividend"
+        effectiveDate = toDateUTC now
+        newInstrument = exEquityInstrument
+        perUnitDistribution = [Instrument.qty 2.0 cashInstrument]
 
   -- Lifecycle cash dividend
-  (_, [effectCid]) <- submit issuer do exerciseCmd distributionRuleCid Lifecycle.Evolve with ruleName = "Dividend"; observableCids = []; eventCid = distributionEventCid; timeObservableCid = clockCid
+  (_, [effectCid]) <- submit issuer do
+    exerciseCmd distributionRuleCid Lifecycle.Evolve with
+      ruleName = "Dividend"; observableCids = []; eventCid = distributionEventCid
+      timeObservableCid = clockCid
 
   -- Claim effect
-  settlementFactoryCid <- toInterfaceContractId <$> submit custodian do createCmd Factory with provider = custodian; observers = singleton public; custodian
+  settlementFactoryCid <- toInterfaceContractId <$> submit custodian do
+    createCmd Factory with
+      provider = custodian; observers = singleton public; custodian
   claimRuleCid <- toInterfaceContractId @Claim.I <$> submit custodian do
     createCmd Claim.Rule
       with
@@ -77,7 +88,8 @@ run = script do
         settlementFactoryCid
         netInstructions = False
 
-  -- The effect is claimed and then settled by the custodian, but it could also be claimed and then settled by the investor.
+  -- The effect is claimed and then settled by the custodian, but it could also be claimed and then
+  -- settled by the investor.
   result <- submitMulti [custodian] [public] do
     exerciseCmd claimRuleCid Claim.ClaimEffect
       with
@@ -86,22 +98,38 @@ run = script do
         effectCid
         batchId = Id "DividendSettlement"
 
-  let [investorInstrumentInstructionCid, custodianInstrumentInstructionCid, custodianCashInstructionCid] = result.instructionCids
+  let
+    [investorInstrumentInstructionCid, custodianInstrumentInstructionCid,
+      custodianCashInstructionCid] = result.instructionCids
 
   -- Allocate instructions
-  (investorInstrumentInstructionCid, _) <- submit investor do exerciseCmd investorInstrumentInstructionCid Instruction.Allocate with actors = singleton investor; allocation = Pledge $ coerceContractId investorEquityCid
-  (custodianInstrumentInstructionCid, _) <- submit custodian do exerciseCmd custodianInstrumentInstructionCid Instruction.Allocate with actors = singleton custodian; allocation = CreditReceiver
-  (custodianCashInstructionCid, _) <- submit custodian do exerciseCmd custodianCashInstructionCid Instruction.Allocate with actors = singleton custodian; allocation = CreditReceiver
+  (investorInstrumentInstructionCid, _) <- submit investor do
+    exerciseCmd investorInstrumentInstructionCid Instruction.Allocate with
+      actors = singleton investor; allocation = Pledge $ coerceContractId investorEquityCid
+  (custodianInstrumentInstructionCid, _) <- submit custodian do
+    exerciseCmd custodianInstrumentInstructionCid Instruction.Allocate with
+      actors = singleton custodian; allocation = CreditReceiver
+  (custodianCashInstructionCid, _) <- submit custodian do
+    exerciseCmd custodianCashInstructionCid Instruction.Allocate with
+      actors = singleton custodian; allocation = CreditReceiver
 
   -- Approve instructions
-  investorInstrumentInstructionCid <- submit custodian do exerciseCmd investorInstrumentInstructionCid Instruction.Approve with actors = singleton custodian; approval = DebitSender
-  custodianInstrumentInstructionCid <- submit investor do exerciseCmd custodianInstrumentInstructionCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorAccount
-  custodianCashInstructionCid <- submit investor do exerciseCmd custodianCashInstructionCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorAccount
+  investorInstrumentInstructionCid <- submit custodian do
+    exerciseCmd investorInstrumentInstructionCid Instruction.Approve with
+      actors = singleton custodian; approval = DebitSender
+  custodianInstrumentInstructionCid <- submit investor do
+    exerciseCmd custodianInstrumentInstructionCid Instruction.Approve with
+      actors = singleton investor; approval = TakeDelivery investorAccount
+  custodianCashInstructionCid <- submit investor do
+    exerciseCmd custodianCashInstructionCid Instruction.Approve with
+      actors = singleton investor; approval = TakeDelivery investorAccount
 
   -- Settle batch
-  [investorEquityHoldingCid, investorCashHoldingCid] <- submitMulti [custodian] [public] do exerciseCmd result.batchCid Batch.Settle with actors = singleton custodian
+  [investorEquityHoldingCid, investorCashHoldingCid] <- submitMulti [custodian] [public] do
+    exerciseCmd result.batchCid Batch.Settle with actors = singleton custodian
 
   -- Assert state
-  Holding.verifyOwnerOfHolding [(investor, investorEquityHoldingCid), (investor, coerceContractId investorCashHoldingCid)]
+  Holding.verifyOwnerOfHolding
+    [(investor, investorEquityHoldingCid), (investor, coerceContractId investorCashHoldingCid)]
 
   pure ()

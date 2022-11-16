@@ -16,7 +16,7 @@ Content
 *******
 
 * :doc:`Overview <overview/intro>`: description of the purpose of the library, its high-level
-  architecture, as well as targeted use cases.
+  architecture, as well as targeted use cases
 * :doc:`Concepts <concepts/index>`: explanation of the main concepts used throughout the library,
   and how they fit together
 * :doc:`Packages <packages/intro>`: documentation for each individual package and its contained

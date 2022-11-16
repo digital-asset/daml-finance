@@ -3,6 +3,7 @@
 
 module Daml.Finance.Instrument.Swap.Currency.Instrument where
 
+import DA.Date (daysSinceEpochToDate)
 import DA.Set (singleton)
 import Daml.Finance.Instrument.Generic.Util
 import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, GetClaims(..), View(..))
@@ -23,11 +24,11 @@ instance CurrencySwap.HasImplementation T
 
 -- | This template models a currency swap.
 -- It pays a fix vs fix rate (in different currencies) at the end of every payment period.
--- The principal in the foreign currency is calculated using an fx rate and the principal amount in the base currency.
--- The principal is not exchanged.
--- For example: 1000k principal in USD, fx rate 1.10 -> 1100k principal in EUR
---              3% fix rate on 1000k USD vs
---              2% fix rate on 1100k EUR
+-- The principal in the foreign currency is calculated using an fx rate and the principal amount in
+-- the base currency. The principal is not exchanged.
+-- For example: USD 1000k principal, fx rate 1.10 -> EUR 1100k principal
+--              3% fix rate on USD 1000k vs
+--              2% fix rate on EUR 1100k
 template Instrument
   with
     depository : Party
@@ -41,29 +42,36 @@ template Instrument
     description : Text
       -- ^ A description of the instrument.
     issuerPaysBase : Bool
-      -- ^ Indicate whether the issuer of the instrument pays the base currency leg or the foreign currency leg of the swap.
+      -- ^ Indicate whether the issuer of the instrument pays the base currency leg or the foreign
+      --   currency leg of the swap.
     baseRate : Decimal
-      -- ^ The interest rate of the base currency. For example, in case of "3% in USD" this should be 0.03.
+      -- ^ The interest rate of the base currency. For example, in case of "3% in USD" this should
+      --   be 0.03.
     foreignRate : Decimal
-      -- ^ The interest rate of the foreign currency. For example, in case of "2% in EUR" this should be 0.02.
+      -- ^ The interest rate of the foreign currency. For example, in case of "2% in EUR" this
+      --   should be 0.02.
     periodicSchedule : PeriodicSchedule
       -- ^ The schedule for the periodic swap payments.
     holidayCalendarIds : [Text]
-      -- ^ The identifier of the holiday calendar to be used for the swap payment schedule.
+      -- ^ The identifiers of the holiday calendars to be used for the swap payment schedule.
     calendarDataProvider : Party
       -- ^ The reference data provider to use for the holiday calendar.
     dayCountConvention : DayCountConventionEnum
       -- ^ The day count convention used to calculate day count fractions. For example: Act360.
     baseCurrency : BaseInstrument.K
-      -- ^ The base currency of the swap. For example, in the case of USD this should be a USD cash instrument.
+      -- ^ The base currency of the swap. For example, in the case of USD this should be a USD cash
+      --   instrument.
     foreignCurrency : BaseInstrument.K
-      -- ^ The foreign currency of the swap. For example, in case of EUR this should be a EUR cash instrument.
+      -- ^ The foreign currency of the swap. For example, in case of EUR this should be a EUR cash
+      --   instrument.
     fxRate : Decimal
-      -- ^ The fx rate used to convert from the base currency principal amount to the foreign currency principal amount.
+      -- ^ The fx rate used to convert from the base currency principal amount to the foreign
+      --   currency principal amount.
     observers : PartiesMap
       -- ^ The observers of the instrument.
     lastEventTimestamp : Time
-      -- ^ (Market) time of the last recorded lifecycle event. If no event has occurred yet, the time of creation should be used.
+      -- ^ (Market) time of the last recorded lifecycle event. If no event has occurred yet, the
+      --   time of creation should be used.
   where
     signatory depository, issuer
     observer Disclosure.flattenObservers observers
@@ -71,7 +79,7 @@ template Instrument
     let instrumentKey = InstrumentKey with depository; issuer; id; version
 
     interface instance Claim.I for Instrument where
-      view = Claim.View with acquisitionTime = dateToDateClockTime periodicSchedule.effectiveDate
+      view = Claim.View with acquisitionTime = dateToDateClockTime (daysSinceEpochToDate 0)
       asBaseInstrument = toInterface @BaseInstrument.I this
       getClaims Claim.GetClaims{actor} = do
         -- get the initial claims tree (as of the swap's acquisition time)
@@ -81,18 +89,26 @@ template Instrument
           notional = 1.0
           issuerPaysForeignLeg = not issuerPaysBase
           foreignRateInclFxPrincipalAdjustmentFactor = foreignRate * fxRate
-          baseLegClaims = createFixRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf baseRate issuerPaysBase dayCountConvention notional baseCurrency
-          foreignLegClaims = createFixRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf foreignRateInclFxPrincipalAdjustmentFactor issuerPaysForeignLeg dayCountConvention notional foreignCurrency
+          baseLegClaims = createFixRatePaymentClaims schedule periodicSchedule
+            useAdjustedDatesForDcf baseRate issuerPaysBase dayCountConvention notional baseCurrency
+          foreignLegClaims = createFixRatePaymentClaims schedule periodicSchedule
+            useAdjustedDatesForDcf foreignRateInclFxPrincipalAdjustmentFactor issuerPaysForeignLeg
+            dayCountConvention notional foreignCurrency
         pure $ [baseLegClaims, foreignLegClaims]
 
     interface instance BaseInstrument.I for Instrument where
       asDisclosure = toInterface @Disclosure.I this
-      view = BaseInstrument.View with depository; issuer; id; version; description; validAsOf = lastEventTimestamp
+      view = BaseInstrument.View with
+        depository; issuer; id; version; description; validAsOf = lastEventTimestamp
       getKey = instrumentKey
 
     interface instance CurrencySwap.I for Instrument where
       asBaseInstrument = toInterface @BaseInstrument.I this
-      view = CurrencySwap.View with currencySwap = CurrencySwap with instrument = instrumentKey; description ; issuerPaysBase; baseRate; foreignRate; periodicSchedule; holidayCalendarIds; calendarDataProvider; dayCountConvention; baseCurrency; foreignCurrency; fxRate; lastEventTimestamp
+      view = CurrencySwap.View with
+        currencySwap = CurrencySwap with
+          instrument = instrumentKey; description ; issuerPaysBase; baseRate; foreignRate
+          periodicSchedule; holidayCalendarIds; calendarDataProvider; dayCountConvention
+          baseCurrency; foreignCurrency; fxRate; lastEventTimestamp
 
     interface instance Lifecycle.I for Instrument where
       view = Lifecycle.View with lifecycler = issuer

@@ -4,9 +4,9 @@ The purpose of this document is to describe the procedure to release this librar
 
 ## Release steps
 
-1. The target branch (eg. `main`) must contain the changes you want to release along with the
+1. The target branch (e.g. `main`) must contain the changes you want to release along with the
    version to release in the required packages `daml.yaml` file.
-2. Create a new branch either directly on GitHub or locally from the target branch (ie., `main`),
+2. Create a new branch either directly on GitHub or locally from the target branch (i.e., `main`),
    with the branch name beginning with `release`. If its a local branch, push to remote.
 3. The CI will pick up the release branch and:
    - If building the project fails, the release workflow will not get triggered.

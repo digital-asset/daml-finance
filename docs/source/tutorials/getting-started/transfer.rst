@@ -8,7 +8,7 @@ This tutorial introduces the core asset model of the library through a simple ex
 is to illustrate the concepts of :ref:`account <account>`, :ref:`instrument <instrument>`, and
 :ref:`holding <holding>`, as well as showing how to work with Daml interfaces.
 
-We are going to
+We are going to:
 
 #. create accounts for Alice and Bob at the Bank
 #. issue a cash instrument
@@ -121,8 +121,8 @@ Open Alice’s and Bob’s Accounts
 Once the factory templates are setup, we leverage our ``CreateAccount`` workflow to create accounts
 at the Bank for Alice and Bob.
 
-The creation of an account needs to be authorized by both the ``custodian`` and the ``owner`` (resp.
-the Bank and Alice in our case). Authorization is collected using an initiate / accept pattern.
+The creation of an account needs to be authorized by both the ``custodian`` and the ``owner``, i.e.,
+by the Bank and Alice in our case. Authorization is collected using an initiate / accept pattern.
 
 .. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Transfer.daml
   :language: daml
@@ -134,8 +134,8 @@ Bob’s account is created in a similar fashion.
 Create the Cash Instrument
 ==========================
 
-In order to credit Alice’s account with some cash, we first need to introduce a cash ``Instrument``
-in our model.
+In order to credit Alice’s account with some cash, we first introduce a cash ``Instrument`` in our
+model.
 
 .. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Transfer.daml
   :language: daml
@@ -146,7 +146,7 @@ An instrument is a representation of what it is that we are holding against the 
 simple as just a textual label (like in this case) or it can include complex on-ledger lifecycling
 logic.
 
-To hold one unit of the cash instrument in this scenario means that we can claim 1 USD from the
+To hold one unit of the cash instrument in this scenario means that we can claim USD 1 from the
 custodian of the holding.
 
 Notice how in this case the Bank acts both as the issuer and depository of the cash instrument. This
@@ -162,7 +162,7 @@ We can now deposit cash in Alice’s account, using the ``Deposit`` workflow.
   :start-after: -- CREATE_ALICE_HOLDING_BEGIN
   :end-before: -- CREATE_ALICE_HOLDING_END
 
-Alice creates a request to deposit ``1,000 USD`` at the Bank, the Bank then accepts the request and
+Alice creates a request to deposit ``USD 1,000`` at the Bank, the Bank then accepts the request and
 a corresponding ``Holding`` is created.
 
 You can imagine that the latter step happens only after Alice has showed up at the bank and
@@ -268,14 +268,14 @@ help you familiarize yourself with the library and with Daml interfaces.
 Split the Holding to Transfer the Right Amount
 ==============================================
 
-In the example, Bob requests ``1,000 USD`` from Alice and Alice allocates a holding for exactly the
+In the example, Bob requests ``USD 1,000`` from Alice and Alice allocates a holding for exactly the
 right amount, because the transfer would otherwise fail. We want the transfer to be successful also
-if Alice allocates a holding for a larger amount e.g., ``1,500 USD``.
+if Alice allocates a holding for a larger amount e.g., ``USD 1,500``.
 
 We can leverage the fact that the holding implements the
 :ref:`Fungible <type-daml-finance-interface-holding-fungible-fungible-60176>`
-interface, which makes it possible to ``Split`` it into a holding of ``1,000 USD`` and one of
-``500 USD``. In the implementation of the ``CashTransferRequest_Accept`` choice
+interface, which makes it possible to ``Split`` it into a holding of ``USD 1,000`` and one of
+``USD 500``. In the implementation of the ``CashTransferRequest_Accept`` choice
 
 - cast the allocated holding to the ``Fungible`` interface
 - use the ``Split`` choice to split the larger holding into two holdings
@@ -303,8 +303,8 @@ used to disclose / undisclose Bob's account contract to Alice.
 Summary
 *******
 
-You now know how to setup basic accounts, holdings and instruments. You also learned how to perform
-a simple transfer. The key concepts to take away are:
+You know how to setup basic accounts, holdings and instruments. You also learned how to perform a
+simple transfer. The key concepts to take away are:
 
 * Holdings represent the ownership of a financial instrument at a custodian.
 * Instruments define the economic terms of a financial contract.

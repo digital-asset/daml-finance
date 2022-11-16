@@ -7,23 +7,23 @@ Contingent Claims Tree on Ledger vs On-the-Fly Creation
 Different Ways to Create and Store the Contingent Claims Tree
 *************************************************************
 
-We have now seen two different ways of modeling a fixed coupon bond using ``Contingent Claims``:
+We have seen two different ways of modeling a fixed coupon bond using ``Contingent Claims``:
 
 Explicitly Storing the Contingent Claims Tree on the Ledger
 ===========================================================
 
-When we use the :doc:`Generic extension <generic-extension>` we create the claims tree at instrument
-inception and store this representation explicitly on the ledger. Since the tree is stored
-statically it can only change if the instrument is updated on ledger. For example, after a coupon
-payment a new version of the instrument (excluding the coupon just paid) supersedes the previous
-version. However, in the event of a change in a holiday calendar (which could be used to define the
-coupon payment dates), the tree will not automatically change.
+When we use the :doc:`Generic extension <generic-extension>`, we create the claims tree at
+instrument inception and store this representation explicitly on the ledger. Since the tree is
+stored statically it can only change if the instrument is updated on ledger. For example, after a
+coupon payment a new version of the instrument (excluding the coupon just paid) supersedes the
+previous version. However, in the event of a change in a holiday calendar (which could be used to
+define the coupon payment dates), the tree will not automatically change.
 
 Calculating the Contingent Claims Tree On-the-Fly
 =================================================
 
-When we create a :doc:`strongly typed bond instrument <contingent-claims-instrument>` only the key
-parameters of the bond are stored on the ledger. The claims tree is not, it is created on-the-fly,
+When we create a :doc:`strongly typed bond instrument <contingent-claims-instrument>` only, the key
+parameters of the bond are stored on the ledger. The claims tree is not, it is created on-the-fly
 when needed (for example, in the case of lifecycling). Consequently, if a holiday calendar changes,
 this will automatically impact the claims tree the next time it is dynamically created.
 
