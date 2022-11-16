@@ -59,30 +59,43 @@ two different evolution paths).
 Workflow
 ********
 
-Our initial state looks as follows:
+In this scenario we go through the process of paying a cash dividend from an issuer to an investor.
+The initial state looks as follows:
 
 * An issuer maintains a ``ACME`` instrument representing shares in a company
 * An investor owns a holding of 1000 units of the ``ACME`` instrument with the issuer
-* The issuer wants to process and pay a cash dividend on its ``ACME`` instrument
-
-The following picture shows the parties and contracts involved in this initial state:
+* The issuer wants to process and pay a cash dividend of USD 10.0 per share on its ``ACME``
+instrument
 
 .. image:: ../images/lifecycle_initial_state.png
    :alt: The issuer issues the ACME instrument. The investor owns a holding of 1000 ACME shares.
          The holding references the instrument.
 
-We will now explain each step required to process the cash dividend.
+We will now explain each step in the process in detail.
 
-Evolve
-======
+Creating the event
+==================
 
-The issuer first creates a new instance of the ``ACME`` instrument, assiging a new version. Then,
-they create a lifecycle event defining the terms of e.g. the corporate action. In our example we can
+The issuer first creates a new instance of the ``ACME`` instrument, assiging a new version. Note
+that the logic to create the new version of an instrument can also be encoded in the lifecycle rule.
+The new version is then automatically produced when processing the event as described in the next
+step.
+
+Now, the issuer creates a lifecycle event defining the terms of dividend. In our example we can
 use the :ref:`DistributeDividend <type-daml-finance-interface-instrument-equity-transferable-24986>`
 choice on the :ref:`Equity <type-daml-finance-interface-holding-transferable-transferable-24986>`
-instrument to create such an event.
+instrument to create such an event. This is merely a convenience choice available for equities, any
+workflow can be used to create new instrument versions and associated lifecycle events.
 
-Now, the event is passed into the
+.. image:: ../images/lifecycle_create_event.png
+   :alt: The issuer creates a new ACME v2 instrument. They also create a distribution
+         event by declaring a dividend on the ACME v1 instrument.
+
+
+Processing the event
+=====================
+
+The event is now passed into the
 :ref:`Distribution Rule <type-daml-finance-interface-holding-transferable-transferable-24986>`,
 which generates the lifecycle
 :ref:`Effect <type-daml-finance-interface-holding-transferable-transferable-24986>` describing the
@@ -90,6 +103,10 @@ distribution of assets per unit of ``ACME`` stock. The effect refers to a ``targ
 which is the version of the instrument that can be used by stock holders to claim the cash dividend
 according to the number of stocks held. By being tied to a specific version we prevent holders from
 (accidentally or intentionally) claiming a particular effect twice.
+
+.. image:: ../images/lifecycle_process_event.png
+   :alt: The issuer processes the distribution event through the distribution rule, creating a
+         lifecycle effect. The effect references ACME v1 as a target instrument.
 
 Claim
 =====
@@ -99,14 +116,18 @@ The investor can now present its holding of ``ACME`` stock along with the corres
 :ref:`Claim Rule <type-daml-finance-interface-holding-transferable-transferable-24986>`. This will
 instruct settlement for:
 
-- The exchange of ``ACME`` stock versions held (the investor gives back the old version, and
-receives the new one)
+- The exchange of ``ACME`` stock versions held: the investor sends back the old version, and
+receives the new one
 - The payment of the cash dividend amount corresponding to the number of stocks held
 
 Both legs of this settlement are grouped in a
 :ref:`Batch <type-daml-finance-interface-settlement-batch-batch-97497>` to provide atomicity. This
 ensures that the investor can never claim a dividend twice, as after settlement they only hold the
 new version of the stock, which is not entitled to the dividend anymore.
+
+.. image:: ../images/lifecycle_claim_effect.png
+   :alt: The investor claims the lifecycle effect through the claim rule, passing in their ACME v1
+         holding. This produces a batch and settlement instructions.
 
 Note that the party responsible for claiming an effect can be set flexibly in the
 :ref:`Claim Rule <type-daml-finance-interface-holding-transferable-transferable-24986>` contract.
@@ -122,8 +143,16 @@ sides.
 Settle
 ======
 
-The batch and instructions resulting from claiming an effect can be settled as described in the
+The batch and instructions resulting from claiming an effect can now be settled as described in the
 :doc:`Settlement <settlement>` section of the documentation.
+
+The following picture shows the three asset movements involved in this particular example:
+
+.. image:: ../images/lifecycle_settle_batch.png
+   :alt: The investor allocates the 1000 ACME v1 holding to the first instruction. The issuer
+         allocates a 1000 ACME v2 holding to the second instruction and a 10000 USD holding to the
+         third.
+
 
 Components
 **********
@@ -185,7 +214,7 @@ time.
 Effects
 =======
 
-A lifecycle effect describes the asset movements resulting from a particular event. It specifies
-these movements per unit of a target instrument and version. Holdings on this specific instrument
-version entitle a holder to claim the effect, which results in the required asset movements to be
-instructed.
+An :ref:`Effect <type-daml-finance-interface-settlement-batch-batch-97497>` describes the asset
+movements resulting from a particular event. It specifies these movements per unit of a target
+instrument and version. Holdings on this specific instrument version entitle a holder to claim the
+effect, which results in the required asset movements to be instructed.
