@@ -38,17 +38,20 @@ template Instrument
     description : Text
       -- ^ A description of the instrument.
     swapStreams : [SwapStream]
-      -- ^ Each element describes a stream of swap payments, for example a regular fixed or floating rate.
+      -- ^ Each element describes a stream of swap payments, for example a regular fixed or floating
+      --   rate.
     issuerPartyRef : Text
       -- ^ Used to the identify which counterparty is the issuer in the swapStream.
     calendarDataProvider : Party
       -- ^ The reference data provider to use for the holiday calendar.
     currencies : [BaseInstrument.K]
-      -- ^ The currencies of the different swap legs, one for each swapStream. For example, if one leg pays in USD this should be a USD cash instrument.
+      -- ^ The currencies of the different swap legs, one for each swapStream. For example, if one
+      --   leg pays in USD this should be a USD cash instrument.
     observers : PartiesMap
       -- ^ The observers of the instrument.
     lastEventTimestamp : Time
-      -- ^ (Market) time of the last recorded lifecycle event. If no event has occurred yet, the time of creation should be used.
+      -- ^ (Market) time of the last recorded lifecycle event. If no event has occurred yet, the
+      --   time of creation should be used.
   where
     signatory depository, issuer
     observer Disclosure.flattenObservers observers
@@ -67,48 +70,74 @@ template Instrument
               calculationPeriodicSchedule = createCalculationPeriodicSchedule s.calculationPeriodDates
               paymentPeriodicSchedule = createPaymentPeriodicSchedule s
               useAdjustedDatesForDcf = True
-              issuerPaysLeg = if s.payerPartyReference == s.receiverPartyReference then error "payer and receiver must be different counterparties" else (s.payerPartyReference == issuerPartyRef)
+              issuerPaysLeg = if s.payerPartyReference == s.receiverPartyReference
+                              then error "payer and receiver must be different counterparties"
+                              else (s.payerPartyReference == issuerPartyRef)
               e = s.calculationPeriodDates.effectiveDate
               t = s.calculationPeriodDates.terminationDate
 
             -- Verify the payment schedule
-            assertMsg "The payment schedule must refer to the calculationPeriodDates of the current swapStream" $ s.paymentDates.calculationPeriodDatesReference == s.calculationPeriodDates.id
-            assertMsg "Only payment schedules relative to CalculationPeriodEndDate supported" $ s.paymentDates.payRelativeTo == CalculationPeriodEndDate
-            calculationSchedule <- rollPaymentSchedule calculationPeriodicSchedule s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessCenters issuer calendarDataProvider
-            paymentSchedule <- rollPaymentSchedule paymentPeriodicSchedule s.paymentDates.paymentDatesAdjustments.businessCenters issuer calendarDataProvider
+            assertMsg ("The payment schedule must refer to the calculationPeriodDates of the " <>
+              "current swapStream") $
+              s.paymentDates.calculationPeriodDatesReference == s.calculationPeriodDates.id
+            assertMsg "Only payment schedules relative to CalculationPeriodEndDate supported" $
+              s.paymentDates.payRelativeTo == CalculationPeriodEndDate
+            calculationSchedule <- rollPaymentSchedule
+              calculationPeriodicSchedule
+              s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessCenters
+              issuer
+              calendarDataProvider
+            paymentSchedule <- rollPaymentSchedule
+              paymentPeriodicSchedule
+              s.paymentDates.paymentDatesAdjustments.businessCenters
+              issuer
+              calendarDataProvider
 
             -- Verify the effectiveDate and the terminationDate
-            effectiveDateAdjusted <- adjustDateAccordingToBusinessDayAdjustments e.unadjustedDate e.dateAdjustments issuer calendarDataProvider
-            terminationDateAdjusted <- adjustDateAccordingToBusinessDayAdjustments t.unadjustedDate t.dateAdjustments issuer calendarDataProvider
+            effectiveDateAdjusted <- adjustDateAccordingToBusinessDayAdjustments
+              e.unadjustedDate e.dateAdjustments issuer calendarDataProvider
+            terminationDateAdjusted <- adjustDateAccordingToBusinessDayAdjustments
+              t.unadjustedDate t.dateAdjustments issuer calendarDataProvider
             let h = head calculationSchedule
-            assertMsg "The adjusted effectiveDate must match the adjusted start date of the first period" $ h.adjustedStartDate == effectiveDateAdjusted
+            assertMsg ("The adjusted effectiveDate must match the adjusted start date of the " <>
+              "first period") $ h.adjustedStartDate == effectiveDateAdjusted
             let l = last calculationSchedule
-            assertMsg "The adjusted terminationDate must match the adjusted end date of the last period" $ l.adjustedEndDate == terminationDateAdjusted
+            assertMsg ("The adjusted terminationDate must match the adjusted end date of the " <>
+              "last period") $ l.adjustedEndDate == terminationDateAdjusted
 
             -- If there is an fxLinkedNotionalSchedule, look up which swap leg contains the base notional
             let
-              swapStreamNotionalRef = case s.calculationPeriodAmount.calculation.notionalScheduleValue of
-                NotionalSchedule_FxLinked fxl ->
-                  find (\e -> case e.calculationPeriodAmount.calculation.notionalScheduleValue of
-                    NotionalSchedule_FxLinked fxl -> False
-                    NotionalSchedule_Regular notionalSchedule -> notionalSchedule.id == fxl.constantNotionalScheduleReference)
-                  swapStreams
-                NotionalSchedule_Regular n -> None
+              swapStreamNotionalRef =
+                case s.calculationPeriodAmount.calculation.notionalScheduleValue of
+                  NotionalSchedule_FxLinked fxl ->
+                    find (\e ->
+                      case e.calculationPeriodAmount.calculation.notionalScheduleValue of
+                        NotionalSchedule_FxLinked fxl -> False
+                        NotionalSchedule_Regular notionalSchedule ->
+                          notionalSchedule.id == fxl.constantNotionalScheduleReference)
+                    swapStreams
+                  NotionalSchedule_Regular n -> None
 
             -- Calculate the claims from the current leg (either fix or float)
-            calculateClaimsFromSwapStream s calculationPeriodicSchedule calculationSchedule paymentSchedule swapStreamNotionalRef useAdjustedDatesForDcf issuerPaysLeg ccy issuer calendarDataProvider
+            calculateClaimsFromSwapStream s calculationPeriodicSchedule calculationSchedule
+              paymentSchedule swapStreamNotionalRef useAdjustedDatesForDcf issuerPaysLeg ccy issuer
+              calendarDataProvider
 
         allClaims <- mapA calculateSwapStreamClaims $ zip swapStreams currencies
         pure $ concat allClaims
 
     interface instance BaseInstrument.I for Instrument where
       asDisclosure = toInterface @Disclosure.I this
-      view = BaseInstrument.View with depository; issuer; id; version; description; validAsOf = lastEventTimestamp
+      view = BaseInstrument.View with
+        depository; issuer; id; version; description; validAsOf = lastEventTimestamp
       getKey = instrumentKey
 
     interface instance Fpml.I for Instrument where
       asBaseInstrument = toInterface @BaseInstrument.I this
-      view = Fpml.View with fpml = Fpml with instrument = instrumentKey; description; swapStreams; issuerPartyRef; calendarDataProvider; currencies; lastEventTimestamp
+      view = Fpml.View with
+        fpml = Fpml with
+          instrument = instrumentKey; description; swapStreams; issuerPartyRef
+          calendarDataProvider; currencies; lastEventTimestamp
 
     interface instance Lifecycle.I for Instrument where
       view = Lifecycle.View with lifecycler = issuer

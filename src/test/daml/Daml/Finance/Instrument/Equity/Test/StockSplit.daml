@@ -34,16 +34,21 @@ run = script do
   -- Create factories
   let pp = [("Public", singleton public)]
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory issuer pp
-  holdingFactoryCid <- toInterfaceContractId <$> submit issuer do createCmd Fungible.Factory with provider = issuer; observers = M.fromList pp
+  holdingFactoryCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Fungible.Factory with provider = issuer; observers = M.fromList pp
 
   -- Create accounts
-  investorSecuritiesAccount <- Account.createAccount "Securities Account" [] accountFactoryCid holdingFactoryCid [] Account.Owner issuer investor
+  investorSecuritiesAccount <- Account.createAccount "Securities Account" [] accountFactoryCid
+    holdingFactoryCid [] Account.Owner issuer investor
 
   -- Create lifecycle rule
-  replacementRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit issuer do createCmd Replacement.Rule with providers = singleton issuer; lifecycler = issuer; observers = singleton public
+  replacementRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit issuer do
+    createCmd Replacement.Rule with
+      providers = singleton issuer; lifecycler = issuer; observers = singleton public
   -- Create clock
   now <- getTime
-  (clockCid, clockEventCid) <- createClockAndEvent (singleton issuer) (toDateUTC now) (singleton public)
+  (clockCid, clockEventCid) <-
+    createClockAndEvent (singleton issuer) (toDateUTC now) (singleton public)
 
   -- Originate instruments
   preEquityInstrument <- originateEquity issuer issuer "INST-1" "0" "AAPL" pp now
@@ -53,19 +58,24 @@ run = script do
   investorEquityCid <- Account.credit [public] preEquityInstrument 1_000.0 investorSecuritiesAccount
 
   -- Create stock split event
-  replacementEventCid <- Instrument.submitExerciseInterfaceByKeyCmd @Equity.I [issuer] [] preEquityInstrument Equity.DeclareStockSplit
-    with
-      id = Id $ "APPL - " <> show now
-      description = "Stocksplit"
-      effectiveDate = toDateUTC now
-      newInstrument = postEquityInstrument
-      adjustmentFactor = 0.5
+  replacementEventCid <-
+    Instrument.submitExerciseInterfaceByKeyCmd @Equity.I [issuer] [] preEquityInstrument
+      Equity.DeclareStockSplit with
+        id = Id $ "APPL - " <> show now
+        description = "Stocksplit"
+        effectiveDate = toDateUTC now
+        newInstrument = postEquityInstrument
+        adjustmentFactor = 0.5
 
   -- Lifecycle stock split
-  (_, [effectCid]) <- submit issuer do exerciseCmd replacementRuleCid Lifecycle.Evolve with ruleName = "Dividend"; observableCids = []; eventCid = replacementEventCid; timeObservableCid = clockCid
+  (_, [effectCid]) <- submit issuer do
+    exerciseCmd replacementRuleCid Lifecycle.Evolve with
+      ruleName = "Dividend"; observableCids = []; eventCid = replacementEventCid
+      timeObservableCid = clockCid
 
   -- Claim effect
-  settlementFactoryCid <- toInterfaceContractId <$> submit issuer do createCmd Factory with provider = issuer; observers = singleton public; custodian = issuer
+  settlementFactoryCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Factory with provider = issuer; observers = singleton public; custodian = issuer
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit issuer do
     createCmd Claim.Rule with
       providers = singleton issuer
@@ -84,15 +94,24 @@ run = script do
 
   -- Allocate instructions
   let [consumeInstructionCid, produceInstructionCid] = result.instructionCids
-  (consumeInstructionCid, _) <- submit investor do exerciseCmd consumeInstructionCid Instruction.Allocate with actors = singleton investor; allocation = Pledge $ coerceContractId investorEquityCid
-  (produceInstructionCid, _) <- submit issuer do exerciseCmd produceInstructionCid Instruction.Allocate with actors = singleton issuer; allocation = CreditReceiver
+  (consumeInstructionCid, _) <- submit investor do
+    exerciseCmd consumeInstructionCid Instruction.Allocate with
+      actors = singleton investor; allocation = Pledge $ coerceContractId investorEquityCid
+  (produceInstructionCid, _) <- submit issuer do
+    exerciseCmd produceInstructionCid Instruction.Allocate with
+      actors = singleton issuer; allocation = CreditReceiver
 
   -- Approve instructions
-  consumeInstructionCid <- submit issuer do exerciseCmd consumeInstructionCid Instruction.Approve with actors = singleton issuer; approval = DebitSender
-  produceInstructionCid <- submit investor do exerciseCmd produceInstructionCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorSecuritiesAccount
+  consumeInstructionCid <- submit issuer do
+    exerciseCmd consumeInstructionCid Instruction.Approve with
+      actors = singleton issuer; approval = DebitSender
+  produceInstructionCid <- submit investor do
+    exerciseCmd produceInstructionCid Instruction.Approve with
+      actors = singleton investor; approval = TakeDelivery investorSecuritiesAccount
 
   -- Settle batch
-  [investorEquityCid] <- submitMulti [investor] [public] do exerciseCmd result.batchCid Batch.Settle with actors = singleton investor
+  [investorEquityCid] <- submitMulti [investor] [public] do
+    exerciseCmd result.batchCid Batch.Settle with actors = singleton investor
 
   -- Assert state
   Holding.verifyOwnerOfHolding [(investor, investorEquityCid)]

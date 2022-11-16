@@ -31,16 +31,20 @@ import Daml.Finance.Test.Util.Lifecycle (createClockAndEvent)
 import Daml.Script
 import Prelude hiding (and, or)
 
--- This script tests the election mechanism on an Instrument.Generic using the example of a callable bond.
--- The custodian of the callable bond holding has the right to call back the bond and repay the principal to the owner before maturity.
+-- This script tests the election mechanism on an Instrument.Generic using the example of a callable
+-- bond. The custodian of the callable bond holding has the right to call back the bond and repay
+-- the principal to the owner before maturity.
 
 -- | Parties involved in the test script.
 data TestParties = TestParties
   with
     bank : Party
-      -- ^ Acts as custodian in the respective holdings (both cash holdings and instrument holdings). It also acts as depository in the bond instrument. It has the right to call back the bond before maturity.
+      -- ^ Acts as custodian in the respective holdings (both cash holdings and instrument
+      --   holdings). It also acts as depository in the bond instrument. It has the right to call
+      --   back the bond before maturity.
     issuer : Party
-      -- ^ Acts as issuer of the bond instrument. It is also the party tasked with lifecycling the contract and processing elections.
+      -- ^ Acts as issuer of the bond instrument. It is also the party tasked with lifecycling the
+      --   contract and processing elections.
     centralBank : Party
       -- ^ The Central Bank is the depository and the issuer of the cash instrument.
     investor : Party
@@ -75,7 +79,8 @@ run = script do
     createCmd Fungible.Factory with provider = bank; observers = M.fromList pp
 
   -- Create accounts
-  investorAccount <- Account.createAccount "Default Account" [] accountFactoryCid holdingFactoryCid [] Account.Owner bank investor
+  investorAccount <- Account.createAccount "Default Account" [] accountFactoryCid holdingFactoryCid
+    [] Account.Owner bank investor
 
   -- Originate cash
   now <- getTime
@@ -88,8 +93,10 @@ run = script do
     maturityDate = D.date 2023 Jul 07
     couponAmount = 1_000.0
     principalAmount = 100_000.0
-    (bond, called, _) = bootstrapBond intermediateDate maturityDate couponAmount principalAmount cashInstrument
-  genericInstrument <- originateGeneric bank issuer "ABC.DE 1% 07/07/23 Corp" "Callable Bond" acquisitionTime bond pp now
+    (bond, called, _) = bootstrapBond intermediateDate maturityDate couponAmount principalAmount
+      cashInstrument
+  genericInstrument <- originateGeneric bank issuer "ABC.DE 1% 07/07/23 Corp" "Callable Bond"
+    acquisitionTime bond pp now
   investorGenericHoldingCid <- Account.credit [publicParty] genericInstrument 1.0 investorAccount
 
   -- Create election factory to allow custodian to create elections
@@ -118,7 +125,7 @@ run = script do
       amount = 5000.0
 
   -- Create election
-  callBondCid : ContractId Election.I <- toInterfaceContractId <$> submitMulti [bank] [publicParty] do
+  callBondCid <- toInterfaceContractId @Election.I <$> submitMulti [bank] [publicParty] do
     exerciseCmd callElectionFactoryCid CreateElection with
       elector = bank
       electionTime = dateToDateClockTime intermediateDate
@@ -133,7 +140,8 @@ run = script do
         observableCids = []
 
   -- Create settlement factory
-  settlementFactoryCid <- toInterfaceContractId <$> submit bank do createCmd Factory with provider = bank; observers = empty; custodian = bank
+  settlementFactoryCid <- toInterfaceContractId <$> submit bank do
+    createCmd Factory with provider = bank; observers = empty; custodian = bank
 
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit bank do
     createCmd Claim.Rule
@@ -155,18 +163,29 @@ run = script do
   let [investorInstrumentInstructionCid, bankCashInstructionCouponAndPrincipalCid] = result.instructionCids
 
   -- Allocate instructions
-  (investorInstrumentInstructionCid, _) <- submit investor do exerciseCmd investorInstrumentInstructionCid Instruction.Allocate with actors = singleton investor; allocation = Pledge investorGenericHoldingCid
-  (bankCashInstructionCouponAndPrincipalCid, _) <- submit bank do exerciseCmd bankCashInstructionCouponAndPrincipalCid Instruction.Allocate with actors = singleton bank; allocation = CreditReceiver
+  (investorInstrumentInstructionCid, _) <- submit investor do
+    exerciseCmd investorInstrumentInstructionCid Instruction.Allocate with
+      actors = singleton investor; allocation = Pledge investorGenericHoldingCid
+  (bankCashInstructionCouponAndPrincipalCid, _) <- submit bank do
+    exerciseCmd bankCashInstructionCouponAndPrincipalCid Instruction.Allocate with
+      actors = singleton bank; allocation = CreditReceiver
 
   -- Approve instructions
-  investorInstrumentInstructionCid <- submit bank do exerciseCmd investorInstrumentInstructionCid Instruction.Approve with actors = singleton bank; approval = DebitSender
-  bankCashInstructionCouponAndPrincipalCid <- submit investor do exerciseCmd bankCashInstructionCouponAndPrincipalCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorAccount
+  investorInstrumentInstructionCid <- submit bank do
+    exerciseCmd investorInstrumentInstructionCid Instruction.Approve with
+      actors = singleton bank; approval = DebitSender
+  bankCashInstructionCouponAndPrincipalCid <- submit investor do
+    exerciseCmd bankCashInstructionCouponAndPrincipalCid Instruction.Approve with
+      actors = singleton investor; approval = TakeDelivery investorAccount
 
   -- Settle batch
-  [investorCashHoldingCouponAndPrincipalCid] <- submitMulti (toList settlers) [publicParty] do exerciseCmd result.batchCid Batch.Settle with actors = settlers
+  [investorCashHoldingCouponAndPrincipalCid] <- submitMulti (toList settlers) [publicParty] do
+    exerciseCmd result.batchCid Batch.Settle with actors = settlers
 
   -- Assert state
-  Some investorCouponAndPrincipal <- queryContractId investor $ fromInterfaceContractId @Fungible.T investorCashHoldingCouponAndPrincipalCid
+  Some investorCouponAndPrincipal <-
+    queryContractId investor $ fromInterfaceContractId @Fungible.T
+      investorCashHoldingCouponAndPrincipalCid
   getAmount investorCouponAndPrincipal === couponAmount + principalAmount
   getOwner investorCouponAndPrincipal === investor
 
@@ -176,4 +195,5 @@ setupParties : Script TestParties
 setupParties = do
   [bank, issuer, centralBank, investor, settler, publicParty] <-
     createParties ["Bank", "issuer", "Central Bank", "Investor", "Settler", "PublicParty"]
-  pure $ TestParties with bank; issuer; centralBank; investor; settlers = singleton settler; publicParty
+  pure $ TestParties with
+    bank; issuer; centralBank; investor; settlers = singleton settler; publicParty

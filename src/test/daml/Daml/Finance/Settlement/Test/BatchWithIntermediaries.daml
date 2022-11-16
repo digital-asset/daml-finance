@@ -30,16 +30,19 @@ data TestParties = TestParties
     bank : Party
       -- ^ Custodian of the issuer's cash holdings.
     cb : Party
-      -- ^ Depository and issuer of the cash instrument. Custodian of the cash holdings of Bank 1 and Bank 2.
+      -- ^ Depository and issuer of the cash instrument. Custodian of the cash holdings of Bank 1
+      --   and Bank 2.
     csd : Party
-      -- ^ Depository of the equity instrument. Custodian of the equity holdings of Bank 1 and Issuer.
+      -- ^ Depository of the equity instrument. Custodian of the equity holdings of Bank 1 and
+      --   Issuer.
     issuer : Party
       -- ^ Issuer of the equity instrument. Receives cash in exchange for units of equity.
     publicParty : Party
       -- ^ The public party. Every party can readAs the public party.
 
 -- DvP via settlement chain and instructions.
--- Buyer transfers cash to Seller in exchange for an equity instrument (detained by issuer at depository).
+-- Buyer transfers cash to Seller in exchange for an equity instrument (detained by issuer at
+-- depository).
 -- Seller transfers equity to Buyer in exchange for cash.
 -- +------------------------------------------------------+
 -- | Accounts                                             |
@@ -63,19 +66,22 @@ run settleWithOwnAccount = script do
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory csd []
   holdingFactoryCid <- toInterfaceContractId <$> submit csd do
     createCmd Fungible.Factory with provider = csd; observers = M.fromList pp
-  [buyerSecurityAccount, sellerSecurityAccount] <- mapA (Account.createAccount "Security Account" [] accountFactoryCid holdingFactoryCid [] Account.Owner csd) [buyer, seller]
+  [buyerSecurityAccount, sellerSecurityAccount] <- mapA (Account.createAccount "Security Account" []
+    accountFactoryCid holdingFactoryCid [] Account.Owner csd) [buyer, seller]
 
   -- Setup cash accounts at CB
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory cb []
   holdingFactoryCid <- toInterfaceContractId <$> submit cb do
     createCmd Fungible.Factory with provider = cb; observers = M.fromList pp
-  [buyerCashAccount, bankCashAccount] <- mapA (Account.createAccount "Cash Account" [] accountFactoryCid holdingFactoryCid [] Account.Owner cb) [buyer, bank]
+  [buyerCashAccount, bankCashAccount] <- mapA (Account.createAccount "Cash Account" []
+    accountFactoryCid holdingFactoryCid [] Account.Owner cb) [buyer, bank]
 
   -- Setup cash accounts at Bank
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank []
   holdingFactoryCid <- toInterfaceContractId <$> submit bank do
     createCmd Fungible.Factory with provider = bank; observers = M.fromList pp
-  [sellerCashAccount] <- mapA (Account.createAccount "Cash Account" [] accountFactoryCid holdingFactoryCid [] Account.Owner bank) [seller]
+  [sellerCashAccount] <- mapA (Account.createAccount "Cash Account" [] accountFactoryCid
+    holdingFactoryCid [] Account.Owner bank) [seller]
 
   -- Distribute assets
   now <- getTime
@@ -84,7 +90,8 @@ run settleWithOwnAccount = script do
   cashInstrument <- Instrument.originate cb cb "USD" "United States Dollar" [] now
   buyerCashHoldingCid <- Account.credit [] cashInstrument 200_000.0 buyerCashAccount
 
-  -- Instruct settlement (by first creating a settlement factory with intermediaries from Buyer to Seller)
+  -- Instruct settlement (by first creating a settlement factory with intermediaries from Buyer to
+  -- Seller)
   let
     paths = M.fromList
       [ ("USD", Hierarchy with
@@ -101,36 +108,62 @@ run settleWithOwnAccount = script do
         observers = empty
   let
     steps =
-      [ Step with sender = seller; receiver = buyer; quantity = Instrument.qty 1_000.0 equityInstrument
-      , Step with sender = buyer; receiver = seller; quantity = Instrument.qty 200_000.0 cashInstrument
+      [ Step with
+          sender = seller; receiver = buyer; quantity = Instrument.qty 1_000.0 equityInstrument
+      , Step with
+          sender = buyer; receiver = seller; quantity = Instrument.qty 200_000.0 cashInstrument
       ]
   (batchCid, [equityInstructionCid, cashInstruction1Cid, cashInstruction2Cid]) <-
-    submitMulti [buyer, seller] [] do exerciseCmd settlementFactoryCid Factory.Instruct with instructors = fromList [buyer, seller]; settlers = fromList [buyer, seller]; id = Id "APPL 1000@200.0USD"; description = "DVP"; contextId = None; steps
+    submitMulti [buyer, seller] [] do
+      exerciseCmd settlementFactoryCid Factory.Instruct with
+        instructors = fromList [buyer, seller]; settlers = fromList [buyer, seller]
+        id = Id "APPL 1000@200.0USD"; description = "DVP"; contextId = None; steps
 
   -- Allocate instructions
-  (equityInstructionCid, _) <- submit seller do exerciseCmd equityInstructionCid Instruction.Allocate with actors = singleton seller; allocation = Pledge equityHoldingCid
-  (cashInstruction1Cid, _) <- submit buyer do exerciseCmd cashInstruction1Cid Instruction.Allocate with actors = singleton buyer; allocation = Pledge buyerCashHoldingCid
+  (equityInstructionCid, _) <- submit seller do
+    exerciseCmd equityInstructionCid
+      Instruction.Allocate with actors = singleton seller; allocation = Pledge equityHoldingCid
+  (cashInstruction1Cid, _) <- submit buyer do
+    exerciseCmd cashInstruction1Cid
+      Instruction.Allocate with actors = singleton buyer; allocation = Pledge buyerCashHoldingCid
   (cashInstruction2Cid, _) <-
     if settleWithOwnAccount then
       do
-        ownCashAccount <- Account.createAccount "Own Cash Account" [] accountFactoryCid holdingFactoryCid [] Account.Owner bank bank
+        ownCashAccount <- Account.createAccount "Own Cash Account" [] accountFactoryCid
+          holdingFactoryCid [] Account.Owner bank bank
         ownCashHoldingCid <- Account.credit [] cashInstrument 200_000.0 ownCashAccount
-        submit bank do exerciseCmd cashInstruction2Cid Instruction.Allocate with actors = singleton bank; allocation = Pledge ownCashHoldingCid
+        submit bank do
+          exerciseCmd cashInstruction2Cid
+            Instruction.Allocate with actors = singleton bank; allocation = Pledge ownCashHoldingCid
     else
-      submit bank do exerciseCmd cashInstruction2Cid Instruction.Allocate with actors = singleton bank; allocation = CreditReceiver
+      submit bank do
+        exerciseCmd cashInstruction2Cid
+          Instruction.Allocate with actors = singleton bank; allocation = CreditReceiver
 
-  submitMustFail buyer do exerciseCmd cashInstruction1Cid Instruction.Allocate with actors = singleton buyer; allocation = CreditReceiver
+  submitMustFail buyer do
+    exerciseCmd cashInstruction1Cid
+      Instruction.Allocate with actors = singleton buyer; allocation = CreditReceiver
 
   -- Approve instructions
-  equityInstructionCid <- submit buyer do exerciseCmd equityInstructionCid Instruction.Approve with actors = singleton buyer; approval = TakeDelivery buyerSecurityAccount
-  cashInstruction1Cid <- submit bank do exerciseCmd cashInstruction1Cid Instruction.Approve with actors = singleton bank; approval = TakeDelivery bankCashAccount
-  cashInstruction2Cid <- submit seller do exerciseCmd cashInstruction2Cid Instruction.Approve with actors = singleton seller; approval = TakeDelivery sellerCashAccount
+  equityInstructionCid <- submit buyer do
+    exerciseCmd equityInstructionCid
+      Instruction.Approve with
+        actors = singleton buyer; approval = TakeDelivery buyerSecurityAccount
+  cashInstruction1Cid <- submit bank do
+    exerciseCmd cashInstruction1Cid
+      Instruction.Approve with actors = singleton bank; approval = TakeDelivery bankCashAccount
+  cashInstruction2Cid <- submit seller do
+    exerciseCmd cashInstruction2Cid
+      Instruction.Approve with actors = singleton seller; approval = TakeDelivery sellerCashAccount
 
-  submitMustFail buyer do exerciseCmd equityInstructionCid Instruction.Approve with actors = singleton buyer; approval = DebitSender
+  submitMustFail buyer do
+    exerciseCmd equityInstructionCid
+      Instruction.Approve with actors = singleton buyer; approval = DebitSender
 
   -- Settle batch
   [equityHoldingCid, bankCashHoldingCid, sellerCashHoldingCid] <-
-    submitMulti [buyer] [publicParty] do exerciseCmd batchCid Batch.Settle with actors = singleton buyer
+    submitMulti [buyer] [publicParty] do
+      exerciseCmd batchCid Batch.Settle with actors = singleton buyer
 
   -- Assert state
   let ts = [(buyer, equityHoldingCid), (bank, bankCashHoldingCid), (seller, sellerCashHoldingCid)]
@@ -140,10 +173,10 @@ run settleWithOwnAccount = script do
   pure ()
 
 -- Settlement where the Bank allocates its `Instruction` using an "own" account. To be more precise,
--- the Bank allocates its `Instruction` (between itself and the seller) using cash which it has credited to
--- an account where the Bank takes the role as both the custodian and the owner (i.e., an IOU to itself).
--- Although this works, it is more efficient for the Bank to allocate using a direct credit instead (see the following
--- script).
+-- the Bank allocates its `Instruction` (between itself and the seller) using cash which it has
+-- credited to an account where the Bank takes the role as both the custodian and the owner (i.e.,
+-- an IOU to itself). Although this works, it is more efficient for the Bank to allocate using a
+-- direct credit instead (see the following script).
 run1 : Script ()
 run1 = run True
 
@@ -153,5 +186,6 @@ run2 = run False
 
 setupParties : Script TestParties
 setupParties = do
-  [buyer, seller, cb, csd, bank, issuer, publicParty] <- createParties ["Buyer", "Seller", "CentralBank", "CentralSecurityDepository", "Bank", "Issuer", "PublicParty"]
+  [buyer, seller, cb, csd, bank, issuer, publicParty] <- createParties
+    ["Buyer", "Seller", "CentralBank", "CentralSecurityDepository", "Bank", "Issuer", "PublicParty"]
   pure TestParties with buyer, seller, cb, csd, bank, issuer, publicParty
