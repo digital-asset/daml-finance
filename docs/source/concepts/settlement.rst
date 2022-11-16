@@ -83,7 +83,7 @@ The instructions and the batch are archived following a successful execution.
 Remarks
 =======
 
-There are some assumptions that needs to holdo in order for the settlement to work in practice:
+There are some assumptions that needs to hold in order for the settlement to work in practice:
 
 - Bob needs to have an account at the custodian where Alice's holding is held and vice versa.
 - Both holdings need to be
