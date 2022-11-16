@@ -49,8 +49,8 @@ cum- and ex-event version of an instrument. This means that it is perfectly safe
 to co-exist at the same time, and it allows for a gradual transition from one version to another.
 Generally, the issuer of an instrument is responsible for creating and maintaining instrument
 versions, and for producing the cashflow effects of a particular lifecycle event. During the
-lifecycle process holders of this instrument will migrate their holdings to a new version of the
-instrument, while at the same time claiming any resulting cashflows from the event.
+lifecycle process, holders of this instrument will migrate their holdings to a new version of the
+instrument while at the same time claiming any resulting cashflows from the event.
 
 Versions are usually considered opaque strings, but one can follow a numerical versioning scheme if
 an instrument is known to have linear evolution (i.e., there is no optionality that can result in
@@ -130,7 +130,7 @@ new version of the stock, which is not entitled to the dividend anymore.
 
 Note that the party responsible for claiming an effect can be set flexibly in the
 :ref:`Claim Rule <type-daml-finance-interface-lifecycle-rule-claim-claim-29284>` contract. Through
-this custodians can be given the authority to push a given corporate action to asset holder, as is
+this custodians can be given the authority to push a given corporate action to the asset holder, as is
 common in current operating procedures.
 
 The model also supports atomic, intermediated settlement of lifecycle events. For example, if a
