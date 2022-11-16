@@ -1,10 +1,10 @@
 # Daml Finance - Code Samples
 
-Daml Finance has a daml `quickstarter` which generates a template project of `Daml Finance` with sample code generated via the `daml new quickstart-finance` command. This code-sample is documented as part of the `Daml Finance` documentation in the tutorial guide. As the documentation is generated as part of our `Daml Finance` library, the code needs to live in this repository but the code also needs to also be part of the `daml` repository in order to be able to run the `daml new quickstart-finance` command.
+Daml Finance has a daml `quickstarter` which generates a template project of `Daml Finance` with sample code generated via the `daml new quickstart-finance` command. This code-sample is documented as part of the `Daml Finance` documentation in the tutorial guide. As the documentation is generated as part of our `Daml Finance` library, the code needs to live in this repository but the code also needs to also be part of the `daml` repository in order to be able run the `daml new quickstart-finance` command.
 
 ## Updating the getting-started code
 
-The [getting-started](getting-started/) code that is part of this repository is fully replicated inside the [daml repository](https://github.com/digital-asset/daml/tree/main/templates/quickstart-finance). The only exception is the [daml.yaml](getting-started/daml.yaml) file which is required for both local testing and for the CI and **must not** be replicated in the daml repository.
+The [getting-started](getting-started/) code that is part of this repository is fully replicated inside the [daml repository](https://github.com/digital-asset/daml/tree/main/templates/quickstart-finance). The only exception is the [daml.yaml](getting-started/daml.yaml) file which is required for both local testing and for the CI and **must not** be replicated in the daml repository (this file gets generated based off the [daml.yaml.template](getting-started/daml.yaml.template) file when processing the daml command).
 
 ### Updating the project
 
