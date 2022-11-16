@@ -28,9 +28,13 @@ Core Implementations
     This package contains the *implementation* and utility functions for accounts. It has the
     following modules:
 
-    - :ref:`Account <module-daml-finance-account-account-19369>`: A relationship between a custodian
-      and an asset owner, referenced by holdings
-
+    - :ref:`Account <module-daml-finance-account-account-19369>`: Implementation of an account,
+      i.e., a relationship between a custodian and an asset owner, referenced by holdings. It also
+      provides an implementation of a factory from which you can create and remove accounts. Upon
+      creation of an account, it allows you to specify controlling parties for incoming / outgoing
+      transfers
+    - :ref:`Util <module-daml-finance-account-util-35751>`: Utility functions related to accounts,
+      e.g., an atomic credit-and-debit of holdings
 
 - ``Daml.Finance.Settlement``
 
@@ -38,11 +42,11 @@ Core Implementations
     following modules:
 
     - :ref:`Instruction <module-daml-finance-settlement-instruction-87187>`: Used to settle a single
-      settlement `Step`
+      settlement `Step` at custodian (i.e., a `RoutedStep`)
+    - :ref:`Batch <module-daml-finance-settlement-batch-95573>`: Allows you to atomically settle a
+      set of settlement `Instruction`\s
     - :ref:`Factory <module-daml-finance-settlement-factory-257>`: Used to create a set of
       settlement `Instruction`\s, and a `Batch` to atomically settle them
-    - :ref:`Batch <module-daml-finance-settlement-batch-95573>`: Allows you to atomically settle a
-      set of settlement steps
 
     The :doc:`Settlement <../concepts/settlement>` page contains an overview of the settlement
     process and explains the relationship between ``Instruction`` and ``Batch``. Check out the
