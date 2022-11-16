@@ -7,6 +7,7 @@
 
 module Package.Yaml (
     Config(..)
+  , IncrementVersion(..)
   , Local(..)
   , LocalPackage(..)
   , LocalPackages(..)
@@ -43,7 +44,7 @@ data Repo = Repo {
   } deriving (Eq, Show)
 
 -- | Semantic Versioning (https://semver.org/)
-data Versioning
+data IncrementVersion
   = SNAPSHOT
   | PATCH
   | MINOR
@@ -55,7 +56,7 @@ data Local = Local {
     name :: String
   , path :: String
   , baseModule :: String
-  , incrementVersion :: Versioning
+  , incrementVersion :: IncrementVersion
   } deriving (Eq, Show)
 
 -- | A wrapper for a local package.
@@ -99,15 +100,15 @@ instance FromJSON Repo where
       v .: "name"
   parseJSON _ = error "Cannot parse local from YAML"
 
-instance FromJSON Versioning where
+instance FromJSON IncrementVersion where
   parseJSON (String s) =
     pure $ case T.toUpper s of
       "SNAPSHOT" -> SNAPSHOT
       "PATCH"    -> PATCH
       "MINOR"    -> MINOR
       "MAJOR"    -> MAJOR
-      _          -> error $ "Unexpected Versioning type set in YAML. type='" ++ T.unpack s ++ "'"
-  parseJSON _ = error "Cannot parse Versioning from YAML"
+      _          -> error $ "Unexpected incremental version type set in YAML. type='" ++ T.unpack s ++ "'"
+  parseJSON _ = error "Cannot parse incremental version from YAML"
 
 instance FromJSON Local where
   parseJSON (Object v) =

@@ -5,6 +5,15 @@
 {-# LANGUAGE LambdaCase #-}
 
 module Daml.Version (
-
+  -- updateVersion
 ) where
+
+import Package.Yaml (IncrementVersion)
+
+-- updateVersion :: String -> IncrementVersion -> String
+-- updateVersion version = \case
+--   SNAPSHOT -> _
+--   PATCH -> _
+--   MINOR -> _
+--   MAJOR -> _
 
