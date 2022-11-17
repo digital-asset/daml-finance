@@ -1,0 +1,197 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Test.Pricing2 where
+
+import ContingentClaims.Core.Builders (european)
+import ContingentClaims.Core.Claim
+import ContingentClaims.Core.Observation qualified as O
+import ContingentClaims.Valuation.AcquisitionTime
+import ContingentClaims.Valuation.Expression
+import ContingentClaims.Valuation.Stochastic2
+
+import Daml.Script
+import DA.Assert
+import DA.Date
+import DA.Tuple (thd3)
+import Prelude hiding (or, max, (<=))
+
+-- | Assets.
+data Instrument = USD | A | B | C deriving (Eq, Show)
+
+-- | Observables.
+data Observable = Spot_AMZN deriving (Eq, Show)
+
+-- | The claim type used for the tests.
+type C = Claim Date Decimal Instrument Observable
+
+-- | The observation type used for the tests.
+type O = O.Observation Date Decimal Observable
+
+-- Assets
+[ccy, a, b, c] = [USD, A, B, C]
+
+-- Dates
+t0 = date 1970 Jan 1
+t1 = succ t0
+t2 = succ t1
+
+-- Observations
+two : O = O.pure 2.0
+spotAmzn = O.observe Spot_AMZN
+
+-- Functions performing observations
+observe25: Observable -> Date -> Script Decimal = const . const . pure $ 25.0
+observeDayOfMonth _ d = pure . intToDecimal . thd3 . toGregorian $ d
+
+-- Inequalities
+false = TimeGte $ date 3000 Jan 1
+true = TimeGte $ date 1970 Jan 1
+atT1 = TimeGte t1
+
+-- Helper expressions
+disc = Proc $ Disc ccy
+exch = Proc $ Exch a ccy
+
+-- | Valuation of `One`, `Zero`, `Give`, `And`, `Or` nodes.
+testValuationBasic : Script()
+testValuationBasic = do
+
+  value <- fapf observe25 ccy t0 t0 (one a)
+  value === exch
+
+  value <- fapf observe25 ccy t0 t0 (one ccy)
+  value === Const 1.0
+
+  value <- fapf observe25 ccy t0 t0 zero
+  value === Const 0.0
+
+  value <- fapf observe25 ccy t0 t0 $ give (one a)
+  value === -exch
+
+  value <- fapf observe25 ccy t0 t0 $ one a <> one b <> one c
+  value === Sum [exch, Proc (Exch b ccy), Proc (Exch c ccy)]
+
+  value <- fapf observe25 ccy t0 t0 $ one a `or` one b
+  value === Max [exch, Proc (Exch b ccy)]
+
+  pure ()
+
+-- | Valuation of `When` nodes.
+testValuationWhen : Script()
+testValuationWhen = do
+  -- 1. When (TimeGte t) c
+  let
+    c1 = when atT1 $ one a
+    expect = E (disc * exch) τ f / disc
+        where
+          f = Time t0 -- filtration (i.e. available information)
+          τ = Time t1 -- stopping time defined by the `When` node
+
+  -- At `t0` the stopping rule defined by `When` is not verified, so we take expectation of discounted payoff
+  value <- fapf observe25 ccy t0 t0 c1
+  value === expect
+
+  -- At `t1` the stopping rule is verified, so we get rid of the `When` node
+  value <- fapf observe25 ccy t1 t0 c1
+  value === exch
+
+  -- 2. When (o1 <= o2) c
+  let
+    pred = O.Const 100.0 <= spotAmzn -- spot greater or equal than 100.0
+    c2 = when pred $ one a
+
+    f = Time t0 -- filtration
+    τ = AtInequality [TimeGte t0, pred] -- stopping rule
+
+  value <- fapf observe25 ccy t0 t0 c2
+  value === E (disc * exch) τ f / disc
+
+  -- We do not consider the case when the stopping rule is verified before or at t,
+  -- given that the valuation focuses on claims that are "up-to-date" with respect to lifecycle events
+  -- and the lifecycle function replaces verified stochastic stopping rule with deterministic ones
+
+  -- 3. When (TimeLte t) c
+  let
+    c3 = when (upTo t0) $ one a
+
+  -- Contract is acquired at `t0`, predicate is verified immediately
+  value <- fapf observe25 ccy t0 t0 c3
+  value === exch
+
+  -- Contract is acquired at `t1`, predicate is never verified
+  value <- fapf observe25 ccy t1 t1 c3
+  value === aunit
+
+-- | Valuation of `Scale` nodes.
+testValuationScale : Script()
+testValuationScale = do
+  let
+    observable  = O.Const 5.0 + spotAmzn
+    claim : C = when atT1 $ scale observable $ one a
+
+    f = Time t0 -- filtration
+    τ = Time t1 -- stopping rule
+    obsProcess = Const 5.0 + Proc (Observable Spot_AMZN)
+    expect = E (disc * (obsProcess * exch) ) τ f / disc
+
+  -- At `t0` the stopping rule is not verified
+  value <- fapf observe25 ccy t0 t0 claim
+  value === expect
+
+  -- At `t1` the stopping rule is verified
+  value <- fapf observe25 ccy t1 t0 claim
+  value === (Const 5.0 + Const 25.0) * exch
+
+  pure ()
+
+-- | Valuation of `Cond` nodes.
+testValuationCond : Script()
+testValuationCond = do
+  let
+    p1 = O.Const 5.0 <= spotAmzn
+    c1 : C = when atT1 $ cond p1 (one a) zero
+    p2 = spotAmzn <= O.Const 5.0
+    c2 : C = when atT1 $ cond p2 (one a) zero
+
+    f = Time t0 -- filtration
+    τ = Time t1 -- stopping rule
+    expect = E (disc * (I p1 * exch + (Const 1.0 - I p1) * aunit) ) τ f / disc
+
+  -- At `t0` the stopping rule is not verified
+  value <- fapf observe25 ccy t0 t0 c1
+  value === expect
+
+  -- At `t1` the stopping rule is verified
+  value <- fapf observe25 ccy t1 t0 c1
+  value === exch
+
+  value <- fapf observe25 ccy t1 t0 c2
+  value === aunit
+
+  pure ()
+
+valueCall = script do
+  let
+    k = O.pure 100.0 -- strike price
+    c : C = european t1 $ scale (spotAmzn - k) $ one USD
+    f = Time t0 -- filtration
+    τ = Time t1 -- stopping rule
+    obsProcess = Proc (Observable Spot_AMZN) - Const 100.0
+    expect = E (disc * Max [ obsProcess * Const 1.0 , aunit ] ) τ f / disc
+
+  -- before expiry
+  value <- fapf observe25 ccy t0 t0 c
+  value === expect
+
+  let
+    obsProcess = Const 25.0 - Const 100.0
+    expect = Max [ obsProcess * Const 1.0 , aunit ]
+
+  -- at expiry (but before exercise)
+  value <- fapf observe25 ccy t1 t0 c
+  value === expect
+
+  pure ()
+
+-- TODO simplify Mul Const 1.0

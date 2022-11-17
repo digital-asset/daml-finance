@@ -1,0 +1,137 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module ContingentClaims.Valuation.Stochastic2 (
+  ElementaryProcess(..),
+  fapf,
+) where
+
+import ContingentClaims.Core.Claim hiding ((<=))
+import ContingentClaims.Core.Internal.Claim (Claim(..))
+import ContingentClaims.Core.Observation qualified as O
+import ContingentClaims.Core.Util.Recursion (futuM)
+import ContingentClaims.Valuation.AcquisitionTime(AcquisitionTime(..), beforeOrAtToday, extend, isNever)
+import ContingentClaims.Valuation.Expression
+import Daml.Control.Arrow ((|||))
+import Daml.Control.Recursion
+import Prelude hiding (compare)
+
+-- | Elementary processes as described in the Peyton-Jones paper.
+-- Once a model assumption is made, these can be replaced by the specific model (e.g. geometric brownian motion for stock spot prices).
+data ElementaryProcess a o
+  = Observable o
+      -- ^ Process corresponding to an observable.
+  | Exch with { asset : a, currency : a }
+      -- ^ Value of `asset` expressed in units of `currency`.
+  | Disc a
+      -- ^ Discount factor expressed in currency `a`.
+  deriving (Eq, Show)
+
+-- | Maps a claim to the corresponding value process in currency `ccy`, taking into account known information up to time `t`.
+fapf : (Ord t, Eq a, Ord x, Number x, Divisible x, CanAbort m)
+  => (o -> t -> m x)
+    -- ^ Function to evaluate observables.
+  -> a
+    -- ^ Currency.
+  -> t
+    -- ^ Valuation date.
+  -> t
+    -- ^ The claim's (known) acquisition time.
+  -> Claim t x a o
+    -- ^ The input claim.
+  -> m (Expr t x o (ElementaryProcess a o))
+fapf spot ccy t acquisitionTime claim =
+  futuM coalg
+  $ Left (claim, Time acquisitionTime) -- `Left` is used for claims, `Right` for observables
+  where
+    -- coalg : (Additive x) => (Carrier t x a) -> (ExprF t x a (ElementaryProcess a) (Free (ExprF t x a (ElementaryProcess a)) (Carrier t x a)))
+    coalg = ϵ spot t ccy ||| υ
+    -- υ : (O.Observation t x a, AcquisitionTime t x a) -> (ExprF t x a (ElementaryProcess a) (Free (ExprF t x a (ElementaryProcess a)) (Carrier t x a)))
+    υ (O.Const {value=k}, _) = pure $ ConstF k
+    υ (O.Observe {key=observable}, Time s) | s <= t = ConstF <$> spot observable s
+    υ (O.Observe {key=observable}, s) = pure . ProcF $ Observable observable
+    υ (O.Add (x, x'), s) = pure $ SumF [obs (x, s), obs (x', s)]
+    υ (O.Neg x, s) =  pure . NegF $ obs (x, s)
+    υ (O.Mul (x, x'), s) = pure $ obs (x, s) `MulF` obs (x', s)
+    υ (O.Div (x, x'), t) = pure $ obs (x, t) `MulF` inv (obs (x', t))
+    obs = pure . Right
+    inv = Free . InvF
+
+-- | HIDE
+-- Valuation semantics for a `Claim`.
+ϵ : (Eq a, Ord t, Ord x, Number x, Divisible x, CanAbort m)
+  => (o -> t -> m x)
+    -- ^ Function to evaluate observables.
+  -> t
+    -- ^ Valuation date.
+  -> a
+    -- ^ Currency.
+  -> (Claim t x a o, AcquisitionTime t x o)
+    -- ^ The input claim and its acquisition time.
+  -> m (ExprF t x o (ElementaryProcess a o) (Free (ExprF t x o (ElementaryProcess a o)) (Carrier t x a o)))
+-- Zero
+ϵ _ _ _ (Zero, _) = pure $ ConstF aunit
+-- One
+ϵ _ _ ccy (One asset, _) = pure $ exch asset ccy
+  where
+    exch asset ccy = if asset == ccy then ConstF munit else ProcF $ Exch asset ccy
+-- Give
+ϵ _ _ _ (Give c, s) = pure . NegF $ Pure $ Left (c,s)
+-- Scale
+ϵ _ _ _ (Scale k c, s) = pure $ obs (k,s) `MulF` claim (c,s)
+  where obs = pure . Right
+        claim = pure . Left
+-- And
+ϵ _ _ _ (And c c' cs, s) = pure . SumF $ fmap (claim . (, s)) (c :: c' :: cs)
+  where claim = pure . Left
+-- Or
+ϵ _ _ _ (Or c c' cs, s) = pure . MaxF $ fmap (claim . (, s)) (c :: c' :: cs)
+  where claim = pure . Left
+-- When, the acquisition time of the inner contract is known and not in the future
+ϵ spot t ccy (When pred c, s) | beforeOrAtToday t τ == Some True = ϵ spot t ccy (c, τ)
+  where τ = extend pred s
+-- When, the acquisition time of the inner contract never happens
+ϵ spot t ccy (When pred c, s) | isNever τ = pure $ ConstF aunit
+  where τ = extend pred s
+-- When, the acquisition time of the inner contract is either unknown or known but in the future
+ϵ _ t ccy (When pred c, s) = pure $ MulF (ex (disc * claim (c,τ)) τ filtration) $ inv disc
+  where τ = extend pred s
+        filtration = case s of
+          AtInequality _ -> s -- acquisition time of the outer contract is unknown
+          other -> extend (TimeGte t) s -- acquisition time of the outer contract is known
+        claim = pure . Left
+        disc = Free . ProcF $ Disc ccy
+        x * y = Free $ MulF x y
+        ex e τ f = Free $ E_F e τ f
+        inv = Free . InvF
+-- Cond, the acquisition time of the inner contract is known and not in the future
+ϵ spot t ccy (Cond pred c1 c2, Time s) | s <= t = do
+  predicate <- compare spot pred s
+  if predicate then ϵ spot t ccy (c1, Time s) else ϵ spot t ccy (c2, Time s)
+-- Cond, the acquisition time is either unknown or known but in the future
+ϵ spot t ccy (Cond pred c1 c2, s) =
+  let
+    v1 = ind pred * claim (c1,s)
+    v2 = (one - ind pred) * claim (c2,s)
+  in
+    pure $ SumF [v1, v2]
+  where claim = pure . Left
+        x - y = Free $ SumF [x, (Free $ NegF y)]
+        x * y = Free $ MulF x y
+        ind = Free . I_F
+        one = Free $ ConstF munit
+-- Until
+ϵ _ _ _ (Until _ _, _) = abort "Valuation semantics for `Until` is not supported yet."
+-- Anytime
+ϵ _ _ _ (Anytime _ _, _) = abort "Valuation semantics for `Anytime` is not supported yet."
+
+-- TODO : handle `Never` acquisition time which could originate from using `TimeLte`. We probably need to use resolve at every step.
+
+-- | HIDE
+-- Carrier of the CV-coalgebra ϵ ||| υ
+type Carrier t x a o = Either (Claim t x a o, AcquisitionTime t x o) (O.Observation t x o, AcquisitionTime t x o)
+
+
+
+
+

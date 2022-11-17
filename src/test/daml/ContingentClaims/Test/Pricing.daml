@@ -1,116 +1,110 @@
 -- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
-module ContingentClaims.Test.Pricing where
+module Test.Pricing where
 
-import ContingentClaims.Core.Builders (european)
-import ContingentClaims.Core.Claim
-import ContingentClaims.Core.Observation qualified as O
-import ContingentClaims.Valuation.MathML qualified as MathML
-import ContingentClaims.Valuation.Stochastic (Expr(..), IsIdentifier(..), fapf, gbm, riskless, {- simplify, -} unitIdentity)
-import DA.Assert
-import Daml.Control.Recursion (cata)
-import Daml.Script
-import Prelude hiding (max)
+-- import ContingentClaims.Claim
+-- import ContingentClaims.Financial (european, american)
+-- import ContingentClaims.Observation qualified as O
+-- import ContingentClaims.MathML qualified as MathML
+-- import ContingentClaims.Math.Stochastic (fapf, {- simplify, -} riskless, gbm, Expr(..), IsIdentifier(..))
+-- import Daml.Control.Recursion (cata)
 
-data Instrument = USD | EUR | AMZN | APPL deriving (Show, Eq)
+-- import Daml.Script
+-- import DA.Assert
+-- import Prelude hiding (max)
 
-data Observable = Spot_AMZN | Spot_APPL deriving (Show, Eq)
+-- data Instrument = USD | EUR | AMZN | APPL deriving (Show, Eq)
 
-spot : Instrument -> Observable
-spot AMZN = Spot_AMZN
-spot APPL = Spot_APPL
-spot other = error $ "disc: " <> show other
+-- data Observable = Spot_AMZN | Spot_APPL deriving (Show, Eq)
 
-call : Instrument -> Decimal -> Instrument -> Claim t Decimal Instrument Observable
-call s k a = scale (O.observe (spot s) - O.pure k) $ one a
+-- spot : Instrument -> Observable
+-- spot AMZN = Spot_AMZN
+-- spot APPL = Spot_APPL
+-- spot other = error $ "disc: " <> show other
 
-margrabe s1 s2 a = scale (O.observe (spot s1) - O.observe (spot s2)) $ one a
+-- call : Instrument -> Decimal -> Instrument -> Claim t Decimal Instrument Observable
+-- call s k a = scale (O.observe (spot s) - O.pure k) $ one a
 
-disc USD = riskless "r_USD"
-disc EUR = riskless "r_EUR"
-disc other = error $ "disc: " <> show other
+-- margrabe s1 s2 a = scale (O.observe (spot s1) - O.observe (spot s2)) $ one a
 
-val Spot_AMZN = gbm "μ_AMZN" "σ_AMZN"
-val Spot_APPL = gbm "μ_APPL" "σ_APPL"
+-- disc USD = riskless "r_USD"
+-- disc EUR = riskless "r_EUR"
+-- disc other = error $ "disc: " <> show other
 
-exch a a' = error $ "exch: " <> show a <> "/" <> show a'
+-- val Spot_AMZN = gbm "μ_AMZN" "σ_AMZN"
+-- val Spot_APPL = gbm "μ_APPL" "σ_APPL"
 
-t = "t"  -- today
-t' = "T" -- maturity
+-- exch a a' = error $ "exch: " <> show a <> "/" <> show a'
 
-instance IsIdentifier Text where
-  localVar i = "τ_" <> show i
+-- t = "t"  -- today
+-- t' = "T" -- maturity
 
-instance Additive (Expr t) where
-  x + y = Sum [x, y]
-  negate = Neg
-  aunit = Const 0.0
+-- instance IsIdentifier Text where
+--   localVar i = "τ_" <> show i
 
-instance Multiplicative (Expr t) where
-  (*) = curry Mul
-  x ^ y = curry Pow x $ Const (intToDecimal y)
-  munit = Const 1.0
+-- instance Additive (Expr t) where
+--   x + y = Sum [x, y]
+--   negate = Neg
+--   aunit = Const 0.0
 
-instance Divisible (Expr t) where
-  x / y = curry Mul x . curry Pow y . Neg . Const $ 1.0
+-- instance Multiplicative (Expr t) where
+--   (*) = curry Mul
+--   x ^ y = curry Pow x $ Const (intToDecimal y)
+--   munit = Const 1.0
 
-instance Number (Expr t) where
+-- instance Divisible (Expr t) where
+--   x / y = curry Mul x . curry Pow y . Neg . Const $ 1.0
 
-max x y = I (x, y) * x + I (y, x) * y
+-- instance Number (Expr t) where
 
--- This is needed because scale x (one USD) = x * 1.0. It would make writing the expressions by hand
--- tedious
-multIdentity = cata unitIdentity
+-- max x y = I (x, y) * x + I (y, x) * y
 
--- Helper to compare the output in XML format (paste this into a browser)
-print f e = do
-  debug $ "Formula:" <> prnt f
-  debug $ "Expected:" <> prnt e
-  where prnt = show . MathML.presentation {- . simplify -}
+-- -- This is needed because scale x (one USD) = x * 1.0. It would make writing
+-- -- the expressions by hand tedious
+-- multIdentity = cata unitIdentity
 
-valueCall = script do
-  let
-    formula = fapf USD disc exch val t $ european t' (call AMZN 3300.0 USD)
-    s = Proc "Spot_AMZN" (val Spot_AMZN)
-    k = Const 3300.0
-    usd = Proc "USD" (disc USD)
-    expect = usd t * E (max (s t' - k) aunit / usd t') t
-  print formula expect
-  multIdentity formula === expect
+-- -- Helper to compare the output in XML format (paste this into a browser)
+-- print f e = do debug $ "Formula:" <> prnt f
+--                debug $ "Expected:" <> prnt e
+--   where prnt = show . MathML.presentation {- . simplify -}
 
-valueMargrabe = script do
-  let
-    formula = fapf USD disc exch val t $ european t' (margrabe AMZN APPL USD)
-    s = Proc "Spot_AMZN" (val Spot_AMZN)
-    s' = Proc "Spot_APPL" (val Spot_APPL)
-    usd = Proc "USD" (disc USD)
-    expect = usd t * E (max (s t' - s' t') aunit / usd t') t
-  print formula expect
-  multIdentity formula === expect
-
--- valueAmerican = script do
---   let
---     formula = fapf USD disc exch t $ american t t' (call APPL 142.50 USD)
---     s = Proc "APPL" (exch APPL USD)
---     k = Const 142.50
---     usd = Proc "USD" (disc USD)
---     τ = "τ_0"
---     expect = Sup t τ (usd t * E (max (s τ - k) aunit * I (Ident τ, Ident t') / usd τ ) t)
+-- valueCall = script do
+--   let formula = fapf USD disc exch val t $ european t' (call AMZN 3300.0 USD)
+--       s = Proc "Spot_AMZN" (val Spot_AMZN)
+--       k = Const 3300.0
+--       usd = Proc "USD" (disc USD)
+--       expect = usd t * E (max (s t' - k) aunit / usd t') t
 --   print formula expect
 --   multIdentity formula === expect
 
--- Check to see that the subscript numbering works
-testMonadicBind = script do
-  let
-    τ₀ = "τ_0"
-    τ₁ = "τ_1"
-    t₀ = "t_0"
-    t₁ = "t_1"
-    usd = Proc "USD" (disc USD)
-    formula = fapf USD disc exch val t $ anytime (TimeGte t₀) (anytime (TimeGte t₁) (one USD))
-    expect =
-      -- note the innermost 1/USD_τ₁ is mult identity
-      Sup t₀ τ₀ (usd t * E (Sup t₁ τ₁ (usd τ₀ * E (munit / usd τ₁) τ₀) / usd τ₀) t)
-  print formula expect
-  multIdentity formula === multIdentity expect
+-- valueMargrabe = script do
+--   let formula = fapf USD disc exch val t $ european t' (margrabe AMZN APPL USD)
+--       s = Proc "Spot_AMZN" (val Spot_AMZN)
+--       s' = Proc "Spot_APPL" (val Spot_APPL)
+--       usd = Proc "USD" (disc USD)
+--       expect = usd t * E (max (s t' - s' t') aunit / usd t') t
+--   print formula expect
+--   multIdentity formula === expect
+
+-- -- valueAmerican = script do
+-- --   let formula = fapf USD disc exch t $ american t t' (call APPL 142.50 USD)
+-- --       s = Proc "APPL" (exch APPL USD)
+-- --       k = Const 142.50
+-- --       usd = Proc "USD" (disc USD)
+-- --       τ = "τ_0"
+-- --       expect = Sup t τ (usd t * E (max (s τ - k) aunit * I (Ident τ, Ident t') / usd τ ) t)
+-- --   print formula expect
+-- --   multIdentity formula === expect
+
+-- -- Check to see that the subscript numbering works
+-- testMonadicBind = script do
+--   let τ₀ = "τ_0"
+--       τ₁ = "τ_1"
+--       t₀ = "t_0"
+--       t₁ = "t_1"
+--       usd = Proc "USD" (disc USD)
+--       formula = fapf USD disc exch val t $ anytime (TimeGte t₀) (anytime (TimeGte t₁) (one USD))
+--       expect = Sup t₀ τ₀ (usd t * E (Sup t₁ τ₁ (usd τ₀ * E (munit / usd τ₁) τ₀) / usd τ₀) t) -- note the innermost 1/USD_τ₁ is mult identity
+--   print formula expect
+--   multIdentity formula === multIdentity expect
