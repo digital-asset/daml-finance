@@ -2,15 +2,15 @@
 -- SPDX-License-Identifier: Apache-2.0
 
 module ContingentClaims.Lifecycle.Lifecycle (
-    lifecycle
-  , lifecycle'
+    Pending(..)
+  , Result(..)
   , acquire'
   , exercise
   , exercise'
   , expire'
   , fixAcquisitionTime'
-  , Pending(..)
-  , Result(..)
+  , lifecycle
+  , lifecycle'
 ) where
 
 import ContingentClaims.Core.Claim (Inequality(..), compare)
@@ -18,14 +18,14 @@ import ContingentClaims.Core.Internal.Claim (Claim(..), ClaimF(..))
 import ContingentClaims.Core.Observation qualified as Observation
 import ContingentClaims.Core.Util.Recursion (apoCataM)
 import ContingentClaims.Lifecycle.Util (pruneZeros')
-import Daml.Control.Arrow ((|||),(&&&))
-import Daml.Control.Recursion (project)
-import Daml.Control.Monad.Trans.Writer (WriterT, runWriterT)
-import Daml.Control.Monad.Writer.Class (MonadWriter(..))
-import Daml.Control.Monad.Trans.Class (lift)
+import DA.Foldable (elem, foldMap)
 import DA.List (singleton)
 import DA.Traversable (sequence)
-import DA.Foldable (elem, foldMap)
+import Daml.Control.Arrow ((|||),(&&&))
+import Daml.Control.Monad.Trans.Class (lift)
+import Daml.Control.Monad.Trans.Writer (WriterT, runWriterT)
+import Daml.Control.Monad.Writer.Class (MonadWriter(..))
+import Daml.Control.Recursion (project)
 import Prelude hiding (sequence, mapA, exercise, compare, elem)
 
 type C t a o = Claim t Decimal a o
@@ -50,9 +50,9 @@ data Result t a o = Result with
     deriving (Eq, Show)
 
 -- | Collect claims falling due into a list, and return the tree with those nodes pruned.
--- `m` will typically be `Update`. It is parametrised so it can be run in a `Script`.
--- The first argument is used to lookup the value of any `Observables`.
--- Returns the pruned tree + pending settlements up to the provided market time.
+-- `m` will typically be `Update`. It is parametrised so it can be run in a `Script`. The first
+-- argument is used to lookup the value of any `Observables`. Returns the pruned tree + pending
+-- settlements up to the provided market time.
 lifecycle : (Ord t, Eq a, CanAbort m)
   => (o -> t -> m Decimal)
   -- ^ Function to evaluate observables.
@@ -63,7 +63,8 @@ lifecycle : (Ord t, Eq a, CanAbort m)
   -> t
   -- ^ The current market time. This is the time up to which observations are known.
   -> m (Result t a o)
-lifecycle _ claim acquisitionTime today | acquisitionTime > today = pure Result with pending = []; remaining = claim
+lifecycle _ claim acquisitionTime today | acquisitionTime > today =
+  pure Result with pending = []; remaining = claim
 lifecycle spot claim acquisitionTime today
   = fmap (uncurry $ flip Result)
   . runWriterT
@@ -78,18 +79,21 @@ lifecycle spot claim acquisitionTime today
       . fmap (sequence . (Prelude.fst &&& effectfulAcquire))
     effectfulAcquire = fmap (expire' . fixAcquisitionTime') <$> acquire' spot today
 
--- | Helper type synonym used to write apomorphisms on a claim. `Left` is used if unfolding shall not continue. Otherwise, `Right` is used.
--- The generic type parameter `x` is the carrier of the R-CoAlgebra (typically the sub-tree as well as some additional information).
+-- | Helper type synonym used to write apomorphisms on a claim.
+-- `Left` is used if unfolding shall not continue. Otherwise, `Right` is used. The generic type
+-- parameter `x` is the carrier of the R-CoAlgebra (typically the sub-tree as well as some
+-- additional information).
 type FE t a o x = F t a o (Either (C t a o) x)
 
 -- | Acquired claim (in functor form).
--- Acquired sub-trees are marked with `Right`, non-acquired sub-trees are marked with `Left`.
--- The acquisition time is attached to acquired sub-trees.
+-- Acquired sub-trees are marked with `Right`, non-acquired sub-trees are marked with `Left`. The
+-- acquisition time is attached to acquired sub-trees.
 type Acquired t a o = FE t a o (t, C t a o)
 
 -- | HIDE
--- Evaluate observables and skip branches for which predicates don't hold, calculate the acquisition time of the claim's sub-trees.
--- This is useless on its own. Composed with other functions, it adds laziness.
+-- Evaluate observables and skip branches for which predicates don't hold, calculate the acquisition
+-- time of the claim's sub-trees. This is useless on its own. Composed with other functions, it adds
+-- laziness.
 acquire' : (Ord t, Eq a, CanAbort m)
   => (o -> t -> m Decimal)
     -- ^ Function to evaluate observables.
@@ -105,11 +109,15 @@ acquire' spot t (s, When obs c) = do
   predicate <- compare spot obs t
   pure . WhenF obs $ if predicate then
     let
-      sNew = -- new acquisition time
+      -- new acquisition time
+      sNew =
         case obs of
           TimeLte _ -> s
           TimeGte τ -> max s τ
-          Lte _ -> t -- if the predicate is non-deterministic, we assume that we are lifecycling at a time `t` corresponding to the first instant in which the predicate becomes True.
+          Lte _ ->
+            -- if the predicate is non-deterministic, we assume that we are lifecycling at a time
+            -- `t` corresponding to the first instant in which the predicate becomes True.
+            t
     in
       Right (sNew,c)
     else
@@ -123,12 +131,16 @@ acquire' spot today (s, Cond obs c c') = do
 acquire' spot today (_, Anytime obs c) = do
   predicate <- compare spot obs today
   pure . AnytimeF obs $ if predicate then
-      Right (today,c) -- the acquisition time of an Anytime node is assumed to be the time at which we lifecycle
+      -- the acquisition time of an Anytime node is assumed to be the time at which we lifecycle
+      Right (today,c)
     else
       Left c
-acquire' _ _ (s, Until (TimeLte t) c) | s <= t = pure $ Left <$> UntilF (TimeLte t) c -- contract is acquired before t, predicate is immediately True
+acquire' _ _ (s, Until (TimeLte t) c) | s <= t =
+  -- if the contract is acquired before t, the predicate is immediately True
+  pure $ Left <$> UntilF (TimeLte t) c
 acquire' spot today (s, Until obs c) = do
-  predicate <- compare spot obs today -- we assume here that the predicate inside `Until` has not been met before `t`
+  -- we assume that the predicate inside `Until` has not been met before `t`
+  predicate <- compare spot obs today
   pure . UntilF obs $ if predicate then Left c else Right (s,c)
 acquire' _ _ (s, other) = pure $ Right . (s, ) <$> project other
 
@@ -143,19 +155,20 @@ expire' (CondF pred _ (Right c)) = CondF pred (Left Zero) (Right c)
 expire' other = other
 
 -- | HIDE
--- Replace acquired `When pred c` nodes with `When (TimeGte t) c` when the predicate is non-deterministic.
+-- Replace acquired `When pred c` nodes with `When (TimeGte t) c` when the predicate is
+-- non-deterministic.
 fixAcquisitionTime' : (Ord t, Eq a) => Acquired t a o -> Acquired t a o
 fixAcquisitionTime' (WhenF (Lte _) (Right (s,c))) = WhenF (TimeGte s) $ Right (s,c)
 fixAcquisitionTime' other = other
 
--- | Carrier type used for `lifecycle`. It consists of a claim, its acquisition time and the accumulated scaling factor.
+-- | Carrier type used for `lifecycle`. It consists of a claim, its acquisition time and the
+-- accumulated scaling factor.
 type LifecycleCarrier t a o = (Decimal, (t, C t a o))
 
 -- | HIDE
--- Evaluate any observables in `Scale` nodes, accumulating scale factors top-down.
--- Log the scale factors with their corresponding leaf values.
--- Stop recursion at `Or` and `Anytime` branches, guaranteeing liveness.
--- Replace any Ones that can be reached with Zeros.
+-- Evaluate any observables in `Scale` nodes, accumulating scale factors top-down. Log the scale
+-- factors with their corresponding leaf values. Stop recursion at `Or` and `Anytime` branches,
+-- guaranteeing liveness. Replace any Ones that can be reached with Zeros.
 lifecycle' : (Ord t, CanAbort m)
         => (o -> t -> m Decimal)
         -> (Decimal, (t, Acquired t a o))
@@ -203,21 +216,23 @@ exercise spot election claim acquisitionTime today =
       . fmap (sequence . (Prelude.fst &&& effectfulAcquire))
     effectfulAcquire = fmap (expire' . fixAcquisitionTime') <$> acquire' spot today
 
--- | Carrier type used for `exercise`. It consists of a claim, its acquisition time and a flag keeping track of who is the entitled to the election (`True = bearer`).
+-- | Carrier type used for `exercise`. It consists of a claim, its acquisition time and a flag
+-- keeping track of who is the entitled to the election (`True = bearer`).
 type ExerciseCarrier t a o = (Bool, (t, C t a o))
 
 -- | HIDE
--- Resolve `Or` nodes by removing them (keeping elected subtrees).
--- Fix acquisition time of exercised `Anytime` nodes by replacing them with `When (TimeGte t)`.
--- The election consists of a boolean representing the authorizer (`True = bearer`),
--- and this is compared against available branches of the choice.
+-- Resolve `Or` nodes by removing them (keeping elected subtrees). Fix acquisition time of exercised
+-- `Anytime` nodes by replacing them with `When (TimeGte t)`. The election consists of a boolean
+-- representing the authorizer (`True = bearer`), and this is compared against available branches of
+-- the choice.
 exercise' : (Eq t, Eq a, Eq o)
   => (Bool, C t a o)
   -- ^ the election being made
   -> t
   -- ^ the election date
   -> (Bool, (t, Acquired t a o))
-  -- ^ the acquired claim, its acquisition time and a flag keeping track of who is the entitled to the election (`True = bearer`)
+  -- ^ the acquired claim, its acquisition time and a flag keeping track of who is the entitled to
+  --   the election (`True = bearer`)
   -> FE t a o (ExerciseCarrier t a o)
 exercise' _ _ (isBearer, (_, GiveF c)) = GiveF $ (not isBearer, ) <$> c
 exercise' (elector, election) t (isBearer, (s, ors@OrF {}))
