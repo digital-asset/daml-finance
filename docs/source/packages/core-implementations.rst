@@ -99,7 +99,7 @@ Core Implementations
       time
     - :ref:`Util.Lifecycle <module-daml-finance-claims-util-lifecycle-9534>`:
       Defines different types of events and how to lifecycle them
-    - :ref:`Util.Builders <module-daml-finance-claims-util-lifecycle-9534>`:
+    - :ref:`Util.Builders <module-daml-finance-claims-util-builders-48637>`:
       Utility functions related to creating Contingent Claims, e.g. for bonds/swaps
 
 - ``Daml.Finance.Data``
