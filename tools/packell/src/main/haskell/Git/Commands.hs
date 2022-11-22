@@ -23,4 +23,4 @@ hasDiff tag files = do
 
 -- | Checks if a tag already exists.
 tagExists :: String -> IO Bool
-tagExists tag = (/=) mempty <$> (shelly . verbosely $ run "git" [toTextArg tag])
+tagExists tag = (/=) mempty <$> (shelly . verbosely $ run "git" ["tag", "-l", toTextArg tag])

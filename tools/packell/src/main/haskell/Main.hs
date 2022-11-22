@@ -8,7 +8,7 @@ module Main where
 import Daml.DataDependencies (update, validate, dryRun)
 import Daml.Package (getLocalPackages)
 import Options.Arguments (Arguments(..), Command(..), DataDependenciesCommand(..), parseInputs)
-import Package.Yaml (readPackageYaml)
+import Package.Yaml (readPackageYaml, IncrementVersion (MAJOR, PATCH, MINOR, SNAPSHOT))
 import System.Directory (makeAbsolute)
 import System.FilePath (takeDirectory)
 import Git.Commands (fetch, hasDiff)
