@@ -6,6 +6,7 @@ module Daml.Finance.Instrument.Generic.Lifecycle.Rule
   ) where
 
 import DA.Date (toDateUTC)
+import DA.Foldable (forA_)
 import DA.Optional (fromSome)
 import DA.Set (fromList)
 import DA.Text (sha256)
@@ -64,19 +65,20 @@ template Rule
             currentKey = BaseInstrument.getKey $ toInterface claimInstrument
             [claim] = fmap (.claim) remaining
             newKey = currentKey with version = sha256 $ show remaining
-          tryCreateNewInstrument lifecycler newKey claim eventTime instrumentT
+            producedInstrument = if isZero' remaining then None else Some newKey
+          forA_ producedInstrument $ tryCreateNewInstrument lifecycler claim eventTime instrumentT
           let (otherConsumed, otherProduced) = splitPending pending
           effectCid <- toInterfaceContractId <$> create Effect with
             providers = fromList [instrumentT.issuer, instrumentT.depository]
             id = eventView.id
             description = eventView.description
             targetInstrument = currentKey
-            producedInstrument = if isZero' remaining then None else Some newKey
+            producedInstrument
             otherConsumed
             otherProduced
             settlementDate
             observers = Disclosure.flattenObservers instrumentT.observers
-          pure (Some newKey, [effectCid])
+          pure (producedInstrument, [effectCid])
 
     interface instance Election.Exercisable for Rule where
       view = Election.ExercisableView with lifecycler
@@ -111,7 +113,8 @@ template Rule
             currentKey = BaseInstrument.getKey $ toInterface claimInstrument
             newKey = currentKey with version = sha256 $ show remaining
             [claim] = fmap (.claim) remaining
-          tryCreateNewInstrument lifecycler newKey claim electionTime instrumentT
+            producedInstrument = if isZero' remaining then None else Some newKey
+          forA_ producedInstrument $ tryCreateNewInstrument lifecycler claim electionTime instrumentT
           let (otherConsumed, otherProduced) = splitPending pending
           effectCid <- toInterfaceContractId <$> create ElectionEffect with
             providers = fromList [instrumentT.issuer, instrumentT.depository]
@@ -120,13 +123,13 @@ template Rule
             id = v.id
             description = v.description
             targetInstrument = currentKey
-            producedInstrument = if isZero' remaining then None else Some newKey
+            producedInstrument
             amount = v.amount
             otherConsumed
             otherProduced
             settlementDate
             observers = v.observers
-          pure (Some newKey, [effectCid])
+          pure (producedInstrument, [effectCid])
 
     interface instance Disclosure.I for Rule where
       view = Disclosure.View with disclosureControllers = providers; observers
@@ -136,8 +139,8 @@ template Rule
 
 -- | HIDE
 -- Check if an instrument for the new key already exists, otherwise create it.
-tryCreateNewInstrument : Party -> BaseInstrument.K -> C -> Time -> Instrument -> Update ()
-tryCreateNewInstrument actor newKey newClaim eventTime oldInstrument = do
+tryCreateNewInstrument : Party -> C -> Time -> Instrument -> BaseInstrument.K -> Update ()
+tryCreateNewInstrument actor newClaim eventTime oldInstrument newKey = do
   existingRefCidOpt <- lookupByKey @BaseInstrument.R newKey
   case existingRefCidOpt of
     Some existingRefCid -> pure ()
