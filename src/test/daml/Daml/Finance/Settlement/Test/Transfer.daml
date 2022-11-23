@@ -13,9 +13,11 @@ import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Factory qualified as Factory (I, Instruct(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.RouteProvider qualified as RouteProvider (I, Discover(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), InstructionKey(..), Step(..))
 import Daml.Finance.Interface.Types.Common (Id(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
+import Daml.Finance.Settlement.RouteProvider.FixCustodian (RouteProviderWithFixCustodian(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), credit, createAccount, createFactory)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyNoObservers, verifyOwnerOfHolding)
@@ -71,14 +73,24 @@ run = script do
 
   -- Create settlement factory
   settlementFactoryCid <- toInterfaceContractId @Factory.I <$>
-    submit bank do createCmd Factory with provider = bank; observers = empty; custodian = bank
+    submit bank do createCmd Factory with provider = bank; observers = empty
+
+  -- Settlement step
+  let step = Step with sender; receiver; quantity = Instrument.qty 200_000.0 cashInstrument
+
+  -- Discover settlement route for the step
+  routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit bank do
+    createCmd RouteProviderWithFixCustodian with
+      provider = bank; observers = empty; custodian = bank
+  routedSteps <- submit bank do
+    exerciseCmd routeProviderCid RouteProvider.Discover with
+      discoverors = singleton bank; contextId = None; steps = [step]
 
   -- Instruct transfer
-  let step = Step with sender; receiver; quantity = Instrument.qty 200_000.0 cashInstrument
   (batchCid, [cashInstructionCid]) <- submit bank do
     exerciseCmd settlementFactoryCid Factory.Instruct with
       instructors = singleton bank; settlers = singleton bank; id = Id "transfer 1"
-      description = "transfer of USD 200000.0 payment"; contextId = None; steps = [step]
+      description = "transfer of USD 200000.0 payment"; contextId = None; routedSteps
 
   -- Allocate instruction
   (cashInstructionCid, _) <- submit sender do
@@ -137,9 +149,9 @@ run2 = script do
 
   -- Create settlement factory
   settlementFactoryCid <- toInterfaceContractId @Factory.I <$>
-    submit bank do createCmd Factory with provider = bank; observers = empty; custodian = bank
+    submit bank do createCmd Factory with provider = bank; observers = empty
 
-  -- Instruct independent transfers
+  -- Discover settlement routes for independent transfers
   let
     id1 = Id "transfer 1"
     id2 = Id "transfer 2"
@@ -147,24 +159,37 @@ run2 = script do
     first = Step with sender; receiver; quantity = Instrument.qty 100_000.0 cashInstrument
     second = Step with sender; receiver; quantity = Instrument.qty 200_000.0 cashInstrument
     third = Step with sender; receiver; quantity = Instrument.qty 300_000.0 cashInstrument
+  routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit bank do
+    createCmd RouteProviderWithFixCustodian with provider = bank; observers = empty; custodian = bank
+  routedSteps1 <- submit bank do
+    exerciseCmd routeProviderCid RouteProvider.Discover with
+      discoverors = singleton bank; contextId = None; steps = [first]
+  routedSteps2 <- submit bank do
+    exerciseCmd routeProviderCid RouteProvider.Discover with
+      discoverors = singleton bank; contextId = None; steps = [second]
+  routedSteps3 <- submit bank do
+    exerciseCmd routeProviderCid RouteProvider.Discover with
+      discoverors = singleton bank; contextId = None; steps = [third]
+
+  -- Instruct settlement for transfer 1
   (batchCid1, [cashInstructionCid1]) <- submit bank do
     exerciseCmd settlementFactoryCid Factory.Instruct with
       instructors = singleton bank; settlers = singleton bank; id = id1
-      description = "transfer of USD 100000.0 payment"; contextId = None; steps = [first]
+      description = "transfer of USD 100000.0 payment"; contextId = None; routedSteps = routedSteps1
   -- the id of the batch must be unique
   submitMustFail bank do
     exerciseCmd settlementFactoryCid Factory.Instruct with
       instructors = singleton bank; settlers = singleton bank; id = id1
-      description = "transfer of USD 200000.0 payment"; contextId = None; steps = [second]
+      description = "transfer of USD 200000.0 payment"; contextId = None; routedSteps = routedSteps1
   (batchCid2, [cashInstructionCid2]) <- submit bank do
     exerciseCmd settlementFactoryCid Factory.Instruct with
       instructors = singleton bank; settlers = singleton bank; id = id2
-      description = "transfer of USD 200000.0 payment"; contextId = None; steps = [second]
+      description = "transfer of USD 200000.0 payment"; contextId = None; routedSteps = routedSteps2
   (batchCid3, [cashInstructionCid3]) <- submit bank do
     exerciseCmd settlementFactoryCid Factory.Instruct with
       instructors = singleton bank
       settlers = singleton bank; id = id3; description = "transfer of USD 300000.0 payment"
-      contextId = None; steps = [third]
+      contextId = None; routedSteps = routedSteps3
 
   let
     verifyAccountDisclosureContexts owner ids = do
@@ -274,10 +299,17 @@ run3 = script do
 
   -- Create settlement factory
   settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submit bank do
-    createCmd Factory with provider = bank; observers = singleton publicParty; custodian = bank
+    createCmd Factory with provider = bank; observers = singleton publicParty
+
+  -- Discover settlement
+  let step = Step with sender; receiver; quantity = Instrument.qty 200_000.0 cashInstrument
+  routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit bank do
+    createCmd RouteProviderWithFixCustodian with provider = bank; observers = empty; custodian = bank
+  routedSteps <- submit bank do
+    exerciseCmd routeProviderCid RouteProvider.Discover with
+      discoverors = singleton bank; contextId = None; steps = [step]
 
   -- Instruct transfer
-  let step = Step with sender; receiver; quantity = Instrument.qty 200_000.0 cashInstrument
   (batchCid, [cashInstructionCid]) <- submit bank do
     exerciseCmd settlementFactoryCid Factory.Instruct
       with
@@ -286,7 +318,7 @@ run3 = script do
         id = Id "transfer 1"
         description = "transfer of USD 200000.0 payment"
         contextId = None
-        steps = [step]
+        routedSteps
 
   -- Allocate instruction
   (cashInstructionCid, _) <- submit sender do
@@ -344,12 +376,19 @@ run4 = script do
   settlementFactoryCid <- toInterfaceContractId @Factory.I <$>
     submit bank do
       createCmd Factory with
-        provider = bank; observers = singleton publicParty; custodian = bank
+        provider = bank; observers = singleton publicParty
 
-  -- Instruct transfer
+  -- Discover settlement routes
   let
     step1 = Step with sender; receiver; quantity = Instrument.qty 200_000.0 cashInstrument1
     step2 = Step with sender; receiver; quantity = Instrument.qty 100_000.0 cashInstrument1
+  routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit bank do
+    createCmd RouteProviderWithFixCustodian with provider = bank; observers = empty; custodian = bank
+  routedSteps <- submit bank do
+    exerciseCmd routeProviderCid RouteProvider.Discover with
+      discoverors = singleton bank; contextId = None; steps = [step1, step2]
+
+  -- Instruct transfer
   (batchCid, [cashInstructionCid1, cashInstructionCid2]) <- submit bank do
     exerciseCmd settlementFactoryCid Factory.Instruct
       with
@@ -358,7 +397,7 @@ run4 = script do
         id = Id "transfer 1"
         description = "transfer of USD 200000.0 and CHF 100000.0 payment"
         contextId = None
-        steps = [step1, step2]
+        routedSteps
 
   -- Allocate instruction
   (cashInstructionCid1, _) <- submit sender do
@@ -419,12 +458,19 @@ run5 = script do
 
   -- Create settlement factory
   settlementFactoryCid <- toInterfaceContractId @Factory.I <$>
-    submit bank do createCmd Factory with provider = bank; observers = empty; custodian = bank
+    submit bank do createCmd Factory with provider = bank; observers = empty
 
-  -- Instruct transfer
+  -- Discover settlement routes
   let
     step1 = Step with sender; receiver = ccp; quantity = Instrument.qty 200_000.0 cashInstrument
     step2 = Step with sender = ccp; receiver; quantity = Instrument.qty 200_000.0 cashInstrument
+  routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit bank do
+    createCmd RouteProviderWithFixCustodian with provider = bank; observers = empty; custodian = bank
+  routedSteps <- submit bank do
+    exerciseCmd routeProviderCid RouteProvider.Discover with
+      discoverors = singleton bank; contextId = None; steps = [step2, step1] -- order does not matter
+
+  -- Instruct transfer
   (batchCid, [instructionCid2, instructionCid1]) <- submit bank do
     exerciseCmd settlementFactoryCid Factory.Instruct with
       instructors = singleton bank
@@ -432,7 +478,7 @@ run5 = script do
       id = Id "transfer 1"
       description = "transfer of USD 200000.0 payment"
       contextId = None
-      steps = [step2, step1] -- order does not matter
+      routedSteps
 
   -- Approve instruction
   instructionCid2 <- submit receiver do
@@ -446,7 +492,7 @@ run5 = script do
       actors = singleton ccp
       approval = PassthroughTo (ccpAccount,
         InstructionKey with requestors = singleton bank; batchId = Id "transfer 1"; id = Id "1")
-  -- Allcoate with passthrough
+  -- Allocate with passthrough
   instructionCid2 <- submit ccp do
     exerciseCmd instructionCid2 Instruction.Allocate with
       actors = singleton ccp
