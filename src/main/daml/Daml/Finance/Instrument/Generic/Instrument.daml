@@ -3,21 +3,13 @@
 
 module Daml.Finance.Instrument.Generic.Instrument where
 
-import DA.Date (toDateUTC)
-import DA.Set (fromList, singleton)
-import DA.Text (sha256)
-import Daml.Finance.Claims.Util (isZero')
-import Daml.Finance.Claims.Util.Lifecycle (electionEvent, lifecycle, splitPending)
-import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, GetClaims(..), View(..), getClaims)
+import DA.Set (singleton)
+import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, View(..))
 import Daml.Finance.Interface.Claims.Types (C, TaggedClaim(..))
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, R, View(..), createReference, disclosureUpdateReference, getKey)
-import Daml.Finance.Interface.Instrument.Generic.Election qualified as Election (ApplyElection(..), Exercisable(..), ExercisableView(..), getElectionTime)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, View(..), disclosureUpdateReference)
 import Daml.Finance.Interface.Instrument.Generic.Instrument qualified as GenericInstrument (HasImplementation, I, View(..))
 import Daml.Finance.Interface.Types.Common (Id, InstrumentKey(..), PartiesMap)
-import Daml.Finance.Interface.Types.Date.Classes (toUTCTime)
-import Daml.Finance.Interface.Util.Common (verify)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
-import Daml.Finance.Lifecycle.ElectionEffect (ElectionEffect(..))
 import Prelude hiding (exercise, key)
 
 -- | Type synonym for `Instrument`.
@@ -79,53 +71,3 @@ template Instrument
         cid <- toInterfaceContractId <$> create this with observers = newObservers
         BaseInstrument.disclosureUpdateReference newObservers instrumentKey cid
       archive' self = archive (coerceContractId self : ContractId Instrument)
-
-    interface instance Election.Exercisable for Instrument where
-      view = Election.ExercisableView with lifecycler
-      applyElection Election.ApplyElection{clockCid; electionCid; observableCids} self = do
-        currentTime <- toUTCTime <$> fetch clockCid
-        election <- fetch electionCid
-        instrumentClaim <- Claim.getClaims (toInterface @Claim.I this) $ Claim.GetClaims with
-          actor = lifecycler
-        let
-          v = view election
-          electionTime = Election.getElectionTime election
-          election = electionEvent electionTime v.electorIsOwner v.claim
-        verify (currentTime == electionTime) $
-          "Election time " <> show electionTime <> " is different than Current time " <>
-          show currentTime
-        (remaining, pending) <- lifecycle lifecycler observableCids (toInterface this) [election]
-        if remaining == instrumentClaim && null pending then
-          pure (coerceContractId self, [])
-        else do
-          let
-            settlementDate = toDateUTC electionTime
-            currentKey = BaseInstrument.getKey $ toInterface this
-            newKey = currentKey with version = sha256 $ show remaining
-            [claim] = fmap (.claim) remaining
-          existingRefCidOpt <- lookupByKey @BaseInstrument.R newKey
-          newInstrumentCid <-
-            case existingRefCidOpt of
-              Some existingRefCid -> do
-                ref <- fetch existingRefCid
-                pure ref.cid
-              None -> do
-                instCid <- create this with
-                  claims = claim; lastEventTimestamp = electionTime; version = newKey.version
-                BaseInstrument.createReference issuer $ toInterfaceContractId instCid
-                pure $ toInterfaceContractId instCid
-          let (otherConsumed, otherProduced) = splitPending pending
-          effectCid <- toInterfaceContractId <$> create ElectionEffect with
-            providers = fromList [this.issuer, this.depository]
-            custodian = if v.electorIsOwner then v.counterparty else v.elector
-            owner = if v.electorIsOwner then v.elector else v.counterparty
-            id = v.id
-            description = v.description
-            targetInstrument = currentKey
-            producedInstrument = if isZero' remaining then None else Some newKey
-            amount = v.amount
-            otherConsumed
-            otherProduced
-            settlementDate
-            observers = v.observers
-          pure (newInstrumentCid, [effectCid])
