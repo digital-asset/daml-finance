@@ -10,6 +10,7 @@ import DA.Map qualified as M (empty, fromList)
 import DA.Set (empty, fromList, singleton, toList)
 import Daml.Finance.Data.Observable.Observation (Observation(..))
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
+import Daml.Finance.Instrument.Generic.Lifecycle.Rule qualified as Lifecycle (Rule(..))
 import Daml.Finance.Instrument.Generic.Test.Util (originateGeneric, dateToDateClockTime)
 import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..), I)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I)
@@ -22,7 +23,7 @@ import Daml.Finance.Settlement.Factory (Factory(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
-import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate, submitExerciseInterfaceByKeyCmd)
+import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
 import Daml.Finance.Test.Util.Lifecycle (createClockAndEvent)
 import Daml.Script
 
@@ -85,11 +86,16 @@ run = script do
   (clockCid, clockEventCid) <- createClockAndEvent (singleton broker) maturity empty
 
   -- Lifecycle derivative
-  (_, [effectCid]) <-
-    Instrument.submitExerciseInterfaceByKeyCmd @Lifecycle.I [broker] [] genericInstrument
-      Lifecycle.Evolve with
-        eventCid = clockEventCid; observableCids = [observableCid]; ruleName = "Time"
+  lifecycleRuleCid : ContractId Lifecycle.I <- toInterfaceContractId <$> submit bank do
+    createCmd Lifecycle.Rule with providers = singleton bank; observers= M.empty; lifecycler = broker
+
+  (_, [effectCid]) <- submit broker do
+    exerciseCmd lifecycleRuleCid Lifecycle.Evolve
+      with
+        eventCid = clockEventCid
+        observableCids = [observableCid]
         timeObservableCid = clockCid
+        instrument = genericInstrument
 
   -- Create settlement factory
   settlementFactoryCid <- toInterfaceContractId <$> submit bank do
