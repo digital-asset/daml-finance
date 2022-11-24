@@ -8,9 +8,10 @@ import ContingentClaims.Core.Observation (Observation(..))
 import DA.Assert ((===))
 import DA.Date (addDays, toDateUTC)
 import DA.Foldable qualified as F (forA_)
-import DA.Map qualified as M (Map, fromList)
+import DA.Map qualified as M (Map, empty, fromList)
 import DA.Set (empty, fromList, singleton, toList)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
+import Daml.Finance.Instrument.Generic.Lifecycle.Rule qualified as Lifecycle (Rule(..))
 import Daml.Finance.Instrument.Generic.Test.Util (originateGeneric, mapClaimToUTCTime)
 import Daml.Finance.Interface.Account.Account qualified as Account (K)
 import Daml.Finance.Interface.Holding.Base qualified as Base (I)
@@ -31,7 +32,7 @@ import Daml.Finance.Settlement.Instruction qualified as Instruction (T)
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit, submitExerciseInterfaceByKeyCmd)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
-import Daml.Finance.Test.Util.Instrument qualified as BaseInstrument (originate, submitExerciseInterfaceByKeyCmd)
+import Daml.Finance.Test.Util.Instrument qualified as BaseInstrument (originate)
 import Daml.Finance.Test.Util.Lifecycle (createClockAndEvent)
 import Daml.Script
 
@@ -168,11 +169,15 @@ runIntermediatedLifecyclingNonAtomic = script do
   (clockCid, clockEventCid) <- createClockAndEvent (singleton issuer) today empty
 
   -- Lifecycle bond
-  (_, [effectCid]) <-
-    BaseInstrument.submitExerciseInterfaceByKeyCmd @Lifecycle.I [issuer] [] bondInstrument
-      Lifecycle.Evolve with
-        eventCid = clockEventCid; observableCids = []; ruleName = "Time"
-        timeObservableCid = clockCid
+  lifecycleRuleCid : ContractId Lifecycle.I <- toInterfaceContractId <$> submit csd do
+    createCmd Lifecycle.Rule with providers = singleton csd; observers= M.empty; lifecycler = issuer
+
+  (_, [effectCid]) <- submit issuer do
+    exerciseCmd lifecycleRuleCid Lifecycle.Evolve with
+      eventCid = clockEventCid
+      observableCids = []
+      timeObservableCid = clockCid
+      instrument = bondInstrument
 
   -- Define settlement routes across intermediaries
   let routes = M.fromList [cashRoute, bondRoute]
@@ -309,11 +314,15 @@ runIntermediatedLifecyclingAtomic = script do
   (clockCid, clockEventCid) <- createClockAndEvent (singleton issuer) today empty
 
   -- Lifecycle bond
-  (_, [effectCid]) <-
-    BaseInstrument.submitExerciseInterfaceByKeyCmd @Lifecycle.I [issuer] [] bondInstrument
-      Lifecycle.Evolve with
-        eventCid = clockEventCid; observableCids = []; ruleName = "Time"
-        timeObservableCid = clockCid
+  lifecycleRuleCid : ContractId Lifecycle.I <- toInterfaceContractId <$> submit csd do
+    createCmd Lifecycle.Rule with providers = singleton csd; observers= M.empty; lifecycler = issuer
+
+  (_, [effectCid]) <- submit issuer do
+    exerciseCmd lifecycleRuleCid Lifecycle.Evolve with
+      eventCid = clockEventCid
+      observableCids = []
+      timeObservableCid = clockCid
+      instrument = bondInstrument
 
   -- Define settlement routes from CSD to Investor and create batch factory
   let routes = M.fromList [cashRoute, bondRoute]
