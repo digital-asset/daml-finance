@@ -10,9 +10,11 @@ import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Factory qualified as Factory (I, Instruct(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.RouteProvider qualified as RouteProvider (I, Discover(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), Step(..))
 import Daml.Finance.Interface.Types.Common (Id(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
+import Daml.Finance.Settlement.RouteProvider.SingleCustodian (SingleCustodian(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyNoObservers, verifyOwnerOfHolding)
@@ -74,7 +76,7 @@ run settleCashOnLedger = script do
   -- Distribute equity
   equityHoldingCid <- Account.credit [] equityInstrument 1_000.0 sellerCustodyAccount
 
-  -- Instruct settlement
+  -- Settlement steps
   let
     steps =
       [ Step with
@@ -82,13 +84,23 @@ run settleCashOnLedger = script do
       , Step with
           sender = buyer; receiver = seller; quantity = Instrument.qty 200_000.0 cashInstrument
       ]
+
+  -- Discover settlement routes
+  routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit bank do
+    createCmd SingleCustodian with
+      provider = bank; observers = empty; custodian = bank
+  routedSteps <- submit bank do
+    exerciseCmd routeProviderCid RouteProvider.Discover with
+      discoverors = singleton bank; contextId = None; steps
+
+  -- Instruct settlement
   settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submit bank do
-    createCmd Factory with provider = bank; observers = empty; custodian = bank
+    createCmd Factory with provider = bank; observers = empty
   (batchCid, [equityInstructionCid, cashInstructionCid]) <-
     submit bank do
       exerciseCmd settlementFactoryCid Factory.Instruct with
         instructors = singleton bank; settlers = singleton bank; id = Id "APPL 1000@200.0USD"
-        description = "DVP"; contextId = None; steps
+        description = "DVP"; contextId = None; routedSteps
 
   -- Allocate and approve equity instruction
   (equityInstructionCid, _) <- submit seller do
