@@ -5,29 +5,19 @@ module Daml.Finance.Claims.Util.Builders where
 
 import ContingentClaims.Core.Claim (Claim(..), Inequality(..), give, one, scale, upTo, when, until)
 import ContingentClaims.Core.Observation (Observation(..))
-import DA.Date
-import DA.Foldable (forA_)
 import DA.Record (HasField)
-import DA.Set (fromList)
-import DA.Text (sha256)
-import Daml.Finance.Claims.Util (isZero', toTime')
-import Daml.Finance.Claims.Util.Lifecycle (lifecycle, lifecycleClaims, netOnTag, splitPending, timeEvent)
+import Daml.Finance.Claims.Util (toTime')
 import Daml.Finance.Data.Reference.HolidayCalendar (GetCalendar(..), HolidayCalendar, HolidayCalendarKey(..))
-import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, getAcquisitionTime)
+import Daml.Finance.Interface.Claims.Claim qualified as Claim (I)
 import Daml.Finance.Interface.Claims.Types (C, Deliverable, Observable, TaggedClaim(..))
-import Daml.Finance.Interface.Data.NumericObservable qualified as NumericObservable (I)
-import Daml.Finance.Interface.Data.TimeObservable qualified as TimeObservable (I)
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (I, K, createReference, getKey)
-import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (I)
-import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (I)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I)
 import Daml.Finance.Interface.Types.Common (Id)
 import Daml.Finance.Interface.Types.Date.Calendar
 import Daml.Finance.Interface.Types.Date.Classes (toUTCTime)
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
 import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..), Schedule, SchedulePeriod)
-import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, flattenObservers)
-import Daml.Finance.Lifecycle.Effect (Effect(..))
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I)
 import Daml.Finance.Lifecycle.Types (Unit(..))
 import Daml.Finance.Util.Date.DayCount (calcPeriodDcf)
 import Daml.Finance.Util.Date.Schedule (createSchedule)
@@ -218,60 +208,3 @@ mapClaimToUTCTime : Claim Date Decimal Deliverable Observable -> C
 mapClaimToUTCTime =
   let dateToTime = toUTCTime . Unit
   in toTime' dateToTime
-
--- BOND_PROCESS_CLOCK_UPDATE_INITAL_CLAIMS_BEGIN
--- | Rule to process a clock update event.
-processClockUpdate : IsBond t => Party -> ContractId Event.I -> ContractId TimeObservable.I ->
-  t -> [ContractId NumericObservable.I] ->
-  Update (Optional Instrument.K, [ContractId Effect.I])
-processClockUpdate actor eventCid _ instrument observableCids = do
-  v <- view <$> fetch eventCid
-  let
-    claimInstrument = toInterface @Claim.I instrument
-    acquisitionTime = Claim.getAcquisitionTime claimInstrument
-  -- BOND_PROCESS_CLOCK_UPDATE_INITAL_CLAIMS_END
-  -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_FASTFORWARD_BEGIN
-  -- Recover claims tree as of the lastEventTimestamp. For a bond, this just requires lifecycling as
-  -- of the lastEventTimestamp.
-  claims <- Prelude.fst <$>
-    lifecycle actor observableCids claimInstrument [timeEvent instrument.lastEventTimestamp]
-  -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_FASTFORWARD_END
-
-  -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_BEGIN
-  -- Lifecycle
-  (remaining, pending) <-
-    lifecycleClaims observableCids acquisitionTime claims [timeEvent v.eventTime]
-
-  let
-    pendingAfterNetting = netOnTag pending
-    (otherConsumed, otherProduced) = splitPending pendingAfterNetting
-  if remaining == claims && null pendingAfterNetting then
-    pure (None, [])
-  else do
-    let
-      currentKey = Instrument.getKey $ toInterface @Instrument.I instrument
-      settlementDate = toDateUTC v.eventTime
-      newKey = currentKey with version = sha256 $ show remaining
-      producedInstrument = if isZero' remaining then None else Some newKey
-    forA_ producedInstrument $ createNewInstrument v.eventTime instrument
-    effectCid <- toInterfaceContractId <$> create Effect with
-      providers = fromList [currentKey.issuer, currentKey.depository]
-      id = v.id
-      description = v.description
-      targetInstrument = currentKey
-      producedInstrument
-      otherConsumed
-      otherProduced
-      settlementDate
-      observers =
-        Disclosure.flattenObservers . (.observers) . view $ toInterface @Disclosure.I instrument
-    pure (producedInstrument, [effectCid])
-  -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_END
-
--- | HIDE
-createNewInstrument : IsBond t => Time -> t -> Instrument.K -> Update ()
-createNewInstrument eventTime instrument newKey = do
-  newInstrumentCid <-
-    create instrument with lastEventTimestamp = eventTime; version = newKey.version
-  Instrument.createReference instrument.issuer $ toInterfaceContractId newInstrumentCid
-  pure ()
