@@ -13,7 +13,7 @@ import Daml.Finance.Instrument.Bond.InflationLinked.Instrument qualified as Infl
 import Daml.Finance.Instrument.Bond.ZeroCoupon.Instrument qualified as ZeroCoupon (Instrument(..))
 import Daml.Finance.Interface.Claims.Types (Deliverable)
 import Daml.Finance.Interface.Data.NumericObservable qualified as NumericObservable (I)
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (GetView(..), K, I, Q, toKey)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (K, I, Q)
 import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (I, GetView(..))
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..))
 import Daml.Finance.Interface.Types.Common
@@ -126,7 +126,7 @@ originateInflationLinkedBond depository issuer label description observers lastE
 -- | Lifecycle the instrument as of this date. This is a general function that can be used for both
 -- bonds and swaps.
 lifecycleInstrument : [Party] -> Date -> Instrument.K -> Party ->
-  [ContractId NumericObservable.I] -> Script (ContractId Lifecycle.I, [ContractId Effect.I])
+  [ContractId NumericObservable.I] -> Script (Optional Instrument.K, [ContractId Effect.I])
 lifecycleInstrument readAs today instrument issuer observableCids = do
   -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_BEGIN
   -- create clock and clock update event
@@ -138,7 +138,7 @@ lifecycleInstrument readAs today instrument issuer observableCids = do
   (lifecycleCid, effectCids) <-
     Instrument.submitExerciseInterfaceByKeyCmd @Lifecycle.I [issuer] readAs instrument
       Lifecycle.Evolve with
-        eventCid = clockEventCid; observableCids; ruleName = "Time"; timeObservableCid = clockCid
+        eventCid = clockEventCid; observableCids; timeObservableCid = clockCid; instrument
   -- LIFECYCLE_BOND_END
 
   pure (lifecycleCid, effectCids)
@@ -154,15 +154,11 @@ verifyNoLifecycleEffects readAs today instrument issuer observableCids = do
 
 -- | Verify the payments from a payment date of a bond (excluding settlement)
 lifecycleAndVerifyBondPaymentEffects : [Party] -> Date -> Instrument.K -> Party ->
-  [ContractId NumericObservable.I] -> [Instrument.Q] -> [Instrument.Q] -> Script Instrument.K
+  [ContractId NumericObservable.I] -> [Instrument.Q] -> [Instrument.Q] -> Script (Optional Instrument.K)
 lifecycleAndVerifyBondPaymentEffects readAs today instrument issuer observableCids
   expectedConsumedQuantities expectedProducedQuantities = do
-    (bondLifecycleCid, [effectCid]) <-
+    (newBondInstrumentKey, [effectCid]) <-
       lifecycleInstrument readAs today instrument issuer observableCids
-
-    newBondInstrumentKey <- submit issuer do
-      Instrument.toKey <$> exerciseCmd @Instrument.I (coerceContractId bondLifecycleCid)
-        Instrument.GetView with viewer = issuer
 
     -- Get the effect
     effectView <- submit issuer do

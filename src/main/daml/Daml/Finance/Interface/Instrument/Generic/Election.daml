@@ -6,10 +6,9 @@ module Daml.Finance.Interface.Instrument.Generic.Election where
 import Daml.Finance.Interface.Claims.Types (C)
 import Daml.Finance.Interface.Data.NumericObservable qualified as NumericObservable (I)
 import Daml.Finance.Interface.Data.TimeObservable qualified as TimeObservable (I)
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (K, exerciseInterfaceByKey)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (K)
 import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (I)
 import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I, Implementation, getEventTime)
-import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Implementation)
 import Daml.Finance.Interface.Types.Common (Id, PartiesMap)
 
 -- | Type synonym for `Election`.
@@ -62,7 +61,7 @@ interface Election where
     do
       pure $ view this
 
-  nonconsuming choice Apply : (ContractId Lifecycle.I, [ContractId Effect.I])
+  nonconsuming choice Apply : (Optional Instrument.K, [ContractId Effect.I])
     -- ^ Applies the election to the instrument, returning the new instrument as well as the
     --   corresponding effects. The election is archived as part of this choice.
     with
@@ -70,15 +69,15 @@ interface Election where
         -- ^ Current time.
       observableCids : [ContractId NumericObservable.I]
         -- ^ Set of observables.
+      exercisableCid : ContractId Exercisable
+        -- ^ The contract that is used to apply an election to the instrument.
     controller (view this).provider
     do
       let v = view this
-      (newInstrumentCid, effects) <-
-        Instrument.exerciseInterfaceByKey @Exercisable v.instrument v.provider ApplyElection
-        with
-          clockCid
-          observableCids
-          electionCid = toInterfaceContractId self
+      (newInstrumentCid, effects) <- exercise exercisableCid ApplyElection with
+        clockCid
+        observableCids
+        electionCid = toInterfaceContractId self
       archive' this self -- this is needed as we can't write postconsuming choices on interfaces
       pure (newInstrumentCid, effects)
 
@@ -103,10 +102,7 @@ data ExercisableView = ExercisableView
 interface Exercisable where
   viewtype ExercisableView
 
-  asLifecycle : Lifecycle.I
-    -- ^ Conversion to `Lifecycle` interface.
-  applyElection : ApplyElection -> ContractId Exercisable -> Update (
-    ContractId Lifecycle.I, [ContractId Effect.I])
+  applyElection : ApplyElection -> Update (Optional Instrument.K, [ContractId Effect.I])
     -- ^ Implementation of the `ApplyElection` choice.
 
   nonconsuming choice Exercisable_GetView : ExercisableView
@@ -118,7 +114,7 @@ interface Exercisable where
     do
       pure $ view this
 
-  nonconsuming choice ApplyElection : (ContractId Lifecycle.I, [ContractId Effect.I])
+  nonconsuming choice ApplyElection : (Optional Instrument.K, [ContractId Effect.I])
     -- ^ Applies an election to the instrument.
     with
       clockCid : ContractId TimeObservable.I
@@ -129,11 +125,9 @@ interface Exercisable where
         -- ^ Set of observables.
     controller (view this).lifecycler
     do
-      (instrument, effects) <- applyElection this arg self
-      pure (coerceContractId instrument, effects)
+      applyElection this arg
 
--- | Type constraint for requiring templates to implement `Exercisable` along with `Lifecycle`.
-type ExercisableImplementation t = (HasToInterface t Exercisable, Lifecycle.Implementation t)
-instance HasToInterface Exercisable Lifecycle.I where _toInterface = asLifecycle
+-- | Type constraint for requiring templates to implement `Exercisable`.
+type ExercisableImplementation t = HasToInterface t Exercisable
 class (ExercisableImplementation t) => ExercisableHasImplementation t
 instance ExercisableHasImplementation Exercisable
