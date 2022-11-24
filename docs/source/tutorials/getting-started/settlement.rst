@@ -41,6 +41,7 @@ We first give a quick outline of the settlement process.
 |                                      | e.g., the account they wish to receive the holding to.                                                                                      |
 |                                      |                                                                                                                                             |
 |                                      | The creation of Instructions is done using a                                                                                                |
+|                                      | :ref:`Route Provider <type-daml-finance-interface-settlement-routeprovider-routeprovider-53805>` and a                                      |
 |                                      | :ref:`Settlement Factory <type-daml-finance-interface-settlement-factory-factory-31525>` contract.                                          |
 +--------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------+
 | 3. Allocate and approve instructions | For every instruction, the sender and receiver specify their allocation and approval preferences, respectively.                             |
@@ -71,16 +72,29 @@ at the initial state for this scenario. We then create an additional *token* ins
 Alice's account with it.
 
 The interesting bit starts once Alice proposes the DvP trade to Bob. Before creating the DvP
-proposal, we need to instantiate a
-:ref:`Settlement Factory <type-daml-finance-interface-settlement-factory-factory-31525>` contract.
+proposal, we need to instantiate the following contracts:
 
-.. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Settlement.daml
-  :language: daml
-  :start-after: -- SETTLEMENT_FACTORY_BEGIN
-  :end-before: -- SETTLEMENT_FACTORY_END
+#. :ref:`Route Provider <type-daml-finance-interface-settlement-routeprovider-routeprovider-53805>`
 
-This is used to generate settlement instruction from settlement
-:ref:`steps <type-daml-finance-interface-settlement-types-step-78661>`.
+     .. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Settlement.daml
+       :language: daml
+       :start-after: -- ROUTE_PROVIDER_BEGIN
+       :end-before: -- ROUTE_PROVIDER_END
+
+   This is used to discover a settlement route, i.e.,
+   :ref:`routed steps <type-daml-finance-interface-settlement-types-routedstep-10086>`, for each
+   settlement :ref:`step <type-daml-finance-interface-settlement-types-step-78661>`. In this
+   example, the route provider converts each step to a routed step using a single custodian.
+
+#. :ref:`Settlement Factory <type-daml-finance-interface-settlement-factory-factory-31525>`
+
+     .. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Settlement.daml
+       :language: daml
+       :start-after: -- SETTLEMENT_FACTORY_BEGIN
+       :end-before: -- SETTLEMENT_FACTORY_END
+
+   This is used to generate the settlement batch and instructions from the
+   :ref:`routed steps <type-daml-finance-interface-settlement-types-routedstep-10086>`.
 
 Alice creates a ``Dvp.Proposal`` template to propose the exchange of the ``TOKEN`` against ``USD``.
 
@@ -102,7 +116,7 @@ Once the proposal is accepted, three contracts are created:
 - an instruction to transfer ``USD 1000`` from Bob to Alice
 - a batch contract to settle the two instructions atomically
 
-The workflow to create these contracts makes use of the settlement factory.
+The workflow to create these contracts makes use of the route provider and the settlement factory.
 
 .. literalinclude:: ../../../code-samples/getting-started/daml/Workflow/DvP.daml
   :language: daml
@@ -139,11 +153,12 @@ Why do we need a settlement factory?
 A settlement factory contract is used to generate settlement ``Instructions`` from ``steps``.
 It also generates a ``Batch`` contract which is used to settle instructions atomically.
 
-The first reason why the factory is needed has already been introduced in the previous tutorial:
-it provides an interface abstraction, so that your workflow does not need to depend on concrete
+The reason why the factory is needed has already been introduced in the previous tutorial: it
+provides an interface abstraction, so that your workflow does not need to depend on concrete
 implementations of ``Batch`` or ``Instruction``.
 
-A second aspect has to do with intermediated settlement.
+Why do we need a route provider?
+====================================
 
 Consider a real-world example where Alice instructs a bank transfer to send USD 100 to Bob. The
 following happens:
@@ -152,10 +167,11 @@ following happens:
 - USD 100 are transferred from Alice's bank to Bob's bank (via their accounts at the central bank)
 - USD 100 are credited to Bob's account at his bank
 
-A single ``Step`` requires three instructions to settle.
+A single ``Step`` requires three ``RoutedStep`` to settle.
 
-The same dynamics can be reproduced in Daml with the Settlement Factory, allowing for on-ledger
-intermediated settlement. An example will be covered in one of the following tutorials.
+The same dynamics can be reproduced in Daml with an appropriate Route Provider implementation,
+allowing for on-ledger intermediated settlement. An example will be covered in one of the following
+tutorials.
 
 Can we use a different settler?
 ===============================
@@ -172,7 +188,9 @@ Summary
 You know how to define complex transactions and settle them atomically. The main points to take away
 are:
 
-* A settlement factory is used to instruct settlement for an arbitrary list of steps.
+* A route provider is used to discover settlement routes, i.e., routed steps, for each settlement
+  step.
+* A settlement factory is used to instruct settlement for an arbitrary list of routed steps.
 * Instructions are used to collect authorizations, assets to be moved, and means of settlement.
 * Batches group together instructions to be settled atomically.
 
