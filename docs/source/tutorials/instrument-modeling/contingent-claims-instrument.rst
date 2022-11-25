@@ -106,7 +106,7 @@ also returns the remaining claims of the instrument (excluding today's and any p
 Hence, we can use this to evolve our instrument, in a way that is guaranteed to be consistent with
 the lifecycle mechanism.
 
-This is all done in the ``processClockUpdate`` function. We will now break it apart to describe the
+This is all done in the :ref:`Lifecycle.Rule <module-daml-finance-claims-lifecycle-rule-53980>`. We will now break it apart to describe the
 steps in more detail:
 
 .. literalinclude:: ../../../../src/main/daml/Daml/Finance/Claims/Lifecycle/Rule.daml
