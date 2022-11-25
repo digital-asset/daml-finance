@@ -100,11 +100,11 @@ The components in detail
 Route provider
 ==============
 
-The role of the
+When a transfer requires intermediaries to be involved, the role of a
 :ref:`Route Provider <type-daml-finance-interface-settlement-routeprovider-routeprovider-53805>`
-becomes important when a transfer requires intermediaries to be involved. Let us assume, for
-instance, that Alice's EUR holding in the example above is held at Bank A, whereas Bob has a EUR
-account at Bank B. Bank A and Bank B both have accounts at the Central Bank.
+becomes important. Let us assume, for instance, that Alice's EUR holding in the example above is
+held at Bank A, whereas Bob has a EUR account at Bank B. Bank A and Bank B both have accounts at the
+Central Bank.
 
 .. image:: ../images/settlement_hierarchy.png
    :alt: Hierarchical account structure. Alice has an account at Bank A. Bob has an account at
@@ -124,7 +124,7 @@ original ``Instruction`` between Alice and Bob needs to be replaced by three sep
 
 We refer to this scenario as *settlement with intermediaries*, or just *intermediated settlement*.
 
-It is the task of the Route Provider to allow for discovering a settlement route, i.e.,
+The Route Provider is used to discover a settlement route, i.e.,
 :ref:`routed steps <type-daml-finance-interface-settlement-types-routedstep-10086>`, for each
 settlement :ref:`step <type-daml-finance-interface-settlement-types-step-78661>`.
 
