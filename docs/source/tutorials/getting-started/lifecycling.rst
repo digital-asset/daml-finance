@@ -63,14 +63,6 @@ later in the tutorial.
   :start-after: -- NEW_VERSION_BEGIN
   :end-before: -- NEW_VERSION_END
 
-A clock is required as an input to the distribution rule to determine if the event is due to be
-processed.
-
-.. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Lifecycling.daml
-  :language: daml
-  :start-after: -- CREATE_CLOCK_BEGIN
-  :end-before: -- CREATE_CLOCK_END
-
 Next, we create two lifecycle rules:
 
 .. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Lifecycling.daml
