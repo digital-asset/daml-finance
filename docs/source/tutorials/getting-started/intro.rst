@@ -17,8 +17,10 @@ Quickstart
 This section explains how some key concepts of Daml Finance work in practice. It combines a step by
 step description of different workflows with supporting code.
 
-To follow the tutorials you can install the quickstart project via the Daml assistant by executing
-the following command:
+To follow the tutorials you can install the ``quickstart-finance`` project via the Daml assistant by executing
+the following commands.
+
+On Unix-based systems execute:
 
 .. code-block:: shell
 
@@ -26,6 +28,16 @@ the following command:
    cd quickstart-finance
    ./get-dependencies.sh
    daml studio
+
+On Windows-based systems execute:
+
+.. code-block:: shell
+
+   daml new quickstart-finance --template=quickstart-finance
+   cd quickstart-finance
+   ./get-dependencies.bat
+   daml studio
+
 
 Reference App
 *************
