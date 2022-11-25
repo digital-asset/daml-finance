@@ -11,11 +11,11 @@ Installing Daml Finance
 
 Each Daml SDK release defines a set of consistent package versions that have been tested to work
 with each other. The list of package versions for each Daml SDK release can be found
-:ref:`here <releases>`. To facilitate getting started with a particular release set the Daml SDK
+:ref:`here <releases>`. To facilitate getting started with a particular release set, the Daml SDK
 comes with a ``quickstart-finance`` template that contains a script to download these packages.
 
-After installing the Daml SDK you can execute the following command to create a new Daml Finance
-project based on the set of packages release with the given SDK version:
+After installing the Daml SDK, you can execute the following command to create a new Daml Finance
+project based on the set of packages released with the given SDK version:
 
 On Unix-based systems execute:
 

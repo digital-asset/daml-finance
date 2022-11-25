@@ -7,8 +7,15 @@ Daml.Finance.Settlement
 This package contains the *implementation* of the components used for settlement. It has the
 following modules:
 
+- :ref:`RouteProvider <type-daml-finance-interface-settlement-routeprovider-routeprovider-53805>` implementations:
+
+  - :ref:`SingleCustodian <type-daml-finance-settlement-routeprovider-singlecustodian-singlecustodian-66394>`:
+    Used to generate a single `RoutedStep` from a `Step` using a single custodian
+  - :ref:`IntermediatedStatic <type-daml-finance-settlement-routeprovider-intermediatedstatic-intermediatedstatic-61022>`:
+    Used to generate a route, i.e., `RoutedStep`\s, for each settlement `Step`
+
 - :ref:`Instruction <module-daml-finance-settlement-instruction-87187>`: Used to settle a single
-  settlement `Step` at custodian (i.e., a `RoutedStep`)
+  `RoutedStep`, i.e., a `Step` at a custodian.
 - :ref:`Batch <module-daml-finance-settlement-batch-95573>`: Allows you to atomically settle a
   set of settlement `Instruction`\s
 - :ref:`Factory <module-daml-finance-settlement-factory-257>`: Used to create a set of

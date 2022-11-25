@@ -51,7 +51,7 @@ validate-packages: build-packages
 
 .PHONY: update-data-dependencies-packages
 update-data-dependencies-packages:
-	packell data-dependencies update
+	packell data-dependencies update -f
 	make headers-update
 
 ###############################

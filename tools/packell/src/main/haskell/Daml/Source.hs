@@ -33,7 +33,7 @@ data Source = Source {
 getSources :: FilePath -> [Daml.Package] -> IO [Source]
 getSources = mapM . getSource
 
--- | Processes an individual package.
+-- | Gets all daml files given a root directory.
 getSource :: FilePath -> Daml.Package -> IO Source
 getSource root localPackage = do
   let
