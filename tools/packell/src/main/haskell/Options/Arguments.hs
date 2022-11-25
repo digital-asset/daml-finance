@@ -13,27 +13,28 @@ import Options.Applicative(
     (<**>)
   , (<|>)
   , Parser
+  , ParserInfo
   , auto
+  , command
+  , customExecParser
+  , execParser
   , fullDesc
   , header
   , help
+  , helper
+  , hsubparser
   , info
   , long
   , metavar
   , option
+  , prefs
   , progDesc
   , short
   , showDefault
-  , strOption
-  , value
-  , execParser
-  , helper
   , showHelpOnError
-  , ParserInfo
-  , customExecParser
-  , prefs
-  , hsubparser
-  , command, switch
+  , strOption
+  , switch
+  , value
   )
 
 -- | Packell main commands set.
