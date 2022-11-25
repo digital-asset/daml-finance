@@ -16,11 +16,11 @@ to map a claim to a mathematical expression that can be used for no-arbitrage pr
 
 The implementation closely follows the model outlined in the papers [Cit1]_ and [Cit2]_.
 
-An examples of how to create and lifecycle contracts using Contingent Claims can be found in
+An example of how to create and lifecycle contracts using Contingent Claims can be found in
 :doc:`this tutorial <../tutorials/instrument-modeling/contingent-claims-instrument>`.
 
 In the following we present a user guide for getting started with ``Contingent Claims``-based
-modeling. It is meant to learn the basics of the framework, but does not cover every aspect. The
+modeling. It is meant to teach the basics of the framework, but does not cover every aspect. The
 work is based on the papers [Cit1]_ and [Cit2]_, and we recommend that you refer to these for an
 in-depth understanding of how it works.
 
