@@ -86,7 +86,7 @@ proposal, we need to instantiate two contracts:
    This is used to discover a settlement route, i.e.,
    :ref:`routed steps <type-daml-finance-interface-settlement-types-routedstep-10086>`, for each
    settlement :ref:`step <type-daml-finance-interface-settlement-types-step-78661>`. In this
-   example, the route provider simply converts each step to a routed step using a single custodian.
+   example, the route provider simply converts each step to a routed step using a single custodian (the bank).
 
 2. :ref:`Settlement Factory <type-daml-finance-interface-settlement-factory-factory-31525>`
 
