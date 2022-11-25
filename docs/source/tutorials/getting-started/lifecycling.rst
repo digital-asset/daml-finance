@@ -25,25 +25,25 @@ Overview of the Process
 
 We first give a high-level outline of the lifecycle process.
 
-+-------------------------------------------------+-----------------------------------------------------------------------------------------+
-| 1. Create a lifecycle rule                      | A lifecycle rule implements the logic to calculate effects for a given lifecycle event. |
-|                                                 | In our example we create a distribution rule to handle the dividend event on our token. |
-|                                                 |                                                                                         |
-+-------------------------------------------------+-----------------------------------------------------------------------------------------+
-| 2. Create a lifecycle event                     | The lifecycle event refers to the *target instrument* the event applies to. Holdings on |
-|                                                 | this instrument can then be used to claim the resulting lifecycle effect.               |
-|                                                 |                                                                                         |
-+-------------------------------------------------+-----------------------------------------------------------------------------------------+
-| 3. Process the event through the lifecycle rule | The lifecycle rule contains the business logic to derive the lifecycle effects          |
-|                                                 | resulting from a concrete event. The effect describes the per-unit holding transfers    |
-|                                                 | that are to be settled between a custodian and the owner of a holding.                  |
-|                                                 |                                                                                         |
-+-------------------------------------------------+-----------------------------------------------------------------------------------------+
-| 4. Claim the effect using a holding             | The claim rule is used to claim the effects resulting from a lifecycle event using a    |
-|                                                 | holding on the target instrument. The result is a set of settlement instructions and    |
-|                                                 | corresponding batch to be settled between the custodian and owner of the holding.       |
-|                                                 |                                                                                         |
-+-------------------------------------------------+-----------------------------------------------------------------------------------------+
++-----------------------------+--------------------------------------------------------------------+
+| 1. Create a lifecycle rule  | A lifecycle rule implements the logic to calculate effects for a   |
+|                             | given lifecycle event. In our example we create a distribution     |
+|                             | rule to handle the dividend event on our token.                    |
++-----------------------------+--------------------------------------------------------------------+
+| 2. Create a lifecycle event | The lifecycle event refers to the *target instrument* the event    |
+|                             | applies to. Holdings on this instrument can then be used to claim  |
+|                             | the resulting lifecycle effect.                                    |
++-----------------------------+--------------------------------------------------------------------+
+| 3. Process the event        | The lifecycle rule contains the business logic to derive the       |
+|    through the lifecycle    | lifecycle effects resulting from a concrete event. The effect      |
+|    rule                     | describes the per-unit holding transfers that are to be settled    |
+|                             | between a custodian and the owner of a holding.                    |
++-----------------------------+--------------------------------------------------------------------+
+| 4. Claim the effect using a | The claim rule is used to claim the effects resulting from a       |
+|    holding                  | lifecycle event using a holding on the target instrument. The      |
+|                             | result is a set of settlement instructions and corresponding batch |
+|                             | to be settled between the custodian and owner of the holding.      |
++-----------------------------+--------------------------------------------------------------------+
 
 Run the Script
 **************
