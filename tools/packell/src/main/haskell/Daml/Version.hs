@@ -37,7 +37,7 @@ update' version inc = case (inc, get version) of
   _                   -> error $ "Unexpected version format. version=" <> version
 
 -- | Extracts the version numbering from a versioning string, removing the period.
--- > getVersion "123.45.67" = ["123", "45", "67"]
+-- > get "123.45.67" = ["123", "45", "67"]
 get :: String -> [String]
 get = foldr (\c acc -> if c == '.' then []:acc else (c:head acc):tail acc) [[]]
 
