@@ -44,7 +44,7 @@ update root config localPackages =
   let
     getDamlPath package = root </> (Package.path . Daml.packageConfig) package </> Daml.damlConfigFile
     writeUpdate (UpdatePackage package updateConfig) = do
-      cyanMessage . T.pack $ "Updating package '" ++ (Package.getLocalName . Daml.packageConfig $ package) ++ "'"
+      cyanMessage . T.pack $ "Updating package '" <> (Package.getLocalName . Daml.packageConfig $ package) <> "'"
       flip Daml.writeDamlConfig updateConfig $ getDamlPath package
     writeSuccessMessage = successMessage . T.pack $ "Packages successfully updated!"
   in
@@ -65,11 +65,11 @@ dryRun root config localPackages = do
         newVersion = Daml.version updateConfig
         dataDependencies = L.concat . maybeToList . Daml.dataDependencies . Daml.damlConfig $ package
         newDataDependencies = L.concat . maybeToList . Daml.dataDependencies $ updateConfig
-      warningMessage . T.pack $ "Package to update : " ++ (Package.getLocalName . Daml.packageConfig $ package)
-      when (version /= newVersion) $ redMessage . T.pack $ "Current version : " ++ version
+      warningMessage . T.pack $ "Package to update : " <> (Package.getLocalName . Daml.packageConfig $ package)
+      when (version /= newVersion) $ redMessage . T.pack $ "Current version : " <> version
       redMessage . T.pack $ "Removing data-dependencies :"
       mapM_ (redMessage . T.pack) $ dataDependencies \\ newDataDependencies
-      when (version /= newVersion) $ cyanMessage . T.pack $ "Updated version : " ++ newVersion
+      when (version /= newVersion) $ cyanMessage . T.pack $ "Updated version : " <> newVersion
       cyanMessage . T.pack $ "Adding data-dependencies :"
       mapM_ (cyanMessage . T.pack) $ newDataDependencies \\ dataDependencies
       putStr "\n"
@@ -80,8 +80,8 @@ validate root config localPackages =
   processDataDependencies root config localPackages >>= \case
     [] -> successMessage . T.pack $ "All packages are up-to-date!"
     xs -> do
-      errorMessage . T.pack $ show (length xs) ++ " package/s require updating."
-      errorMessage . T.pack $ "Packages=[" ++ foldl f "" xs ++ "]."
+      errorMessage . T.pack $ show (length xs) <> " package/s require updating."
+      errorMessage . T.pack $ "Packages=[" <> foldl f "" xs <> "]."
       error "Run 'packell data-dependencies update' to resolve this error."
         where
         getPackageName = Package.getLocalName . Daml.packageConfig . package

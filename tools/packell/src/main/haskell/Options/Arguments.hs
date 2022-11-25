@@ -9,7 +9,7 @@ module Options.Arguments (
   , parseInputs
 ) where
 
-import Options.Applicative(
+import Options.Applicative (
     (<**>)
   , (<|>)
   , Parser
