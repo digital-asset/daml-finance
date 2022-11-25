@@ -55,7 +55,7 @@ We first give a quick outline of the settlement process.
 +--------------------+-----------------------------------------------------------------------------+
 | 4. Settle the      | A :ref:`Batch <type-daml-finance-interface-settlement-batch-batch-97497>`   |
 |    batch           | contract is used to settle all instructions atomically according to the     |
-|                    | specified preferences (e.g., by transfering all allocated holdings to the   |
+|                    | specified preferences (e.g. by transfering all allocated holdings to the   |
 |                    | corresponding receiving accounts).                                          |
 |                    |                                                                             |
 |                    | This batch contract is created in step 2, together with the settlement      |
