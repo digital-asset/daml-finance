@@ -54,8 +54,8 @@ The implementation layer consists of the following packages:
 
 - ``Daml.Finance.Holding`` defines default implementations for holdings
 - ``Daml.Finance.Account`` defines default implementations for accounts
-- ``Daml.Finance.Settlement`` defines templates for settlement route providers, instructions, and
-  arbitrary batched settlements
+- ``Daml.Finance.Settlement`` defines templates for settlement route providers, settlement
+  instructions, and arbitrary batched settlements
 - ``Daml.Finance.Lifecycle`` defines an implementation of lifecycle effects and a rule template to
   facilitate their settlement
 - ``Daml.Finance.Instrument.*`` contains implementations for various instrument types
