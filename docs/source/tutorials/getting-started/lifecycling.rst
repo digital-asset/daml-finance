@@ -34,7 +34,7 @@ We first give a high-level outline of the lifecycle process.
 |                                                 | this instrument can then be used to claim the resulting lifecycle effect.               |
 |                                                 |                                                                                         |
 +-------------------------------------------------+-----------------------------------------------------------------------------------------+
-| 4. Process the event through the lifecycle rule | The lifecycle rule contains the business logic to derive the lifecycle effects          |
+| 3. Process the event through the lifecycle rule | The lifecycle rule contains the business logic to derive the lifecycle effects          |
 |                                                 | resulting from a concrete event. The effect describes the per-unit holding transfers    |
 |                                                 | that are to be settled between a custodian and the owner of a holding.                  |
 |                                                 |                                                                                         |

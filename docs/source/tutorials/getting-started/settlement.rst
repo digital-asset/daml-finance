@@ -25,13 +25,13 @@ We first give a quick outline of the settlement process.
 
 +--------------------+-----------------------------------------------------------------------------+
 | 1. Define steps to | Two (or more) parties need to first agree on a set of                       |
-| be settled         | :ref:`steps <type-daml-finance-interface-settlement-types-step-78661>`      |
+|    be settled      | :ref:`steps <type-daml-finance-interface-settlement-types-step-78661>`      |
 |                    | to be settled.                                                              |
 |                    |                                                                             |
 +--------------------+-----------------------------------------------------------------------------+
 | 2. Generate        | :ref:`Instructions                                                          |
-| settlement         | <type-daml-finance-interface-settlement-instruction-instruction-30569>`     |
-| instructions       | are generated for each step.                                                |
+|    settlement      | <type-daml-finance-interface-settlement-instruction-instruction-30569>`     |
+|    instructions    | are generated for each step.                                                |
 |                    |                                                                             |
 |                    | An instruction is a contract where the sender can specify its               |
 |                    | :ref:`Allocation                                                            |
@@ -49,12 +49,12 @@ We first give a quick outline of the settlement process.
 |                    |                                                                             |
 +--------------------+-----------------------------------------------------------------------------+
 | 3. Allocate and    | For every instruction, the sender and receiver specify their allocation     |
-| approve            | and approval preferences, respectively.                                     |
-| instructions       |                                                                             |
+|    approve         | and approval preferences, respectively.                                     |
+|    instructions    |                                                                             |
 |                    |                                                                             |
 +--------------------+-----------------------------------------------------------------------------+
 | 4. Settle the      | A :ref:`Batch <type-daml-finance-interface-settlement-batch-batch-97497>`   |
-| batch              | contract is used to settle all instructions atomically according to the     |
+|    batch           | contract is used to settle all instructions atomically according to the     |
 |                    | specified preferences (e.g., by transfering all allocated holdings to the   |
 |                    | corresponding receiving accounts).                                          |
 |                    |                                                                             |
@@ -159,15 +159,18 @@ following happens:
 - USD 100 are transferred from Alice's bank to Bob's bank (via their accounts at the central bank)
 - USD 100 are credited to Bob's account at his bank
 
-A single settlement ``Step`` requires three ``RoutedStep`` to settle.
+A single settlement :ref:`Step <type-daml-finance-interface-settlement-types-step-78661>` requires
+three :ref:`RoutedStep <type-daml-finance-interface-settlement-types-routedstep-10086>`\s to settle.
 
-The same dynamics can be reproduced in Daml with a Route Provider implementation, allowing for
-on-ledger intermediated settlement. An example will be covered in one of the following tutorials.
+The same dynamics can be reproduced in Daml with a :ref:`Route Provider
+<type-daml-finance-interface-settlement-routeprovider-routeprovider-53805>` implementation, allowing
+for on-ledger intermediated settlement. An example will be covered in one of the following
+tutorials.
 
 Why do we need a settlement factory?
 ====================================
 
-A settlement factory contract is used to generate settlement ``Instructions`` from ``routed steps``.
+A settlement factory contract is used to generate settlement ``Instructions`` from ``RoutedStep``\s.
 It also generates a ``Batch`` contract which is used to settle instructions atomically.
 
 The reason why the factory is needed has already been introduced in the previous tutorial: it
