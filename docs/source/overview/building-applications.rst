@@ -49,7 +49,7 @@ Application Architecture
 When building applications using Daml Finance it is important to ensure your application only
 depends on the interface layer (i.e., the public API) of Daml Finance. Furthermore, it is suggested
 that your application follows a similar split between interface (API) and implementation layer in
-order to maximize upgradability and minimize the impact of imcremental changes to your application
+order to maximize upgradability and minimize the impact of incremental changes to your application
 or Daml Finance.
 
 The following picture shows a suggested architecture that minimizes undesireable coupling and
@@ -59,7 +59,7 @@ optimizes for upgradability of your application:
    :alt: A diagram shows two sections: the Customer Application and Daml Finance. Both sections
          contain boxes separating an interface and implementation layer in each. The customer
          application interface and implementation boxes are annotated with the number 1. These boxes
-         are conntected to the Daml Finance interface layer through an arrow, annotated with the
+         are connected to the Daml Finance interface layer through an arrow, annotated with the
          number 2. Another box in the Customer Application, containing "UI / Integrations /
          Triggers", is connected to the interface layers of the Customer Application and Daml
          Finance, annotated with the number 3. A box in the Customer Application containing "Setup
@@ -68,15 +68,15 @@ optimizes for upgradability of your application:
 
 The following annotations are highlighted in the diagram:
 
-1. The Customer Application should be split into an implementation and interface (API) layer. This
+1. The customer application should be split into an implementation and interface (API) layer. This
    ensures that implementations can be upgraded without affecting client-side applications, like the
    UI, integrations, or Daml Triggers.
 2. The customer application (both, the interface and implementation layer) should only depend on the
    interface layer (API) of Daml Finance. This ensures that upgrades to the implementation layer of
-   Daml Finance don't affect the Customer Application.
+   Daml Finance do not affect the Customer Application.
 3. All client-side code (UI, integrations, Daml Triggers, etc.) should only depend on the interface
    layers of Daml Finance and the Customer Application. This ensures that any implementation
-   upgrades in Daml Finance or the Customer Application don't affect client-side code.
+   upgrades in Daml Finance or the Customer Application do not affect client-side code.
 4. Any setup scripts used to initialize the application can (and usually have to) depend on the
    implementation layers of Daml Finance and the Customer Application. This is required to setup
    contracts like factories, where a dependency on the implementation package is needed. It does not
@@ -89,16 +89,16 @@ overall application:
 - If a Daml Finance implementation package is upgraded, only the contracts for templates within the
   package have to be upgraded. The Customer Application itself is unaffected because it only depends
   on the interface packages, which remain unchanged.
-- If a Customer Application implementation package is upgraded, only the contracts for templates
+- If a customer application implementation package is upgraded, only the contracts for templates
   within that package need to be upgraded. The client-side code of the application is unaffected, as
   it only depends on the Customer Application interface layer.
-- If a Daml Finance interface package is upgraded, the affected parts in the Customer Application
-  implementation, interface, or client-side layer need to be upgraded. To minimized the impact of
-  such change it is suggested that the Customer Application layers themselves are divided into
+- If a Daml Finance interface package is upgraded, the affected parts in the customer application
+  implementation, interface, or client-side layer need to be upgraded. To minimize the impact of
+  such change it is suggested that the customer application layers themselves are divided into
   packages, that each depend on a minimal set of Daml Finance interface packages.
-- If a Customer Application interface package is upgraded the corresponding implementation packages,
+- If a customer application interface package is upgraded the corresponding implementation packages,
   as well as the affected client-side code have to be upgraded. Again, splitting up the interface
-  (API) layer of the Customer Application can minimzed the impact of such change.
+  (API) layer of the customer application can minimize the impact of such change.
 
 In general, we will provide upgrade contracts and scripts to facilitate migration between major
 version updates of packages within the Daml Finance perimeter.

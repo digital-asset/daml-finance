@@ -90,7 +90,7 @@ functionally change the interface implementation is also considered a minor or p
 increase of an implementation package. If an implementation package changes to implement a new major
 version of an interface the major version of the implementation will change as well.
 
-We intent to provide upgrade contracts and scripts for contracts within the Daml Finance perimeter
+We intend to provide upgrade contracts and scripts for contracts within the Daml Finance perimeter
 for major version upgrades only.
 
 Note that deprecations of package versions only happens in the context of a Daml SDK release. They
