@@ -12,6 +12,7 @@ module Daml.DataDependencies (
 ) where
 
 import Colourista.IO (errorMessage, successMessage, boldMessage, redMessage, infoMessage, greenMessage, warningMessage, yellowMessage, skipMessage, cyanMessage)
+import Control.Monad (when)
 import qualified Daml.Import as Import (getPackageModules)
 import Daml.Source (Source(..), getSource)
 import qualified Daml.Package as Daml (Package(..), damlConfig,  packageConfig)
@@ -19,7 +20,7 @@ import qualified Daml.Version as Version (update)
 import qualified Daml.Yaml as Daml (Config(..), damlConfigFile, source, version, writeDamlConfig)
 import Data.Foldable (foldlM)
 import Data.Functor ((<&>))
-import Data.List (sort, group, nub, isPrefixOf, find, delete)
+import Data.List (sort, group, nub, isPrefixOf, find, delete, (\\))
 import Data.Maybe (catMaybes, maybeToList)
 import qualified Data.Text as T (pack)
 import qualified GHC.List as L (concat)
@@ -59,11 +60,18 @@ dryRun root config localPackages = do
     xs -> mapM_ printUpdate xs
   where
     printUpdate (UpdatePackage package updateConfig) = do
+      let
+        version = Daml.version . Daml.damlConfig $ package
+        newVersion = Daml.version updateConfig
+        dataDependencies = L.concat . maybeToList . Daml.dataDependencies . Daml.damlConfig $ package
+        newDataDependencies = L.concat . maybeToList . Daml.dataDependencies $ updateConfig
       warningMessage . T.pack $ "Package to update : " ++ (Package.getLocalName . Daml.packageConfig $ package)
-      redMessage . T.pack $ "Current data dependencies :"
-      mapM_ (redMessage . T.pack) $ L.concat . maybeToList . Daml.dataDependencies . Daml.damlConfig $ package
-      cyanMessage . T.pack $ "Updated data dependencies :"
-      mapM_ (cyanMessage . T.pack) $ L.concat . maybeToList . Daml.dataDependencies $ updateConfig
+      when (version /= newVersion) $ redMessage . T.pack $ "Current version : " ++ version
+      redMessage . T.pack $ "Removing data-dependencies :"
+      mapM_ (redMessage . T.pack) $ dataDependencies \\ newDataDependencies
+      when (version /= newVersion) $ cyanMessage . T.pack $ "Updated version : " ++ newVersion
+      cyanMessage . T.pack $ "Adding data-dependencies :"
+      mapM_ (cyanMessage . T.pack) $ newDataDependencies \\ dataDependencies
       putStr "\n"
 
 -- | Validates if any package data-dependences requires updating. Throws an exception if any package requires updating.

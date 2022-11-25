@@ -8,12 +8,12 @@
 
 module Git.Commands where
 
-import Shelly (run_, shelly, verbosely, run, cmd, CmdArg (toTextArg))
+import Shelly (run_, shelly, verbosely, run, cmd, CmdArg (toTextArg), silently)
 import System.Directory (canonicalizePath)
 
 -- | Fetch latest objects/refs from origin.
 fetch :: IO ()
-fetch = shelly $ run_ "git" [ "fetch" ]
+fetch = shelly . silently $ run_ "git" [ "fetch" ]
 
 -- | Determine for a set of files if there has been any changes between the provided tag and the head of the changelog.
 hasDiff :: String -> [FilePath] -> IO Bool
@@ -23,4 +23,4 @@ hasDiff tag files = do
 
 -- | Checks if a tag already exists.
 tagExists :: String -> IO Bool
-tagExists tag = (/=) mempty <$> (shelly . verbosely $ run "git" ["tag", "-l", toTextArg tag])
+tagExists tag = (/=) mempty <$> (shelly . silently $ run "git" ["tag", "-l", toTextArg tag])

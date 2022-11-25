@@ -33,7 +33,7 @@ import Options.Applicative(
   , customExecParser
   , prefs
   , hsubparser
-  , command
+  , command, switch
   )
 
 -- | Packell main commands set.
@@ -52,6 +52,7 @@ data DataDependenciesCommand
 -- | Input arguments to the application.
 data Arguments = Arguments {
     optPackageConfigPath :: FilePath
+  , optFetch :: Bool
   , optCommand :: Command
   } deriving (Show)
 
@@ -83,6 +84,9 @@ parameters =
       <> showDefault
       <> value "package/packages.yaml"
       <> help "Path to the package configuration")
+    <*> switch (long "fetch"
+      <> short 'f'
+      <> help "Fetch from git")
     <*> commandParser
 
 -- | Custom exex parser to display options, subcommands, help, etc. on error.
