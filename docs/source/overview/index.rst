@@ -10,3 +10,5 @@ Overview
 
    Introduction <intro>
    Architecture <architecture>
+   Building Applications <building-applications>
+   Extending Daml Finance <extending-daml-finance>

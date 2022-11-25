@@ -5,7 +5,8 @@ How to Implement a Contingent Claims-Based Instrument
 #####################################################
 
 In this chapter we will look at how to create a strongly typed instrument, which leverages the
-:doc:`Contingent Claims <../../concepts/contingent-claims>` library. As an example, we will see how the
+:doc:`Contingent Claims <../../concepts/contingent-claims>` library. As an example, we will see how
+the
 :ref:`fixed rate bond instrument <module-daml-finance-instrument-bond-fixedrate-instrument-67993>`
 is implemented in Daml Finance. The goal is that you will learn how to implement your own instrument
 template, if you need an instrument type that is not already implemented in Daml Fincance.
@@ -74,7 +75,6 @@ Keywords like
 :ref:`one <function-contingentclaims-core-claim-one-13168>` and
 :ref:`give <function-contingentclaims-core-claim-give-6964>`
 are defined in the :doc:`Contingent Claims documentation <../../concepts/contingent-claims>`.
-The :doc:`Quickstart <../../concepts/contingent-claims/quickstart>` is a good starting point to learn about these.
 
 How to Define the Coupon Claims
 ===============================
@@ -140,7 +140,8 @@ In our fixed rate bond example above, the coupon amount is pre-determined at the
 instrument. In contrast, a floating rate coupon is defined by the value of a reference rate during
 the lifetime of the bond. Since we do not know this value when the instrument is created, we need to
 define the coupon based on a future observation of the reference rate. In order to do this we
-introduce the concept of an :ref:`Observable <module-daml-finance-data-observable-observation-7524>`.
+introduce the concept of an
+:ref:`Observable <module-daml-finance-data-observable-observation-7524>`.
 
 In the instrument definition, we need an identifier for the reference rate:
 
