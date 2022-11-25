@@ -20,11 +20,12 @@ import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
 import Daml.Finance.Interface.Types.Common (Id(..), Parties)
 import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
+import Daml.Finance.Settlement.RouteProvider.SingleCustodian (SingleCustodian(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
-import Daml.Finance.Test.Util.Lifecycle (createClockAndEvent)
+import Daml.Finance.Test.Util.Time (createClockUpdateEvent)
 import Daml.Script
 
 -- | Parties involved in the test script.
@@ -82,8 +83,8 @@ run = script do
   investorGenericHoldingCid <-
     Account.credit [publicParty] genericInstrument 1_000.0 investorAccount
 
-  -- create clock and clock update event
-  (clockCid, clockEventCid) <- createClockAndEvent (singleton broker) maturity empty
+  -- create clock update event
+  clockEventCid <- createClockUpdateEvent (singleton broker) maturity empty
 
   -- Lifecycle derivative
   lifecycleRuleCid : ContractId Lifecycle.I <- toInterfaceContractId <$> submit bank do
@@ -94,12 +95,15 @@ run = script do
       with
         eventCid = clockEventCid
         observableCids = [observableCid]
-        timeObservableCid = clockCid
         instrument = genericInstrument
+
+  -- Create route provider
+  routeProviderCid <- toInterfaceContractId <$> submit bank do
+    createCmd SingleCustodian with provider = bank; observers = empty; custodian = bank
 
   -- Create settlement factory
   settlementFactoryCid <- toInterfaceContractId <$> submit bank do
-    createCmd Factory with provider = bank; observers = empty; custodian = bank
+    createCmd Factory with provider = bank; observers = empty
 
   -- Claim effect
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit bank do
@@ -108,6 +112,7 @@ run = script do
         providers = singleton bank
         claimers = fromList [bank, investor]
         settlers
+        routeProviderCid
         settlementFactoryCid
         netInstructions = False
 

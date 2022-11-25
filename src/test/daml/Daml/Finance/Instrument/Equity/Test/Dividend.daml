@@ -5,7 +5,7 @@ module Daml.Finance.Instrument.Equity.Test.Dividend where
 
 import DA.Date (toDateUTC)
 import DA.Map qualified as M (fromList)
-import DA.Set (empty, fromList, singleton)
+import DA.Set (fromList, singleton)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Instrument.Equity.Test.Util (originateEquity)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (qty)
@@ -19,12 +19,12 @@ import Daml.Finance.Interface.Types.Common (Id(..))
 import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
 import Daml.Finance.Lifecycle.Rule.Distribution qualified as Distribution (Rule(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
+import Daml.Finance.Settlement.RouteProvider.SingleCustodian (SingleCustodian(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
 import Daml.Finance.Test.Util.Instrument (originate)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (submitExerciseInterfaceByKeyCmd)
-import Daml.Finance.Test.Util.Lifecycle (createClockAndEvent)
 import Daml.Script
 
 -- Cash dividend lifecycling and settlement
@@ -44,11 +44,9 @@ run = script do
   investorAccount <- Account.createAccount "Account" [public] accountFactoryCid holdingFactoryCid []
     Account.Owner custodian investor
 
-  -- Create clock
-  now <- getTime
-  (clockCid, clockEventCid) <- createClockAndEvent (singleton issuer) (toDateUTC now) empty
 
   -- Originate instruments
+  now <- getTime
   cashInstrument <- originate cb cb "USD" "United States Dollar" pp now
   cumEquityInstrument <- originateEquity issuer issuer "EQUITY-INST-1" "0" "APPL" pp now
   exEquityInstrument <- originateEquity issuer issuer "EQUITY-INST-1" "1" "APPL" [] now
@@ -74,19 +72,22 @@ run = script do
     exerciseCmd distributionRuleCid Lifecycle.Evolve with
       observableCids = []
       eventCid = distributionEventCid
-      timeObservableCid = clockCid
       instrument = cumEquityInstrument
 
   -- Claim effect
+  routeProviderCid <- toInterfaceContractId <$> submit custodian do
+    createCmd SingleCustodian with
+      provider = custodian; observers = singleton public; custodian
   settlementFactoryCid <- toInterfaceContractId <$> submit custodian do
     createCmd Factory with
-      provider = custodian; observers = singleton public; custodian
+      provider = custodian; observers = singleton public
   claimRuleCid <- toInterfaceContractId @Claim.I <$> submit custodian do
     createCmd Claim.Rule
       with
         providers = singleton custodian
         claimers = fromList [investor, custodian]
         settlers = fromList [investor, custodian]
+        routeProviderCid
         settlementFactoryCid
         netInstructions = False
 

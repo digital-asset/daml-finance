@@ -5,8 +5,9 @@ module Daml.Finance.Instrument.Swap.Test.Util where
 
 import DA.Date
 import DA.List (head, sort)
-import DA.Map qualified as M (fromList)
+import DA.Map qualified as M (empty, fromList)
 import DA.Set qualified as S (empty, singleton)
+import Daml.Finance.Claims.Lifecycle.Rule (Rule(..))
 import Daml.Finance.Instrument.Swap.Asset.Instrument qualified as AssetSwap (Instrument(..))
 import Daml.Finance.Instrument.Swap.CreditDefault.Instrument qualified as CreditDefaultSwap (Instrument(..))
 import Daml.Finance.Instrument.Swap.Currency.Instrument qualified as CurrencySwap (Instrument(..))
@@ -24,8 +25,7 @@ import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
 import Daml.Finance.Interface.Types.Date.RollConvention (PeriodEnum, RollConventionEnum(..))
 import Daml.Finance.Interface.Types.Date.Schedule (Frequency(..), PeriodicSchedule(..))
 import Daml.Finance.Test.Util.Instrument (createReference)
-import Daml.Finance.Test.Util.Instrument qualified as Instrument (submitExerciseInterfaceByKeyCmd)
-import Daml.Finance.Test.Util.Lifecycle (createClockAndEvent)
+import Daml.Finance.Test.Util.Time (createClockUpdateEvent)
 import Daml.Script
 
 -- | Create a schedule for periodic payments.
@@ -173,17 +173,20 @@ lifecycleInstrument : [Party] -> Date -> Instrument.K -> Party ->
   [ContractId NumericObservable.I] -> Script (Optional Instrument.K, [ContractId Effect.I])
 lifecycleInstrument readAs today instrument issuer observableCids = do
   -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_BEGIN
-  -- create clock and clock update event
-  (clockCid, clockEventCid) <- createClockAndEvent (S.singleton issuer) today S.empty
+  -- create clock update event
+  clockEventCid <- createClockUpdateEvent (S.singleton issuer) today S.empty
   -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_END
 
-  -- LIFECYCLE_BOND_BEGIN
+  -- Create a lifecycle rule
+  lifecycleRuleCid : ContractId Lifecycle.I <- toInterfaceContractId <$> submit issuer do
+    createCmd Rule with providers = S.singleton issuer; observers= M.empty; lifecycler = issuer
+
   -- Try to lifecycle instrument
-  (lifecycleCid, effectCids) <-
-    Instrument.submitExerciseInterfaceByKeyCmd @Lifecycle.I [issuer] readAs instrument
-      Lifecycle.Evolve with
-        eventCid = clockEventCid; observableCids; timeObservableCid = clockCid; instrument
-  -- LIFECYCLE_BOND_END
+  (lifecycleCid, effectCids) <- submitMulti [issuer] readAs do
+    exerciseCmd lifecycleRuleCid Lifecycle.Evolve with
+      eventCid = clockEventCid
+      observableCids
+      instrument
 
   pure (lifecycleCid, effectCids)
 

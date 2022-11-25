@@ -26,14 +26,15 @@ import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), In
 import Daml.Finance.Interface.Types.Common (Id(..), Parties)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, AddObservers(..))
 import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
-import Daml.Finance.Settlement.Factory (FactoryWithIntermediaries(..))
+import Daml.Finance.Settlement.Factory (Factory(..))
 import Daml.Finance.Settlement.Hierarchy (Hierarchy(..))
 import Daml.Finance.Settlement.Instruction qualified as Instruction (T)
+import Daml.Finance.Settlement.RouteProvider.IntermediatedStatic (IntermediatedStatic(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit, submitExerciseInterfaceByKeyCmd)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
 import Daml.Finance.Test.Util.Instrument qualified as BaseInstrument (originate)
-import Daml.Finance.Test.Util.Lifecycle (createClockAndEvent)
+import Daml.Finance.Test.Util.Time (createClockUpdateEvent)
 import Daml.Script
 
 {-
@@ -42,19 +43,19 @@ import Daml.Script
 
   Bond (security) account structure :
 
-          Issuer
-           |
-          CSD
-           |
-          Investor
+     Issuer
+       |
+      CSD
+       |
+    Investor
 
   Cash account structure :
 
-          Central Bank
-          /     |     \
-       CSD   Issuer  Bank
-                        \
-                      Investor
+      Central Bank
+      /    |     \
+    CSD  Issuer  Bank
+                   \
+                 Investor
 
   In the "non-atomic" script, the lifecycling and settlement happen in three steps:
     - issuer lifecycles the instrument
@@ -153,8 +154,7 @@ runIntermediatedLifecyclingNonAtomic = script do
 
   -- Originate and distribute central-bank cash
   now <- getTime
-  let
-    today = toDateUTC now
+  let today = toDateUTC now
 
   (cashInstrument, cashRoute) <- originateCashAndDefineRoute parties now
   issuerCashHoldingCid <- Account.credit [publicParty] cashInstrument 20_000.0 issuerCashAccount
@@ -165,8 +165,8 @@ runIntermediatedLifecyclingNonAtomic = script do
   investorBondHoldingCid <-
     Account.credit [publicParty] bondInstrument 1_000_000.0 investorSecuritiesAccount
 
-  -- create clock and clock update event
-  (clockCid, clockEventCid) <- createClockAndEvent (singleton issuer) today empty
+  -- create clock update event
+  clockEventCid <- createClockUpdateEvent (singleton issuer) today empty
 
   -- Lifecycle bond
   lifecycleRuleCid : ContractId Lifecycle.I <- toInterfaceContractId <$> submit csd do
@@ -176,7 +176,6 @@ runIntermediatedLifecyclingNonAtomic = script do
     exerciseCmd lifecycleRuleCid Lifecycle.Evolve with
       eventCid = clockEventCid
       observableCids = []
-      timeObservableCid = clockCid
       instrument = bondInstrument
 
   -- Define settlement routes across intermediaries
@@ -210,12 +209,12 @@ runIntermediatedLifecyclingNonAtomic = script do
 
   -- investor claims effect against CSD
 
+  routeProviderCid <- toInterfaceContractId <$> submit csd do
+    createCmd IntermediatedStatic with
+      provider = csd; observers = fromList [investor]; paths = routes
+
   settlementFactoryCid <- submit csd do
-    toInterfaceContractId <$> createCmd FactoryWithIntermediaries
-      with
-        provider = csd
-        paths = routes
-        observers = fromList [investor]
+    toInterfaceContractId <$> createCmd Factory with provider = csd; observers = fromList [investor]
 
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit csd do
     createCmd Claim.Rule
@@ -223,6 +222,7 @@ runIntermediatedLifecyclingNonAtomic = script do
         providers = singleton csd
         claimers = fromList [csd, investor]
         settlers
+        routeProviderCid
         settlementFactoryCid
         netInstructions = False
 
@@ -298,8 +298,7 @@ runIntermediatedLifecyclingAtomic = script do
 
   -- Originate and distribute central-bank cash
   now <- getTime
-  let
-    today = toDateUTC now
+  let today = toDateUTC now
 
   (cashInstrument, cashRoute) <- originateCashAndDefineRoute parties now
   issuerCashHoldingCid <- Account.credit [publicParty] cashInstrument 20_000.0 issuerCashAccount
@@ -310,8 +309,8 @@ runIntermediatedLifecyclingAtomic = script do
   investorBondHoldingCid <-
     Account.credit [publicParty] bondInstrument 1_000_000.0 investorSecuritiesAccount
 
-  -- create clock and clock update event
-  (clockCid, clockEventCid) <- createClockAndEvent (singleton issuer) today empty
+  -- create clock update event
+  clockEventCid <- createClockUpdateEvent (singleton issuer) today empty
 
   -- Lifecycle bond
   lifecycleRuleCid : ContractId Lifecycle.I <- toInterfaceContractId <$> submit csd do
@@ -321,18 +320,17 @@ runIntermediatedLifecyclingAtomic = script do
     exerciseCmd lifecycleRuleCid Lifecycle.Evolve with
       eventCid = clockEventCid
       observableCids = []
-      timeObservableCid = clockCid
       instrument = bondInstrument
 
   -- Define settlement routes from CSD to Investor and create batch factory
   let routes = M.fromList [cashRoute, bondRoute]
 
+  routeProviderCid <- toInterfaceContractId <$> submit csd do
+    createCmd IntermediatedStatic with
+      provider = csd; observers = fromList [investor]; paths = routes
+
   settlementFactoryCid <- submit csd do
-    toInterfaceContractId <$> createCmd FactoryWithIntermediaries
-      with
-        provider = csd
-        paths = routes
-        observers = fromList [investor]
+    toInterfaceContractId <$> createCmd Factory with provider = csd; observers = fromList [investor]
 
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit csd do
     createCmd Claim.Rule
@@ -340,6 +338,7 @@ runIntermediatedLifecyclingAtomic = script do
         providers = fromList [csd]
         claimers = singleton csd
         settlers
+        routeProviderCid
         settlementFactoryCid
         netInstructions = False
 
@@ -350,28 +349,31 @@ runIntermediatedLifecyclingAtomic = script do
       effectCid
       batchId = Id "CouponSettlement"
 
-  let [   csdBondInstructionCid1      -- old bond from CSD to issuer
-        , issuerBondInstructionCid    -- new bond from issuer to CSD
-        , issuerCashInstructionCid    -- coupon payment from issuer to CSD
-        , investorBondInstructionCid  -- old bond from investor to CSD
-        , csdBondInstructionCid2      -- new bond from CSD to investor
-        , csdCashInstructionCid       -- coupon payment from CSD to investor's bank
-        , bankCashInstructionCid      -- coupon payment from investor's bank to investor
-        ] = result.instructionCids
+  let
+    [   csdBondInstructionCid1      -- old bond from CSD to issuer
+      , issuerBondInstructionCid    -- new bond from issuer to CSD
+      , issuerCashInstructionCid    -- coupon payment from issuer to CSD
+      , investorBondInstructionCid  -- old bond from investor to CSD
+      , csdBondInstructionCid2      -- new bond from CSD to investor
+      , csdCashInstructionCid       -- coupon payment from CSD to investor's bank
+      , bankCashInstructionCid      -- coupon payment from investor's bank to investor
+      ] = result.instructionCids
 
   Some issuerCashInstruction <-
     queryContractId csd $ fromInterfaceContractId @Instruction.T issuerCashInstructionCid
-  let issuerCashInstructionKey = InstructionKey with
-        requestors = issuerCashInstruction.requestors
-        batchId = issuerCashInstruction.batchId
-        id = issuerCashInstruction.id
+  let
+    issuerCashInstructionKey = InstructionKey with
+      requestors = issuerCashInstruction.requestors
+      batchId = issuerCashInstruction.batchId
+      id = issuerCashInstruction.id
 
   Some csdCashInstruction <-
     queryContractId csd $ fromInterfaceContractId @Instruction.T csdCashInstructionCid
-  let csdCashInstructionKey = InstructionKey with
-        requestors = csdCashInstruction.requestors
-        batchId = csdCashInstruction.batchId
-        id = csdCashInstruction.id
+  let
+    csdCashInstructionKey = InstructionKey with
+      requestors = csdCashInstruction.requestors
+      batchId = csdCashInstruction.batchId
+      id = csdCashInstruction.id
 
   -- Allocate instructions
   (csdBondInstructionCid1, _) <- submit csd do
@@ -493,16 +495,17 @@ template EffectSettlementService
         assertMsg "wrong fungible" $ getInstrument fungible == oldInstrument
 
         -- 1. csd claims effect against issuer
-        settlementFactoryCid <- create FactoryWithIntermediaries with
+        routeProviderCid <- toInterfaceContractId <$> create IntermediatedStatic with
           provider = csd; observers = empty; paths = settlementRoutes
+        settlementFactoryCid <- create Factory with provider = csd; observers = empty
 
-        lifecycleClaimRuleCid <- create Claim.Rule
-          with
-            providers = singleton issuer
-            claimers = fromList [issuer, csd]
-            settlers = singleton csd
-            settlementFactoryCid = toInterfaceContractId settlementFactoryCid
-            netInstructions = False
+        lifecycleClaimRuleCid <- create Claim.Rule with
+          providers = singleton issuer
+          claimers = fromList [issuer, csd]
+          settlers = singleton csd
+          routeProviderCid
+          settlementFactoryCid = toInterfaceContractId settlementFactoryCid
+          netInstructions = False
 
         result <- exercise (toInterfaceContractId @Claim.I lifecycleClaimRuleCid)
           Claim.ClaimEffect with

@@ -25,10 +25,10 @@ import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
 import Daml.Finance.Interface.Types.Common (Id(..), Parties)
 import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
+import Daml.Finance.Settlement.RouteProvider.SingleCustodian (SingleCustodian(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
-import Daml.Finance.Test.Util.Lifecycle (createClockAndEvent)
 import Daml.Script
 import Prelude hiding (and, or)
 
@@ -110,9 +110,6 @@ run = script do
       observers = singleton publicParty
       instrument = genericInstrument
 
-  -- create clock (defines current time) and set it at the intermediate date
-  (clockCid, clockEventCid) <- createClockAndEvent (singleton issuer) intermediateDate empty
-
   ---------------------------------
   -- 2. ELECTION : CALL THE BOND --
   ---------------------------------
@@ -140,13 +137,17 @@ run = script do
   (_, [effectCid]) <- submit issuer do
     exerciseCmd callBondCid Election.Apply
       with
-        clockCid
         observableCids = []
         exercisableCid = lifecycleRuleCid
 
+  -- Create route provider
+  routeProviderCid <- toInterfaceContractId <$> submit bank do
+    createCmd SingleCustodian with
+      provider = bank; observers = empty; custodian = bank
+
   -- Create settlement factory
   settlementFactoryCid <- toInterfaceContractId <$> submit bank do
-    createCmd Factory with provider = bank; observers = empty; custodian = bank
+    createCmd Factory with provider = bank; observers = empty
 
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit bank do
     createCmd Claim.Rule
@@ -154,6 +155,7 @@ run = script do
         providers = singleton bank
         claimers = fromList [bank, investor]
         settlers
+        routeProviderCid
         settlementFactoryCid
         netInstructions = True
 
