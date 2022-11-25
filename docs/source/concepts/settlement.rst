@@ -100,7 +100,7 @@ The components in detail
 Route provider
 ==============
 
-When a transfer requires intermediaries to be involved, the role of the so-called
+When a transfer requires intermediaries to be involved, the role of a
 :ref:`Route Provider <type-daml-finance-interface-settlement-routeprovider-routeprovider-53805>`
 becomes important. Let us assume, for instance, that Alice's EUR holding in the example above is
 held at Bank A, whereas Bob has a EUR account at Bank B. Bank A and Bank B both have accounts at the
