@@ -109,7 +109,7 @@ the lifecycle mechanism.
 This is all done in the ``processClockUpdate`` function. We will now break it apart to describe the
 steps in more detail:
 
-.. literalinclude:: ../../../../src/main/daml/Daml/Finance/Claims/Rule.daml
+.. literalinclude:: ../../../../src/main/daml/Daml/Finance/Claims/Lifecycle/Rule.daml
   :language: daml
   :start-after: -- BOND_PROCESS_CLOCK_UPDATE_INITAL_CLAIMS_BEGIN
   :end-before: -- BOND_PROCESS_CLOCK_UPDATE_INITAL_CLAIMS_END
@@ -118,7 +118,7 @@ First, we retrieve the inital claims of the instrument. This represents the bond
 By keeping track of ``lastEventTimestamp`` (in our case: the last time a coupon was paid), we can
 "fast forward" to the remaining claims of the instrument:
 
-.. literalinclude:: ../../../../src/main/daml/Daml/Finance/Claims/Rule.daml
+.. literalinclude:: ../../../../src/main/daml/Daml/Finance/Claims/Lifecycle/Rule.daml
   :language: daml
   :start-after: -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_FASTFORWARD_BEGIN
   :end-before: -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_FASTFORWARD_END
@@ -128,7 +128,7 @@ If there is a lifecycle effect (for example a coupon), we will create an
 :ref:`Effect <module-daml-finance-lifecycle-effect-1975>`
 for it, which can then be settled.
 
-.. literalinclude:: ../../../../src/main/daml/Daml/Finance/Claims/Rule.daml
+.. literalinclude:: ../../../../src/main/daml/Daml/Finance/Claims/Lifecycle/Rule.daml
   :language: daml
   :start-after: -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_BEGIN
   :end-before: -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_END
