@@ -160,18 +160,18 @@ custodian at the custodian has no economical value and can be archived).
 To clarify these concepts, here is how the 3 instructions in the intermediated example above would
 be allocated / approved.
 
-+--------------------------------------+----------------------+------------------------------------+
-| Instruction                          | Allocation           | Approval                           |
-+======================================+======================+====================================+
-| 1A : EUR 1000 from Alice to Bank A   | Alice pledges her    | Bank A approves with DebitSender   |
-|      @Bank A                         | holding              |                                    |
-+--------------------------------------+----------------------------------------+------------------+
-| 2A : EUR 1000 from Bank A to Bank B  | Bank A pledges their | Bank B takes delivery to their     |
-|      @Central Bank                   | holding              | account                            |
-+--------------------------------------+----------------------------------------+------------------+
-| 3A : EUR 1000 from Bank B to Bob     | Bank B allocates     | Bob takes delivery to his account  |
-|      @Bank B                         | with CreditReceiver  |                                    |
-+--------------------------------------+----------------------+------------------------------------+
++----------------------------------------------------+----------------------+----------------------+
+| Instruction                                        | Allocation           | Approval             |
++====================================================+======================+======================+
+| 1A : EUR 1000 from Alice to Bank A @ Bank A        | Alice pledges her    | Bank A approves      |
+|                                                    | holding              | with DebitSender     |
++----------------------------------------------------+----------------------+----------------------+
+| 2A : EUR 1000 from Bank A to Bank B @ Central Bank | Bank A pledges       | Bank B takes delivery|
+|                                                    | their holding        | to their account     |
++----------------------------------------------------+----------------------+----------------------+
+| 3A : EUR 1000 from Bank B to Bob @ Bank B          | Bank B allocates     | Bob takes delivery   |
+|                                                    | with CreditReceiver  | to his account       |
++----------------------------------------------------+----------------------+----------------------+
 
 Finally, the Instruction supports two additional settlement modes:
 
