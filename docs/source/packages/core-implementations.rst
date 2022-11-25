@@ -77,8 +77,8 @@ Core Implementations
     - :ref:`Event.Replacement <module-daml-finance-lifecycle-event-replacement-51859>`:
       Event contract for the replacement of units of an instrument with a basket of other
       instruments (e.g. stock merger)
-    - :ref:`Event.DateClock <module-daml-finance-lifecycle-event-dateclock-57483>`:
-      Event signalling the update of a clock. This can trigger the execution of lifecycle rules for
+    - :ref:`Event.DateClockUpdateEvent <type-daml-finance-lifecycle-event-dateclockupdate-dateclockupdateevent-18229>`:
+      Event signalling the update of a (local date) clock. This can trigger the execution of lifecycle rules for
       some instruments
 
     Check out the :doc:`Lifecycling tutorial <../tutorials/getting-started/lifecycling>` for a
