@@ -9,8 +9,8 @@ This page describes the patterns to follow when building applications using Daml
 Installing Daml Finance
 ***********************
 
-Each Daml SDK release defines a set of consistent package versions that have been tested to work
-with each other. The list of package versions for each Daml SDK release can be found
+Each Daml SDK release defines a set of consistent Daml Finance package versions that have been
+tested to work with each other. The list of package versions for each Daml SDK release can be found
 :ref:`here <releases>`. To facilitate getting started with a particular release set, the Daml SDK
 comes with a ``quickstart-finance`` template that contains a script to download these packages.
 
@@ -38,9 +38,9 @@ require in your project.
 
 Alternatively, if you want to install the latest Daml Finance version into an existing project, you
 can copy and execute these scripts
-(`Unix <https://github.com/digital-asset/daml-finance/blob/main/docs/code-samples/getting-started/get-dependencies.sh>`
+(`Unix <https://github.com/digital-asset/daml-finance/blob/main/docs/code-samples/getting-started/get-dependencies.sh>`_
 and
-`Windows <https://github.com/digital-asset/daml-finance/blob/main/docs/code-samples/getting-started/get-dependencies.bat>`
+`Windows <https://github.com/digital-asset/daml-finance/blob/main/docs/code-samples/getting-started/get-dependencies.bat>`_
 variants) from the main branch of the repository.
 
 Application Architecture
@@ -68,17 +68,17 @@ optimizes for upgradability of your application:
 
 The following annotations are highlighted in the diagram:
 
-1. The customer application should be split into an implementation and interface (API) layer. This
-   ensures that implementations can be upgraded without affecting client-side applications, like the
-   UI, integrations, or Daml Triggers.
-2. The customer application (both, the interface and implementation layer) should only depend on the
+1. The customer application should be split into an implementation and an interface (API) layer.
+   This ensures that implementations can be upgraded without affecting client-side applications,
+   like the UI, integrations, or Daml Triggers.
+2. The customer application (both the interface and implementation layer) should only depend on the
    interface layer (API) of Daml Finance. This ensures that upgrades to the implementation layer of
    Daml Finance do not affect the Customer Application.
 3. All client-side code (UI, integrations, Daml Triggers, etc.) should only depend on the interface
    layers of Daml Finance and the Customer Application. This ensures that any implementation
    upgrades in Daml Finance or the Customer Application do not affect client-side code.
 4. Any setup scripts used to initialize the application can (and usually have to) depend on the
-   implementation layers of Daml Finance and the Customer Application. This is required to setup
+   implementation layers of Daml Finance and the Customer Application. This is required to set up
    contracts like factories, where a dependency on the implementation package is needed. It does not
    affect the overall upgradability of the Customer Application as these operations are usually
    executed once at initial setup, but not during normal operation of the application.
@@ -98,7 +98,7 @@ overall application:
   packages, that each depend on a minimal set of Daml Finance interface packages.
 - If a customer application interface package is upgraded the corresponding implementation packages,
   as well as the affected client-side code have to be upgraded. Again, splitting up the interface
-  (API) layer of the customer application can minimize the impact of such change.
+  (API) layer of the customer application can minimize the impact of such a change.
 
 In general, we will provide upgrade contracts and scripts to facilitate migration between major
 version updates of packages within the Daml Finance perimeter.

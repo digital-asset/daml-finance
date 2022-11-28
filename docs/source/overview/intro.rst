@@ -33,7 +33,7 @@ Daml Finance optimizes for the following aspects:
 
 * Accessibility
 
-   The library is designed to have a low barrier for entry. Users familiar with Daml can get started
+   The library is designed to have a low barrier to entry. Users familiar with Daml can get started
    quickly and leverage the provided functionality easily.
 
 * Maintainability
@@ -67,7 +67,7 @@ be modeled:
 
 * Simple tokens: digital representation of traditional assets
 * Central bank digital currency: retail or wholesale distribution models
-* Standard asset classes: equities with corporate actions, bonds with flexible cashflow modeling
+* Standard asset classes: equities with corporate actions, bonds with flexible cash flow modeling
 * Derivatives: time- and path-dependent derivatives with optionality
 * Synchronized lifecycling: atomic, intermediated lifecycling and settlement of cash flows across
   investors and custodians
@@ -86,7 +86,7 @@ If you want to review the Daml Finance codebase in more detail you can clone
 allows you to navigate the code, including both the template definitions and the tests. In
 particular the tests are useful to show how the library works and how the different components
 interact with each other. If you need to view the code for a specific package release, you can
-check out the `corresponding tag <https://github.com/digital-asset/daml-finance/tags>`.
+check out the `corresponding tag <https://github.com/digital-asset/daml-finance/tags>`_.
 
 As a pre-requisite, the `Daml SDK <https://docs.daml.com/getting-started/installation.html>`_ needs
 to be installed on your machine.
