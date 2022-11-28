@@ -8,7 +8,7 @@ This tutorial describes the :ref:`lifecycle <lifecycling>` flow of a bond instru
 counterparties. We will illustrate the following steps:
 
 #. Creating a fixed-rate bond instrument
-#. Defining the clock for time-based events
+#. Defining a suitable lifecycle event
 #. Lifecycling the bond instrument
 #. Settling the instructions
 
@@ -41,21 +41,20 @@ We also credit the account of an investor:
   :end-before: -- CREDIT_ACCOUNT_FIXED_RATE_BOND_END
 
 
-Define the Clock for Time-Based Events
-**************************************
+Define a lifecycle event
+************************
 
 Since the bond pays a coupon on a yearly basis, payment is a time-based event. The requirement to
 pay the coupon is governed by actual time. However, in a trading and settlement system, it is useful
 to be able to control the time variable, in order to simulate previous/future payments, or to have
 some flexibility regarding when to process events.
 
-We define a clock contract to control the passage of time:
+We define a clock update event contract, which signals that a certain time has been reached:
 
 .. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
   :language: daml
   :start-after: -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_BEGIN
   :end-before: -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_END
-
 
 Lifecycle the Bond Instrument
 *****************************
