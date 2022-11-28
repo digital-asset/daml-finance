@@ -4,7 +4,7 @@
 module Daml.Finance.Settlement.Instruction where
 
 import DA.Assert ((===))
-import DA.Set qualified as S (fromList, insert, intersection, isSubsetOf, member, null, singleton)
+import DA.Set qualified as S (empty, fromList, intersection, isSubsetOf, null, singleton)
 import Daml.Finance.Interface.Account.Account qualified as Account (I, Credit(..), Debit(..), R, disclose, exerciseInterfaceByKey, undisclose)
 import Daml.Finance.Interface.Account.Util (getAccount)
 import Daml.Finance.Interface.Holding.Base qualified as Base (I, getLockers)
@@ -31,7 +31,9 @@ template Instruction
       -- ^ Parties requesting the settlement.
     settlers : Parties
       -- ^ Any of the parties can trigger the settlement.
-    signed : Parties
+    signedSenders : Parties
+      -- ^ Additional signatories, used to collect authorization.
+    signedReceivers : Parties
       -- ^ Additional signatories, used to collect authorization.
     batchId : Id
       -- ^ Trade identifier.
@@ -46,7 +48,7 @@ template Instruction
     observers : PartiesMap
       -- ^ Observers.
   where
-    signatory requestors, signed
+    signatory requestors, signedSenders, signedReceivers
     observer routedStep.sender, routedStep.receiver, settlers, Disclosure.flattenObservers observers
 
     key InstructionKey with requestors; batchId; id : InstructionKey
@@ -63,6 +65,9 @@ template Instruction
         disclose @Holding.I (show batchId, settlers) discloser (S.singleton discloser) cid
       undiscloseT discloser settlers cid =
         undisclose @Holding.I (show batchId, settlers) (S.singleton discloser) cid
+      mustContain' : Parties -> Parties -> Update ()
+      mustContain' actors ps =
+        assertMsg ("actors must include " <> show ps) $ S.isSubsetOf ps actors
 
     interface instance Disclosure.I for Instruction where
       view = Disclosure.View with
@@ -74,8 +79,13 @@ template Instruction
     interface instance Instruction.I for Instruction where
       asDisclosure = toInterface @Disclosure.I this
       view = Instruction.View with
-        requestors; settlers; signed; batchId; id; routedStep; allocation; approval
+        requestors; settlers
+        signedSenders; signedReceivers
+        batchId; id
+        routedStep
+        allocation; approval
       allocate Instruction.Allocate{actors; allocation} = do
+        let mustContain = mustContain' actors
         assertMsg ("allocation must be new" <> messageSuffix) $ allocation /= this.allocation
         -- undisclose previous allocation
         otCid <- case this.allocation of
@@ -96,9 +106,8 @@ template Instruction
             base : Base.I <- fetch $ coerceContractId holdingCid
             discloseA senderAccount
             vSenderAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I senderAccount
-            assertMsg "actors must include instructors" $
-              S.isSubsetOf vSenderAccount.controllers.instructors actors
-            assertMsg "actors must include lockers" $ S.isSubsetOf (Base.getLockers base) actors
+            mustContain vSenderAccount.controllers.instructors
+            mustContain $ Base.getLockers base
             assertMsg "the custodian of the pledged asset must match the target custodian" $
               routedStep.custodian == senderAccount.custodian
             getAmount holding === routedStep.quantity.amount
@@ -107,25 +116,24 @@ template Instruction
           PassthroughFrom (passthroughAccount, fromInstruction) -> do
             discloseA passthroughAccount
             vSenderAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I passthroughAccount
-            assertMsg "actors must include instructors" $
-              S.isSubsetOf vSenderAccount.controllers.instructors actors
+            mustContain vSenderAccount.controllers.instructors
             pure $ PassthroughFrom (passthroughAccount, fromInstruction)
           CreditReceiver -> do
-            assertMsg "the sender must match the target custodian" $
-              routedStep.custodian == routedStep.sender
-            assertMsg "actors must include sender" $ S.member routedStep.sender actors
+            mustContain $ S.singleton routedStep.custodian
             pure CreditReceiver
-          a -> do
-            assertMsg "actors must include sender" $ S.member routedStep.sender actors
-            pure a
-        cid <- toInterfaceContractId <$>
-          create this
-            with
-              allocation = allocationDisclosed
-              signed = S.insert routedStep.sender signed
+          SettleOffLedger -> do
+            mustContain $ S.singleton routedStep.custodian
+            mustContain $ S.singleton routedStep.sender
+            pure SettleOffLedger
+          Unallocated -> do
+            mustContain signedSenders
+            pure Unallocated
+        cid <- toInterfaceContractId <$> create this with
+          allocation = allocationDisclosed
+          signedSenders = if allocationDisclosed == Unallocated then S.empty else actors
         pure (cid, otCid)
       approve Instruction.Approve{actors; approval} = do
-        let newSigned = S.insert routedStep.receiver signed
+        let mustContain = mustContain' actors
         assertMsg ("approval must be new" <> messageSuffix) $ approval /= this.approval
         -- undisclose previous approval
         case this.approval of
@@ -137,23 +145,26 @@ template Instruction
           TakeDelivery receiverAccount -> do
             discloseA receiverAccount
             vReceiverAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I receiverAccount
-            assertMsg "actors must include approvers" $
-              S.isSubsetOf vReceiverAccount.controllers.approvers actors
-            assertMsg "the custodian of the receiver account does not match the target custodian" $
+            mustContain vReceiverAccount.controllers.approvers
+            assertMsg "the custodian must match target custodian" $
               routedStep.custodian == receiverAccount.custodian
           PassthroughTo (passthroughAccount, toInstruction) -> do
             discloseA passthroughAccount
             vReceiverAccount <- view <$>
               fetchInterfaceByKey @Account.R @Account.I passthroughAccount
-            assertMsg "actors must include approvers" $
-              S.isSubsetOf vReceiverAccount.controllers.approvers actors
+            mustContain vReceiverAccount.controllers.approvers
+            mustContain vReceiverAccount.controllers.instructors
           DebitSender -> do
-            assertMsg "the receiver must match the target custodian" $
+            assertMsg "the receiver must be the custodian" $
               routedStep.custodian == routedStep.receiver
-            assertMsg "actors must include receiver" $ S.member routedStep.receiver actors
-          _ -> assertMsg "actors must include receiver" $ S.member routedStep.receiver actors
-
-        toInterfaceContractId <$> create this with signed = newSigned; approval
+            mustContain $ S.singleton routedStep.custodian
+          SettleOffLedgerAcknowledge -> do
+            mustContain $ S.singleton routedStep.custodian
+            mustContain $ S.singleton routedStep.receiver
+          Unapproved -> mustContain signedReceivers
+        toInterfaceContractId <$> create this with
+          approval
+          signedReceivers = if approval == Unapproved then S.empty else actors
       execute Instruction.Execute{actors} = do
         assertMsg "actors must intersect with settlers" $
           not $ S.null $ S.intersection actors settlers
@@ -166,8 +177,7 @@ template Instruction
           (Unallocated, Unapproved) ->
             abort $ "instruction must be allocated and approved" <> messageSuffix
           (Unallocated, _) -> abort $ "instruction must be allocated" <> messageSuffix
-          (_, Unapproved) ->
-            abortUnapproved
+          (_, Unapproved) -> abortUnapproved
           (PassthroughFrom _, _) ->
             -- Pass-throughs are consumed by the routedStep (*) below
             abort $ "holding has not been passed through" <> messageSuffix
@@ -179,7 +189,8 @@ template Instruction
                   senderAccount = getAccount holding
                   transferableCid : ContractId Transferable.I = coerceContractId holdingCid
                 holdingCid <- toInterfaceContractId <$> exercise transferableCid
-                  Transferable.Transfer with actors = signed; newOwnerAccount = receiverAccount
+                  Transferable.Transfer with
+                    actors = signedSenders <> signedReceivers; newOwnerAccount = receiverAccount
                 undiscloseA senderAccount
                 undiscloseA receiverAccount
                 -- disclose for the consistency check in the Batch
@@ -198,15 +209,17 @@ template Instruction
                 let
                   senderAccount = getAccount holding
                   transferableCid : ContractId Transferable.I = coerceContractId holdingCid
-                tCid <- toInterfaceContractId <$> exercise transferableCid Transferable.Transfer
-                  with actors = signed; newOwnerAccount = passthroughAccount
+                tCid <- toInterfaceContractId <$>
+                  exercise transferableCid Transferable.Transfer with
+                    actors = signedSenders <> signedReceivers; newOwnerAccount = passthroughAccount
                 (toInstructionCid, toInstruction) <- fetchByKey @Instruction toInstructionKey
                 assertMsg "passthroughs must match" $
                   toInstruction.allocation == PassthroughFrom (passthroughAccount, key this)
                 -- (*) in case of a pass-through, the newly created holding is immediately allocated
                 -- to the next routedStep
                 exercise (toInterfaceContractId @Instruction.I toInstructionCid)
-                  Instruction.Allocate with actors = signed; allocation = Pledge tCid
+                  Instruction.Allocate with
+                    actors = signedSenders <> signedReceivers; allocation = Pledge tCid
                 undiscloseA senderAccount
                 undiscloseA passthroughAccount
                 pure None
