@@ -1,0 +1,152 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Generic.Lifecycle.Rule
+  ( Rule(..)
+  ) where
+
+import DA.Date (toDateUTC)
+import DA.Foldable (forA_)
+import DA.Optional (fromSome)
+import DA.Set (fromList)
+import DA.Text (sha256)
+import Daml.Finance.Claims.Util (isZero')
+import Daml.Finance.Claims.Util.Lifecycle (electionEvent, lifecycle, splitPending, timeEvent)
+import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, GetClaims(..), getClaims)
+import Daml.Finance.Interface.Claims.Types (C)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (K, R, createReference, getKey)
+import Daml.Finance.Interface.Instrument.Generic.Election qualified as Election (ApplyElection(..), Exercisable(..), ExercisableView(..), getElectionTime)
+import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..), View(..))
+import Daml.Finance.Interface.Types.Common (Id(..), Parties, PartiesMap)
+import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey)
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
+import Daml.Finance.Instrument.Generic.Instrument (Instrument(..))
+import Daml.Finance.Lifecycle.Effect (Effect(..))
+import Daml.Finance.Lifecycle.ElectionEffect (ElectionEffect(..))
+import Prelude hiding (exercise, key)
+
+-- | Rule to process a time update event.
+template Rule
+  with
+    providers : Parties
+      -- ^ Providers of the distribution rule.
+    lifecycler : Party
+      -- ^ Party performing the lifecycling.
+    observers : PartiesMap
+      -- ^ Observers of the distribution rule.
+    id : Id
+      -- ^ Identifier for the rule contract.
+    description : Text
+      -- ^ Textual description.
+  where
+    signatory providers
+    observer Disclosure.flattenObservers observers, lifecycler
+
+    interface instance Lifecycle.I for Rule where
+      view = Lifecycle.View with lifecycler; id; description
+      evolve Lifecycle.Evolve{eventCid; observableCids; instrument} = do
+
+        -- fetch event
+        eventView <- view <$> fetch eventCid
+        let eventTime = eventView.eventTime
+
+        -- fetch claim tree
+        claimInstrument <- fetchInterfaceByKey @BaseInstrument.R instrument
+        claims <- Claim.getClaims claimInstrument $ Claim.GetClaims with actor = lifecycler
+
+        -- lifecycle as of the time given by the event
+        (remaining, pending) <-
+          lifecycle lifecycler observableCids claimInstrument [timeEvent eventTime]
+
+        -- create new instrument and return effect
+        if remaining == claims && null pending then
+          pure (None, [])
+        else do
+          let
+            instrumentT : Instrument = fromSome $ fromInterface claimInstrument
+            settlementDate = toDateUTC eventTime
+            currentKey = BaseInstrument.getKey $ toInterface claimInstrument
+            [claim] = fmap (.claim) remaining
+            newKey = currentKey with version = sha256 $ show remaining
+            producedInstrument = if isZero' remaining then None else Some newKey
+          forA_ producedInstrument $ tryCreateNewInstrument lifecycler claim eventTime instrumentT
+          let (otherConsumed, otherProduced) = splitPending pending
+          effectCid <- toInterfaceContractId <$> create Effect with
+            providers = fromList [instrumentT.issuer, instrumentT.depository]
+            id = eventView.id
+            description = eventView.description
+            targetInstrument = currentKey
+            producedInstrument
+            otherConsumed
+            otherProduced
+            settlementDate
+            observers = Disclosure.flattenObservers instrumentT.observers
+          pure (producedInstrument, [effectCid])
+
+    interface instance Election.Exercisable for Rule where
+      view = Election.ExercisableView with lifecycler
+      applyElection Election.ApplyElection{electionCid; observableCids} = do
+
+        -- fetch election
+        election <- fetch electionCid
+        let
+          v = view election
+          electionTime = Election.getElectionTime election
+          election = electionEvent electionTime v.electorIsOwner v.claim
+
+        -- fetch claim tree
+        claimInstrument <- fetchInterfaceByKey @BaseInstrument.R v.instrument
+        claims <- Claim.getClaims (toInterface @Claim.I claimInstrument) $ Claim.GetClaims with
+          actor = lifecycler
+
+        -- lifecycle as of the time given by the event, by applying the corresponding election
+        (remaining, pending) <- lifecycle lifecycler observableCids claimInstrument [election]
+
+        -- create new instrument and return effect
+        if remaining == claims && null pending then
+          pure (None, [])
+        else do
+          let
+            instrumentT : Instrument = fromSome $ fromInterface claimInstrument
+            settlementDate = toDateUTC electionTime
+            currentKey = BaseInstrument.getKey $ toInterface claimInstrument
+            newKey = currentKey with version = sha256 $ show remaining
+            [claim] = fmap (.claim) remaining
+            producedInstrument = if isZero' remaining then None else Some newKey
+          forA_ producedInstrument $ tryCreateNewInstrument lifecycler claim electionTime instrumentT
+          let (otherConsumed, otherProduced) = splitPending pending
+          effectCid <- toInterfaceContractId <$> create ElectionEffect with
+            providers = fromList [instrumentT.issuer, instrumentT.depository]
+            custodian = if v.electorIsOwner then v.counterparty else v.elector
+            owner = if v.electorIsOwner then v.elector else v.counterparty
+            id = v.id
+            description = v.description
+            targetInstrument = currentKey
+            producedInstrument
+            amount = v.amount
+            otherConsumed
+            otherProduced
+            settlementDate
+            observers = v.observers
+          pure (producedInstrument, [effectCid])
+
+    interface instance Disclosure.I for Rule where
+      view = Disclosure.View with disclosureControllers = providers; observers
+      setObservers Disclosure.SetObservers{newObservers} = do
+        toInterfaceContractId <$> create this with observers = newObservers
+      archive' self = archive (coerceContractId self : ContractId Instrument)
+
+-- | HIDE
+-- Check if an instrument for the new key already exists, otherwise create it.
+tryCreateNewInstrument : Party -> C -> Time -> Instrument -> BaseInstrument.K -> Update ()
+tryCreateNewInstrument actor newClaim eventTime oldInstrument newKey = do
+  existingRefCidOpt <- lookupByKey @BaseInstrument.R newKey
+  case existingRefCidOpt of
+    Some existingRefCid -> pure ()
+    None -> do
+      instCid <- create oldInstrument with
+        claims = newClaim
+        lastEventTimestamp = eventTime
+        version = newKey.version
+      BaseInstrument.createReference actor $ toInterfaceContractId instCid
+      pure ()

@@ -3,8 +3,8 @@
 
 module Daml.Finance.Instrument.Generic.Test.EuropeanOption where
 
-import ContingentClaims.Core.Claim (one, or, scale, zero)
 import ContingentClaims.Core.Builders (european)
+import ContingentClaims.Core.Claim (one, or, scale, zero)
 import ContingentClaims.Core.Observation (Observation(..))
 import DA.Assert ((===))
 import DA.Date (addDays, toDateUTC)
@@ -14,6 +14,7 @@ import DA.Text (sha256)
 import Daml.Finance.Data.Observable.Observation (Observation(..))
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..), T)
 import Daml.Finance.Instrument.Generic.Election (CreateElection(..), ElectionFactory(..))
+import Daml.Finance.Instrument.Generic.Lifecycle.Rule qualified as Lifecycle (Rule(..))
 import Daml.Finance.Instrument.Generic.Test.Util (originateGeneric, dateToDateClockTime, mapClaimToUTCTime)
 import Daml.Finance.Interface.Account.Util (getOwner)
 import Daml.Finance.Interface.Claims.Types (C, Observable, Deliverable)
@@ -27,10 +28,10 @@ import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
 import Daml.Finance.Interface.Types.Common (Id(..), Parties)
 import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
+import Daml.Finance.Settlement.RouteProvider.SingleCustodian (SingleCustodian(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
-import Daml.Finance.Test.Util.Lifecycle (createClockAndEvent)
 import Daml.Script
 import Prelude hiding (or)
 
@@ -128,9 +129,6 @@ run = script do
       observers = singleton publicParty
       instrument = genericInstrument
 
-  -- create clock (defines current time)
-  (clockCid, clockEventCid) <- createClockAndEvent (singleton broker) maturity empty
-
   -----------------------------------------
   -- 1. ELECTION 1 : EXERCISE THE OPTION --
   -----------------------------------------
@@ -153,15 +151,28 @@ run = script do
         amount = 500.0
 
   -- Apply election to generate new instrument version + effects
+  lifecycleRuleCid <- toInterfaceContractId <$> submit bank do
+    createCmd Lifecycle.Rule with
+      providers = singleton bank
+      observers= M.empty
+      lifecycler = broker
+      id = Id "LifecycleRule"
+      description = "Rule to lifecycle a generic instrument"
+
+
   (_, [effectCid]) <- submit broker do
     exerciseCmd exerciseOptionCid Election.Apply
       with
-        clockCid
         observableCids = [observableCid]
+        exercisableCid = lifecycleRuleCid
+
+  -- Create route provider
+  routeProviderCid <- toInterfaceContractId <$> submit investor1 do
+    createCmd SingleCustodian with provider = investor1; observers = empty; custodian = bank
 
   -- Create settlement factory
   settlementFactoryCid <- toInterfaceContractId <$> submit investor1 do
-    createCmd Factory with provider = investor1; observers = empty; custodian = bank
+    createCmd Factory with provider = investor1; observers = empty
 
   -- Claim effect
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit bank do
@@ -170,6 +181,7 @@ run = script do
         providers = singleton bank
         claimers = fromList [bank, investor1]
         settlers
+        routeProviderCid
         settlementFactoryCid
         netInstructions = False
 
@@ -236,12 +248,16 @@ run = script do
   (_, [effectCid]) <- submit broker do
     exerciseCmd expireOptionCid Election.Apply
       with
-        clockCid
         observableCids = [observableCid]
+        exercisableCid = lifecycleRuleCid
+
+  -- Create route provider
+  routeProviderCid <- toInterfaceContractId <$> submit investor2 do
+    createCmd SingleCustodian with provider = investor2; observers = empty; custodian = bank
 
   -- Create settlement factory
   settlementFactoryCid <- toInterfaceContractId <$> submit investor2 do
-    createCmd Factory with provider = investor2; observers = empty; custodian = bank
+    createCmd Factory with provider = investor2; observers = empty
 
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit bank do
     createCmd Claim.Rule
@@ -249,6 +265,7 @@ run = script do
         providers = singleton bank
         claimers = fromList [bank, investor2]
         settlers
+        routeProviderCid
         settlementFactoryCid
         netInstructions = False
 

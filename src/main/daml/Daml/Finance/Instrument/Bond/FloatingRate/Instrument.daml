@@ -5,12 +5,12 @@ module Daml.Finance.Instrument.Bond.FloatingRate.Instrument where
 
 import DA.Date (daysSinceEpochToDate)
 import DA.Set (singleton)
-import Daml.Finance.Instrument.Generic.Util
+import Daml.Finance.Claims.Util.Builders
 import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, GetClaims(..), View(..))
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, K, View(..), disclosureUpdateReference)
+import Daml.Finance.Interface.Claims.Dynamic.Instrument qualified as DynamicInstrument (I, CreateNewVersion(..), View(..))
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, K, View(..), createReference, disclosureUpdateReference)
 import Daml.Finance.Interface.Instrument.Bond.FloatingRate.Instrument qualified as FloatingRate (HasImplementation, I, View(..))
 import Daml.Finance.Interface.Instrument.Bond.FloatingRate.Types (FloatingRate(..))
-import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..), View(..))
 import Daml.Finance.Interface.Types.Common (Id(..), InstrumentKey(..), PartiesMap)
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
 import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..))
@@ -22,11 +22,11 @@ type T = Instrument
 
 instance FloatingRate.HasImplementation T
 
+-- FLOATING_RATE_BOND_TEMPLATE_UNTIL_REFRATE_BEGIN
 -- | This template models a floating rate bond.
 -- It pays a floating coupon rate at the end of every coupon period.
 -- This consists of a reference rate (observed at the beginning of the coupon period) plus a coupon
 -- spread. For example, 3M Euribor + 0.5%.
--- FLOATING_RATE_BOND_TEMPLATE_UNTIL_REFRATE_BEGIN
 template Instrument
   with
     depository : Party
@@ -101,12 +101,12 @@ template Instrument
           instrument = instrumentKey; description; referenceRateId; couponSpread; periodicSchedule
           holidayCalendarIds; calendarDataProvider; dayCountConvention; currency; lastEventTimestamp
 
-    interface instance Lifecycle.I for Instrument where
-      view = Lifecycle.View with lifecycler = issuer
-      evolve Lifecycle.Evolve{ruleName; eventCid; timeObservableCid; observableCids} self =
-        case ruleName of
-          "Time" -> processClockUpdate issuer eventCid timeObservableCid self this observableCids
-          other -> abort $ "Unknown lifecycle rule " <> other
+    interface instance DynamicInstrument.I for Instrument where
+      view = DynamicInstrument.View with lifecycler = issuer; lastEventTimestamp
+      createNewVersion DynamicInstrument.CreateNewVersion{version, lastEventTimestamp} = do
+        cid <- create this with version, lastEventTimestamp
+        BaseInstrument.createReference issuer $ toInterfaceContractId cid
+        pure $ toInterfaceContractId cid
 
     interface instance Disclosure.I for Instrument where
       view = Disclosure.View with disclosureControllers = singleton issuer; observers

@@ -7,6 +7,7 @@
 
 module Package.Yaml (
     Config(..)
+  , IncrementVersion(..)
   , Local(..)
   , LocalPackage(..)
   , LocalPackages(..)
@@ -29,8 +30,9 @@ module Package.Yaml (
 ) where
 
 import Control.Applicative
-import Data.Yaml (FromJSON(parseJSON), (.:), Value(Object), decodeFileEither, ParseException, Parser, withArray, parseJSONList, withObject)
+import Data.Yaml (FromJSON(parseJSON), (.:), Value(Object, String), decodeFileEither, ParseException, Parser, withArray, parseJSONList, withObject)
 import qualified Data.Vector as V (toList)
+import qualified Data.Text as T (unpack, toUpper)
 
 type T = Config
 
@@ -41,11 +43,20 @@ data Repo = Repo {
   , name :: String
   } deriving (Eq, Show)
 
+-- | Semantic Versioning (https://semver.org/)
+data IncrementVersion
+  = SNAPSHOT
+  | PATCH
+  | MINOR
+  | MAJOR
+  deriving (Eq, Show)
+
 -- | A locally defined package.
 data Local = Local {
     name :: String
   , path :: String
   , baseModule :: String
+  , incrementVersion :: IncrementVersion
   } deriving (Eq, Show)
 
 -- | A wrapper for a local package.
@@ -87,15 +98,26 @@ instance FromJSON Repo where
       v .: "host" <*>
       v .: "organisation" <*>
       v .: "name"
-  parseJSON _          = error "Cannot parse local from YAML"
+  parseJSON _ = error "Cannot parse local from YAML"
+
+instance FromJSON IncrementVersion where
+  parseJSON (String s) =
+    pure $ case T.toUpper s of
+      "SNAPSHOT" -> SNAPSHOT
+      "PATCH"    -> PATCH
+      "MINOR"    -> MINOR
+      "MAJOR"    -> MAJOR
+      _          -> error $ "Unexpected incremental version type set in YAML. type='" ++ T.unpack s ++ "'"
+  parseJSON _ = error "Cannot parse incremental version from YAML"
 
 instance FromJSON Local where
   parseJSON (Object v) =
     Local <$>
       v .: "name" <*>
       v .: "path" <*>
-      v .: "base-module"
-  parseJSON _          = error "Cannot parse local from YAML"
+      v .: "base-module" <*>
+      v .: "increment-version"
+  parseJSON _ = error "Cannot parse local from YAML"
 
 instance FromJSON LocalPackage where
   parseJSON (Object v) = LocalPackage <$> v .: "package"
@@ -106,7 +128,7 @@ instance FromJSON LocalPackages where
     LocalPackages <$>
       v .: "repo" <*>
       v .: "packages"
-  parseJSON _          = error "Cannot parse local package from YAML"
+  parseJSON _ = error "Cannot parse local package from YAML"
 
 instance FromJSON Remote where
   parseJSON (Object v) =
@@ -127,12 +149,12 @@ instance FromJSON RemotePackages where
   parseJSON _          = error "Cannot parse remote package from YAML"
 
 instance FromJSON Config where
-  parseJSON (Object v) = do
+  parseJSON (Object v) =
     Config <$>
       v .: "package-install-dir" <*>
       v .: "remote" <*>
       v .: "local"
-  parseJSON _          = error "Cannot parse daml config from YAML"
+  parseJSON _ = error "Cannot parse daml config from YAML"
 
 -- | Given a file path to the package config file, this will extract and return the contents.
 readPackageYaml :: FilePath -> IO Config

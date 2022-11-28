@@ -97,22 +97,20 @@ Also, note that the allocation and approval steps can happen in any order.
 The components in detail
 ************************
 
-Settlement factory
-==================
+Route provider
+==============
 
-The :ref:`Settlement Factory <type-daml-finance-interface-settlement-factory-factory-31525>` is used
-to instruct settlement, i.e., create the ``Batch`` contract and the settlement ``Instructions``.
-
-The role of the Settlement Factory becomes important when a transfer requires intermediaries to be
-involved. Let us assume, for instance, that Alice's EUR holding in the example above is held at Bank
-A, whereas Bob has a EUR account at Bank B. Bank A and Bank B both have accounts at the Central
-Bank.
+When a transfer requires intermediaries to be involved, the role of a
+:ref:`Route Provider <type-daml-finance-interface-settlement-routeprovider-routeprovider-53805>`
+becomes important. Let us assume, for instance, that Alice's EUR holding in the example above is
+held at Bank A, whereas Bob has a EUR account at Bank B. Bank A and Bank B both have accounts at the
+Central Bank.
 
 .. image:: ../images/settlement_hierarchy.png
    :alt: Hierarchical account structure. Alice has an account at Bank A. Bob has an account at
          Bank B. Bank A and Bank B have an account at the Central Bank.
 
-In this case, a direct holding transfer from Alice and Bob cannot generally be instructed. The
+In this case, a direct holding transfer from Alice to Bob cannot generally be instructed. The
 original ``Instruction`` between Alice and Bob needs to be replaced by three separate
 ``Instructions``:
 
@@ -125,8 +123,18 @@ original ``Instruction`` between Alice and Bob needs to be replaced by three sep
          EUR 1000 to Bank B. Bank B sends EUR 1000 to Bob.
 
 We refer to this scenario as *settlement with intermediaries*, or just *intermediated settlement*.
-The Settlement Factory is responsible for generating the correct set of instructions, so that they
-can be allocated and approved by the respective parties.
+
+The Route Provider is used to discover a settlement route, i.e.,
+:ref:`routed steps <type-daml-finance-interface-settlement-types-routedstep-10086>`, for each
+settlement :ref:`step <type-daml-finance-interface-settlement-types-step-78661>`.
+
+Settlement factory
+==================
+
+The :ref:`Settlement Factory <type-daml-finance-interface-settlement-factory-factory-31525>` is used
+to instruct settlement, i.e., create the ``Batch`` contract and the settlement ``Instructions``,
+from :ref:`routed steps <type-daml-finance-interface-settlement-types-routedstep-10086>`, so that
+they can be allocated and approved by the respective parties.
 
 Instruction
 ===========
@@ -152,15 +160,18 @@ custodian at the custodian has no economical value and can be archived).
 To clarify these concepts, here is how the 3 instructions in the intermediated example above would
 be allocated / approved.
 
-+--------------------------------------------+----------------------------------------+------------------------------------------+
-| Instruction                                | Allocation                             | Approval                                 |
-+============================================+========================================+==========================================+
-| 1A : EUR 1000 from Alice to Bank A         | Alice pledges her holding              | Bank A approves with DebitSender         |
-+--------------------------------------------+----------------------------------------+------------------------------------------+
-| 2A : EUR 1000 from Bank A to Bank B        | Bank A pledges their holding           | Bank B takes delivery to their account   |
-+--------------------------------------------+----------------------------------------+------------------------------------------+
-| 3A : EUR 1000 from Bank B to Bob           | Bank B allocates with CreditReceiver   | Bob takes delivery to his account        |
-+--------------------------------------------+----------------------------------------+------------------------------------------+
++----------------------------------------------------+----------------------+----------------------+
+| Instruction                                        | Allocation           | Approval             |
++====================================================+======================+======================+
+| 1A : EUR 1000 from Alice to Bank A @ Bank A        | Alice pledges her    | Bank A approves      |
+|                                                    | holding              | with DebitSender     |
++----------------------------------------------------+----------------------+----------------------+
+| 2A : EUR 1000 from Bank A to Bank B @ Central Bank | Bank A pledges       | Bank B takes delivery|
+|                                                    | their holding        | to their account     |
++----------------------------------------------------+----------------------+----------------------+
+| 3A : EUR 1000 from Bank B to Bob @ Bank B          | Bank B allocates     | Bob takes delivery   |
+|                                                    | with CreditReceiver  | to his account       |
++----------------------------------------------------+----------------------+----------------------+
 
 Finally, the Instruction supports two additional settlement modes:
 

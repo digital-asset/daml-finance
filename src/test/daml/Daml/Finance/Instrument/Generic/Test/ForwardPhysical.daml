@@ -6,9 +6,10 @@ module Daml.Finance.Instrument.Generic.Test.ForwardPhysical where
 import ContingentClaims.Core.Claim (Inequality(..), and, give, one, scale, when)
 import ContingentClaims.Core.Observation (Observation(..))
 import DA.Date (addDays, toDateUTC)
-import DA.Map qualified as M (fromList)
+import DA.Map qualified as M (empty, fromList)
 import DA.Set (empty, fromList, singleton, toList)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
+import Daml.Finance.Instrument.Generic.Lifecycle.Rule qualified as Lifecycle (Rule(..))
 import Daml.Finance.Instrument.Generic.Test.Util (originateGeneric, dateToDateClockTime)
 import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..), I)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I)
@@ -18,11 +19,12 @@ import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
 import Daml.Finance.Interface.Types.Common (Id(..), Parties)
 import Daml.Finance.Lifecycle.Rule.Claim (Rule(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
+import Daml.Finance.Settlement.RouteProvider.SingleCustodian (SingleCustodian(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
-import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate, submitExerciseInterfaceByKeyCmd)
-import Daml.Finance.Test.Util.Lifecycle (createClockAndEvent)
+import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
+import Daml.Finance.Test.Util.Time (createClockUpdateEvent)
 import Daml.Script
 import Prelude hiding (and)
 
@@ -82,19 +84,32 @@ run = script do
   investorGenericHoldingCid <- Account.credit [publicParty] genericInstrument 1_000.0
     investorAccount
 
-  -- create clock and clock update event
-  (clockCid, clockEventCid) <- createClockAndEvent (singleton broker) maturity empty
+  -- create clock update event
+  clockEventCid <- createClockUpdateEvent (singleton broker) maturity empty
 
   -- Lifecycle a generic derivative
-  (_, [effectCid]) <-
-    Instrument.submitExerciseInterfaceByKeyCmd @Lifecycle.I [broker] [] genericInstrument
-      Lifecycle.Evolve with
-        eventCid = clockEventCid; observableCids = []; ruleName = "Time"
-        timeObservableCid = clockCid
+  lifecycleRuleCid : ContractId Lifecycle.I <- toInterfaceContractId <$> submit bank do
+    createCmd Lifecycle.Rule with
+      providers = singleton bank
+      observers= M.empty
+      lifecycler = broker
+      id = Id "LifecycleRule"
+      description = "Rule to lifecycle a generic instrument"
+
+  (_, [effectCid]) <- submit broker do
+    exerciseCmd lifecycleRuleCid Lifecycle.Evolve with
+      eventCid = clockEventCid
+      observableCids = []
+      instrument = genericInstrument
+
+  -- Create route provider
+  routeProviderCid <- toInterfaceContractId <$> submit investor do
+    createCmd SingleCustodian with
+      provider = investor; observers = empty; custodian = bank
 
   -- Create settlement factory
   settlementFactoryCid <- toInterfaceContractId <$> submit investor do
-    createCmd Factory with provider = investor; observers = empty; custodian = bank
+    createCmd Factory with provider = investor; observers = empty
 
   -- Claim effect
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [bank, investor] [] do
@@ -103,6 +118,7 @@ run = script do
         providers = fromList [bank, investor]
         claimers = singleton investor
         settlers
+        routeProviderCid
         settlementFactoryCid
         netInstructions = False
 

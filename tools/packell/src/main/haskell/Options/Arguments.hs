@@ -9,31 +9,32 @@ module Options.Arguments (
   , parseInputs
 ) where
 
-import Options.Applicative(
+import Options.Applicative (
     (<**>)
   , (<|>)
   , Parser
+  , ParserInfo
   , auto
+  , command
+  , customExecParser
+  , execParser
   , fullDesc
   , header
   , help
+  , helper
+  , hsubparser
   , info
   , long
   , metavar
   , option
+  , prefs
   , progDesc
   , short
   , showDefault
-  , strOption
-  , value
-  , execParser
-  , helper
   , showHelpOnError
-  , ParserInfo
-  , customExecParser
-  , prefs
-  , hsubparser
-  , command
+  , strOption
+  , switch
+  , value
   )
 
 -- | Packell main commands set.
@@ -52,6 +53,7 @@ data DataDependenciesCommand
 -- | Input arguments to the application.
 data Arguments = Arguments {
     optPackageConfigPath :: FilePath
+  , optFetch :: Bool
   , optCommand :: Command
   } deriving (Show)
 
@@ -83,6 +85,9 @@ parameters =
       <> showDefault
       <> value "package/packages.yaml"
       <> help "Path to the package configuration")
+    <*> switch (long "fetch"
+      <> short 'f'
+      <> help "Fetch from git")
     <*> commandParser
 
 -- | Custom exex parser to display options, subcommands, help, etc. on error.

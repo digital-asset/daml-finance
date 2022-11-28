@@ -14,8 +14,8 @@ How to Use the Bond Extension in Your Application
 
 As explained in the :ref:`Getting Started <structure-of-code-dependencies>` section and on the
 :doc:`Architecture <../../overview/architecture>` page, your app should only depend on the interface
-layer of Daml Finance. For bonds this means that you should only include the bond interface package:
-``Daml.Finance.Interface.Instrument.Bond``.
+layer of Daml Finance. For bonds this means that you should only include the
+:doc:`bond interface package <../../packages/interfaces/daml-finance-interface-instrument-bond>`.
 
 Your initialization scripts are an exception, since they are only run once when your app is
 initialized. This creates the necessary factories. Your app can then create bonds through these
@@ -25,13 +25,15 @@ How to Create a Bond Instrument
 *******************************
 
 There are different types of bonds, which mainly differ in the way the coupon is defined. In order
-to create a bond instrument you first have to decide what type of bond you need. The bond extension
-package currently supports the following bond types:
+to create a bond instrument you first have to decide what type of bond you need. The
+:doc:`bond extension package <../../packages/implementations/daml-finance-instrument-bond>`
+currently supports the following bond types:
 
 Fixed Rate
 ==========
 
-Fixed rate bonds pay a constant coupon each coupon period. The coupon is quoted on a yearly basis
+:ref:`Fixed rate bonds <module-daml-finance-instrument-bond-fixedrate-instrument-67993>`
+pay a constant coupon each coupon period. The coupon is quoted on a yearly basis
 (per annum, p.a.), but it could be paid more frequently. For example, a bond could have a 2% p.a.
 coupon and a 6M coupon period. That would mean a 1% coupon is paid twice a year.
 
@@ -64,8 +66,8 @@ This is used to determine the periods that are used to calculate the coupon. The
 to note here:
 
 - The :ref:`RollConventionEnum <type-daml-finance-interface-types-date-rollconvention-rollconventionenum-73360>`
-  defines whether dates are rolled on month end or on a given date of the month. In our example
-  above, we went for the latter option.
+  defines whether dates are rolled at the end of the month or on a given date of the month. In our
+  example above, we went for the latter option.
 - The :ref:`StubPeriodTypeEnum <type-daml-finance-interface-types-date-schedule-stubperiodtypeenum-69372>`
   allows you to explicitly specify what kind of stub period the bond should have. This is optional
   and not used in the example above. Instead, we defined the stub implicitly by specifying a
@@ -80,12 +82,14 @@ Now that we have defined the terms we can create the bond instrument:
   :start-after: -- CREATE_FIXED_RATE_BOND_INSTRUMENT_BEGIN
   :end-before: -- CREATE_FIXED_RATE_BOND_INSTRUMENT_END
 
-Once the instrument is created, you can book a holding on it using ``Account.credit``.
+Once the instrument is created, you can book a holding on it using
+:ref:`Account.credit <module-daml-finance-interface-account-account-92922>`.
 
 Floating Rate
 =============
 
-Floating rate bonds pay a coupon which is determined by a reference rate.
+:ref:`Floating rate bonds <module-daml-finance-instrument-bond-floatingrate-instrument-98586>`
+pay a coupon which is determined by a reference rate.
 There is also a rate spread, which is paid in addition to the reference rate.
 
 Here is an example of a bond paying Euribor 3M + 1.1% p.a. with a 3M coupon period:
@@ -108,7 +112,8 @@ for the coupon payment at the end of that period.
 Inflation Linked
 ================
 
-Inflation linked bonds pay a fixed coupon rate at the end of every coupon period. The coupon is
+:ref:`Inflation linked bonds <module-daml-finance-instrument-bond-inflationlinked-instrument-30250>`
+pay a fixed coupon rate at the end of every coupon period. The coupon is
 calculated based on a principal that is adjusted according to an inflation index, for example the
 Consumer Price Index (CPI) in the U.S.
 
@@ -135,7 +140,8 @@ specified coupon rate but the original principal would still be redeemed at matu
 Zero Coupon
 ===========
 
-A zero coupon bond does not pay any coupons at all. It only pays the redemption amount at maturity.
+A :ref:`zero coupon bond <module-daml-finance-instrument-bond-zerocoupon-instrument-52804>`
+does not pay any coupons at all. It only pays the redemption amount at maturity.
 
 Here is an example of a zero coupon bond:
 

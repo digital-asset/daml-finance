@@ -1,8 +1,8 @@
 .. Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-How To Use the Generic Extension To Model Generic Instruments
-################################################################
+How To Model and Lifecycle Generic Instruments
+##############################################
 
 To follow the script used in this tutorial, you can
 `clone the Daml Finance repository <https://github.com/digital-asset/daml-finance>`_. In particular,
@@ -12,21 +12,29 @@ starting point of this tutorial.
 How To Create a Generic Instrument
 **********************************
 
-The ``Generic`` extension provides a flexible framework to model generic instruments in Daml
-Finance. It encapsulates the ``Contingent Claims`` library, which allows us to model the economic
-terms of an instrument.
+The :doc:`Generic <../../packages/implementations/daml-finance-instrument-generic>` extension
+provides a flexible framework to model generic instruments in Daml Finance. It encapsulates the
+:doc:`Contingent Claims <../../concepts/contingent-claims>` library, which allows us to model the
+economic terms of an instrument.
 
 Define the Claim
 ================
 
 Consider a fixed rate bond which pays a 4% p.a. coupon with a 6M coupon period. Assume there are two
 coupons remaining until maturity: one today and one in 180 days. This could be modeled in the
-following way using ``Contingent Claims``:
+following way:
 
 .. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Generic/Test/Intermediated/BondCoupon.daml
   :language: daml
   :start-after: -- CREATE_CC_INSTRUMENT_VARIABLES_BEGIN
   :end-before: -- CREATE_CC_INSTRUMENT_VARIABLES_END
+
+Keywords like
+:ref:`when <function-contingentclaims-core-claim-when-17123>`,
+:ref:`TimeGte <constr-contingentclaims-core-internal-claim-timegte-91610>`,
+:ref:`scale <function-contingentclaims-core-claim-scale-79608>` and
+:ref:`one <function-contingentclaims-core-claim-one-13168>`
+are defined in the :doc:`Contingent Claims documentation <../../concepts/contingent-claims>`.
 
 Now that we have specified the economic terms we can create a generic instrument:
 
@@ -35,7 +43,8 @@ Now that we have specified the economic terms we can create a generic instrument
   :start-after: -- CREATE_CC_INSTRUMENT_BEGIN
   :end-before: -- CREATE_CC_INSTRUMENT_END
 
-This will create an instrument containing the ``Contingent Claims`` tree on the ledger.
+This will create an instrument containing the
+:doc:`Contingent Claims <../../concepts/contingent-claims>` tree on the ledger.
 
 How To Trade and Transfer a Generic Instrument
 **********************************************

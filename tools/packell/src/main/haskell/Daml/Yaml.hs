@@ -75,7 +75,7 @@ readDamlConfig :: FilePath -> IO Config
 readDamlConfig filePath = do
   damlConfig :: (Either ParseException Config) <- decodeFileEither filePath
   case damlConfig of
-    Left exception -> error $ "Exception occured while reading daml yaml. filePath=" ++ filePath ++ ", exception=" ++ show exception
+    Left exception -> error $ "Exception occured while reading daml yaml. filePath=" <> filePath <> ", exception=" <> show exception
     Right dc -> pure dc
 
 -- | Writes a daml config file to the specified path.

@@ -3,10 +3,8 @@
 
 module Daml.Finance.Lifecycle.Rule.Distribution where
 
-import DA.Date (toDateUTC)
-import Daml.Finance.Interface.Data.TimeObservable qualified as TimeObservable (GetView(..))
-import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (HasImplementation, I, Evolve(..), View(..))
-import Daml.Finance.Interface.Types.Common (Parties)
+import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (Evolve(..), HasImplementation, I, View(..))
+import Daml.Finance.Interface.Types.Common (Id(..), Parties)
 import Daml.Finance.Lifecycle.Effect (Effect(..))
 import Daml.Finance.Lifecycle.Event.Distribution qualified as Distribution (Event)
 
@@ -16,7 +14,7 @@ type T = Rule
 instance Lifecycle.HasImplementation Rule
 
 -- | Rule contract that defines the distribution of units of an instrument for each unit of a target
--- instrument (e.g., share or cash dividends).
+-- instrument (e.g. share or cash dividends).
 template Rule
   with
     providers : Parties
@@ -24,30 +22,29 @@ template Rule
     lifecycler : Party
       -- ^ Party performing the lifecycling.
     observers : Parties
-      -- ^ Observers of the distributin rule.
+      -- ^ Observers of the distribution rule.
+    id : Id
+      -- ^ Identifier for the rule contract.
+    description : Text
+      -- ^ Textual description.
   where
     signatory providers
     observer observers, lifecycler
 
     interface instance Lifecycle.I for Rule where
-      view = Lifecycle.View with lifecycler
-      evolve Lifecycle.Evolve{eventCid; timeObservableCid} self = do
+      view = Lifecycle.View with lifecycler; id; description
+      evolve Lifecycle.Evolve{eventCid; instrument} = do
         distribution <- fetch $ fromInterfaceContractId @Distribution.Event eventCid
-        clockTime <- toDateUTC . (.time) <$> exercise timeObservableCid TimeObservable.GetView with
-          viewer = lifecycler
-        if clockTime >= distribution.effectiveDate
-        then do
-          effectCid <- toInterfaceContractId <$> create Effect
-            with
-              providers
-              id = distribution.id
-              description = distribution.description
-              targetInstrument = distribution.targetInstrument
-              producedInstrument = Some distribution.newInstrument
-              otherConsumed = []
-              otherProduced = distribution.perUnitDistribution
-              settlementDate = distribution.effectiveDate
-              observers
-          pure (self, [effectCid])
-        else do
-          pure (self, [])
+        assertMsg "The input instrument does not match the distribution's target instrument" $ instrument == distribution.targetInstrument
+        effectCid <- toInterfaceContractId <$> create Effect
+          with
+            providers
+            id = distribution.id
+            description = distribution.description
+            targetInstrument = distribution.targetInstrument
+            producedInstrument = Some distribution.newInstrument
+            otherConsumed = []
+            otherProduced = distribution.perUnitDistribution
+            settlementDate = distribution.effectiveDate
+            observers
+        pure (Some distribution.newInstrument, [effectCid])

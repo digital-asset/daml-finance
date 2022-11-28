@@ -29,6 +29,7 @@ pkgs.mkShell {
     pkgs.git
     pkgs.gnupg
     pkgs.jq
+    pkgs.openssh
     pkgs.yq-go]
     ++ (docs { pkgs = pkgs; })
     ++ (packell { pkgs = pkgsGhc; })

@@ -12,11 +12,13 @@ import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Factory qualified as Factory (I, Instruct(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..), I)
+import Daml.Finance.Interface.Settlement.RouteProvider qualified as RouteProvider (I, Discover(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), Step(..))
 import Daml.Finance.Interface.Types.Common (Id(..))
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (AddObservers(..), I, RemoveObservers(..))
-import Daml.Finance.Settlement.Factory (FactoryWithIntermediaries(..))
+import Daml.Finance.Settlement.Factory (Factory(..))
 import Daml.Finance.Settlement.Hierarchy (Hierarchy(..))
+import Daml.Finance.Settlement.RouteProvider.IntermediatedStatic (IntermediatedStatic(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit, submitExerciseInterfaceByKeyCmd)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyNoObservers, verifyOwnerOfHolding)
@@ -131,7 +133,7 @@ run useDelegatee = script do
       (Account.credit [publicParty] assetInstrument 1_250.0)
       [sellerDepoAccount, custodian1DepoAccount]
 
-  -- Instruct settlement
+  -- Settlement steps
   let
     cashQuantity = Instrument.qty 200_000.0 cashInstrument
     assetQuantity = Instrument.qty 1_250.0 assetInstrument
@@ -141,25 +143,34 @@ run useDelegatee = script do
         -- Delivery step
       , Step with sender = seller; receiver = buyer; quantity = assetQuantity
       ]
+
+  -- Discover settlement routes
     paymentRoute = Hierarchy with
       rootCustodian = cb
       pathsToRootCustodian = [[buyer, bank1], [seller, bank2]]
     deliveryRoute = Hierarchy with
       rootCustodian = csd
       pathsToRootCustodian = [[buyer, custodian2], [seller, custodian1]]
-    settlementRoutes = M.fromList [("USD", paymentRoute), ("SHARE", deliveryRoute)]
-  -- Create settlement factory
-  settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submit agent do
-    createCmd FactoryWithIntermediaries with
-      provider = agent; observers = empty; paths = settlementRoutes
+    paths = M.fromList [("USD", paymentRoute), ("SHARE", deliveryRoute)]
+  routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit agent do
+    createCmd IntermediatedStatic with
+        provider = agent
+        paths
+        observers = empty
+  routedSteps <- submit agent do
+    exerciseCmd routeProviderCid RouteProvider.Discover with
+      discoverors = singleton agent; contextId = None; steps
 
   -- Instruct settlement
+  settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submit agent do
+    createCmd Factory with provider = agent; observers = empty
   (batchCid, [buyerInstructionCid, bank1InstructionCid, bank2InstructionCid,
     sellerInstructionCid, custodian1InstructionCid, custodian2InstructionCid]) <-
     submit agent do
       exerciseCmd settlementFactoryCid Factory.Instruct with
         instructors = singleton agent; settlers = singleton agent
-        id = Id "SHARE 200000.0@160.0USD DVP"; description = "Crosspayment"; contextId = None; steps
+        id = Id "SHARE 200000.0@160.0USD DVP"; description = "Crosspayment"; contextId = None
+        routedSteps
 
   -- Allocate and approve instructions
   (buyerInstructionCid, _) <-
@@ -169,7 +180,6 @@ run useDelegatee = script do
         delegationCid <- submit buyer do
           createCmd AllocationDelegation with delegator = buyer; delegatee
         -- disclose
-        -- TODO: use explicit disclosure (once available)
         let observerContext = ("delegation123", singleton delegatee)
         buyerCashCid : ContractId Base.I <- coerceContractId <$> submit buyer do
           exerciseCmd (coerceContractId buyerCashCid : ContractId Disclosure.I)

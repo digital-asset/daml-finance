@@ -53,7 +53,7 @@ Depository
 ----------
 
 The depository is the party responsible for safekeeping the legal form of an
-`Instrument <#instrument>`__ (e.g., paper certificates).
+`Instrument <#instrument>`__ (e.g. paper certificates).
 
 Issuer
 ------

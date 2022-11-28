@@ -10,10 +10,12 @@ import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Factory qualified as Factory (I, Instruct(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.RouteProvider qualified as RouteProvider (I, Discover(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), Step(..))
 import Daml.Finance.Interface.Types.Common (Id(..))
-import Daml.Finance.Settlement.Factory (FactoryWithIntermediaries(..))
+import Daml.Finance.Settlement.Factory (Factory(..))
 import Daml.Finance.Settlement.Hierarchy (Hierarchy(..))
+import Daml.Finance.Settlement.RouteProvider.IntermediatedStatic (IntermediatedStatic(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyNoObservers, verifyOwnerOfHolding)
@@ -90,8 +92,17 @@ run settleWithOwnAccount = script do
   cashInstrument <- Instrument.originate cb cb "USD" "United States Dollar" [] now
   buyerCashHoldingCid <- Account.credit [] cashInstrument 200_000.0 buyerCashAccount
 
-  -- Instruct settlement (by first creating a settlement factory with intermediaries from Buyer to
-  -- Seller)
+  -- Settlement steps
+  let
+    steps =
+      [ Step with
+          sender = seller; receiver = buyer; quantity = Instrument.qty 1_000.0 equityInstrument
+      , Step with
+          sender = buyer; receiver = seller; quantity = Instrument.qty 200_000.0 cashInstrument
+      ]
+
+  -- Discover settlement routes (by first creating a route provider with intermediaries from Buyer
+  -- to Seller)
   let
     paths = M.fromList
       [ ("USD", Hierarchy with
@@ -101,23 +112,23 @@ run settleWithOwnAccount = script do
                   rootCustodian = csd
                   pathsToRootCustodian = [[seller], [buyer]])
       ]
-  settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submit buyer do
-    createCmd FactoryWithIntermediaries with
+  routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit buyer do
+    createCmd IntermediatedStatic with
         provider = buyer
         paths
         observers = empty
-  let
-    steps =
-      [ Step with
-          sender = seller; receiver = buyer; quantity = Instrument.qty 1_000.0 equityInstrument
-      , Step with
-          sender = buyer; receiver = seller; quantity = Instrument.qty 200_000.0 cashInstrument
-      ]
+  routedSteps <- submit buyer do
+    exerciseCmd routeProviderCid RouteProvider.Discover with
+      discoverors = singleton buyer; contextId = None; steps
+
+  -- Instruct settlement
+  settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submit buyer do
+    createCmd Factory with provider = buyer; observers = empty
   (batchCid, [equityInstructionCid, cashInstruction1Cid, cashInstruction2Cid]) <-
     submitMulti [buyer, seller] [] do
       exerciseCmd settlementFactoryCid Factory.Instruct with
         instructors = fromList [buyer, seller]; settlers = fromList [buyer, seller]
-        id = Id "APPL 1000@200.0USD"; description = "DVP"; contextId = None; steps
+        id = Id "APPL 1000@200.0USD"; description = "DVP"; contextId = None; routedSteps
 
   -- Allocate instructions
   (equityInstructionCid, _) <- submit seller do

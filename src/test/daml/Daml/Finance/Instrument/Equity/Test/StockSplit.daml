@@ -18,11 +18,11 @@ import Daml.Finance.Interface.Types.Common (Id(..))
 import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
 import Daml.Finance.Lifecycle.Rule.Replacement qualified as Replacement (Rule(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
+import Daml.Finance.Settlement.RouteProvider.SingleCustodian (SingleCustodian(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (submitExerciseInterfaceByKeyCmd)
-import Daml.Finance.Test.Util.Lifecycle (createClockAndEvent)
 import Daml.Script
 
 -- Stock split lifecycling and settlement
@@ -44,13 +44,14 @@ run = script do
   -- Create lifecycle rule
   replacementRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit issuer do
     createCmd Replacement.Rule with
-      providers = singleton issuer; lifecycler = issuer; observers = singleton public
-  -- Create clock
-  now <- getTime
-  (clockCid, clockEventCid) <-
-    createClockAndEvent (singleton issuer) (toDateUTC now) (singleton public)
+      providers = singleton issuer
+      lifecycler = issuer
+      observers = singleton public
+      id = Id "LifecycleRule"
+      description = "Rule to lifecycle an instrument following a replacement event"
 
   -- Originate instruments
+  now <- getTime
   preEquityInstrument <- originateEquity issuer issuer "INST-1" "0" "AAPL" pp now
   postEquityInstrument <- originateEquity issuer issuer "INST-1" "1" "AAPL" [] now
 
@@ -70,17 +71,22 @@ run = script do
   -- Lifecycle stock split
   (_, [effectCid]) <- submit issuer do
     exerciseCmd replacementRuleCid Lifecycle.Evolve with
-      ruleName = "Dividend"; observableCids = []; eventCid = replacementEventCid
-      timeObservableCid = clockCid
+      observableCids = []
+      eventCid = replacementEventCid
+      instrument = preEquityInstrument
 
   -- Claim effect
+  routeProviderCid <- toInterfaceContractId <$> submit issuer do
+    createCmd SingleCustodian with
+      provider = issuer; observers = singleton public; custodian = issuer
   settlementFactoryCid <- toInterfaceContractId <$> submit issuer do
-    createCmd Factory with provider = issuer; observers = singleton public; custodian = issuer
+    createCmd Factory with provider = issuer; observers = singleton public
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit issuer do
     createCmd Claim.Rule with
       providers = singleton issuer
       claimers = fromList [investor, issuer]
       settlers = fromList [investor, issuer]
+      routeProviderCid
       settlementFactoryCid
       netInstructions = False
 

@@ -3,10 +3,8 @@
 
 module Daml.Finance.Lifecycle.Rule.Replacement where
 
-import DA.Date (toDateUTC)
-import Daml.Finance.Interface.Data.TimeObservable qualified as TimeObservable (GetView(..))
-import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (HasImplementation, Evolve(..), I, View(..))
-import Daml.Finance.Interface.Types.Common (Parties)
+import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (Evolve(..), HasImplementation, I, View(..))
+import Daml.Finance.Interface.Types.Common (Id(..), Parties)
 import Daml.Finance.Lifecycle.Effect (Effect(..))
 import Daml.Finance.Lifecycle.Event.Replacement qualified as Replacement (Event)
 
@@ -25,29 +23,28 @@ template Rule
       -- ^ Party performing the lifecycling.
     observers : Parties
       -- ^ Observers.
+    id : Id
+      -- ^ Identifier for the rule contract.
+    description : Text
+      -- ^ Textual description.
   where
     signatory providers
     observer observers, lifecycler
 
     interface instance Lifecycle.I for Rule where
-      view = Lifecycle.View with lifecycler
-      evolve Lifecycle.Evolve{eventCid; timeObservableCid} self = do
+      view = Lifecycle.View with lifecycler; id; description
+      evolve Lifecycle.Evolve{eventCid; instrument} = do
         replacement <- fetch $ fromInterfaceContractId @Replacement.Event eventCid
-        clockTime <- toDateUTC . (.time) <$> exercise timeObservableCid TimeObservable.GetView with
-          viewer = lifecycler
-        if clockTime >= replacement.effectiveDate
-        then do
-          effectCid <- toInterfaceContractId <$> create Effect
-            with
-              providers = replacement.providers
-              id = replacement.id
-              description = replacement.description
-              targetInstrument = replacement.targetInstrument
-              producedInstrument = None
-              otherConsumed = []
-              otherProduced = replacement.perUnitReplacement
-              settlementDate = replacement.effectiveDate
-              observers
-          pure (self, [effectCid])
-        else do
-          pure (self, [])
+        assertMsg "The input instrument does not match the replacement's target instrument" $ instrument == replacement.targetInstrument
+        effectCid <- toInterfaceContractId <$> create Effect
+          with
+            providers = replacement.providers
+            id = replacement.id
+            description = replacement.description
+            targetInstrument = replacement.targetInstrument
+            producedInstrument = None
+            otherConsumed = []
+            otherProduced = replacement.perUnitReplacement
+            settlementDate = replacement.effectiveDate
+            observers
+        pure (None, [effectCid])

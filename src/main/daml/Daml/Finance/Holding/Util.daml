@@ -3,14 +3,11 @@
 
 module Daml.Finance.Holding.Util
   ( acquireImpl
-  , reapplyLocks
-  , releaseAll
   , releaseImpl
   , transferImpl
   ) where
 
-import DA.Action (foldlA)
-import DA.Set qualified as S (delete, insert, isSubsetOf, null, singleton, toList)
+import DA.Set qualified as S (delete, insert, isSubsetOf, null, singleton)
 import Daml.Finance.Interface.Account.Account qualified as Account (CreditAndDebit(..), I, R, exerciseInterfaceByKey)
 import Daml.Finance.Interface.Account.Util (fetchAccount)
 import Daml.Finance.Interface.Holding.Base (getLockers)
@@ -19,23 +16,13 @@ import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I,
 import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey)
 import Prelude hiding (null)
 
--- | Utility function to reapply holding locks.
-reapplyLocks :  ContractId Base.I -> Base.Lock -> Update (ContractId Base.I)
-reapplyLocks cid lock = foldlA (\acc context -> exercise acc Base.Acquire with
-  newLockers = lock.lockers; context; lockType = lock.lockType) cid (S.toList lock.context)
-
--- | Utility function to unlock all holding locks.
-releaseAll : ContractId Base.I -> Base.Lock -> Update (ContractId Base.I)
-releaseAll cid lock =
-  foldlA (\acc context -> exercise acc Base.Release with context) cid (S.toList lock.context)
-
 -- | Implementation of transfer for the Transferable interface.
 transferImpl : ContractId Transferable.I -> Transferable.Transfer -> Update
   (ContractId Transferable.I)
 transferImpl self Transferable.Transfer{actors; newOwnerAccount} = do
   transferable <- fetch self
   vAccount <- view <$> fetchAccount transferable
-  vNewAccount <- view <$> fetchInterfaceByKey @Account.R newOwnerAccount
+  vNewAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I newOwnerAccount
   let lockers = getLockers transferable
   assertMsg "actors must contain all transfer instructors of the sender account" $
     S.isSubsetOf vAccount.controllers.instructors actors
@@ -47,7 +34,7 @@ transferImpl self Transferable.Transfer{actors; newOwnerAccount} = do
       actors = lockers <> S.singleton vAccount.owner; baseCid = toInterfaceContractId @Base.I self
 
 -- | Default implementation of `acquire` from the Base interface.
-acquireImpl : forall t.
+acquireImpl :
   ( HasCreate t
   , DA.Internal.Record.HasField "lock" t (Optional Base.Lock)
   , HasFromInterface t Base.I, HasToInterface t Base.I
@@ -61,7 +48,7 @@ acquireImpl base Base.Acquire{newLockers; context; lockType} = do
   toInterfaceContractId <$> create base with lock = Some newLock
 
 -- | Default implementation of release from the Base interface.
-releaseImpl : forall t.
+releaseImpl :
   ( HasCreate t
   , DA.Internal.Record.HasField "lock" t (Optional Base.Lock)
   , HasFromInterface t Base.I
