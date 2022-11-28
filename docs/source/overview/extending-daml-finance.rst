@@ -17,13 +17,17 @@ Custom Holding Implementations
 
 Daml Finance provides default implementations for fungible, non-fungible, and non-transferable
 holdings. The transferability of transferable holdings can be flexibly controlled through the
-``controllers`` property on an account. Some use cases, however, might require additional
-functionality on holding contracts:
+:ref:`controllers <type-daml-finance-interface-account-account-controllers-36430>`
+property on an :ref:`Account <module-daml-finance-account-account-19369>`.
+Some use cases, however, might require additional functionality on holding contracts:
 
-- *Restricted transferability*: a custom implementation of the ``Transferable`` interface can enforce
-  additional conditions (e.g. the presence of some contract) required to transfer a holding.
-- *Fixed divisibility*: a custom implementation of the ``Fungible`` interface can enforce specific
-  requirements regarding the divisibility of a holding.
+- *Restricted transferability*: a custom implementation of the
+  :ref:`Transferable interface <module-daml-finance-interface-holding-transferable-88121>`
+  can enforce additional conditions (e.g. the presence of some contract) required to transfer a
+  holding.
+- *Fixed divisibility*: a custom implementation of the
+  :ref:`Fungible interface <module-daml-finance-interface-holding-fungible-63712>` can enforce
+  specific requirements regarding the divisibility of a holding.
 - *Additional information*: a custom implementation of a holding can provide additional information,
   for example, the timestamp of when the holding was obtained. This can be used to implement
   features that depend on the time a particular asset has been held (e.g. holding fees, interest,
@@ -39,12 +43,13 @@ Custom Account Implementations
 ******************************
 
 The default account implementation in Daml Finance allows you to define authorization requirements
-for incoming and outgoing transfers through the ``controllers`` property. For some cases, however,
-a custom account implementation is warranted:
+for incoming and outgoing transfers through the
+:ref:`controllers <type-daml-finance-interface-account-account-controllers-36430>` property.
+For some cases, however, a custom account implementation is warranted:
 
 - Restricted credit and debit: a custom implementation of the ``Credit`` and / or
   ``Debit`` choices on the
-  :ref:`Account <type-daml-finance-interface-holding-factory-factory-80308>` interface can place
+  :ref:`Account interface <module-daml-finance-interface-account-account-92922>` can place
   additional restrictions on those actions that can depend, for example, on the presence of a
   separate know-your-customer (KYC) contract.
 - Additional information: a custom account implementation can serve to represent different concepts
@@ -60,15 +65,15 @@ entirely new instruments types. The following are typical examples of when a cus
 implementation is required:
 
 - Additional information: a custom instrument implementation might, for example, build upon the
-  :ref:`Equity <type-daml-finance-interface-instrument-equity-instrument-instrument-99859>`
-  interface to provide additional information pertinent to private equity (like share class, or
+  :ref:`Equity interface <type-daml-finance-interface-instrument-equity-instrument-instrument-99859>`
+  to provide additional information pertinent to private equity (like share class, or
   liquidation preference).
 - New instrument types: if Daml Finance does not provide an implementation for a given instrument
   type a custom implementation can be provided to fill that gap. The implementation can either
   leverage the :doc:`Contingent Claims <../concepts/contingent-claims>` framework, as described in
   :doc:`this tutorial <../tutorials/instrument-modeling/contingent-claims-instrument>`, or be implemented through
   standard interfaces, as seen in the implementation of the
-  :ref:`Equity <type-daml-finance-instrument-equity-instrument-instrument-90430>` instrument.
+  :ref:`Equity instrument <type-daml-finance-instrument-equity-instrument-instrument-90430>`.
 
 Custom Lifecycle Implementations
 ********************************
@@ -76,11 +81,12 @@ Custom Lifecycle Implementations
 Daml Finance provides a default set of lifecycle rules that can be used to evolve instruments.
 Examples are the implementation of
 :ref:`Distributions <type-daml-finance-lifecycle-rule-distribution-rule-66267>`,
-:ref:`Replacements <type-daml-finance-lifecycle-rule-replacement-rule-7648>`, or the time-based
-evolution of contingent-claims based instruments. There are many more lifecycle events and rules
+:ref:`Replacements <type-daml-finance-lifecycle-rule-replacement-rule-7648>`, or the
+:ref:`time-based evolution <module-daml-finance-interface-lifecycle-event-time-4252>`
+of contingent-claims based instruments. There are many more lifecycle events and rules
 that can be implemented using the provided interfaces. Typically, implementations of the
-:ref:`Event <type-daml-finance-lifecycle-rule-replacement-rule-7648>` and
-:ref:`Rule <type-daml-finance-lifecycle-rule-replacement-rule-7648>` interface are required to
+:ref:`Event <module-daml-finance-interface-lifecycle-event-43586>` and
+:ref:`Rule <module-daml-finance-interface-lifecycle-rule-lifecycle-50431>` interface are required to
 handle new lifecycle events. Examples of events where a library extension might be warranted
 include:
 
