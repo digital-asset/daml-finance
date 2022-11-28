@@ -53,7 +53,7 @@ Structure of the Code and Dependencies
 The code includes
 
 - four workflows defined in the ``Workflows`` folder
-- two Daml scripts defined in the ``Scripts`` folder
+- three Daml scripts defined in the ``Scripts`` folder
 
 The first encapsulate the core business logic of the application, whereas the latter includes
 scripts that are executed on a one-off basis.
@@ -75,7 +75,7 @@ used in ``daml-finance`` and, thus, makes it easier to upgrade the one without b
 upgrade the other.
 
 On the other hand, the script in the ``Scripts`` folder depends also on implementation packages (in
-this case, ``Daml.Finance.Holding`` and ``Daml.Finance.Instrument.Token``).
+this case, ``Daml.Finance.Account``, ``Daml.Finance.Holding``, and ``Daml.Finance.Instrument.Token``).
 
 This is not problematic, as the script is meant to be run only once when the application is
 initialized.
