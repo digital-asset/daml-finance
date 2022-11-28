@@ -19,7 +19,7 @@ Interface Layer
 
 The interface layer provides common types and Daml interface definitions that represent the public
 API of Daml Finance. It includes several Daml packages, each grouping related business functions.
-These packages can in principle be used independently from each other.
+These packages can in principle be used independently of each other.
 
 The interface layer consists of the following packages:
 
@@ -33,8 +33,8 @@ The interface layer consists of the following packages:
 - ``Daml.Finance.Interface.Claims`` contains interfaces used for
   :doc:`Contingent Claims <../concepts/contingent-claims>` based instrument types
 - ``Daml.Finance.Interface.Data`` defines interfaces related to reference data
-- ``Daml.Finance.Interface.Types`` package provides common types
-- ``Daml.Finance.Interface.Util`` package defines utilities and interfaces used by other interface
+- ``Daml.Finance.Interface.Types`` provides common types
+- ``Daml.Finance.Interface.Util`` defines utilities and interfaces used by other interface
   packages.
 - ``ContingentClaims.Core`` contains types for representing
   :doc:`Contingent Claims <../concepts/contingent-claims>` tree structures.
@@ -42,7 +42,7 @@ The interface layer consists of the following packages:
 Implementation Layer
 ********************
 
-The implementation layer defines concrete template definitions implementing the interfaces defined
+The implementation layer contains concrete template definitions implementing the interfaces defined
 in the interface layer. These represent the contracts that are ultimately stored on the ledger.
 
 For instance, ``Daml.Finance.Holding`` contains a concrete implementation of a
@@ -62,13 +62,12 @@ The implementation layer consists of the following packages:
 - ``Daml.Finance.Data`` includes templates used to store reference data on the ledger
 - ``Daml.Finance.Claims`` contains utility functions relating to
   :doc:`Contingent Claims <../concepts/contingent-claims>` based instruments and lifecycling
-- ``Daml.Finance.Util`` package provides a set of pure utility functions mainly for date
-  manipulation
+- ``Daml.Finance.Util`` provides a set of pure utility functions mainly for date manipulation
 - ``ContingentClaims.Lifecycle`` provides lifecycle utility functions for
   :doc:`Contingent Claims <../concepts/contingent-claims>` based instruments
 - ``ContingentClaims.Valuation`` contains experimental functions to transform
-   :doc:`Contingent Claims <../concepts/contingent-claims>` instrument trees into a mathematical
-   representation suitable for integrating with pricing and risk frameworks
+  :doc:`Contingent Claims <../concepts/contingent-claims>` instrument trees into a mathematical
+  representation suitable for integration with pricing and risk frameworks
 
 Versioning and Compatibility
 ****************************
