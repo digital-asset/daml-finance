@@ -95,9 +95,9 @@ The investor then claims the effect:
 .. code-block:: daml
 
   -- Claim effect
-  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [custodian, investor] [] do
-    createCmd Claim.Rule
-      with
+  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$>
+    submitMulti [custodian, investor] [] do
+      createCmd Claim.Rule with
         providers = fromList [custodian, investor]
         claimers = singleton investor
         settlers
@@ -125,14 +125,19 @@ Finally, the settlement instructions are allocated, approved and then settled.
     [custodianCashInstructionCid] = result.instructionCids
 
   -- Allocate instructions
-  (custodianCashInstructionCid, _) <- submitMulti [custodian] readAs do exerciseCmd custodianCashInstructionCid Instruction.Allocate with actors = singleton custodian; allocation = Pledge custodianCashTransferableCid
+  (custodianCashInstructionCid, _) <- submitMulti [custodian] readAs do
+    exerciseCmd custodianCashInstructionCid
+      Instruction.Allocate with
+        actors = singleton custodian; allocation = Pledge custodianCashTransferableCid
 
   -- Approve instructions
   custodianCashInstructionCid <- submit investor do
-    exerciseCmd custodianCashInstructionCid Instruction.Approve with actors = singleton investor; approval = TakeDelivery investorAccount
+    exerciseCmd custodianCashInstructionCid Instruction.Approve
+      with actors = singleton investor; approval = TakeDelivery investorAccount
 
   -- Settle batch
   let settlerUsed = head $ toList settlers
-  [investorCashTransferableCid] <- submitMulti [settlerUsed] readAs do exerciseCmd result.batchCid Batch.Settle with actors = singleton settlerUsed
+  [investorCashTransferableCid] <- submitMulti [settlerUsed] readAs do
+    exerciseCmd result.batchCid Batch.Settle with actors = singleton settlerUsed
 
 Following settlement, the investor receives a cash holding for the due coupon amount.
