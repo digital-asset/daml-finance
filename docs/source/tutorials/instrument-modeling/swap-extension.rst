@@ -164,9 +164,8 @@ Finally, we create the FX swap instrument:
   :start-after: -- CREATE_FOREIGN_EXCHANGE_SWAP_INSTRUMENT_BEGIN
   :end-before: -- CREATE_FOREIGN_EXCHANGE_SWAP_INSTRUMENT_END
 
-Once the instrument is created, you can book a holding on it. In our example, the owner of the
-holding receives the foreign currency in the initial transaction.
-In the final transaction the sides are reversed.
+Once the instrument is created, you can book a holding on it. The owner of the holding receives the
+foreign currency in the initial transaction. In the final transaction the sides are reversed.
 
 Credit Default
 ==============
