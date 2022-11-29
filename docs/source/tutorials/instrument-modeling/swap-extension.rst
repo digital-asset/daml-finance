@@ -123,7 +123,7 @@ Here is how we create the currency swap instrument, using the two currencies def
   :start-after: -- CREATE_CURRENCY_SWAP_INSTRUMENT_BEGIN
   :end-before: -- CREATE_CURRENCY_SWAP_INSTRUMENT_BEGIN
 
-Once the instrument is created, you can book a holding on it. In our example, it the owner of the
+Once the instrument is created, you can create a holding on it. In our example, it the owner of the
 holding receives the foreign currency leg (and pays the base currency leg).
 
 Foreign Exchange
