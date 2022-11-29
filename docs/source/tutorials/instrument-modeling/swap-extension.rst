@@ -204,7 +204,7 @@ Finally, we create the CDS instrument:
   :start-after: -- CREATE_CREDIT_DEFAULT_SWAP_INSTRUMENT_BEGIN
   :end-before: -- CREATE_CREDIT_DEFAULT_SWAP_INSTRUMENT_END
 
-Once the instrument is created, you can book a holding on it. In our example, the owner of the
+Once the instrument is created, you can create a holding on it. In our example, the owner of the
 holding receives the protection leg (and pays the fix leg).
 
 Asset
