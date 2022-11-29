@@ -62,9 +62,9 @@ Workflow
 In this scenario we go through the process of paying a cash dividend from an issuer to an investor.
 The initial state looks as follows:
 
-* An issuer maintains a ``ACME`` instrument representing shares in a company
+* An issuer maintains an ``ACME`` instrument representing shares in a company
 * An investor owns a holding of 1000 units of the ``ACME`` instrument (version 1) with the issuer
-* The issuer wants to process and pay a cash dividend of USD 10.0 per share on its ``ACME``
+* The issuer wants to process and pay a cash dividend of USD 10.0 per share of its ``ACME``
   instrument (version 1)
 
 .. image:: ../images/lifecycle_initial_state.png
@@ -128,15 +128,15 @@ new version of the stock, which is not entitled to the dividend anymore.
    :alt: The investor claims the lifecycle effect through the claim rule, passing in their ACME v1
          holding. This produces a batch and settlement instructions.
 
-Note that the party responsible for claiming an effect can be set flexibly in the
+Note that the party responsible for claiming an effect can be specified flexibly in the
 :ref:`Claim Rule <type-daml-finance-interface-lifecycle-rule-claim-claim-29284>` contract. Through
-this custodians can be given the authority to push a given corporate action to the asset holder, as is
-common in current operating procedures.
+this custodians can be given the authority to push a given corporate action to the asset holder, as
+is common in current operating procedures.
 
 The model also supports atomic, intermediated settlement of lifecycle events. For example, if a
 dividend is to be settled between issuer, custodian, and investor in a single transaction, the
-custodian (having visibility of both, their holding at the issuer, and the investor's holding) can
-pass in both holdings into the claim rule, and thereby instructing a single batch to settle both
+custodian (having visibility of both its holding at the issuer and the investor's holding) can
+pass in both holdings into the claim rule, and thereby instruct a single batch to settle both
 sides.
 
 Settlement
@@ -152,6 +152,8 @@ The following picture shows the three asset movements involved in this particula
          allocates a 1000 ACME v2 holding to the second instruction and a 10000 USD holding to the
          third.
 
+In other words, the investor receives a 10'000 USD dividend and 1'000 shares of ``ACME`` v2 in
+return for 1'000 shares of ``ACME`` v1.
 
 Components
 **********
@@ -168,16 +170,17 @@ properties of a lifecycle event:
 
 Different implementations exist to cover typical event types:
 
-- The :ref:`DateClock Update <type-daml-finance-lifecycle-event-dateclockupdate-dateclockupdateevent-18229>` event represents
-  passing of (market) time and can be used to trigger contractual, time-based cashflows, like
-  interest payments on a bond. It is, for example, used to drive the evolution and lifecycling of
-  :doc:`Contingent Claims <contingent-claims>`-based instruments.
+- The
+  :ref:`DateClock Update <type-daml-finance-lifecycle-event-dateclockupdate-dateclockupdateevent-18229>`
+  event represents passing of (market) time and can be used to trigger contractual, time-based
+  cashflows, like interest payments on a bond. It is, for example, used to drive the evolution and
+  lifecycling of :doc:`Contingent Claims <contingent-claims>`-based instruments.
 - The :ref:`Distribution <type-daml-finance-lifecycle-event-distribution-event-46459>` event can be
   used to distribute assets to holders of an instrument. This covers cash-, share-, and mixed
   dividends, rights issues, or the distribution of voting rights.
 - The :ref:`Replacement <type-daml-finance-lifecycle-event-replacement-event-16120>` event handles
   replacements of one instrument for another with support for a factor. This covers corporate
-  actions like (reverse) stock splits, mergers, or spin-offs.
+  actions like (reverse) stock splits, mergers, and spin-offs.
 
 Lifecycle Rule
 ==============
