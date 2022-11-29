@@ -39,36 +39,13 @@ Holding
 A holding contract represents the ownership of a certain amount of an `Instrument <#instrument>`__
 by an owner at a custodian.
 
-Custodian
----------
-
-The custodian is the party registering ownership for a given `Instrument <#instrument>`__.
-
-Owner
------
-
-The owner is the party holding legal (or beneficial) ownership of an `Instrument <#instrument>`__.
-
-Depository
-----------
-
-The depository is the party responsible for safekeeping the legal form of an
-`Instrument <#instrument>`__ (e.g. paper certificates).
-
-Issuer
-------
-
-The issuer is the party issuing new units of an `Instrument <#instrument>`__.
-
 .. _fungibility:
 
 Fungibility
 -----------
 
 Fungibility refers to the ability of an `Instrument <#instrument>`__ to be interchanged with other
-individual instruments of the same type.
-
-Only a fungible instrument can be held for an amount other than ``1.0``.
+individual instruments of the same type. Fungible holdings can be ``split`` and ``merged``.
 
 .. _transferability:
 

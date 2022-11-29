@@ -7,7 +7,7 @@ Settlement
 :ref:`Settlement <settlement>` refers to the execution of holding transfers originating from a
 financial transaction.
 
-The library provides facilities to execute these transfers atomically (i.e., within the same Daml
+Daml Finance provides facilities to execute these transfers atomically (i.e., within the same Daml
 transaction). Interfaces are defined in the ``Daml.Finance.Interface.Settlement`` package, whereas
 implementations are provided in the ``Daml.Finance.Settlement`` package.
 
@@ -25,10 +25,10 @@ Our initial state looks as follows:
 * Alice owns a holding on a ``EUR`` instrument, for an amount of ``1000``
 * Bob owns a holding on a ``USD`` instrument, for an amount of ``1000``
 
-These holdings are generally held at different custodians.
-
 .. image:: ../images/settlement_initial_state.png
    :alt: Alice owns a EUR holding, Bob owns a USD holding.
+
+These holdings are generally held at different custodians.
 
 Instruct
 ========
@@ -37,9 +37,12 @@ Alice and Bob want to exchange their holdings and agree to enter into the transa
 signatories on a transaction contract. Settlement can then be instructed which results in 3
 contract instances being created:
 
-#. an ``Instruction`` to transfer EUR 1000 from Alice to Bob
-#. an ``Instruction`` to transfer USD 1000 from Bob to Alice
-#. a ``Batch`` used to execute the above Instructions
+#. an :ref:`Instruction <module-daml-finance-settlement-instruction-87187>`
+   to transfer EUR 1000 from Alice to Bob
+#. an :ref:`Instruction <module-daml-finance-settlement-instruction-87187>`
+   to transfer USD 1000 from Bob to Alice
+#. a :ref:`Batch <module-daml-finance-settlement-batch-95573>`
+   used to execute the above Instructions
 
 .. image:: ../images/settlement_instructed.png
    :alt: Settlement is instructed.
@@ -50,21 +53,23 @@ Each instruction defines who is the sender, who is the receiver, and what should
 Allocate and Approve
 ====================
 
-In order to execute the FX transaction, we first need to
+In order to execute the FX transaction, we first need to:
 
 - allocate, i.e., specify which holding should be used
-- approve, i.e., specify which account the asset should be transferred to
+- approve, i.e., specify to which account the asset should be transferred
 
-for each ``Instruction``.
+for each :ref:`Instruction <module-daml-finance-settlement-instruction-87187>`.
 
-Alice ``allocates`` the instruction where she is the sender by pledging her holding. Bob does the
+Alice :ref:`allocates <module-daml-finance-interface-settlement-instruction-10970>`
+the instruction where she is the sender by pledging her holding. Bob does the
 same on the instruction where he is the sender.
 
 .. image:: ../images/settlement_allocated.png
    :alt: Settlement is allocated.
 
-Each receiver can then specify to which account the holding should be sent by ``approving`` the
-corresponding instruction.
+Each receiver can then specify to which account the holding should be sent by
+:ref:`approving <module-daml-finance-interface-settlement-instruction-10970>`
+the corresponding instruction.
 
 .. image:: ../images/settlement_allocated_approved.png
    :alt: Settlement is allocated and approved.
@@ -72,8 +77,10 @@ corresponding instruction.
 Execute
 =======
 
-Once both instructions are allocated and approved, a Settler party uses the ``Batch`` contract to
-``execute`` them and finalize settlement in one atomic transaction.
+Once both instructions are allocated and approved, a Settler party uses the
+:ref:`Batch <module-daml-finance-settlement-batch-95573>` contract to
+:ref:`execute <module-daml-finance-interface-settlement-instruction-10970>`
+them and finalize settlement in one atomic transaction.
 
 .. image:: ../images/settlement_executed.png
    :alt: Settlement is allocated and approved.
@@ -83,7 +90,7 @@ The instructions and the batch are archived following a successful execution.
 Remarks
 =======
 
-There are some assumptions that needs to hold in order for the settlement to work in practice:
+There are some assumptions that need to hold in order for the settlement to work in practice:
 
 - Bob needs to have an account at the custodian where Alice's holding is held and vice versa.
 - Both holdings need to be
@@ -111,10 +118,11 @@ Central Bank.
          Bank B. Bank A and Bank B have an account at the Central Bank.
 
 In this case, a direct holding transfer from Alice to Bob cannot generally be instructed. The
-original ``Instruction`` between Alice and Bob needs to be replaced by three separate
-``Instructions``:
+original :ref:`Instruction <module-daml-finance-settlement-instruction-87187>`
+between Alice and Bob needs to be replaced by three separate
+:ref:`Instructions <module-daml-finance-settlement-instruction-87187>`:
 
-- **1A**: Alice sends EUR 1000 (held at Bank A) back to Bank A
+- **1A**: Alice sends EUR 1000 (held at Bank A) to Bank A
 - **1B**: Bank A sends EUR 1000 (held at the Central Bank) to Bank B.
 - **1C**: Bank B credits EUR 1000 to Bob's account (held at Bank B)
 
@@ -132,7 +140,8 @@ Settlement factory
 ==================
 
 The :ref:`Settlement Factory <type-daml-finance-interface-settlement-factory-factory-31525>` is used
-to instruct settlement, i.e., create the ``Batch`` contract and the settlement ``Instructions``,
+to instruct settlement, i.e., create the :ref:`Batch <module-daml-finance-settlement-batch-95573>`
+contract and the settlement :ref:`Instructions <module-daml-finance-settlement-instruction-87187>`,
 from :ref:`routed steps <type-daml-finance-interface-settlement-types-routedstep-10086>`, so that
 they can be allocated and approved by the respective parties.
 
@@ -145,8 +154,8 @@ used to settle a single holding transfer at a specific custodian, once it is ``a
 
 In the :ref:`Allocation <type-daml-finance-interface-settlement-types-allocation-46483>` step, the
 sender acknowledges the transfer and determines how to send the holding. This is usually done by
-pledging one of the sender's existing holdings at the custodian (which has the correct instrument
-and amount). When the sender is also the custodian, the instruction can be allocated with
+pledging one of the sender's existing holdings (which has the correct instrument and amount)
+at the custodian . When the sender is also the custodian, the instruction can be allocated with
 ``CreditReceiver``. In this case, a new holding is minted at the custodian and then transferred to
 the target receiver.
 
@@ -167,23 +176,26 @@ be allocated / approved.
 |                                                    | holding              | with DebitSender     |
 +----------------------------------------------------+----------------------+----------------------+
 | 2A : EUR 1000 from Bank A to Bank B @ Central Bank | Bank A pledges       | Bank B takes delivery|
-|                                                    | their holding        | to their account     |
+|                                                    | its holding          | to its account       |
 +----------------------------------------------------+----------------------+----------------------+
 | 3A : EUR 1000 from Bank B to Bob @ Bank B          | Bank B allocates     | Bob takes delivery   |
 |                                                    | with CreditReceiver  | to his account       |
 +----------------------------------------------------+----------------------+----------------------+
 
-Finally, the Instruction supports two additional settlement modes:
+Finally, the :ref:`Instruction <module-daml-finance-settlement-instruction-87187>` supports two
+additional settlement modes:
 
-- ``Off Ledger`` for off-ledger settlement
-- ``Pass-through`` to allocate a holding that will be received by executing another instruction in
-  the same batch
+- :ref:`SettleOffLedger <constr-daml-finance-interface-settlement-types-settleoffledger-89308>`
+  for off-ledger settlement
+- :ref:`PassthroughFrom <constr-daml-finance-interface-settlement-types-passthroughfrom-55637>`
+  to allocate a holding that will be received by executing another instruction in the same batch
 
 Batch
 =====
 
 The :ref:`Batch <type-daml-finance-interface-settlement-batch-batch-97497>` is used to execute a set
-of instructions atomically. Execution will fail if any of the Instructions is not fully allocated
+of instructions atomically. Execution will fail if any of the
+:ref:`Instructions <module-daml-finance-settlement-instruction-87187>` is not fully allocated
 / approved, or if the transfer is for some reason unsuccessful.
 
 Remarks and further references
