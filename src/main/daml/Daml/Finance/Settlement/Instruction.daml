@@ -69,7 +69,7 @@ template Instruction
         disclosureControllers = S.fromList [routedStep.sender, routedStep.receiver]; observers
       setObservers Disclosure.SetObservers{newObservers} =
         toInterfaceContractId <$> create this with observers = newObservers
-      archive' self = archive (coerceContractId self : ContractId Instruction)
+      archive' = archive . fromInterfaceContractId @Instruction
 
     interface instance Instruction.I for Instruction where
       asDisclosure = toInterface @Disclosure.I this
@@ -86,14 +86,13 @@ template Instruction
           PassthroughFrom (passthroughAccount, _) -> do
             undiscloseA passthroughAccount
             pure None
-          a -> pure None
+          _ -> pure None
         -- allocate
         allocationDisclosed <- case allocation of
           Pledge holdingCid -> do
             holdingCid <- discloseT routedStep.sender settlers holdingCid
             holding <- fetch holdingCid
-            let
-              senderAccount = getAccount holding
+            let senderAccount = getAccount holding
             base : Base.I <- fetch $ coerceContractId holdingCid
             discloseA senderAccount
             vSenderAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I senderAccount
@@ -119,8 +118,11 @@ template Instruction
           a -> do
             assertMsg "actors must include sender" $ S.member routedStep.sender actors
             pure a
-        cid <- toInterfaceContractId <$> create this with
-          allocation = allocationDisclosed; signed = S.insert routedStep.sender signed
+        cid <- toInterfaceContractId <$>
+          create this
+            with
+              allocation = allocationDisclosed
+              signed = S.insert routedStep.sender signed
         pure (cid, otCid)
       approve Instruction.Approve{actors; approval} = do
         let newSigned = S.insert routedStep.receiver signed
@@ -129,7 +131,7 @@ template Instruction
         case this.approval of
           TakeDelivery receiverAccount -> undiscloseA receiverAccount
           PassthroughTo (passthroughAccount, _) -> undiscloseA passthroughAccount
-          a -> pure None
+          _ -> pure None
         -- approve
         case approval of
           TakeDelivery receiverAccount -> do
@@ -141,15 +143,15 @@ template Instruction
               routedStep.custodian == receiverAccount.custodian
           PassthroughTo (passthroughAccount, toInstruction) -> do
             discloseA passthroughAccount
-            vReceiverAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I passthroughAccount
+            vReceiverAccount <- view <$>
+              fetchInterfaceByKey @Account.R @Account.I passthroughAccount
             assertMsg "actors must include approvers" $
               S.isSubsetOf vReceiverAccount.controllers.approvers actors
           DebitSender -> do
             assertMsg "the receiver must match the target custodian" $
               routedStep.custodian == routedStep.receiver
             assertMsg "actors must include receiver" $ S.member routedStep.receiver actors
-          _ ->
-            assertMsg "actors must include receiver" $ S.member routedStep.receiver actors
+          _ -> assertMsg "actors must include receiver" $ S.member routedStep.receiver actors
 
         toInterfaceContractId <$> create this with signed = newSigned; approval
       execute Instruction.Execute{actors} = do
