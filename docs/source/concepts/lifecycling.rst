@@ -64,7 +64,7 @@ The initial state looks as follows:
 
 * An issuer maintains an ``ACME`` instrument representing shares in a company
 * An investor owns a holding of 1000 units of the ``ACME`` instrument (version 1) with the issuer
-* The issuer wants to process and pay a cash dividend of USD 10.0 per share of its ``ACME``
+* The issuer wants to process and pay a cash dividend of USD 10.0 per unit of its ``ACME``
   instrument (version 1)
 
 .. image:: ../images/lifecycle_initial_state.png
