@@ -47,7 +47,7 @@ prepareAndTagClaims cs tag =
 createFixRatePaymentClaimsList : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool ->
   DayCountConventionEnum -> Decimal -> Deliverable -> [Claim Date Decimal Deliverable Observable]
 createFixRatePaymentClaimsList schedule periodicSchedule useAdjustedDatesForDcf couponRate
-  issuerPays dayCountConvention notional cashInstrumentCid =
+  ownerReceives dayCountConvention notional cashInstrumentCid =
     let
       couponDatesAdjusted = map (.adjustedEndDate) schedule
       couponAmounts = map (\p ->
@@ -61,17 +61,17 @@ createFixRatePaymentClaimsList schedule periodicSchedule useAdjustedDatesForDcf 
             when (TimeGte d) $ scale (Const a) $ scale (Const notional) $ one cashInstrumentCid
           ) couponDatesAdjusted couponAmounts
     in
-      [if issuerPays then couponClaimAmounts else give couponClaimAmounts]
+      [if ownerReceives then couponClaimAmounts else give couponClaimAmounts]
 -- FIXED_RATE_BOND_COUPON_CLAIMS_END
 
 -- | Calculate a fix rate amount for each payment date and create claims.
 createFixRatePaymentClaims : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool ->
   DayCountConventionEnum -> Decimal -> Deliverable -> TaggedClaim
-createFixRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf couponRate issuerPays
+createFixRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf couponRate ownerReceives
   dayCountConvention notional cashInstrumentCid =
     let
       couponClaims = createFixRatePaymentClaimsList schedule periodicSchedule useAdjustedDatesForDcf
-        couponRate issuerPays dayCountConvention notional cashInstrumentCid
+        couponRate ownerReceives dayCountConvention notional cashInstrumentCid
     in prepareAndTagClaims couponClaims "Fix rate payment"
 
 -- | Calculate a fix rate amount (if a credit event has not yet happened) for each payment date and
@@ -79,10 +79,10 @@ createFixRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf coup
 createConditionalCreditFixRatePaymentClaims : [SchedulePeriod] -> PeriodicSchedule -> Bool ->
   Decimal -> Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> Observable -> TaggedClaim
 createConditionalCreditFixRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf
-  couponRate issuerPays dayCountConvention notional cashInstrumentCid defaultProbabilityReferenceId
+  couponRate ownerReceives dayCountConvention notional cashInstrumentCid defaultProbabilityReferenceId
   = let
       couponClaims = createFixRatePaymentClaimsList schedule periodicSchedule useAdjustedDatesForDcf
-        couponRate issuerPays dayCountConvention notional cashInstrumentCid
+        couponRate ownerReceives dayCountConvention notional cashInstrumentCid
       creditEvent = Lte (Const 1.0, Observe defaultProbabilityReferenceId)
       couponClaimUntilCreditEvent = until creditEvent $ mconcat couponClaims
     in
@@ -92,7 +92,7 @@ createConditionalCreditFixRatePaymentClaims schedule periodicSchedule useAdjuste
 -- | Calculate a (1-recoveryRate) payment if a credit event just happened and create claims.
 createCreditEventPaymentClaims : Bool -> Decimal -> Deliverable -> Observable -> Observable ->
   PeriodicSchedule -> TaggedClaim
-createCreditEventPaymentClaims issuerPays notional cashInstrumentCid defaultProbabilityReferenceId
+createCreditEventPaymentClaims ownerReceives notional cashInstrumentCid defaultProbabilityReferenceId
   recoveryRateReferenceId periodicSchedule =
   let
     creditEvent = Lte (Const 1.0, Observe defaultProbabilityReferenceId)
@@ -100,7 +100,7 @@ createCreditEventPaymentClaims issuerPays notional cashInstrumentCid defaultProb
       scale (Const 1.0 - Observe recoveryRateReferenceId)
       $ scale (Const notional)
       $ one cashInstrumentCid
-    payoff = if issuerPays then payoffAmount else give payoffAmount
+    payoff = if ownerReceives then payoffAmount else give payoffAmount
     creditEventClaim =
       when (TimeGte periodicSchedule.effectiveDate)
       $ when creditEvent
@@ -116,7 +116,7 @@ createCreditEventPaymentClaims issuerPays notional cashInstrumentCid defaultProb
 createFloatingRatePaymentClaims : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Decimal -> Bool ->
   DayCountConventionEnum -> Decimal -> Deliverable -> Observable -> TaggedClaim
 createFloatingRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf floatingRateSpread
-  issuerPays dayCountConvention notional cashInstrumentCid referenceRateId =
+  ownerReceives dayCountConvention notional cashInstrumentCid referenceRateId =
   let
     couponClaimAmounts = mconcat $ map (\p ->
         when (TimeGte p.adjustedStartDate)
@@ -129,7 +129,7 @@ createFloatingRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf
         $ scale (Const notional)
         $ one cashInstrumentCid
       ) schedule
-    couponClaims = if issuerPays then couponClaimAmounts else give couponClaimAmounts
+    couponClaims = if ownerReceives then couponClaimAmounts else give couponClaimAmounts
   in prepareAndTagClaims [couponClaims] "Floating rate payment"
 -- FLOATING_RATE_BOND_COUPON_CLAIMS_END
 
@@ -142,7 +142,7 @@ createFloatingRatePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf
 --   - adjusted fixings in case of a total return asset swap
 createAssetPerformancePaymentClaims : [SchedulePeriod] -> PeriodicSchedule -> Bool -> Bool ->
   DayCountConventionEnum -> Decimal -> Deliverable -> Observable -> TaggedClaim
-createAssetPerformancePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf issuerPays
+createAssetPerformancePaymentClaims schedule periodicSchedule useAdjustedDatesForDcf ownerReceives
   dayCountConvention notional cashInstrumentCid referenceAssetId =
   let
     assetClaimAmounts = mconcat $ map (\p ->
@@ -155,9 +155,9 @@ createAssetPerformancePaymentClaims schedule periodicSchedule useAdjustedDatesFo
       ) schedule
     correctionClaimAmounts = mconcat $ map (\p ->
       when (TimeGte p.adjustedEndDate) $ scale (Const notional) $ one cashInstrumentCid) schedule
-    assetClaims = if issuerPays then assetClaimAmounts else give assetClaimAmounts
+    assetClaims = if ownerReceives then assetClaimAmounts else give assetClaimAmounts
     correctionAssetClaims =
-      if issuerPays then give correctionClaimAmounts else correctionClaimAmounts
+      if ownerReceives then give correctionClaimAmounts else correctionClaimAmounts
   in
     prepareAndTagClaims [assetClaims, correctionAssetClaims] "Asset performance payment"
 -- ASSET_PERFORMANCE_CLAIMS_END
@@ -167,13 +167,13 @@ createAssetPerformancePaymentClaims schedule periodicSchedule useAdjustedDatesFo
 -- This can be used for both FX swaps (using the appropriate FX rate) and single currency bonds
 -- (setting the FX rate to 1.0).
 createFxAdjustedPrincipalClaim : Bool -> Decimal -> Decimal -> Deliverable -> Date -> TaggedClaim
-createFxAdjustedPrincipalClaim issuerPays fxRateMultiplier notional cashInstrumentCid valueDate =
+createFxAdjustedPrincipalClaim ownerReceives fxRateMultiplier notional cashInstrumentCid valueDate =
   let
     fxLegClaimAmount = when (TimeGte valueDate)
                        $ scale (Const fxRateMultiplier)
                        $ scale (Const notional)
                        $ one cashInstrumentCid
-    fxLegClaim = if issuerPays then fxLegClaimAmount else give fxLegClaimAmount
+    fxLegClaim = if ownerReceives then fxLegClaimAmount else give fxLegClaimAmount
   in
     prepareAndTagClaims [fxLegClaim] "Principal payment"
 -- FIXED_RATE_BOND_REDEMPTION_CLAIM_END

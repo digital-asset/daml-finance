@@ -49,11 +49,12 @@ We start by defining the terms:
 The floating leg depends on a reference rate, which is defined by the *referenceRateId* variable.
 The value of the reference rate is observed at the beginning of each payment period.
 
-The *issuerPaysFix* variable is used to specify whether the issuer pays the fix or the floating leg.
+The *ownerReceivesFix* variable is used to specify whether a holding owner of this instrument
+receives the fix or the floating leg.
 This is not needed for bonds, because the regular payments are always in one direction (from the
 issuer to the holder). However, in the case of a swap with two counterparties A and B, we need the
-*issuerPaysFix* variable to specify who pays fix and who pays floating. In this example, the issuer
-pays the floating leg.
+*ownerReceivesFix* variable to specify who receives fix and who receives floating. In this example,
+the holding owner receives the floating leg.
 
 Just as for bonds, we can use these variables to create a
 :ref:`PeriodicSchedule <constr-daml-finance-interface-types-date-schedule-periodicschedule-99705>`:
@@ -81,8 +82,7 @@ Now that we have defined the terms we can create the swap instrument:
 
 Once the instrument is created, you can book a holding on it using
 :ref:`Account.credit <module-daml-finance-interface-account-account-92922>`.
-Since the issuer pays the floating leg in our example, the owner of the holding receives the
-floating leg (and pays the fix leg).
+The owner of the holding receives the floating leg (and pays the fix leg).
 
 Currency
 ========
@@ -106,7 +106,7 @@ every 3M:
   :start-after: -- CREATE_CURRENCY_SWAP_VARIABLES_BEGIN
   :end-before: -- CREATE_CURRENCY_SWAP_VARIABLES_END
 
-In this example, the issuer pays the foreign currency leg.
+In this example, the holding owner receives the foreign currency leg.
 
 In order to calculate the interest rate payments, a notional is required in each currency. The
 quantity of the holding refers to the notional of the base currency. The notional of the foreign
@@ -123,9 +123,8 @@ Here is how we create the currency swap instrument, using the two currencies def
   :start-after: -- CREATE_CURRENCY_SWAP_INSTRUMENT_BEGIN
   :end-before: -- CREATE_CURRENCY_SWAP_INSTRUMENT_BEGIN
 
-Once the instrument is created, you can book a holding on it. Since the issuer pays the foreign
-currency leg in our example, it means that the owner of the holding receives the foreign currency
-leg (and pays the base currency leg).
+Once the instrument is created, you can create a holding on it. In our example, it the owner of the
+holding receives the foreign currency leg (and pays the base currency leg).
 
 Foreign Exchange
 ================
@@ -138,8 +137,8 @@ FX transaction and a final FX transaction. Each transaction requires an FX rate 
 date, which are predetermined between the counterparties.
 
 The FX transactions involve two currencies. In the swap template these are referred to as *base
-currency* and *foreign currency*. The convention is that the issuer pays the foreign currency in the
-initial transaction (and receives it in the final transaction).
+currency* and *foreign currency*. The convention is that the holding owner receives the foreign
+currency in the initial transaction (and pays it in the final transaction).
 
 Here is an example of an USD vs EUR FX swap. First, we define the two cash instruments:
 
@@ -165,9 +164,8 @@ Finally, we create the FX swap instrument:
   :start-after: -- CREATE_FOREIGN_EXCHANGE_SWAP_INSTRUMENT_BEGIN
   :end-before: -- CREATE_FOREIGN_EXCHANGE_SWAP_INSTRUMENT_END
 
-Once the instrument is created, you can book a holding on it. Since the issuer pays the foreign
-currency in the initial transaction, it means that the owner of the holding receives the foreign
-currency in the initial transaction. In the final transaction the sides are reversed.
+Once the instrument is created, you can create a holding on it. The owner of the holding receives the
+foreign currency in the initial transaction. In the final transaction the sides are reversed.
 
 Credit Default
 ==============
@@ -206,8 +204,8 @@ Finally, we create the CDS instrument:
   :start-after: -- CREATE_CREDIT_DEFAULT_SWAP_INSTRUMENT_BEGIN
   :end-before: -- CREATE_CREDIT_DEFAULT_SWAP_INSTRUMENT_END
 
-Once the instrument is created, you can book a holding on it. Since the issuer pays the protection
-leg, it means that the owner of the holding receives the protection leg (and pays the fix leg).
+Once the instrument is created, you can create a holding on it. In our example, the owner of the
+holding receives the protection leg (and pays the fix leg).
 
 Asset
 =====
@@ -245,8 +243,7 @@ Finally, we create the asset swap instrument:
   :end-before: -- CREATE_ASSET_SWAP_INSTRUMENT_END
 
 Once the instrument is created, you can book a holding on it.
-Since the issuer pays the asset leg, it means that the owner of the holding receives the asset leg
-(and pays the fix leg).
+The owner of the holding receives the asset leg (and pays the fix leg).
 
 .. _fpml-swaps-tutorial-section:
 
