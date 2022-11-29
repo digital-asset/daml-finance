@@ -65,8 +65,11 @@ template Instruction
       undiscloseB disclosers settlers cid =
         undisclose @Base.I (show batchId, settlers) disclosers cid
       mustContainActors : Parties -> Parties -> Update ()
-      mustContainActors actors ps =
-        assertMsg ("actors must include " <> show ps) $ S.isSubsetOf ps actors
+      mustContainActors actors others =
+        assertMsg ("actors must contain " <> show others) $ S.isSubsetOf others actors
+      mustBeCustodian : Party -> Update ()
+      mustBeCustodian other =
+        assertMsg ("custodian must match " <> show other) $ routedStep.custodian == other
 
     interface instance Disclosure.I for Instruction where
       view = Disclosure.View with
@@ -84,7 +87,7 @@ template Instruction
         routedStep
         allocation; approval
       allocate Instruction.Allocate{actors; allocation} = do
-        let mustContain = mustContainActors actors
+        let mustAuthorize = mustContainActors actors
         assertMsg ("allocation must be new" <> messageSuffix) $ allocation /= this.allocation
         -- undisclose previous allocation
         otCid <- case this.allocation of
@@ -106,34 +109,34 @@ template Instruction
             vSenderAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I senderAccount
             discloseA senderAccount True
             baseCid <- discloseB vSenderAccount.controllers.outgoing settlers baseCid
-            mustContain vSenderAccount.controllers.outgoing
-            mustContain $ Base.getLockers base
-            assertMsg "the custodian of the pledged asset must match the target custodian" $
-              routedStep.custodian == senderAccount.custodian
+            mustAuthorize vSenderAccount.controllers.outgoing
+            mustAuthorize $ Base.getLockers base
+            mustBeCustodian senderAccount.custodian
             getAmount base === routedStep.quantity.amount
             getInstrument base === routedStep.quantity.unit
             pure $ Pledge baseCid
           PassthroughFrom (passthroughAccount, fromInstruction) -> do
             discloseA passthroughAccount True
             vSenderAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I passthroughAccount
-            mustContain vSenderAccount.controllers.outgoing
+            mustAuthorize vSenderAccount.controllers.outgoing
+            mustBeCustodian passthroughAccount.custodian
             pure $ PassthroughFrom (passthroughAccount, fromInstruction)
           CreditReceiver -> do
-            mustContain $ S.singleton routedStep.custodian
+            mustAuthorize $ S.singleton routedStep.custodian
             pure CreditReceiver
           SettleOffLedger -> do
-            mustContain $ S.singleton routedStep.custodian
-            mustContain $ S.singleton routedStep.sender
+            mustAuthorize $ S.singleton routedStep.custodian
+            mustAuthorize $ S.singleton routedStep.sender
             pure SettleOffLedger
           Unallocated -> do
-            mustContain signedSenders
+            mustAuthorize signedSenders
             pure Unallocated
         cid <- toInterfaceContractId <$> create this with
           allocation = allocationDisclosed
           signedSenders = if allocationDisclosed == Unallocated then S.empty else actors
         pure (cid, otCid)
       approve Instruction.Approve{actors; approval} = do
-        let mustContain = mustContainActors actors
+        let mustAuthorize = mustContainActors actors
         assertMsg ("approval must be new" <> messageSuffix) $ approval /= this.approval
         -- undisclose previous approval
         case this.approval of
@@ -147,23 +150,25 @@ template Instruction
           TakeDelivery receiverAccount -> do
             discloseA receiverAccount False
             vReceiverAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I receiverAccount
-            mustContain vReceiverAccount.controllers.incoming
-            assertMsg "the custodian must match target custodian" $
-              routedStep.custodian == receiverAccount.custodian
+            mustAuthorize vReceiverAccount.controllers.incoming
+            mustBeCustodian receiverAccount.custodian
           PassthroughTo (passthroughAccount, toInstruction) -> do
             discloseA passthroughAccount False
             vReceiverAccount <- view <$>
               fetchInterfaceByKey @Account.R @Account.I passthroughAccount
-            mustContain vReceiverAccount.controllers.incoming
-            mustContain vReceiverAccount.controllers.outgoing
+            mustAuthorize vReceiverAccount.controllers.incoming
+            mustAuthorize vReceiverAccount.controllers.outgoing
+            mustBeCustodian passthroughAccount.custodian
+            (_, toInstruction) <- fetchByKey @Instruction toInstruction
+            mustBeCustodian toInstruction.routedStep.custodian
           DebitSender -> do
-            assertMsg "the receiver must be the custodian" $
-              routedStep.custodian == routedStep.receiver
-            mustContain $ S.singleton routedStep.custodian
+            mustBeCustodian routedStep.receiver
+            mustAuthorize $ S.singleton routedStep.custodian
           SettleOffLedgerAcknowledge -> do
-            mustContain $ S.singleton routedStep.custodian
-            mustContain $ S.singleton routedStep.receiver
-          Unapproved -> mustContain signedReceivers
+            mustAuthorize $ S.singleton routedStep.custodian
+            mustAuthorize $ S.singleton routedStep.receiver
+          Unapproved ->
+            mustAuthorize signedReceivers
         toInterfaceContractId <$> create this with
           approval
           signedReceivers = if approval == Unapproved then S.empty else actors
@@ -203,10 +208,8 @@ template Instruction
               DebitSender -> do
                 base <- fetch baseCid
                 let senderAccount = getAccount base
-                assertMsg ("the custodian of the holding must be the receiver" <> messageSuffix) $
-                  senderAccount.custodian == routedStep.receiver
                 accountCid <- Account.exerciseInterfaceByKey @Account.I senderAccount
-                  routedStep.sender Account.Debit with holdingCid = baseCid
+                  routedStep.custodian Account.Debit with holdingCid = baseCid
                 undiscloseA senderAccount True
                 pure None
               PassthroughTo (passthroughAccount, toInstructionKey) -> do
@@ -233,10 +236,9 @@ template Instruction
           (CreditReceiver, a) ->
             case a of
               TakeDelivery receiverAccount -> do
-                assertMsg ("custodian of the receiver account must be the sender" <> messageSuffix)
-                  $ receiverAccount.custodian == routedStep.sender
+                mustBeCustodian routedStep.sender
                 baseCid <- Account.exerciseInterfaceByKey @Account.I receiverAccount
-                  routedStep.receiver Account.Credit with quantity = routedStep.quantity
+                  routedStep.custodian Account.Credit with quantity = routedStep.quantity
                 viewA <- view <$> fetchInterfaceByKey @Account.R @Account.I receiverAccount
                 -- disclose to actors (such that they can get the TemplateTypeRep in the Batch)
                 oCid <- Some <$> discloseB signedReceivers actors baseCid
