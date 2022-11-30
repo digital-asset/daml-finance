@@ -5,7 +5,7 @@ ContingentClaims.Core
 #####################
 
 This package contains the *interface* to represent
-:doc:`Contingent Claims <../../concepts/contingent-claims>` trees. It contains the data types and
+:doc:`Contingent Claims <../../concepts/contingent-claims>` trees. It contains data types and
 utility functions to process such trees. It also contains builder functions to facilitate the
 creation of trees using composition. The following modules are included:
 

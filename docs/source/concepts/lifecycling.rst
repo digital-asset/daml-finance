@@ -91,7 +91,6 @@ can be used to create new instrument versions and associated lifecycle events.
    :alt: The issuer creates a new ACME v2 instrument. They also create a distribution
          event by declaring a dividend on the ACME v1 instrument.
 
-
 Processing the event
 =====================
 

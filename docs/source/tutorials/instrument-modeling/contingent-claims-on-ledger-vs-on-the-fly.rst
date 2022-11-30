@@ -29,7 +29,6 @@ on-the-fly when needed (for example, in the case of lifecycling). Consequently, 
 calendar changes, this will automatically impact the claims tree the next time it is dynamically
 created.
 
-
 Which Is Preferred?
 *******************
 

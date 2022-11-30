@@ -9,5 +9,5 @@ modules:
 
 - :ref:`Instrument <module-daml-finance-interface-instrument-equity-instrument-13224>`:
   Instrument interface for equities
-- :ref:`Factory <module-daml-finance-instrument-equity-factory-96899>`:
+- :ref:`Factory <module-daml-finance-interface-instrument-equity-factory-97140>`:
   Factory interface to instantiate equities

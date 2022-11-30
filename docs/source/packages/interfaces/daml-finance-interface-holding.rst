@@ -17,7 +17,7 @@ modules:
   Interface for a transferable holding, i.e., where ownership can be transferred to other
   parties
 - :ref:`Util <module-daml-finance-interface-holding-util-81618>`:
-  Utility functions related to holdings, e.g., getting the amount or instrument of a holding
+  Utility functions related to holdings, e.g., getting the amount or the instrument of a holding
 
 The :doc:`Asset Model <../../concepts/asset-model>` page explains the relationship between
 instruments, holdings, and accounts. Check out the

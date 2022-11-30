@@ -4,10 +4,10 @@
 Daml.Finance.Interface.Instrument.Token
 #######################################
 
-This package contains the *interface* definitions for a simple token instrument, which does not
-define any lifecycling logic. It contains the following modules:
+This package contains the *interface* definitions for simple token instruments which do not define
+any lifecycling logic. It contains the following modules:
 
-- :ref:`Instrument <module-daml-finance-instrument-token-instrument-10682>`:
+- :ref:`Instrument <module-daml-finance-interface-instrument-token-instrument-24425>`:
   Instrument interface for simple tokens
 - :ref:`Factory <module-daml-finance-interface-instrument-token-factory-34763>`:
   Factory interface to instantiate simple tokens

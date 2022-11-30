@@ -6,7 +6,7 @@ Daml.Finance.Interface.Settlement
 
 This package contains the *interface* for settlement. It has the following modules:
 
-- :ref:`RouteProvider <type-daml-finance-interface-settlement-routeprovider-routeprovider-53805>`:
+- :ref:`RouteProvider <module-daml-finance-interface-settlement-routeprovider-15164>`:
   Interface for providing a discovery mechanism for settlement routes
 - :ref:`Instruction <module-daml-finance-interface-settlement-instruction-10970>`:
   Interface for providing a single instruction to transfer an asset at a custodian
