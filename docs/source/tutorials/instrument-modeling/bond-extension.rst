@@ -136,7 +136,6 @@ clarity, this only applies to the redemption amount. The coupons are always calc
 adjusted principal. This means that in the case of deflation, the coupons would be lower than the
 specified coupon rate but the original principal would still be redeemed at maturity.
 
-
 Zero Coupon
 ===========
 
@@ -156,7 +155,6 @@ Based on this we create the zero coupon bond instrument:
   :language: daml
   :start-after: -- CREATE_ZERO_COUPON_BOND_INSTRUMENT_BEGIN
   :end-before: -- CREATE_ZERO_COUPON_BOND_INSTRUMENT_END
-
 
 Frequently Asked Questions
 **************************

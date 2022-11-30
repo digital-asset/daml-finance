@@ -36,10 +36,10 @@ Instruments are keyed by an
 :ref:`InstrumentKey <constr-daml-finance-interface-types-common-instrumentkey-1593>`,
 which comprises:
 
--  the instrument ``issuer``
--  the instrument ``depository``
--  a textual ``id``
--  a textual ``version``
+- the instrument ``issuer``
+- the instrument ``depository``
+- a textual ``id``
+- a textual ``version``
 
 The version is used to keep track of the linear evolution of an instrument.
 
@@ -127,11 +127,11 @@ Implementations
 
 Implementations are provided in ``Daml.Finance.Holding`` for:
 
--  a :ref:`fungible and transferable <module-daml-finance-holding-fungible-7201>` holding
--  a holding which is
-   :ref:`transferable but not fungible <module-daml-finance-holding-nonfungible-86571>`
--  a holding which is
-   :ref:`neither transferable nor fungible <module-daml-finance-holding-nontransferable-44402>`
+- a :ref:`fungible and transferable <module-daml-finance-holding-fungible-7201>` holding
+- a holding which is
+  :ref:`transferable but not fungible <module-daml-finance-holding-nonfungible-86571>`
+- a holding which is
+  :ref:`neither transferable nor fungible <module-daml-finance-holding-nontransferable-44402>`
 
 Account
 *******
@@ -150,20 +150,20 @@ the account. To be more precise, the
 :ref:`controllers <type-daml-finance-interface-account-account-controllers-36430>`
 field of the account contains:
 
--  ``outgoing``: a set of parties authorizing outgoing transfers
--  ``incoming``: a set of parties authorizing incoming transfers
+- ``outgoing``: a set of parties authorizing outgoing transfers
+- ``incoming``: a set of parties authorizing incoming transfers
 
 This allows for modeling various controllers of transfers between Alice's and Bob's accounts. For
 example:
 
--  owners-controlled: If the ``owner`` is the sole member the ``outgoing`` and ``incoming``
-   controllers for the accounts, a transfer of a holding from Alice's account to Bob's account needs
-   to be authorized jointly by Alice and Bob.
--  owner-only-controlled: If, instead, the ``incoming`` controllers (of Bob's account) is the empty
-   set, it is enough that Alice authorizes the transfer alone.
--  custodian-controlled: If, as often is the case, the ``custodian`` needs to control what is being
-   transferred, we can instead let the ``custodian`` be the sole member of ``outgoing`` and
-   ``incoming`` controllers of the accounts.
+- owners-controlled: If the ``owner`` is the sole member the ``outgoing`` and ``incoming``
+  controllers for the accounts, a transfer of a holding from Alice's account to Bob's account needs
+  to be authorized jointly by Alice and Bob.
+- owner-only-controlled: If, instead, the ``incoming`` controllers (of Bob's account) is the empty
+  set, it is enough that Alice authorizes the transfer alone.
+- custodian-controlled: If, as often is the case, the ``custodian`` needs to control what is being
+  transferred, we can instead let the ``custodian`` be the sole member of ``outgoing`` and
+  ``incoming`` controllers of the accounts.
 
 Accounts also serve to prevent holding transfers to unvetted third parties: a holding of Alice can
 only be transferred to Bob if Bob has an account at the same Bank (and has therefore been vetted by
@@ -182,9 +182,9 @@ Keys
 Accounts are keyed by an:
 :ref:`AccountKey <type-daml-finance-interface-types-common-accountkey-85835>`, which comprises:
 
--  the account ``owner``
--  the account ``custodian``
--  a textual ``id``
+- the account ``owner``
+- the account ``custodian``
+- a textual ``id``
 
 .. _implementations-2:
 

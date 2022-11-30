@@ -40,7 +40,6 @@ We also credit the account of an investor:
   :start-after: -- CREDIT_ACCOUNT_FIXED_RATE_BOND_BEGIN
   :end-before: -- CREDIT_ACCOUNT_FIXED_RATE_BOND_END
 
-
 Define a lifecycle event
 ************************
 
@@ -112,9 +111,9 @@ The investor then claims the effect:
 
 Claiming the effect has two consequences:
 
--  the investor's holding is upgraded to the new instrument version (the one where the coupon has
-   been paid)
--  settlement instructions are generated in order to process the coupon payment
+- the investor's holding is upgraded to the new instrument version (the one where the coupon has
+  been paid)
+- settlement instructions are generated in order to process the coupon payment
 
 Finally, the settlement instructions are allocated, approved and then settled.
 
