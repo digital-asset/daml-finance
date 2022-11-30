@@ -8,13 +8,13 @@ Introduction
 ************
 
 Contingent Claims is a library for modeling financial instruments in Daml. An instrument is
-represented by a tree of ``Claim``\ s, which describe future cashflows between two parties as well
-as the conditions under which these cashflows occur.
+represented by a tree of :ref:`Claims <type-contingentclaims-core-internal-claim-claim-35538>`,
+which describe future cashflows between two parties as well as the conditions under which these
+cashflows occur.
 
-``ContingentClaims.Lifecycle`` offers lifecycling capabilities, as well as a valuation semantics
-to map a claim to a mathematical expression that can be used for no-arbitrage pricing.
-
-The implementation closely follows the model outlined in the papers [Cit1]_ and [Cit2]_.
+:ref:`ContingentClaims.Lifecycle <module-contingentclaims-lifecycle-lifecycle-72039>`
+offers lifecycling capabilities, as well as a valuation semantics to map a claim to a mathematical
+expression that can be used for no-arbitrage pricing.
 
 An example of how to create and lifecycle contracts using Contingent Claims can be found in
 :doc:`this tutorial <../tutorials/instrument-modeling/contingent-claims-instrument>`.
@@ -56,7 +56,7 @@ We use the following data type, slightly simplified from
     | anytime with predicate : Date -> Bool, claim: Claim a
     | until with predicate : Date -> Bool, claim: Claim a
 
-There are couple of things to consider.
+There are a couple of things to consider.
 
 First note that the constructors of this data type create a tree structure. The leaf constructors
 are ``zero`` and ``one a``, and the other constructors create branches (observe they call
@@ -71,34 +71,36 @@ Let’s look at the constructors used in the above expression in more detail:
 
 -  ``one "USD"`` means that the acquirer of the contract receives one unit of the asset,
    parametrised by ``a``, *immediately*. In this case we use a 3-letter ISO code to represent a
-   currency. But you can use your own type to represent any asset.
+   currency, but you can use your own type to represent any asset.
 -  ``scale (pure coupon)`` modifies the *magnitude* of the arrow in the diagram. For example, in the
    diagram, the big arrow would have a distinct scale factor from the small arrows. In our example,
    the scale factor is constant: ``pure coupon = const coupon``, however, it’s possible to have a
-   scale factor that varies on an unobserved value, such as a stock price, the weather, or any other
-   measurable quantity.
+   scale factor that depends on an unobserved value, such as a stock price, the weather, or any
+   other measurable quantity.
 -  ``when (time == t_0)`` tells us where along the x-axis the arrow is placed, i.e., it modifies the
-   moment the claim is acquired. The convention is that this must be the first instant that the
-   predicate (``time == t_0`` in this case) is true. In our example it is a point, but again, we
-   could have used an expression with an unknown quantity, for example ``spotPrice > pure k``, and
-   it would trigger *the first instant* that the expression becomes true.
+   point in time when the claim is acquired. The convention is that this must be the first instant
+   that the predicate (``time == t_0`` in this case) is true. In our example it is a point, but
+   again, we could have used an expression with an unknown quantity, for example
+   ``spotPrice > pure k``, and it would trigger *the first instant* that the expression becomes
+   true.
 -  ``and`` is used to chain multiple expressions together. Remember that in the ``data`` definition
    above, each constructor is a function: ``and : Claim a -> Claim a -> Claim a``. We use the Daml
    backtick syntax to write ``and`` as an infix operator, for legibility.
 
-Additionally we have several constructors which we’ve not used in this example:
+Additionally, there are several constructors which were not used in the above example:
 
 -  ``zero``, used to indicate an absence of obligations. While it may not make sense to create a
    ``zero`` claim, it could, for example, result from applying a function on a tree of claims.
 -  ``give`` would flip the direction of the arrows in our diagram. For example, in a swap we could
-   use ``give`` to distinguishing the received/paid legs.
--  ``or`` is used to give the bearer the right to choose between two different claims.
+   use ``give`` to distinguish the received/paid legs.
+-  ``or`` is used to give the bearer the right to choose between two different claims. This is
+   typically used for options.
 -  ``anytime`` is like ``when``, except it allows the bearer to choose (vs. no choice) acquisition
-   in a *region* (vs. a point).
--  ``until`` is used to adjust the expiration (*horizon* in [Cit1]_) of a claim. Typically it is
+   within a region (or timeframe), vs. a specific point in time.
+-  ``until`` is used to adjust the expiration (*horizon* in [Cit1]_) of a claim. Typically, it is
    used with ``anytime`` to limit aforesaid acquisition region.
 
-The tree produced by our expression is pictured below:
+The tree produced by our expression (corresponding to the cashflow figure above) looks like this:
 
 .. image:: ../images/contingent_claims_tree.png
    :alt: Image showing a tree made up of the above described nodes types.
@@ -110,7 +112,8 @@ Although we could model every subsequent arrow the way we did the first one, as 
 wish to avoid repeating ourselves. Hence, we could write functions to re-use subexpressions of the
 tree. But which parts should we factor out? It turns out that Finance 101 comes to the rescue
 again. Fixed income practitioners will typically model a fixed-rate bond as a sum of zero-coupon
-bonds. That’s how we model them in ```Financial.daml`` <./daml/ContingentClaims/Financial.daml>`__.
+bonds. That’s how we model them in
+:ref:`Claims.Util.Builders <module-daml-finance-claims-util-builders-48637>`.
 Below are slightly simplified versions:
 
 .. code:: daml
@@ -119,7 +122,7 @@ Below are slightly simplified versions:
     when (time == maturity) (scale (O.pure principal) (one asset))
 
 Here we’ve just wrapped our expression from the previous section in a function ``zcb``, that we can
-reuse to build the ``fixed``-rate bond:
+reuse to build a ``fixed``-rate bond:
 
 .. code:: daml
 
@@ -182,17 +185,17 @@ nor is settlement possible every day, as this depends on local jurisdictions or 
 Having different types makes this explicit at the instrument level.
 
 Another use for this is expressing time as an ordinal values, representing e.g. days from issue.
-Such a ``Claim`` can be used repeatedly to list at different dates, but with the same durations.
-Think for example, of series of listed futures or options which are issued with quarterly/monthly
+Such a ``Claim`` can be used repeatedly to represent instruments issued at different dates, but with
+the same durations.
+For example, consider a series of listed futures or options which are issued with quarterly/monthly
 maturities - their duration is about the same, but they are issued on different dates.
 
 The Asset Parameter
 ===================
 
-``a``, as we already explained, is the type used to represent assets in our program. Keeping this
+``a``, as we already explained, is the type used to represent assets in your application. Keeping this
 generic means the library can be used with any asset representation. For example, you could use one
-of the instrument implementations in `Daml Finance
-<https://github.com/digital-asset/daml-finance>`_, but are not forced to do so.
+of the instrument implementations in Daml Finance, but are not forced to do so.
 
 The Observation Parameter
 =========================
@@ -216,40 +219,30 @@ composition. But now that we have these trees, what can we do with them?
 
 The original paper [Cit1]_ focuses on using these trees for valuing the instruments they represent,
 i.e., finding the ‘fair price’ that one should pay for these cashflows. Instead, we’ll focus here on
-a different use-case: the lifecycling (aka safekeeping, processing corporate actions) of these
+a different use case: the lifecycling (aka safekeeping, processing corporate actions) of these
 instruments.
 
 Let’s go back to our fixed-rate bond example, above. We want to process the coupon payments. There
 is a function in ```Lifecycle.daml`` <./daml/ContingentClaims/Lifecycle.daml>`__ for doing just
 this:
 
-.. code:: daml
+.. literalinclude:: ../../../src/main/daml/ContingentClaims/Lifecycle/Lifecycle.daml
+  :language: daml
+  :start-after: -- CLAIMS_LIFECYCLE_BEGIN
+  :end-before: -- CLAIMS_LIFECYCLE_END
 
-   type C a = Claim Observation Date a a
+This may look daunting, but let’s look at an example in
+```ContingentClaims/Test/FinancialContract.daml``
+to see this in action:
 
-   data Result a = Result with
-     remaining : C a
-     pending : [(Decimal, a)]
-
-   lifecycle : (Eq a, CanAbort m)
-     => (a -> Date -> m Decimal)
-     -> C a
-     -> Date -> m (Result a)
-
-This may look daunting, but let’s look at an example in ```Test/FinancialContract.daml``
-<test/daml/Test/FinancialContract.daml>`__ to see this in action:
-
-.. code:: daml
-
-   do t <- toDateUTC <$> getTime
-      let getSpotRate isin t = do
-            (_, Quote{close}) <- fetchByKey (isin, t, bearer)
-            pure close
-      lifecycleResult <- Lifecycle.lifecycle getSpotRate claims t
+.. literalinclude:: ../../../src/test/daml/ContingentClaims/Test/FinancialContract.daml
+  :language: daml
+  :start-after: -- CLAIMS_LIFECYCLE_TEST_BEGIN
+  :end-before: -- CLAIMS_LIFECYCLE_TEST_END
 
 The first argument to lifecycle, ``getSpotRate``, is a function taking an ISIN (security) code, and
 today’s date. All this does is fetch a contract from the ledger that is keyed by these two values,
-and extract the ``close``\ ing price of the security.
+and extract the price of the security.
 
 The last two arguments are simply the claims we wish to process, and today’s date, evaluated using
 ``getTime``.
@@ -273,7 +266,8 @@ Pricing (Experimental)
 
 This is an **experimental** feature. Expect breaking changes.
 
-The ``ContigentClaims.Valuation.Stochastic`` module can be used for valuation. There is a ``fapf``
+The :ref:`ContigentClaims.Valuation.Stochastic <module-contingentclaims-valuation-stochastic-37844>`
+module can be used for valuation. There is a ``fapf``
 function which is used to derive a *fundamental asset pricing formula* for an arbitrary ``Claim``
 tree. The resulting AST is represented by ``Expr``, but can be rendered as XML/MathML with the
 provided ``MathML.presentation`` function, for display in a web browser. See the ``Test/Pricing``
