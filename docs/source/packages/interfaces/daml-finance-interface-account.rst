@@ -14,4 +14,4 @@ modules:
   specifies parties controlling incoming and outgoing transfers, and allows for crediting and
   debiting holdings
 - :ref:`Util <module-daml-finance-interface-account-util-56106>`:
-  Utility functions related to accounts, e.g., getting the custodian or owner of an account
+  Utility functions related to accounts, e.g., getting the custodian or the owner of an account
