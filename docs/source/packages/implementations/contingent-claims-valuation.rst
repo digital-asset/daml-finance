@@ -11,3 +11,5 @@ to facilitate integration with pricing and risk frameworks. The following module
 - :ref:`Stochastic <module-contingentclaims-valuation-stochastic-37844>`: Utilities to map a
   :doc:`Contingent Claims <../../concepts/contingent-claims>` tree to a stochastic process
   representation
+- :ref:`MathML <module-contingentclaims-valuation-mathml-30102>`: Typeclass definition to map an
+  expression in the MathML presentation format

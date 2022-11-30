@@ -7,6 +7,9 @@ Daml.Finance.Claims
 This package contains utility functions that facilitate building and working with
 contingent-claim-based instruments. It includes the following modules:
 
+- :ref:`Lifecycle.Rule <module-daml-finance-claims-lifecycle-rule-53980>`:
+  Rule to process a time update event for instruments that are modelled using
+  :doc:`On-the-Fly claims <../../tutorials/instrument-modeling/contingent-claims-on-ledger-vs-on-the-fly>`
 - :ref:`Util <module-daml-finance-claims-util-5254>`:
   Contains utility functions for claims, e.g., checking content of a claim and converting claim
   time
