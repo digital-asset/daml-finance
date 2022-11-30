@@ -152,8 +152,8 @@ The following picture shows the three asset movements involved in this particula
          allocates a 1000 ACME v2 holding to the second instruction and a 10000 USD holding to the
          third.
 
-In other words, the investor receives a 10'000 USD dividend and 1'000 shares of ``ACME`` v2 in
-return for 1'000 shares of ``ACME`` v1.
+The result of processing the settlement batch results in the investor receiving a 10'000 USD dividend and 1'000 shares of ``ACME`` v2 in
+return for their 1'000 shares of ``ACME`` v1.
 
 Components
 **********
