@@ -130,7 +130,7 @@ new version of the stock, which is not entitled to the dividend anymore.
 
 Note that the party responsible for claiming an effect can be specified flexibly in the
 :ref:`Claim Rule <type-daml-finance-interface-lifecycle-rule-claim-claim-29284>` contract. Through
-this custodians can be given the authority to push a given corporate action to the asset holder, as
+this contract, custodians can be given the authority to push a given corporate action to the asset holder as
 is common in current operating procedures.
 
 The model also supports atomic, intermediated settlement of lifecycle events. For example, if a
