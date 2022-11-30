@@ -38,7 +38,6 @@ On Windows-based systems execute:
    ./get-dependencies.bat
    daml studio
 
-
 Reference App
 *************
 
@@ -48,7 +47,6 @@ of the Daml Finance capabilites in a web-based graphical user interface.
 If you are interested in trying out the Daml Finance Reference App locally, you can clone the
 corresponding repo and follow the installation instructions on the
 `Daml Finance Reference App GitHub page <https://github.com/digital-asset/daml-finance-app>`_.
-
 
 Create your own App
 *******************
@@ -69,7 +67,6 @@ Alternatively, if your app uses *Java*, you can also run the
    daml codegen java -o ./output daml-finance-interface-swap-0.1.7.dar daml-finance-interface-instrument-bond-0.1.7.dar
 
 Note, this Daml Finance codegen is only supported on SDK versions 2.5.x and higher.
-
 
 Next Steps
 **********

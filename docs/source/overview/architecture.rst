@@ -9,8 +9,8 @@ packages.
 
 Daml Finance consists of a set of ``.dar`` packages that can be divided into two layers:
 
--  an *interface layer* representing its public, stable API
--  an *implementation layer* providing a set of default implementation packages
+- an *interface layer* representing its public, stable API
+- an *implementation layer* providing a set of default implementation packages
 
 .. _interface-layer:
 

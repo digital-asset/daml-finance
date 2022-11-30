@@ -294,7 +294,7 @@ Similarly, the floating leg of the swap is defined like this:
   :end-before: -- CREATE_FPML_SWAP_FLOAT_LEG_END
 
 There are three main ways to define which interest rate should be used for a stub period. They are
-all included in the fix or floating leg above, either in the inital or in the final stub  period. In
+all included in the fix or floating leg above, either in the inital or in the final stub period. In
 short, it depends on the content of
 :ref:`StubCalculationPeriodAmount <type-daml-finance-interface-instrument-swap-fpml-fpmltypes-stubcalculationperiodamount-23577>`:
 
