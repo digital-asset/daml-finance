@@ -150,20 +150,20 @@ the account. To be more precise, the
 :ref:`controllers <type-daml-finance-interface-account-account-controllers-36430>`
 field of the account contains:
 
--  ``instructors``: a set of parties authorizing outgoing transfers
--  ``approvers``: a set of parties authorizing incoming transfers
+-  ``outgoing``: a set of parties authorizing outgoing transfers
+-  ``incoming``: a set of parties authorizing incoming transfers
 
 This allows for modeling various controllers of transfers between Alice's and Bob's accounts. For
 example:
 
--  owners-controlled: If the ``owner`` is the sole member of ``instructors`` and ``approvers`` for
-   the accounts, a transfer of a holding from Alice's account to Bob's account needs to be
-   authorized jointly by Alice and Bob.
--  owner-only-controlled: If, instead, the ``approvers`` (of Bob's account) is the empty set, it is
-   enough that Alice authorizes the transfer alone.
+-  owners-controlled: If the ``owner`` is the sole member the ``outgoing`` and ``incoming``
+   controllers for the accounts, a transfer of a holding from Alice's account to Bob's account needs
+   to be authorized jointly by Alice and Bob.
+-  owner-only-controlled: If, instead, the ``incoming`` controllers (of Bob's account) is the empty
+   set, it is enough that Alice authorizes the transfer alone.
 -  custodian-controlled: If, as often is the case, the ``custodian`` needs to control what is being
-   transferred, we can instead let the ``custodian`` be the sole member of ``instructors`` and
-   ``approvers`` for the accounts.
+   transferred, we can instead let the ``custodian`` be the sole member of ``outgoing`` and
+   ``incoming`` controllers of the accounts.
 
 Accounts also serve to prevent holding transfers to unvetted third parties: a holding of Alice can
 only be transferred to Bob if Bob has an account at the same Bank (and has therefore been vetted by
