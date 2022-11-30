@@ -7,7 +7,7 @@ Daml.Finance.Account
 This package contains the *implementation* of accounts. It has the following module:
 
 - :ref:`Account <module-daml-finance-account-account-19369>`: Implementation of an account,
-  i.e., the relationship between a custodian and an asset owner, referenced by holdings. It also
+  i.e., a relationship between a custodian and an asset owner, referenced by holdings. It also
   provides an implementation of a factory from which you can create and remove accounts. Upon
   creation of an account, it allows you to specify controlling parties for incoming / outgoing
   transfers.
