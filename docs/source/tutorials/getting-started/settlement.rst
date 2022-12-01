@@ -9,19 +9,20 @@ purpose is to demonstrate how multiple holding transfers can be executed atomica
 
 We are going to:
 
-#. create a new ``TOKEN`` instrument
-#. credit a token holding to Alice’s account
-#. setup a delivery-vs-payment (DvP) transaction to give Alice's token holding to Bob in exchange
+#. create a new ``TOKEN``
+   :ref:`instrument <type-daml-finance-interface-instrument-token-instrument-instrument-4350>`
+#. credit a ``TOKEN`` holding to Alice’s account
+#. setup a delivery-vs-payment (DvP) transaction to give Alice's ``TOKEN`` holding to Bob in exchange
    for a ``USD`` holding
 #. settle this transaction atomically
 
-This example builds on the previous :doc:`Transfer <transfer>` tutorial script such that the same
-accounts and existing holdings can be used.
+This example builds on the previous :doc:`Transfer <transfer>` tutorial script in the sense that
+the same accounts and the existing holdings are used.
 
 Overview of the Process
 ***********************
 
-We first give a quick outline of the settlement process.
+We first give a quick outline of the settlement process:
 
 +--------------------+-----------------------------------------------------------------------------+
 | 1. Define steps to | Two (or more) parties need to first agree on a set of                       |
@@ -48,7 +49,7 @@ We first give a quick outline of the settlement process.
 |                    | <type-daml-finance-interface-settlement-factory-factory-31525>`.            |
 |                    |                                                                             |
 +--------------------+-----------------------------------------------------------------------------+
-| 3. Allocate and    | For every instruction, the sender and receiver specify their allocation     |
+| 3. Allocate and    | For every instruction, the sender and the receiver specify their allocation |
 |    approve         | and approval preferences, respectively.                                     |
 |    instructions    |                                                                             |
 |                    |                                                                             |
@@ -70,8 +71,9 @@ The code for this tutorial can be executed via the ``runSettlement`` function in
 ``Settlement.daml`` module.
 
 The first part executes the script from the previous :doc:`Transfer <transfer>` tutorial to arrive
-at the initial state for this scenario. We then create an additional *token* instrument and credit
-Alice's account with it.
+at the initial state for this scenario. We then create an additional ``TOKEN``
+:ref:`instrument <type-daml-finance-interface-instrument-token-instrument-instrument-4350>`
+and credit Alice's account with it.
 
 The interesting bit starts once Alice proposes the DvP trade to Bob. Before creating the DvP
 proposal, we need to instantiate two contracts:
@@ -98,14 +100,14 @@ proposal, we need to instantiate two contracts:
    This is used to generate the settlement batch and instructions from the
    :ref:`routed steps <type-daml-finance-interface-settlement-types-routedstep-10086>`.
 
-Alice creates a ``Dvp.Proposal`` template to propose the exchange of the ``TOKEN`` against ``USD``.
+Bob creates a ``Dvp.Proposal`` template to propose the exchange of the ``TOKEN`` against ``USD``.
 
 .. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Settlement.daml
   :language: daml
   :start-after: -- DVP_PROPOSE_BEGIN
   :end-before: -- DVP_PROPOSE_END
 
-Bob then accepts the proposal, agreeing to the terms of the trade.
+Alice then accepts the proposal, agreeing to the terms of the trade.
 
 .. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Settlement.daml
   :language: daml
@@ -136,7 +138,7 @@ approves the instruction specifying the receiving account.
 The same happens in the second instruction (where Bob allocates his ``USD`` holding and Alice
 provides the receiving account).
 
-Now that all instructions are fully allocated and approved, they can be finally settled.
+Now that all instructions are fully allocated and approved, they can finally be settled.
 
 .. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Settlement.daml
   :language: daml
@@ -170,18 +172,22 @@ tutorials.
 Why do we need a settlement factory?
 ====================================
 
-A settlement factory contract is used to generate settlement ``Instructions`` from ``RoutedStep``\s.
-It also generates a ``Batch`` contract which is used to settle instructions atomically.
+A settlement factory contract is used to generate settlement
+:ref:`Instructions <type-daml-finance-interface-settlement-instruction-instruction-30569>` from
+:ref:`RoutedStep <type-daml-finance-interface-settlement-types-routedstep-10086>`\s.
+It also generates a :ref:`Batch <type-daml-finance-interface-settlement-batch-batch-97497>`
+contract, which is used to settle instructions atomically.
 
 The reason why the factory is needed has already been introduced in the previous tutorial: it
 provides an interface abstraction, so that your workflow does not need to depend on concrete
-implementations of ``Batch`` or ``Instruction``.
+implementations of :ref:`Batch <type-daml-finance-interface-settlement-batch-batch-97497>`
+or :ref:`Instructions <type-daml-finance-interface-settlement-instruction-instruction-30569>`.
 
 Can we use a different settler?
 ===============================
 
 In our example, Alice triggers the final settlement of the transaction (by exercising the ``Settle``
-choice on the ``Batch`` contract).
+choice on the :ref:`Batch <type-daml-finance-interface-settlement-batch-batch-97497>` contract).
 
 In principle, a different settler could be chosen. The choice of a settler is usually quite
 delicate, as this party acquires visibility on the entire transaction and hence needs to be trusted.
