@@ -205,7 +205,7 @@ If you look at the implementation of the ``Transfer`` workflow, you will notice 
 The first line converts the holding contract id (of type
 :ref:`ContractId Holding.I <type-daml-finance-interface-holding-base-base-14854>`) to the
 :ref:`Transferable.I <type-daml-finance-interface-holding-transferable-transferable-24986>`
-interface using ``coerceContractId``.
+interface using ``coerceInterfaceContractId``.
 
 Then, the ``Transfer`` choice, defined as part of the
 :ref:`Transferable <type-daml-finance-interface-holding-transferable-transferable-24986>`
@@ -223,7 +223,7 @@ used by our holding implementation.
         Transferable, and Fungible are each linked by arrows pointing left. Below is an arrow, also
         pointing left, labelled Implements.
 
-We use ``coerceContractId`` to convert the
+We use ``coerceInterfaceContractId`` to convert the
 :ref:`Holding.I <type-daml-finance-interface-holding-base-base-14854>`
 to a
 :ref:`Transferable <type-daml-finance-interface-holding-transferable-transferable-24986>`.
