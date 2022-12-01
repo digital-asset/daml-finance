@@ -69,9 +69,9 @@ complex cashflows. For example, to represent the above bond, we could write the 
 
 Let’s look at the constructors used in the above expression in more detail:
 
-- ``one "USD"`` means that the acquirer of the contract receives one unit of the asset,
-  parametrised by ``a``, *immediately*. In this case we use a 3-letter ISO code to represent a
-  currency, but you can use your own type to represent any asset.
+- ``one "USD"`` means that the acquirer of the contract receives one unit of the asset, parametrised
+  by ``a``, *immediately*. In this case we use a 3-letter ISO code to represent a currency, but you
+  can use your own type to represent any asset.
 - ``scale (pure coupon)`` modifies the *magnitude* of the arrow in the diagram. For example, in the
   diagram, the big arrow would have a distinct scale factor from the small arrows. In our example,
   the scale factor is constant: ``pure coupon = const coupon``, however, it’s possible to have a
@@ -112,9 +112,8 @@ Although we could model every subsequent arrow the way we did the first one, as 
 wish to avoid repeating ourselves. Hence, we could write functions to re-use subexpressions of the
 tree. But which parts should we factor out? It turns out that Finance 101 comes to the rescue
 again. Fixed income practitioners will typically model a fixed-rate bond as a sum of zero-coupon
-bonds. That’s how we model them in
-:ref:`Claims.Util.Builders <module-daml-finance-claims-util-builders-48637>`.
-Below are slightly simplified versions:
+bonds. That’s how we model them in :ref:`Claims.Util.Builders
+<module-daml-finance-claims-util-builders-48637>`. Below are slightly simplified versions:
 
 .. code:: daml
 
@@ -128,8 +127,10 @@ reuse to build a ``fixed``-rate bond:
 
    fixed : Decimal -> Decimal -> a -> [Date] -> Claim a
    fixed principal coupon asset [] = zero
-   fixed principal coupon asset [maturity] = zcb maturity coupon asset `and` zcb maturity principal asset
-   fixed principal coupon asset (t :: ts) = zcb t coupon asset `and` fixed principal coupon asset ts
+   fixed principal coupon asset [maturity] =
+     zcb maturity coupon asset `and` zcb maturity principal asset
+   fixed principal coupon asset (t :: ts) =
+     zcb t coupon asset `and` fixed principal coupon asset ts
 
 We define the fixed rate bond by induction, iterating over a list of dates ``[t]``, and producing
 multiple zero-coupon bonds ``zcb`` combined together with ``and``:
@@ -147,7 +148,8 @@ are defined in the industry. Let’s look at yet another example, a fixed vs flo
 
    type Ccy = Text
    usdVsEur : [Date] -> Claim Ccy
-   usdVsEur = fixed 100.0 0.1 "USD" `swap` floating (spot "EURUSD" * pure 100.0) (spot "EURUSD") "EUR"
+   usdVsEur =
+      fixed 100.0 0.1 "USD" `swap` floating (spot "EURUSD" * pure 100.0) (spot "EURUSD") "EUR"
 
 We define it in terms of its two legs, ``fixed`` and ``floating``, which themselves are functions.
 We use ``swap`` in infix form, and partially apply it - it takes a final ``[Date]`` argument which
@@ -193,9 +195,9 @@ maturities - their duration is about the same, but they are issued on different 
 The Asset Parameter
 ===================
 
-``a``, as we already explained, is the type used to represent assets in your application. Keeping this
-generic means the library can be used with any asset representation. For example, you could use one
-of the instrument implementations in Daml Finance, but are not forced to do so.
+``a``, as we already explained, is the type used to represent assets in your application. Keeping
+this generic means the library can be used with any asset representation. For example, you could use
+one of the instrument implementations in Daml Finance, but are not forced to do so.
 
 The Observation Parameter
 =========================
