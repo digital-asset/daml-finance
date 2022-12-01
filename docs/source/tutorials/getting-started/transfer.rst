@@ -165,7 +165,7 @@ We can now deposit cash in Alice’s account, using the ``CreditAccount`` workfl
   :start-after: -- CREATE_ALICE_HOLDING_BEGIN
   :end-before: -- CREATE_ALICE_HOLDING_END
 
-Alice creates a request to deposit ``USD 1'000`` at the Bank, the Bank then accepts the request and
+Alice creates a request to deposit ``USD 1000`` at the Bank, the Bank then accepts the request and
 a corresponding
 :ref:`Holding <type-daml-finance-interface-holding-base-base-14854>` is created.
 
@@ -289,13 +289,13 @@ help you familiarize yourself with the library and with Daml interfaces.
 Split the Holding to Transfer the Right Amount
 ==============================================
 
-In the example, Bob requests ``USD 1'000`` from Alice and Alice allocates a holding for exactly the
+In the example, Bob requests ``USD 1000`` from Alice and Alice allocates a holding for exactly the
 right amount, because the transfer would otherwise fail. We want the transfer to be successful also
-if Alice allocates a holding for a larger amount e.g., ``USD 1'500``.
+if Alice allocates a holding for a larger amount e.g., ``USD 1500``.
 
 We can leverage the fact that the holding implements the
 :ref:`Fungible <type-daml-finance-interface-holding-fungible-fungible-60176>`
-interface, which makes it possible to ``Split`` it into a holding of ``USD 1'000`` and one of
+interface, which makes it possible to ``Split`` it into a holding of ``USD 1000`` and one of
 ``USD 500``. In the implementation of the ``CashTransferRequest_Accept`` choice:
 
 - cast the allocated holding to the :ref:`Fungible <type-daml-finance-interface-holding-fungible-fungible-60176>`
