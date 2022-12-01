@@ -57,7 +57,7 @@ The code includes
 - three Daml scripts defined in the ``Scripts`` folder
 
 The ``Workflows`` encapsulate the core business logic of the application, whereas the ``Scripts``
-are executed on a one-off basis.
+are meant to be executed on a one-off basis.
 
 If you take a closer look at the ``Workflows``, you will recognize three initiate / accept patterns
 to:
