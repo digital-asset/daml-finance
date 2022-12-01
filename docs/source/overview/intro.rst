@@ -81,12 +81,12 @@ be modeled:
 Exploring the Library
 *********************
 
-If you want to review the Daml Finance codebase in more detail you can clone
-`the repository <https://github.com/digital-asset/daml-finance>`_ locally on your machine. This
-allows you to navigate the code, including both the template definitions and the tests. In
-particular the tests are useful to show how the library works and how the different components
-interact with each other. If you need to view the code for a specific package release, you can
-check out the `corresponding tag <https://github.com/digital-asset/daml-finance/tags>`_.
+If you want to review the Daml Finance codebase in more detail you can clone `the repository
+<https://github.com/digital-asset/daml-finance>`_ locally on your machine. This allows you to
+navigate the code, including both the template definitions and the tests. In particular the tests
+are useful to show how the library works and how the different components interact with each other.
+If you need to view the code for a specific package release, you can check out the `corresponding
+tag <https://github.com/digital-asset/daml-finance/tags>`_.
 
 As a pre-requisite, the `Daml SDK <https://docs.daml.com/getting-started/installation.html>`_ needs
 to be installed on your machine.
