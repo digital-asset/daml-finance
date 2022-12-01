@@ -22,7 +22,7 @@ Signatories
 Every instrument must have an ``issuer`` party and a ``depository`` party, which are both
 signatories of the contract.
 
-The terminology is borrowed from the real world, where an issuer of e.g., a stock instrument
+The terminology is borrowed from the real world. For example, an issuer of a stock instrument
 deposits the paper certificate at a depository and gets the corresponding amount credited in
 book-entry form.
 
@@ -41,10 +41,9 @@ which comprises:
 -  a textual ``id``
 -  a textual ``version``
 
-The version is used to keep track of the linear evolution of an instrument.
-
-For example, once a dividend on a share is paid, different versions identify the cum-dividend and
-the ex-dividend share.
+The version is used to keep track of the linear evolution of an instrument. For example, once a
+dividend on a share is paid, the version is used to identify the cum-dividend and the ex-dividend
+share.
 
 Interfaces
 ==========
@@ -78,8 +77,9 @@ Holding
 A holding contract represents the ownership of a certain amount of an instrument by an owner at a
 custodian.
 
-Whereas an instrument defines **what** a party holds (the rights and obligations), a holding defines
-**how much** and **against which party** we are holding something.
+Whereas an instrument defines *what* a party holds (the rights and obligations), a holding defines
+*how much* (ie., the quantity) of an instrument and *against which party* (ie., the custodian) the
+instrument is being held.
 
 It is important to understand that the economic terms of an asset (the instrument) are separated
 from the representation of an asset holding. This allows centralized management of instruments (e.g.

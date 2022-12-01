@@ -81,7 +81,8 @@ The following annotations are highlighted in the diagram:
    implementation layers of Daml Finance and the Customer Application. This is required to set up
    contracts like factories, where a dependency on the implementation package is needed. It does not
    affect the overall upgradability of the Customer Application as these operations are usually
-   executed once at initial setup, but not during normal operation of the application.
+   executed either at initial setup or on a one-off basis, but not during normal operation of the
+   application.
 
 Following the above patterns ensures minimal impact of changes to any implementation part of the
 overall application:
