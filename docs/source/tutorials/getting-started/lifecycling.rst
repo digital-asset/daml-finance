@@ -17,13 +17,13 @@ We are going to:
 #. instruct settlement by presenting a token holding
 #. settling the resulting batch atomically
 
-This example builds on the previous :doc:`Settlement <settlement>` tutorial script such that the
-same accounts and existing holdings can be used.
+This example builds on the previous :doc:`Settlement <settlement>` tutorial script in the sense that
+the same accounts and the existing holdings are used.
 
 Overview of the Process
 ***********************
 
-We first give a high-level outline of the lifecycle process.
+We first give a high-level outline of the lifecycle process:
 
 +-----------------------------+--------------------------------------------------------------------+
 | 1. Create a lifecycle rule  | A lifecycle rule implements the logic to calculate effects for a   |
@@ -41,8 +41,9 @@ We first give a high-level outline of the lifecycle process.
 +-----------------------------+--------------------------------------------------------------------+
 | 4. Claim the effect using a | The claim rule is used to claim the effects resulting from a       |
 |    holding                  | lifecycle event using a holding on the target instrument. The      |
-|                             | result is a set of settlement instructions and corresponding batch |
-|                             | to be settled between the custodian and owner of the holding.      |
+|                             | result is a set of settlement instructions and a corresponding     |
+|                             | batch to be settled between the custodian and the owner of the     |
+|                             | holding.                                                           |
 +-----------------------------+--------------------------------------------------------------------+
 
 Run the Script
@@ -55,8 +56,8 @@ The first part executes the script from the previous :doc:`Settlement <settlemen
 arrive at the initial state for this scenario.
 
 Then we create a new version of the *token* instrument, which is required for defining the
-distribution event. This is the instrument holders will receive when processing the lifecycle event
-later in the tutorial.
+distribution event. This is what the instrument holders will receive when processing the lifecycle
+event later in the tutorial.
 
 .. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Lifecycling.daml
   :language: daml
@@ -147,9 +148,8 @@ Can an instrument act as its own lifecycle rule?
 ================================================
 
 Yes, an instrument can implement the ``Lifecycle`` interface directly such that the lifecycle rules
-are contained within the instrument itself. An example for this can be found in the implementation
-for generic instruments. There are, however, advantages to separating this logic out into rule
-contracts:
+are contained within the instrument itself. There are, however, advantages to separating this logic
+out into rule contracts:
 
 * Keeping lifecycle rules in a different package from your instruments allows you to independently
   upgrade or patch them without affecting your live instruments.

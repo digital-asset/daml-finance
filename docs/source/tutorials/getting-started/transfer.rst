@@ -16,8 +16,9 @@ We are going to:
 #. transfer the holding from Alice to Bob
 
 We expect the reader to be familiar with the basic building blocks of Daml. If that is not the case,
-a suitable introduction can be found in
-`this page <https://www.digitalasset.com/developers/learn>`_.
+a suitable introduction can be found `here <https://www.digitalasset.com/developers/learn>`_.
+In particular, `An Introduction to Daml <https://docs.daml.com/daml/intro/0_Intro.html>`_
+would be a good starting point.
 
 Download the Code for the Tutorial
 **********************************
@@ -55,11 +56,11 @@ The code includes
 - four workflows defined in the ``Workflows`` folder
 - three Daml scripts defined in the ``Scripts`` folder
 
-The first encapsulate the core business logic of the application, whereas the latter includes
-scripts that are executed on a one-off basis.
+The ``Workflows`` encapsulate the core business logic of the application, whereas the ``Scripts``
+are meant to be executed on a one-off basis.
 
 If you take a closer look at the ``Workflows``, you will recognize three initiate / accept patterns
-to
+to:
 
 - create an account
 - make a deposit to the account
@@ -67,17 +68,17 @@ to
 
 The ``DvP`` workflow will be used in the next tutorial, so please ignore that one for now.
 
-Files in the ``Workflows`` folder depend only on interface packages of ``daml-finance`` (the ones
+Modules in the ``Workflows`` folder depend only on *interface* packages of ``daml-finance`` (the ones
 that start with ``Daml.Finance.Interface.*``), as you can see from the import list.
 
 This is important, as it decouples the user-defined business logic from the template implementations
-used in ``daml-finance`` and, thus, makes it easier to upgrade the one without being forced to
+used in ``daml-finance``. This makes it easier to upgrade the one without being forced to
 upgrade the other.
 
-On the other hand, the script in the ``Scripts`` folder depends also on implementation packages (in
+On the other hand, modules in the ``Scripts`` folder depend also on *implementation* packages (in
 this case, ``Daml.Finance.Account``, ``Daml.Finance.Holding``, and ``Daml.Finance.Instrument.Token``).
 
-This is not problematic, as the script is meant to be run only once when the application is
+This is not problematic, as scripts are meant to be run only once when the application is
 initialized.
 
 Run the Transfer Script
@@ -107,13 +108,14 @@ holdings.
   :start-after: -- CREATE_HOLDING_FACTORY_BEGIN
   :end-before: -- CREATE_HOLDING_FACTORY_END
 
-This factory contract can be used to create ``Fungible`` holdings, which are defined in
-``Daml.Finance.Holding.Fungible`` and are :ref:`fungible <fungibility>`, as well as
-:ref:`transferable <transferability>`.
+This factory contract can be used to create
+:ref:`Fungible <type-daml-finance-holding-fungible-factory-35358>` holdings, which are defined in
+:ref:`Daml.Finance.Holding.Fungible <module-daml-finance-holding-fungible-7201>`
+and are both :ref:`fungible <fungibility>`, as well as :ref:`transferable <transferability>`.
 
 We are adding a so-called *public party* as an observer to the holding factory. This is done to
 ensure that every other party has visibility over this contract, as all parties can `readAs` the
-public party. The reason why this is necessary will come into play at the end of this tutorial.
+public party. The reason why this is necessary will be shown at the end of this tutorial.
 
 Open Alice’s and Bob’s Accounts
 ===============================
@@ -134,8 +136,9 @@ Bob’s account is created in a similar fashion.
 Create the Cash Instrument
 ==========================
 
-In order to credit Alice’s account with some cash, we first introduce a cash ``Instrument`` in our
-model.
+In order to credit Alice’s account with some cash, we first introduce a cash
+:ref:`Instrument <type-daml-finance-interface-instrument-token-instrument-instrument-4350>`
+in our model.
 
 .. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Transfer.daml
   :language: daml
@@ -155,17 +158,18 @@ means that we fully trust the Bank with any action concerning the instrument.
 Deposit Cash in Alice’s Account
 ===============================
 
-We can now deposit cash in Alice’s account, using the ``Deposit`` workflow.
+We can now deposit cash in Alice’s account, using the ``CreditAccount`` workflow.
 
 .. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Transfer.daml
   :language: daml
   :start-after: -- CREATE_ALICE_HOLDING_BEGIN
   :end-before: -- CREATE_ALICE_HOLDING_END
 
-Alice creates a request to deposit ``USD 1,000`` at the Bank, the Bank then accepts the request and
-a corresponding ``Holding`` is created.
+Alice creates a request to deposit ``USD 1000`` at the Bank, the Bank then accepts the request and
+a corresponding
+:ref:`Holding <type-daml-finance-interface-holding-base-base-14854>` is created.
 
-You can imagine that the latter step happens only after Alice has showed up at the bank and
+You can imagine that the latter step happens only after Alice has shown up at the bank and
 delivered physical banknotes corresponding to the amount of the deposit.
 
 Transfer Cash from Alice to Bob
@@ -198,13 +202,18 @@ If you look at the implementation of the ``Transfer`` workflow, you will notice 
   :start-after: -- DO_TRANSFER_BEGIN
   :end-before: -- DO_TRANSFER_END
 
-The first line converts the holding contract id (of type ``ContractId Holding.I``) to the
-``Transferable`` interface using ``coerceContractId``.
+The first line converts the holding contract id (of type
+:ref:`ContractId Holding.I <type-daml-finance-interface-holding-base-base-14854>`) to the
+:ref:`Transferable.I <type-daml-finance-interface-holding-transferable-transferable-24986>`
+interface using ``coerceContractId``.
 
-Then, the ``Transfer`` choice, defined as part of the ``Transferable.I`` interface, is invoked.
+Then, the ``Transfer`` choice, defined as part of the
+:ref:`Transferable <type-daml-finance-interface-holding-transferable-transferable-24986>`
+interface, is invoked.
 
-Finally, the new holding is converted back to a ``Holding.I`` before it is returned. This is done
-using ``toInterfaceContractId``.
+Finally, the new holding is converted back to a
+:ref:`Holding.I <type-daml-finance-interface-holding-base-base-14854>`
+before it is returned. This is done using ``toInterfaceContractId``.
 
 In order to fully understand these instructions, we need to keep in mind the interface hierarchy
 used by our holding implementation.
@@ -214,12 +223,22 @@ used by our holding implementation.
         Transferable, and Fungible are each linked by arrows pointing left. Below is an arrow, also
         pointing left, labelled Implements.
 
-We use ``coerceContractId`` to convert the ``Holding`` to a ``Transferable``. The success of this
+We use ``coerceContractId`` to convert the
+:ref:`Holding.I <type-daml-finance-interface-holding-base-base-14854>`
+to a
+:ref:`Transferable <type-daml-finance-interface-holding-transferable-transferable-24986>`.
+The success of this
 operation is not guaranteed and will result in a run-time error if the holding implementation at
-hand does not implement ``Transferable``.
+hand does not implement
+:ref:`Transferable <type-daml-finance-interface-holding-transferable-transferable-24986>`.
 
-We use ``toInterfaceContractId`` to convert back to a ``Holding``. This is because all
-``Transferable``\ s implement the ``Holding`` interface, so the validity of this operation is
+We use ``toInterfaceContractId`` to convert back to a
+:ref:`Holding <type-daml-finance-interface-holding-base-base-14854>`.
+This is because all
+:ref:`Transferable <type-daml-finance-interface-holding-transferable-transferable-24986>`\ s
+implement the
+:ref:`Holding.I <type-daml-finance-interface-holding-base-base-14854>` interface,
+so the validity of this operation is
 guaranteed at compile-time.
 
 Why is Alice an observer on Bob’s account?
@@ -251,7 +270,9 @@ Why do we need factories?
 =========================
 
 You might be wondering why we use account factories and holding factories instead of creating an
-``Account`` or ``Holding`` directly.
+:ref:`Account <type-daml-finance-account-account-account-12745>` or
+:ref:`Holding <type-daml-finance-holding-fungible-fungible-28517>`
+directly.
 
 This is done to avoid having to reference ``Daml.Finance.Holding`` directly in user workflows (and
 hence simplify upgrading procedures).
@@ -268,21 +289,24 @@ help you familiarize yourself with the library and with Daml interfaces.
 Split the Holding to Transfer the Right Amount
 ==============================================
 
-In the example, Bob requests ``USD 1,000`` from Alice and Alice allocates a holding for exactly the
+In the example, Bob requests ``USD 1000`` from Alice and Alice allocates a holding for exactly the
 right amount, because the transfer would otherwise fail. We want the transfer to be successful also
-if Alice allocates a holding for a larger amount e.g., ``USD 1,500``.
+if Alice allocates a holding for a larger amount e.g., ``USD 1500``.
 
 We can leverage the fact that the holding implements the
 :ref:`Fungible <type-daml-finance-interface-holding-fungible-fungible-60176>`
-interface, which makes it possible to ``Split`` it into a holding of ``USD 1,000`` and one of
-``USD 500``. In the implementation of the ``CashTransferRequest_Accept`` choice
+interface, which makes it possible to ``Split`` it into a holding of ``USD 1000`` and one of
+``USD 500``. In the implementation of the ``CashTransferRequest_Accept`` choice:
 
-- cast the allocated holding to the ``Fungible`` interface
+- cast the allocated holding to the :ref:`Fungible <type-daml-finance-interface-holding-fungible-fungible-60176>`
+  interface
 - use the ``Split`` choice to split the larger holding into two holdings
-- execute the transfer, allocating the holding on the correct amount
+- execute the transfer, allocating the holding with the correct amount
 
-In the last step, you will need to cast the ``Fungible`` to a ``Transferable`` using
-``toInterfaceContractId``.
+In the last step, you will need to cast the
+:ref:`Fungible <type-daml-finance-interface-holding-fungible-fungible-60176>` to a
+:ref:`Transferable <type-daml-finance-interface-holding-transferable-transferable-24986>`
+using ``toInterfaceContractId``.
 
 Temporary Account Disclosure
 ============================
@@ -290,12 +314,14 @@ Temporary Account Disclosure
 There is no reason for Alice to be an observer on Bob's account before the transfer is initiated by
 Bob (and after the transfer is executed).
 
-Modify the original code, such that
+Modify the original code, such that:
 
 - Bob's account is disclosed to Alice once the transfer is initiated
 - When the Transfer is executed, Alice removes herself from the account observers
 
-In order to do that, you can leverage the fact that ``Account`` implements the
+In order to do that, you can leverage the fact that
+:ref:`Account <type-daml-finance-account-account-account-12745>`
+implements the
 :ref:`Disclosure <type-daml-finance-interface-util-disclosure-disclosure-97052>`
 interface. This interface exposes the ``AddObservers`` and ``RemoveObservers`` choices, which can be
 used to disclose / undisclose Bob's account contract to Alice.
@@ -313,5 +339,5 @@ simple transfer. The key concepts to take away are:
   packages.
 * Transfers change ownership of a holding.
 
-Ownership transfers typically happen within a larger financial transaction. The next tutorial will
-show you how to create such a transaction and how to settle it atomically.
+Ownership transfers typically happen as part of a larger financial transaction. The next tutorial
+will show you how to create such a transaction and how to settle it atomically.

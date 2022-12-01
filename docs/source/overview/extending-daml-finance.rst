@@ -65,9 +65,9 @@ entirely new instrument types. The following are typical examples of when a cust
 implementation is required:
 
 - Additional information: a custom instrument implementation might, for example, build upon the
-  :ref:`Equity interface <type-daml-finance-interface-instrument-equity-instrument-instrument-99859>`
-  to provide additional information pertinent to private equity (like share class, or
-  liquidation preference).
+  :ref:`Equity interface
+  <type-daml-finance-interface-instrument-equity-instrument-instrument-99859>` to provide additional
+  information pertinent to private equity (like share class, or liquidation preference).
 - New instrument types: if Daml Finance does not provide an implementation for a given instrument
   type, a custom implementation can be provided to fill that gap. The implementation can either
   leverage the :doc:`Contingent Claims <../concepts/contingent-claims>` framework, as described in
