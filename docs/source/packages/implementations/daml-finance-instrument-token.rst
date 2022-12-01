@@ -4,8 +4,8 @@
 Daml.Finance.Instrument.Token
 #############################
 
-This package contains the *implementation* of a simple token instrument. It contains the following
-modules:
+This package contains the *implementation* of simple token instruments which do not define
+any lifecycling logic. It contains the following modules:
 
 - :ref:`Instrument <module-daml-finance-instrument-token-instrument-10682>`:
   Instrument implementation for simple tokens

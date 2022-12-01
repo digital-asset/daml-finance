@@ -69,36 +69,36 @@ complex cashflows. For example, to represent the above bond, we could write the 
 
 Let’s look at the constructors used in the above expression in more detail:
 
--  ``one "USD"`` means that the acquirer of the contract receives one unit of the asset,
-   parametrised by ``a``, *immediately*. In this case we use a 3-letter ISO code to represent a
-   currency, but you can use your own type to represent any asset.
--  ``scale (pure coupon)`` modifies the *magnitude* of the arrow in the diagram. For example, in the
-   diagram, the big arrow would have a distinct scale factor from the small arrows. In our example,
-   the scale factor is constant: ``pure coupon = const coupon``, however, it’s possible to have a
-   scale factor that depends on an unobserved value, such as a stock price, the weather, or any
-   other measurable quantity.
--  ``when (time == t_0)`` tells us where along the x-axis the arrow is placed, i.e., it modifies the
-   point in time when the claim is acquired. The convention is that this must be the first instant
-   that the predicate (``time == t_0`` in this case) is true. In our example it is a point, but
-   again, we could have used an expression with an unknown quantity, for example
-   ``spotPrice > pure k``, and it would trigger *the first instant* that the expression becomes
-   true.
--  ``and`` is used to chain multiple expressions together. Remember that in the ``data`` definition
-   above, each constructor is a function: ``and : Claim a -> Claim a -> Claim a``. We use the Daml
-   backtick syntax to write ``and`` as an infix operator, for legibility.
+- ``one "USD"`` means that the acquirer of the contract receives one unit of the asset,
+  parametrised by ``a``, *immediately*. In this case we use a 3-letter ISO code to represent a
+  currency, but you can use your own type to represent any asset.
+- ``scale (pure coupon)`` modifies the *magnitude* of the arrow in the diagram. For example, in the
+  diagram, the big arrow would have a distinct scale factor from the small arrows. In our example,
+  the scale factor is constant: ``pure coupon = const coupon``, however, it’s possible to have a
+  scale factor that depends on an unobserved value, such as a stock price, the weather, or any
+  other measurable quantity.
+- ``when (time == t_0)`` tells us where along the x-axis the arrow is placed, i.e., it modifies the
+  point in time when the claim is acquired. The convention is that this must be the first instant
+  that the predicate (``time == t_0`` in this case) is true. In our example it is a point, but
+  again, we could have used an expression with an unknown quantity, for example
+  ``spotPrice > pure k``, and it would trigger *the first instant* that the expression becomes
+  true.
+- ``and`` is used to chain multiple expressions together. Remember that in the ``data`` definition
+  above, each constructor is a function: ``and : Claim a -> Claim a -> Claim a``. We use the Daml
+  backtick syntax to write ``and`` as an infix operator, for legibility.
 
 Additionally, there are several constructors which were not used in the above example:
 
--  ``zero``, used to indicate an absence of obligations. While it may not make sense to create a
-   ``zero`` claim, it could, for example, result from applying a function on a tree of claims.
--  ``give`` would flip the direction of the arrows in our diagram. For example, in a swap we could
-   use ``give`` to distinguish the received/paid legs.
--  ``or`` is used to give the bearer the right to choose between two different claims. This is
-   typically used for options.
--  ``anytime`` is like ``when``, except it allows the bearer to choose (vs. no choice) acquisition
-   within a region (or timeframe), vs. a specific point in time.
--  ``until`` is used to adjust the expiration (*horizon* in [Cit1]_) of a claim. Typically, it is
-   used with ``anytime`` to limit aforesaid acquisition region.
+- ``zero``, used to indicate an absence of obligations. While it may not make sense to create a
+  ``zero`` claim, it could, for example, result from applying a function on a tree of claims.
+- ``give`` would flip the direction of the arrows in our diagram. For example, in a swap we could
+  use ``give`` to distinguish the received/paid legs.
+- ``or`` is used to give the bearer the right to choose between two different claims. This is
+  typically used for options.
+- ``anytime`` is like ``when``, except it allows the bearer to choose (vs. no choice) acquisition
+  within a region (or timeframe), vs. a specific point in time.
+- ``until`` is used to adjust the expiration (*horizon* in [Cit1]_) of a claim. Typically, it is
+  used with ``anytime`` to limit aforesaid acquisition region.
 
 The tree produced by our expression (corresponding to the cashflow figure above) looks like this:
 

@@ -4,7 +4,7 @@
 Daml.Finance.Interface.Data
 ###########################
 
-This package contains the *interface* for inspecting observables. These are used in the context
+This package contains the *interface* for inspecting observables, which are used in the context
 of lifecycling. It contains the following modules:
 
 - :ref:`NumericObservable <module-daml-finance-interface-data-numericobservable-76523>`:

@@ -17,7 +17,8 @@ modules:
   Interface for contracts that allow holders to claim an ``Effect`` and generate settlement
   instructions
 - :ref:`Rule.Lifecycle <module-daml-finance-interface-lifecycle-rule-lifecycle-50431>`:
-  Interface implemented by instruments that can be lifecycled
+  Interface implemented by instruments that can be lifecycled (either by the instrument itself
+  or by a separate rule contract)
 
 The :doc:`Lifecycling <../../concepts/lifecycling>` page contains an overview of the lifecycle
 process and explains the relationship between events, lifecycle rules and effects. Check out the

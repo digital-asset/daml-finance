@@ -7,4 +7,4 @@ Daml.Finance.Interface.Instrument.Base
 This package contains the *root interface* for all instruments. It contains the following modules:
 
 - :ref:`Instrument <module-daml-finance-interface-instrument-base-instrument-57320>`:
-  Root instrument abstraction containing basic properties that every instruments exhibits
+  Root instrument abstraction containing basic properties that every instrument exhibits

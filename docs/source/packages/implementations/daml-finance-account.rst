@@ -4,7 +4,7 @@
 Daml.Finance.Account
 ####################
 
-This package contains the *implementation* for accounts. It has the following module:
+This package contains the *implementation* of accounts. It has the following module:
 
 - :ref:`Account <module-daml-finance-account-account-19369>`: Implementation of an account,
   i.e., a relationship between a custodian and an asset owner, referenced by holdings. It also
