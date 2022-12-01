@@ -129,8 +129,8 @@ new version of the stock, which is not entitled to the dividend anymore.
 
 Note that the party responsible for claiming an effect can be specified flexibly in the
 :ref:`Claim Rule <type-daml-finance-interface-lifecycle-rule-claim-claim-29284>` contract. Through
-this contract, custodians can be given the authority to push a given corporate action to the asset holder as
-is common in current operating procedures.
+this contract, custodians can be given the authority to push a given corporate action to the asset
+holder as is common in current operating procedures.
 
 The model also supports atomic, intermediated settlement of lifecycle events. For example, if a
 dividend is to be settled between issuer, custodian, and investor in a single transaction, the
@@ -151,8 +151,8 @@ The following picture shows the three asset movements involved in this particula
          allocates a 1000 ACME v2 holding to the second instruction and a 10000 USD holding to the
          third.
 
-The result of processing the settlement batch results in the investor receiving a 10'000 USD dividend and 1'000 shares of ``ACME`` v2 in
-return for their 1'000 shares of ``ACME`` v1.
+The result of processing the settlement batch results in the investor receiving a 10'000 USD
+dividend and 1'000 shares of ``ACME`` v2 in return for their 1'000 shares of ``ACME`` v1.
 
 Components
 **********
@@ -169,11 +169,11 @@ properties of a lifecycle event:
 
 Different implementations exist to cover typical event types:
 
-- The
-  :ref:`DateClock Update <type-daml-finance-lifecycle-event-dateclockupdate-dateclockupdateevent-18229>`
-  event represents passing of (market) time and can be used to trigger contractual, time-based
-  cashflows, like interest payments on a bond. It is, for example, used to drive the evolution and
-  lifecycling of :doc:`Contingent Claims <contingent-claims>`-based instruments.
+- The :ref:`DateClock Update
+  <type-daml-finance-lifecycle-event-dateclockupdate-dateclockupdateevent-18229>` event represents
+  passing of (market) time and can be used to trigger contractual, time-based cashflows, like
+  interest payments on a bond. It is, for example, used to drive the evolution and lifecycling of
+  :doc:`Contingent Claims <contingent-claims>`-based instruments.
 - The :ref:`Distribution <type-daml-finance-lifecycle-event-distribution-event-46459>` event can be
   used to distribute assets to holders of an instrument. This covers cash-, share-, and mixed
   dividends, rights issues, or the distribution of voting rights.
@@ -191,9 +191,8 @@ assume that a new version of the instrument has already been created (as is the 
 :ref:`Replacement <type-daml-finance-lifecycle-rule-replacement-rule-7648>` rules), or it can create
 the new version of the instrument as part of its implementation. The latter can be useful if
 information required to create the new version is only available upon processing of the event, as is
-the case for
-:ref:`Generic Instrument <type-daml-finance-interface-instrument-generic-instrument-instrument-11652>`
-evolution.
+the case for :ref:`Generic Instrument
+<type-daml-finance-interface-instrument-generic-instrument-instrument-11652>` evolution.
 
 Claim Rule
 ==========
