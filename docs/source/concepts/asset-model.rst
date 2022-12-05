@@ -136,8 +136,7 @@ Implementations are provided in ``Daml.Finance.Holding`` for:
 Account
 *******
 
-Finally, account contracts are used as proof of a relationship between a ``custodian`` and an
-``owner``.
+Account contracts are used as proof of a relationship between a ``custodian`` and an ``owner``.
 
 An ``owner`` must have an account contract with a ``custodian`` before a holding contract can be
 created between the two parties.
@@ -159,8 +158,8 @@ example:
 - owners-controlled: If the ``owner`` is the sole member the ``outgoing`` and ``incoming``
   controllers for the accounts, a transfer of a holding from Alice's account to Bob's account needs
   to be authorized jointly by Alice and Bob.
-- owner-only-controlled: If, instead, the ``incoming`` controllers (of Bob's account) is the empty
-  set, it is enough that Alice authorizes the transfer alone.
+- owner-only-controlled: If, instead, there are no ``incoming`` controllers of Bob's account,
+  it is enough that Alice authorizes the transfer alone.
 - custodian-controlled: If, as often is the case, the ``custodian`` needs to control what is being
   transferred, we can instead let the ``custodian`` be the sole member of ``outgoing`` and
   ``incoming`` controllers of the accounts.
