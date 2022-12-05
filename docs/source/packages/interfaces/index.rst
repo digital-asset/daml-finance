@@ -17,7 +17,8 @@ This section lists the interface packages contained within Daml Finance:
    daml-finance-interface-instrument-base
    daml-finance-interface-claims
    daml-finance-interface-data
-   daml-finance-interface-types
+   daml-finance-interface-types-common
+   daml-finance-interface-types-date
    daml-finance-interface-util
    contingent-claims-core
 
