@@ -140,8 +140,8 @@ In our fixed rate bond example above, the coupon amount is pre-determined at the
 instrument. In contrast, a floating rate coupon is defined by the value of a reference rate during
 the lifetime of the bond. Since we do not know this value when the instrument is created, we need to
 define the coupon based on a future observation of the reference rate. In order to do this we
-introduce the concept of an
-:ref:`Observable <module-daml-finance-data-observable-observation-7524>`.
+introduce the concept of a
+:ref:`numeric observation <module-daml-finance-data-numeric-observation-78761>`.
 
 In the instrument definition, we need an identifier for the reference rate:
 
