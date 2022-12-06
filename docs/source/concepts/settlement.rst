@@ -60,9 +60,9 @@ In order to execute the FX transaction, we first need to:
 
 for each :ref:`Instruction <module-daml-finance-settlement-instruction-87187>`.
 
-Alice :ref:`allocates <module-daml-finance-interface-settlement-instruction-10970>`
-the instruction where she is the sender by pledging her holding. Bob does the
-same on the instruction where he is the sender.
+Alice :ref:`allocates <module-daml-finance-interface-settlement-instruction-10970>` the instruction
+where she is the sender by pledging her holding. Bob does the same on the instruction where he is
+the sender.
 
 .. image:: ../images/settlement_allocated.png
    :alt: Settlement is allocated.

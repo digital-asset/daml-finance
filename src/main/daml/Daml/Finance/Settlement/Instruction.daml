@@ -5,6 +5,7 @@ module Daml.Finance.Settlement.Instruction where
 
 import DA.Assert ((===))
 import DA.List qualified as L (head)
+import DA.Optional (whenSome)
 import DA.Set qualified as S (empty, fromList, intersection, isSubsetOf, null, singleton, toList)
 import Daml.Finance.Interface.Account.Account qualified as Account (Credit(..), Debit(..), I, R, disclose, exerciseInterfaceByKey, undisclose)
 import Daml.Finance.Interface.Account.Util (getAccount)
@@ -31,20 +32,22 @@ template Instruction
       -- ^ Parties requesting the settlement.
     settlers : Parties
       -- ^ Any of the parties can trigger the settlement.
-    signedSenders : Parties
-      -- ^ Additional signatories, used to collect authorization.
-    signedReceivers : Parties
-      -- ^ Additional signatories, used to collect authorization.
     batchId : Id
       -- ^ Trade identifier.
     id : Id
       -- ^ Instruction identifier.
     routedStep : RoutedStep
       -- ^ Routed settlement step.
+    settlementTime : Optional Time
+      -- ^ First time (if any) on which the `Instruction` can be settled.
     allocation : Allocation
       -- ^ Allocation from the sender.
     approval : Approval
       -- ^ Approval from the receiver.
+    signedSenders : Parties
+      -- ^ Additional signatories, used to collect authorization.
+    signedReceivers : Parties
+      -- ^ Additional signatories, used to collect authorization.
     observers : PartiesMap
       -- ^ Observers.
   where
@@ -81,11 +84,16 @@ template Instruction
     interface instance Instruction.I for Instruction where
       asDisclosure = toInterface @Disclosure.I this
       view = Instruction.View with
-        requestors; settlers
-        signedSenders; signedReceivers
-        batchId; id
+        requestors
+        settlers
+        batchId
+        id
         routedStep
-        allocation; approval
+        settlementTime
+        signedSenders
+        signedReceivers
+        allocation
+        approval
       allocate Instruction.Allocate{actors; allocation} = do
         let mustAuthorize = mustContainActors actors
         assertMsg ("allocation must be new" <> messageSuffix) $ allocation /= this.allocation
@@ -173,6 +181,8 @@ template Instruction
           approval
           signedReceivers = if approval == Unapproved then S.empty else actors
       execute Instruction.Execute{actors} = do
+        -- check that settlement is due
+        settlementIsDue settlementTime
         assertMsg "actors must intersect with settlers" $
           not $ S.null $ S.intersection actors settlers
         let
@@ -267,3 +277,11 @@ discloseAccountHelper f (context, settlers) account isInstructor = do
                  else viewA.controllers.incoming
     viewer = L.head $ S.toList disclosers
   f (context, settlers) viewer disclosers account
+
+-- | HIDE
+settlementIsDue : Optional Time -> Update ()
+settlementIsDue settlementTime =
+  whenSome settlementTime $ \t -> do
+    now <- getTime
+    assertMsg ("settlement time " <> show t <> " must be due (now is " <> show now <> ")") $
+      now >= t
