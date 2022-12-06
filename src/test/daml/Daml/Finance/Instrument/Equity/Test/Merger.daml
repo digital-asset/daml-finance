@@ -24,17 +24,18 @@ import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), cr
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (submitExerciseInterfaceByKeyCmd)
+import Daml.Finance.Test.Util.Time qualified as Time (createLedgerTimeObservable)
 import Daml.Script
 
 -- Merger lifecycling and settlement
 run : Script ()
 run = script do
   -- Create parties
-  [merging, merged, custodian, investor, public] <-
-    createParties ["MergingIssuer", "MergedIssuer", "Custodian", "Investor", "Public"]
+  [merging, merged, custodian, investor, timeProvider, publicParty] <- createParties
+    ["MergingIssuer", "MergedIssuer", "Custodian", "Investor", "TimeProvider", "PublicParty"]
 
   -- Account and holding factory
-  let pp = [("Public", singleton public)]
+  let pp = [("PublicParty", singleton publicParty)]
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory custodian pp
   holdingFactoryCid <- toInterfaceContractId <$> submit custodian do
     createCmd Fungible.Factory with provider = custodian; observers = M.fromList pp
@@ -48,7 +49,7 @@ run = script do
     createCmd Replacement.Rule with
       providers = singleton merging
       lifecycler = merging
-      observers = singleton public
+      observers = singleton publicParty
       id = Id "LifecycleRule"
       description = "Rule to lifecycle an instrument following a replacement event"
 
@@ -56,6 +57,10 @@ run = script do
   now <- getTime
   mergingInstrument <- originateEquity merging merging "INST-1" "0" "ABC" pp now
   mergedInstrument <- originateEquity merged merged "INST-2" "0" "XYZ" pp now
+
+  -- Create ledger time observable
+  (timeObservableCid, timeProvidersAndId) <-
+    Time.createLedgerTimeObservable (singleton timeProvider) "Ledger Time" (singleton publicParty)
 
   -- Distribute holdings
   investorEquityCid <- Account.credit [] mergingInstrument 2_000.0 investorSecuritiesAccount
@@ -78,19 +83,20 @@ run = script do
 
   -- Claim effect
   routeProviderCid <- toInterfaceContractId <$> submit custodian do
-    createCmd SingleCustodian with provider = custodian; observers = singleton public; custodian
+    createCmd SingleCustodian with provider = custodian; observers = singleton publicParty; custodian
   settlementFactoryCid <- toInterfaceContractId <$> submit custodian do
-    createCmd Factory with provider = custodian; observers = singleton public
+    createCmd Factory with provider = custodian; observers = singleton publicParty
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit custodian do
     createCmd Claim.Rule with
       providers = singleton custodian
+      timeProvidersAndId
       claimers = fromList [custodian, investor]
       settlers = fromList [custodian, investor]
       routeProviderCid
       settlementFactoryCid
       netInstructions = False
 
-  result <- submitMulti [custodian] [public] do
+  result <- submitMulti [custodian] [publicParty] do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
       claimer = custodian
       holdingCids = [investorEquityCid]
@@ -115,8 +121,9 @@ run = script do
       actors = singleton investor; approval = TakeDelivery investorSecuritiesAccount
 
   -- Settle batch
-  [investorEquityCid] <- submit custodian do
-    exerciseCmd result.batchCid Batch.Settle with actors = singleton custodian
+  [investorEquityCid] <- submitMulti [custodian] [publicParty] do
+    exerciseCmd result.batchCid Batch.Settle with
+      actors = singleton custodian; oTimeObservableCid = Some timeObservableCid
 
   -- Assert state
   Holding.verifyOwnerOfHolding [(investor, investorEquityCid)]

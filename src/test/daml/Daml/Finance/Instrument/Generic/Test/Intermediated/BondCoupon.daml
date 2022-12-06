@@ -14,10 +14,11 @@ import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Instrument.Generic.Lifecycle.Rule qualified as Lifecycle (Rule(..))
 import Daml.Finance.Instrument.Generic.Test.Util (originateGeneric, mapClaimToUTCTime)
 import Daml.Finance.Interface.Account.Account qualified as Account (K)
+import Daml.Finance.Interface.Data.TimeObservable qualified as TimeObservable (I)
 import Daml.Finance.Interface.Holding.Base qualified as Base (I)
 import Daml.Finance.Interface.Holding.Util (getInstrument)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (K)
-import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (SetProvider(..), GetView(..), I)
+import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (SetProviders(..), GetView(..), I)
 import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..), I)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..))
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
@@ -35,6 +36,7 @@ import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
 import Daml.Finance.Test.Util.Instrument qualified as BaseInstrument (originate)
 import Daml.Finance.Test.Util.Time (createClockUpdateEvent)
+import Daml.Finance.Test.Util.Time qualified as Time (createLedgerTimeObservable)
 import Daml.Script
 
 {-
@@ -86,36 +88,39 @@ data TestParties = TestParties
     settlers : Parties
       -- ^ Any party of the settlers triggers the settlement of fully allocated settlement
       --   instructions.
+    timeProviders : Parties
+      -- ^ Parties providing time observable.
     publicParty : Party
-      -- ^ The public party. Every party can readAs the public party.
+      -- ^ The publicParty party. Every party can readAs the publicParty party.
 
 -- | Originate USD cash instrument and define settlement route.
 originateCashAndDefineRoute : TestParties -> Time -> Script (BaseInstrument.K, (Text, Hierarchy))
-originateCashAndDefineRoute TestParties{bank, centralBank, csd, investor, issuer, publicParty} now =
-  do
-    let
-      pp = [("PublicParty", singleton publicParty)]
-      label = "USD"
-      -- CREATE_CASH_ROUTE_BEGIN
-      {-
-        Cash account structure :
+originateCashAndDefineRoute TestParties{bank, centralBank, csd, investor, issuer, timeProviders,
+  publicParty} now =
+    do
+      let
+        pp = [("PublicParty", singleton publicParty)]
+        label = "USD"
+        -- CREATE_CASH_ROUTE_BEGIN
+        {-
+          Cash account structure :
 
-            Central Bank
-            /    |     \
-          CSD  Issuer  Bank
-                        \
-                      Investor
-      -}
-      route =
-        ( label
-        , Hierarchy with
-            rootCustodian = centralBank
-            pathsToRootCustodian = [[investor, bank], [csd], [issuer]]
-        )
-      -- CREATE_CASH_ROUTE_END
-    instrument <-
-      BaseInstrument.originate centralBank centralBank "USD" "United States Dollar" pp now
-    pure (instrument, route)
+              Central Bank
+              /    |     \
+            CSD  Issuer  Bank
+                          \
+                        Investor
+        -}
+        route =
+          ( label
+          , Hierarchy with
+              rootCustodian = centralBank
+              pathsToRootCustodian = [[investor, bank], [csd], [issuer]]
+          )
+        -- CREATE_CASH_ROUTE_END
+      instrument <-
+        BaseInstrument.originate centralBank centralBank "USD" "United States Dollar" pp now
+      pure (instrument, route)
 
 -- | Originate bond instrument and define settlement route.
 originateSecurityAndDefineRoute : TestParties -> Time ->
@@ -187,6 +192,10 @@ runIntermediatedLifecyclingNonAtomic = script do
   investorBondHoldingCid <-
     Account.credit [publicParty] bondInstrument 1_000_000.0 investorSecuritiesAccount
 
+  -- Create ledger time observable
+  (timeObservableCid, timeProvidersAndId) <-
+    Time.createLedgerTimeObservable timeProviders "Ledger Time" $ singleton publicParty
+
   -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_BEGIN
   -- create clock update event
   clockEventCid <- createClockUpdateEvent (singleton issuer) today empty
@@ -227,6 +236,7 @@ runIntermediatedLifecyclingNonAtomic = script do
     createCmd EffectSettlementService with
       csd
       issuer
+      timeProvidersAndId
       instrumentId = bondInstrument.id
       securitiesAccount = csdAccountAtIssuer
       issuerCashAccount
@@ -237,6 +247,7 @@ runIntermediatedLifecyclingNonAtomic = script do
   (effectCid, newInstrumentHoldingCid, [cashHolding]) <- submitMulti [issuer] [publicParty] do
     exerciseCmd settle1Cid ClaimAndSettle with
       instrumentHoldingCid = csdBondHoldingCid; cashHoldingCid = issuerCashHoldingCid; effectCid
+      oTimeObservableCid = Some timeObservableCid
   -- LIFECYCLE_BOND_ISSUER_CSD_END
 
   -- LIFECYCLE_BOND_SETTLEMENT_FACTORY_BEGIN
@@ -253,6 +264,7 @@ runIntermediatedLifecyclingNonAtomic = script do
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit csd do
     createCmd Claim.Rule with
       providers = singleton csd
+      timeProvidersAndId
       claimers = fromList [csd, investor]
       settlers
       routeProviderCid
@@ -303,7 +315,8 @@ runIntermediatedLifecyclingNonAtomic = script do
   -- Settle batch
   [investorBondHoldingCid, bankCashHoldingCid, investorCashHoldingCid] <-
     submitMulti (toList settlers) [publicParty] do
-      exerciseCmd result.batchCid Batch.Settle with actors = settlers
+      exerciseCmd result.batchCid Batch.Settle with
+        actors = settlers; oTimeObservableCid = Some timeObservableCid
   -- LIFECYCLE_BOND_ALLOCATE_APPROVE_SETTLE_END
 
   -- Assert state
@@ -345,6 +358,10 @@ runIntermediatedLifecyclingAtomic = script do
   investorBondHoldingCid <-
     Account.credit [publicParty] bondInstrument 1_000_000.0 investorSecuritiesAccount
 
+  -- Create ledger time observable
+  (timeObservableCid, timeProvidersAndId) <-
+    Time.createLedgerTimeObservable timeProviders "Ledger Time" $ singleton publicParty
+
   -- create clock update event
   clockEventCid <- createClockUpdateEvent (singleton issuer) today empty
 
@@ -376,7 +393,8 @@ runIntermediatedLifecyclingAtomic = script do
 
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit csd do
     createCmd Claim.Rule with
-      providers = fromList [csd]
+      providers = singleton csd
+      timeProvidersAndId
       claimers = singleton csd
       settlers
       routeProviderCid
@@ -469,7 +487,8 @@ runIntermediatedLifecyclingAtomic = script do
   -- Settle batch
   [csdBondHoldingCid, bankCashHoldingCid, investorBondHoldingCid, investorCashHoldingCid] <-
     submitMulti (toList settlers) [publicParty] do
-      exerciseCmd result.batchCid Batch.Settle with actors = settlers
+      exerciseCmd result.batchCid Batch.Settle with
+        actors = settlers; oTimeObservableCid = Some timeObservableCid
 
   -- Assert state
   Holding.verifyOwnerOfHolding
@@ -489,6 +508,8 @@ template EffectSettlementService
       -- ^ Owner of the instrument holding. Acts as depository of the instrument.
     issuer : Party
       -- ^ Counterparty of the instrument holding. Issuer of the instrument.
+    timeProvidersAndId : (Parties, Id)
+      -- ^ Parties providing the time observable and context.
     instrumentId : Id
       -- ^ Defines the instrument to which the contract is applicable.
     securitiesAccount : Account.K
@@ -518,6 +539,8 @@ template EffectSettlementService
           -- ^ Cash holding of issuer @ central bank, used to settle the effect's consequences.
         effectCid : ContractId Effect.I
           -- ^ Effect to claim.
+        oTimeObservableCid : Optional (ContractId TimeObservable.I)
+          -- ^ Time observable.
       controller issuer
       do
         effectView <- exercise effectCid Effect.GetView with viewer = issuer
@@ -546,6 +569,7 @@ template EffectSettlementService
 
         lifecycleClaimRuleCid <- create Claim.Rule with
           providers = singleton issuer
+          timeProvidersAndId
           claimers = fromList [issuer, csd]
           settlers = singleton csd
           routeProviderCid
@@ -584,20 +608,22 @@ template EffectSettlementService
 
         -- Settle batch
         [newInstrumentHoldingCid, investorCashHoldingCouponCid] <-
-          exercise result.batchCid Batch.Settle with actors = singleton csd
+          exercise result.batchCid Batch.Settle with
+            actors = singleton csd; oTimeObservableCid
 
         -- 2. create effect to be used by investors
-        newEffectCid <- exercise effectCid Effect.SetProvider with newProviders = singleton csd
+        newEffectCid <- exercise effectCid Effect.SetProviders with newProviders = singleton csd
 
         pure (newEffectCid, Some newInstrumentHoldingCid, [investorCashHoldingCouponCid])
 
 -- | HIDE
 setupParties : Script TestParties
 setupParties = do
-  [bank, centralBank, csd, issuer, investor, settler, publicParty] <-
-    createParties ["Bank", "CentralBank", "CSD", "Issuer", "Investor", "Settler", "PublicParty"]
+  [bank, centralBank, csd, issuer, investor, settler, timeProvider, publicParty] <- createParties
+    ["Bank", "CentralBank", "CSD", "Issuer", "Investor", "Settler", "TimeProvide", "PublicParty"]
   pure $ TestParties with
-    bank; centralBank; csd; issuer; investor; settlers = singleton settler; publicParty
+    bank; centralBank; csd; issuer; investor; settlers = singleton settler
+    timeProviders = singleton timeProvider; publicParty
 
 -- | HIDE
 -- Setup a set of accounts.

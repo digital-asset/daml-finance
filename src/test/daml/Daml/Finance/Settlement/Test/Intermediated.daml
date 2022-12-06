@@ -15,8 +15,8 @@ import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Factory qualified as Factory (I, Instruct(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..), I)
 import Daml.Finance.Interface.Settlement.RouteProvider qualified as RouteProvider (I, Discover(..))
-import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), Step(..))
-import Daml.Finance.Interface.Types.Common.Types (Id(..))
+import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), SettlementTime(..), Step(..))
+import Daml.Finance.Interface.Types.Common.Types (Id(..), Parties)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (AddObservers(..), I, RemoveObservers(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
 import Daml.Finance.Settlement.Hierarchy (Hierarchy(..))
@@ -25,6 +25,7 @@ import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), cr
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyNoObservers, verifyOwnerOfHolding)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
+import Daml.Finance.Test.Util.Time qualified as Time (createLedgerTimeObservable)
 import Daml.Script
 
 data TestParties = TestParties
@@ -56,8 +57,10 @@ data TestParties = TestParties
       -- ^ Party that is granted the right to allocate Buyer's holdings on her behalf.
     provider : Party
       -- ^ Acts as provider of account and holding factory.
+    timeProviders : Parties
+      -- ^ Acts as providers of time.
     publicParty : Party
-      -- ^ The public party. Every party can readAs the public party.
+      -- ^ The publicParty party. Every party can readAs the publicParty party.
 
 -- Cross-custodial payment with delegation.
 run1 : Script ()
@@ -132,8 +135,8 @@ run useDelegatee = script do
   -- assets
   assetInstrument <- Instrument.originate csd issuer "SHARE" "Stock" [] now
   [sellerAssetCid, custodian1AssetCid] <- mapA
-      (Account.credit [publicParty] assetInstrument 1_250.0)
-      [sellerDepoAccount, custodian1DepoAccount]
+    (Account.credit [publicParty] assetInstrument 1_250.0)
+    [sellerDepoAccount, custodian1DepoAccount]
 
   -- Settlement steps
   let
@@ -145,9 +148,13 @@ run useDelegatee = script do
         -- Delivery step
       , Step with sender = seller; receiver = buyer; quantity = assetQuantity
       ]
-    settlementTime = time (addDays (toDateUTC now) 1) 0 0 0
+
+   -- Create ledger time observable
+  (timeObservableCid, timeProvidersAndId) <-
+    Time.createLedgerTimeObservable timeProviders "Ledger Time" $ singleton publicParty
 
   -- Discover settlement routes
+  let
     paymentRoute = Hierarchy with
       rootCustodian = cb
       pathsToRootCustodian = [[buyer, bank1], [seller, bank2]]
@@ -164,13 +171,18 @@ run useDelegatee = script do
   -- Instruct settlement
   settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submit agent do
     createCmd Factory with provider = agent; observers = empty
+  let
+    settlementTime = SettlementTime with
+      due = time (addDays (toDateUTC now) 1) 0 0 0
+      providers = fst timeProvidersAndId
+      id = snd timeProvidersAndId
   (batchCid, [buyerInstructionCid, bank1InstructionCid, bank2InstructionCid,
     sellerInstructionCid, custodian1InstructionCid, custodian2InstructionCid]) <-
     submit agent do
       exerciseCmd settlementFactoryCid Factory.Instruct with
         instructors = singleton agent; settlers = singleton agent
         id = Id "SHARE 200000.0@160.0USD DVP"; description = "Crosspayment"; contextId = None
-        routedSteps; settlementTime = Some settlementTime
+        routedSteps; oSettlementTime = Some settlementTime
 
   -- Allocate and approve instructions
   (buyerInstructionCid, _) <-
@@ -235,7 +247,7 @@ run useDelegatee = script do
   -- Can't settle batch before all `Instruction`s have been allocated and approved
   submitMultiMustFail [agent] [publicParty] do
     exerciseCmd batchCid Batch.Settle with
-      actors = singleton agent
+      actors = singleton agent; oTimeObservableCid = None
   (custodian2InstructionCid, _) <- submit custodian2 do
     exerciseCmd custodian2InstructionCid Instruction.Allocate with
       actors = singleton custodian2; allocation = CreditReceiver
@@ -245,7 +257,7 @@ run useDelegatee = script do
       actors = fromList [buyer, custodian2]; approval = SettleOffLedgerAcknowledge
   -- Settlement of batch must fail due to the incompatible approval
   submitMultiMustFail [agent] [publicParty] do
-    exerciseCmd batchCid Batch.Settle with actors = singleton agent
+    exerciseCmd batchCid Batch.Settle with actors = singleton agent; oTimeObservableCid = None
   -- Buyer approves her instruction with a compatible approval
   custodian2InstructionCid <- submit buyer do
     exerciseCmd custodian2InstructionCid Instruction.Approve with
@@ -253,15 +265,17 @@ run useDelegatee = script do
 
   -- Can't settle before the settlement date
   submitMultiMustFail [agent] [publicParty] do
-    exerciseCmd batchCid Batch.Settle with actors = singleton agent
+    exerciseCmd batchCid Batch.Settle with
+      actors = singleton agent; oTimeObservableCid = Some timeObservableCid
 
   -- Set time
-  setTime settlementTime
+  setTime settlementTime.due
 
   -- Settle batch
   [sellerCashCid, custodian2AssetCid, buyerAssetCid] <-
     submitMulti [agent] [publicParty] do
-      exerciseCmd batchCid Batch.Settle with actors = singleton agent
+      exerciseCmd batchCid Batch.Settle with
+        actors = singleton agent; oTimeObservableCid = Some timeObservableCid
 
   -- Assert state
   let ts = [(seller, sellerCashCid), (custodian2, custodian2AssetCid), (buyer, buyerAssetCid)]
@@ -273,11 +287,12 @@ run useDelegatee = script do
 setupParties : Script TestParties
 setupParties = do
   [cb, csd, bank1, bank2, custodian2, custodian1, issuer, buyer, seller, agent, delegatee, provider,
-    publicParty] <- createParties ["CentralBank", "CSD", "Bank 1", "Bank 2", "Custodian 2",
-    "Custodian 1", "Issuer", "Buyer", "Seller", "Agent", "Delegatee", "Provider", "PublicParty"]
+    timeProvider, publicParty] <- createParties ["CentralBank", "CSD", "Bank 1", "Bank 2",
+    "Custodian 2", "Custodian 1", "Issuer", "Buyer", "Seller", "Agent", "Delegatee", "Provider",
+    "TimeProvider", "PublicParty"]
   pure TestParties with
     cb; csd; bank1; bank2; custodian2; custodian1; issuer; buyer; seller; agent; delegatee; provider
-    publicParty
+    timeProviders = singleton timeProvider; publicParty
 
 -- | Grants the `delegatee` the right to allocate holdings on behalf of the `delegator`
 template AllocationDelegation

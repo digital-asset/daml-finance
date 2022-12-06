@@ -13,14 +13,15 @@ import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Factory qualified as Factory (I, Instruct(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
 import Daml.Finance.Interface.Settlement.RouteProvider qualified as RouteProvider (I, Discover(..))
-import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), Step(..))
-import Daml.Finance.Interface.Types.Common.Types (Id(..))
+import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), SettlementTime(..), Step(..))
+import Daml.Finance.Interface.Types.Common.Types (Id(..), Parties)
 import Daml.Finance.Settlement.Factory (Factory(..))
 import Daml.Finance.Settlement.RouteProvider.SingleCustodian (SingleCustodian(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyNoObservers, verifyOwnerOfHolding)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
+import Daml.Finance.Test.Util.Time qualified as Time (createLedgerTimeObservable)
 import Daml.Script
 
 -- | Parties involved in the test script.
@@ -38,6 +39,8 @@ data TestParties = TestParties
       -- ^ Buyer of the equity instrument.
     seller : Party
       -- ^ Seller of the equity instrument.
+    timeProviders : Parties
+      -- ^ Acts as providers of time.
 
 -- DvP via settlement chain and instructions.
 -- Seller transfers equity to buyer in exchange for cash.
@@ -86,7 +89,10 @@ run settleCashOnLedger = script do
       , Step with
           sender = buyer; receiver = seller; quantity = Instrument.qty 200_000.0 cashInstrument
       ]
-    settlementTime = time (addDays (toDateUTC now) 1) 0 0 0
+
+   -- Create ledger time observable
+  (timeObservableCid, timeProvidersAndId) <-
+    Time.createLedgerTimeObservable timeProviders "Ledger Time" $ singleton bank
 
   -- Discover settlement routes
   routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit bank do
@@ -99,11 +105,17 @@ run settleCashOnLedger = script do
   -- Instruct settlement
   settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submit bank do
     createCmd Factory with provider = bank; observers = empty
+  let
+    settlementTime = SettlementTime with
+      due = time (addDays (toDateUTC now) 1) 0 0 0
+      providers = fst timeProvidersAndId
+      id = snd timeProvidersAndId
   (batchCid, [equityInstructionCid, cashInstructionCid]) <-
     submit bank do
       exerciseCmd settlementFactoryCid Factory.Instruct with
         instructors = singleton bank; settlers = singleton bank; id = Id "APPL 1000@200.0USD"
-        description = "DVP"; contextId = None; routedSteps; settlementTime = Some settlementTime
+        description = "DVP"; contextId = None; routedSteps
+        oSettlementTime = Some settlementTime
 
   -- Allocate and approve equity instruction
   (equityInstructionCid, _) <- submit seller do
@@ -136,13 +148,17 @@ run settleCashOnLedger = script do
             actors = fromList [seller, bank]; approval = SettleOffLedgerAcknowledge
 
   -- Can't settle before the settlement date
-  submitMustFail bank do exerciseCmd batchCid Batch.Settle with actors = singleton bank
+  submitMustFail bank do
+    exerciseCmd batchCid Batch.Settle with
+      actors = singleton bank; oTimeObservableCid = None
 
   -- Set time
-  setTime settlementTime
+  setTime settlementTime.due
 
   -- Settle batch
-  cids <- submit bank do exerciseCmd batchCid Batch.Settle with actors = singleton bank
+  cids <- submit bank do
+    exerciseCmd batchCid Batch.Settle with
+      actors = singleton bank; oTimeObservableCid = Some timeObservableCid
 
   -- Assert state
   let ts = zip [buyer, seller] cids
@@ -162,6 +178,7 @@ run2 = run False
 -- | Settup parties for the scripts
 setupParties : Script TestParties
 setupParties = do
-  [cb, csd, bank, issuer, buyer, seller] <- createParties
-    ["CentralBank", "CentralSecurityDepository", "Bank", "Issuer", "Buyer", "Seller"]
-  pure TestParties with cb, csd, bank, issuer, buyer, seller
+  [cb, csd, bank, issuer, buyer, seller, timeProvider] <- createParties ["CentralBank",
+    "CentralSecurityDepository", "Bank", "Issuer", "Buyer", "Seller", "TimeProvider"]
+  pure TestParties with
+    cb, csd, bank, issuer, buyer, seller, timeProviders = singleton timeProvider

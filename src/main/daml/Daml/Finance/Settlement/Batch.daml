@@ -13,7 +13,7 @@ import Daml.Finance.Interface.Holding.Base qualified as Holding (I)
 import Daml.Finance.Interface.Holding.Util (undisclose)
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (HasImplementation, I, Settle(..), View(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Execute(..), I)
-import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), InstructionKey(..), RoutedStep(..))
+import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), InstructionKey(..), RoutedStep(..), SettlementTime)
 import Daml.Finance.Interface.Types.Common.Types (Id(..), Parties)
 import Daml.Finance.Settlement.Instruction (Instruction(..), settlementIsDue)
 
@@ -44,8 +44,8 @@ template Batch
       -- ^ Identifier to link a batch to a context (e.g. the `Effect` it originated from).
     routedStepsWithInstructionId : [(RoutedStep, Id)]
       -- ^ The settlement `RoutedStep`\s and the identifiers of the corresponding `Instruction`\s.
-    settlementTime : Optional Time
-      -- ^ First time (if any) on which the `Batch` can be settled.
+    oSettlementTime : Optional SettlementTime
+      -- ^ Settlement time (if any).
   where
     signatory requestors
     observer settlers
@@ -59,10 +59,11 @@ template Batch
 
     interface instance Batch.I for Batch where
       view = Batch.View with
-        requestors; settlers; id; description; contextId; routedSteps; settlementTime
-      settle Batch.Settle{actors} = do
-        -- check that settlement is due
-        settlementIsDue settlementTime
+        requestors; settlers; id; description; contextId; routedSteps
+        oSettlementTime
+      settle Batch.Settle{actors; oTimeObservableCid} = do
+        -- assert that settlement is due
+        settlementIsDue oSettlementTime actors oTimeObservableCid
         -- order instructions (such that they can be executed with passthroughs)
         let
           buildKey instructionId = InstructionKey with requestors; batchId = id; id = instructionId
@@ -79,7 +80,7 @@ template Batch
               Pledge cid -> Some <$> fetch cid
               _ -> pure None
             oSettledHoldingCid <- exercise (toInterfaceContractId @Instruction.I instructionCid)
-              Instruction.Execute with actors
+              Instruction.Execute with actors; oTimeObservableCid
             oSettledHolding <- T.mapA fetch oSettledHoldingCid
             let
               usedTypeRepOpts = fmap

@@ -29,6 +29,7 @@ import Daml.Finance.Settlement.RouteProvider.SingleCustodian (SingleCustodian(..
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
+import Daml.Finance.Test.Util.Time qualified as Time (createLedgerTimeObservable)
 import Daml.Script
 import Prelude hiding (and, or)
 
@@ -52,8 +53,10 @@ data TestParties = TestParties
       -- ^ Owner of the bond holding. Chooses to exercise the right of the call bond.
     settlers : Parties
       -- ^ Any of the parties can trigger the settlement of fully allocated settlement instructions.
+    timeProviders : Parties
+      -- ^ Parties providing the time observable.
     publicParty : Party
-      -- ^ The public party. Every party can readAs the public party.
+      -- ^ The publicParty party. Every party can readAs the publicParty party.
 
 -- | Creates the claim for a callable bond and the corresponding elections
 bootstrapBond : Date -> Date -> Decimal -> Decimal -> Deliverable -> (C, C, C)
@@ -86,6 +89,10 @@ run = script do
   -- Originate cash
   now <- getTime
   cashInstrument <- Instrument.originate centralBank centralBank "USD" "United States Dollar" pp now
+
+  -- Create ledger time observable
+  (timeObservableCid, timeProvidersAndId) <-
+    Time.createLedgerTimeObservable timeProviders "Ledger Time" $ singleton publicParty
 
   -- Create and distribute a generic derivative
   let
@@ -155,6 +162,7 @@ run = script do
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit bank do
     createCmd Claim.Rule with
       providers = singleton bank
+      timeProvidersAndId
       claimers = fromList [bank, investor]
       settlers
       routeProviderCid
@@ -194,7 +202,8 @@ run = script do
 
   -- Settle batch
   [investorCashHoldingCouponAndPrincipalCid] <- submitMulti (toList settlers) [publicParty] do
-    exerciseCmd result.batchCid Batch.Settle with actors = settlers
+    exerciseCmd result.batchCid Batch.Settle with
+      actors = settlers; oTimeObservableCid = Some timeObservableCid
 
   -- Assert state
   Some investorCouponAndPrincipal <-
@@ -207,7 +216,8 @@ run = script do
 
 setupParties : Script TestParties
 setupParties = do
-  [bank, issuer, centralBank, investor, settler, publicParty] <-
-    createParties ["Bank", "issuer", "Central Bank", "Investor", "Settler", "PublicParty"]
+  [bank, issuer, centralBank, investor, settler, timeProvider, publicParty] <- createParties
+    ["Bank", "issuer", "Central Bank", "Investor", "Settler", "TimeProvider", "PublicParty"]
   pure $ TestParties with
-    bank; issuer; centralBank; investor; settlers = singleton settler; publicParty
+    bank; issuer; centralBank; investor; settlers = singleton settler
+    timeProviders = singleton timeProvider; publicParty

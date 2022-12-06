@@ -27,6 +27,7 @@ import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
 import Daml.Finance.Test.Util.Time (createClockUpdateEvent)
+import Daml.Finance.Test.Util.Time qualified as Time (createLedgerTimeObservable)
 import Daml.Script
 
 -- | Parties involved in the test script.
@@ -44,8 +45,10 @@ data TestParties = TestParties
       -- ^ Owner of the equity forward holding.
     settlers : Parties
       -- ^ Any of the parties can trigger the settlement of fully allocated settlement instructions.
+    timeProviders : Parties
+      -- ^ Parties providing the time observable.
     publicParty : Party
-      -- ^ The public party. Every party can readAs the public party.
+      -- ^ The publicParty party. Every party can readAs the publicParty party.
 
 -- Cash-settled forward trade lifecycling and settlement (needs observations)
 run : Script ()
@@ -73,6 +76,10 @@ run = script do
   observableCid <- toInterfaceContractId <$> submit broker do
     createCmd Observation with
       provider = broker; id = Id "SPOT/AAPL"; observations; observers = M.empty
+
+  -- Create ledger time observable
+  (timeObservableCid, timeProvidersAndId) <-
+    Time.createLedgerTimeObservable timeProviders "Ledger Time" $ singleton publicParty
 
   -- Create and distribute a gerneric derivative
   let
@@ -116,6 +123,7 @@ run = script do
     createCmd Claim.Rule
       with
         providers = singleton bank
+        timeProvidersAndId
         claimers = fromList [bank, investor]
         settlers
         routeProviderCid
@@ -153,7 +161,8 @@ run = script do
 
   -- Settle batch
   [investorCashHoldingCid] <- submitMulti (toList settlers) [publicParty] do
-    exerciseCmd result.batchCid Batch.Settle with actors = settlers
+    exerciseCmd result.batchCid Batch.Settle with
+      actors = settlers; oTimeObservableCid = Some timeObservableCid
 
   -- Assert state
   Holding.verifyOwnerOfHolding [(investor, investorCashHoldingCid)]
@@ -162,7 +171,8 @@ run = script do
 
 setupParties : Script TestParties
 setupParties = do
-  [bank, broker, centralBank, investor, settler, publicParty] <-
-    createParties ["Bank", "Broker", "Central Bank", "Investor", "Settler", "PublicParty"]
+  [bank, broker, centralBank, investor, settler, timeProvider, publicParty] <- createParties
+    ["Bank", "Broker", "Central Bank", "Investor", "Settler", "TimeProvider", "PublicParty"]
   pure $ TestParties with
-    bank; broker; centralBank; investor; settlers = singleton settler; publicParty
+    bank; broker; centralBank; investor; settlers = singleton settler
+    timeProviders = singleton timeProvider; publicParty
