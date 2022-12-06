@@ -37,11 +37,11 @@ We first give a quick outline of the settlement process:
 |                    | An instruction is a contract where the sender can specify its               |
 |                    | :ref:`Allocation                                                            |
 |                    | <type-daml-finance-interface-settlement-types-allocation-46483>`            |
-|                    | preference for the instruction, e.g., the matching holding they wish to     |
-|                    | send, and the receiver can specify its :ref:`Approval                       |
+|                    | preference for the instruction (e.g., the matching holding they wish to     |
+|                    | send). The receiver can specify its :ref:`Approval                          |
 |                    | <type-daml-finance-interface-settlement-types-approval-84286>`              |
-|                    | preference for the instruction, e.g., the account they wish to receive      |
-|                    | the holding to.                                                             |
+|                    | preference for the instruction (e.g., the account they wish to receive      |
+|                    | the holding to).                                                            |
 |                    |                                                                             |
 |                    | The creation of Instructions is done by first using a :ref:`Route Provider  |
 |                    | <type-daml-finance-interface-settlement-routeprovider-routeprovider-53805>` |
@@ -75,7 +75,7 @@ at the initial state for this scenario. We then create an additional ``TOKEN``
 :ref:`instrument <type-daml-finance-interface-instrument-token-instrument-instrument-4350>`
 and credit Alice's account with it.
 
-The interesting bit starts once Alice proposes the DvP trade to Bob. Before creating the DvP
+The interesting part begins once Alice proposes the DvP trade to Bob. Before creating the DvP
 proposal, we need to instantiate two contracts:
 
 1. :ref:`Route Provider <type-daml-finance-interface-settlement-routeprovider-routeprovider-53805>`
@@ -157,9 +157,9 @@ Why do we need a route provider?
 Consider a real-world example where Alice instructs a bank transfer to send USD 100 to Bob. The
 following happens:
 
-- USD 100 are debited from Alice's account at her bank
-- USD 100 are transferred from Alice's bank to Bob's bank (via their accounts at the central bank)
-- USD 100 are credited to Bob's account at his bank
+- ``USD 100`` are debited from Alice's account at her bank
+- ``USD 100`` are transferred from Alice's bank to Bob's bank (via their accounts at the central bank)
+- ``USD 100`` are credited to Bob's account at his bank
 
 A single settlement :ref:`Step <type-daml-finance-interface-settlement-types-step-78661>` requires
 three :ref:`RoutedStep <type-daml-finance-interface-settlement-types-routedstep-10086>`\s to settle.
