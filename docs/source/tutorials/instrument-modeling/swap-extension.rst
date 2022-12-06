@@ -12,10 +12,9 @@ this tutorial.
 Prerequisites
 *************
 
-The Swap extension has many similarities with the Bond extension. This tutorial builds on the Bond
-tutorials, in particular the :doc:`Bond Extension <bond-extension>` and the
-:doc:`Bond Lifecycling <bond-lifecycling>` tutorials. Please check them out before reading the Swap
-specifics below.
+The Swap extension has many similarities with the Bond extension. This tutorial builds on the
+:doc:`Bond Tutorial <bond-extension>`. Please check them out before reading the Swap specifics
+below.
 
 How To Create a Swap Instrument
 *******************************

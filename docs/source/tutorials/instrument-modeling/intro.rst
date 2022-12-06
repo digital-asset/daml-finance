@@ -8,9 +8,9 @@ Instrument Modeling
    :hidden:
 
    bond-extension
-   bond-lifecycling
    swap-extension
    generic-extension
+   intermediated-lifecycling
    contingent-claims-instrument
    contingent-claims-on-ledger-vs-on-the-fly
 
@@ -21,12 +21,12 @@ The following tutorials are available:
 
 * The :doc:`Bond Extension <bond-extension>` tutorial introduces the different types of bonds
   supported in Daml Finance out of the box.
-* The :doc:`Bond Lifecycling <bond-lifecycling>` tutorial demonstrates how to lifecycle a simple
-  bond and process coupon payments.
 * The :doc:`Swap Extension <swap-extension>` tutorial describes how to use the different types of
   swaps in Daml Finance.
 * The :doc:`Generic Extension <generic-extension>` tutorial shows you how to define your own generic
   instrument.
+* The :doc:`Intermediated Lifecycling <intermediated-lifecycling>` tutorial demonstrates how to
+  lifecycle a generic instrument with an intermediary party between the issuer and the investor.
 * The :doc:`Contingent Claims Instrument <contingent-claims-instrument>` tutorial describes how to
   create a new instrument type (similar to the bond instruments that you saw in the Bond Extension
   above).
