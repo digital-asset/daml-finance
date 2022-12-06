@@ -3,8 +3,10 @@
 
 module Daml.Finance.Settlement.Test.BatchWithIntermediaries where
 
+import DA.Date (addDays, toDateUTC)
 import DA.Map qualified as M (fromList)
 import DA.Set (empty, fromList, singleton)
+import DA.Time (time)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (qty)
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
@@ -100,6 +102,7 @@ run settleWithOwnAccount = script do
       , Step with
           sender = buyer; receiver = seller; quantity = Instrument.qty 200_000.0 cashInstrument
       ]
+    settlementDate = addDays (toDateUTC now) 1
 
   -- Discover settlement routes (by first creating a route provider with intermediaries from Buyer
   -- to Seller)
@@ -122,6 +125,7 @@ run settleWithOwnAccount = script do
       exerciseCmd settlementFactoryCid Factory.Instruct with
         instructors = fromList [buyer, seller]; settlers = fromList [buyer, seller]
         id = Id "APPL 1000@200.0USD"; description = "DVP"; contextId = None; routedSteps
+        settlementDate = Some settlementDate
 
   -- Allocate instructions
   (equityInstructionCid, _) <- submit seller do
@@ -163,6 +167,13 @@ run settleWithOwnAccount = script do
   submitMustFail buyer do
     exerciseCmd equityInstructionCid
       Instruction.Approve with actors = singleton buyer; approval = DebitSender
+
+  -- Can't settle before the settlement date
+  submitMultiMustFail [buyer] [publicParty] do
+    exerciseCmd batchCid Batch.Settle with actors = singleton buyer
+
+  -- Set time
+  setTime $ time settlementDate 0 0 0
 
   -- Settle batch
   [equityHoldingCid, bankCashHoldingCid, sellerCashHoldingCid] <-
