@@ -9,11 +9,12 @@ import DA.Optional (whenSome)
 import DA.Set qualified as S (empty, fromList, intersection, isSubsetOf, null, singleton, toList)
 import Daml.Finance.Interface.Account.Account qualified as Account (Credit(..), Debit(..), I, R, disclose, exerciseInterfaceByKey, undisclose)
 import Daml.Finance.Interface.Account.Util (getAccount)
+import Daml.Finance.Interface.Data.TimeObservable qualified as TimeObservable (GetTime(..), GetView(..), I)
 import Daml.Finance.Interface.Holding.Base qualified as Base (I, getLockers)
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
 import Daml.Finance.Interface.Holding.Util (disclose, getAmount, getInstrument, undisclose)
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..), Execute(..), HasImplementation, I, View(..))
-import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), InstructionKey(..), RoutedStep)
+import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), InstructionKey(..), RoutedStep, SettlementTime(..))
 import Daml.Finance.Interface.Types.Common.Types (AccountKey, Id(..), Parties, PartiesMap)
 import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
@@ -38,8 +39,8 @@ template Instruction
       -- ^ Instruction identifier.
     routedStep : RoutedStep
       -- ^ Routed settlement step.
-    settlementTime : Optional Time
-      -- ^ First time (if any) on which the `Instruction` can be settled.
+    oSettlementTime : Optional SettlementTime
+      -- ^ Settlement time (if any).
     allocation : Allocation
       -- ^ Allocation from the sender.
     approval : Approval
@@ -89,7 +90,7 @@ template Instruction
         batchId
         id
         routedStep
-        settlementTime
+        oSettlementTime
         signedSenders
         signedReceivers
         allocation
@@ -180,9 +181,8 @@ template Instruction
         toInterfaceContractId <$> create this with
           approval
           signedReceivers = if approval == Unapproved then S.empty else actors
-      execute Instruction.Execute{actors} = do
-        -- check that settlement is due
-        settlementIsDue settlementTime
+      execute Instruction.Execute{actors; oTimeObservableCid} = do
+        settlementIsDue oSettlementTime actors oTimeObservableCid
         assertMsg "actors must intersect with settlers" $
           not $ S.null $ S.intersection actors settlers
         let
@@ -279,9 +279,21 @@ discloseAccountHelper f (context, settlers) account isInstructor = do
   f (context, settlers) viewer disclosers account
 
 -- | HIDE
-settlementIsDue : Optional Time -> Update ()
-settlementIsDue settlementTime =
-  whenSome settlementTime $ \t -> do
-    now <- getTime
-    assertMsg ("settlement time " <> show t <> " must be due (now is " <> show now <> ")") $
-      now >= t
+settlementIsDue : Optional SettlementTime -> Parties -> Optional (ContractId TimeObservable.I) ->
+  Update ()
+settlementIsDue oSettlementTime actors oTimeObservableCid =
+  whenSome oSettlementTime $ \SettlementTime{due; providers; id} -> do
+    case oTimeObservableCid of
+      Some timeObservableCid -> do
+        timeObservable <- exercise timeObservableCid TimeObservable.GetView with
+          viewer = L.head $ S.toList actors
+        assertMsg
+          ("providers and id must match (" <> show (providers, id) <> " /= " <>
+            show (timeObservable.providers, timeObservable.id) <> ")")
+          $ (providers, id) == (timeObservable.providers, timeObservable.id)
+        observedTime <- exercise timeObservableCid TimeObservable.GetTime with actors
+        assertMsg
+          ("settlement time " <> show due <> " must be due (observed time is " <>
+            show observedTime <> ")")
+          $ observedTime >= due
+      None -> abort "time observable must be provided."
