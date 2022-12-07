@@ -7,7 +7,7 @@ import DA.Action (foldlA)
 import DA.Foldable (forA_)
 import DA.List (groupOn)
 import DA.Optional (catOptionals, fromOptional)
-import DA.Set (Set, empty, member, fromList, insert, size)
+import DA.Set (Set, empty, member, fromList, insert, size, union)
 import DA.Traversable qualified as T
 import Daml.Finance.Interface.Holding.Base qualified as Holding (I)
 import Daml.Finance.Interface.Holding.Util (undisclose)
@@ -68,7 +68,6 @@ template Batch
           orderPassThroughChains . fmap (fmap buildKey) $ routedStepsWithInstructionId
         assertMsg "ordering must be complete" $
           length orderedInstructions == length routedStepsWithInstructionId
-
         -- settle
         let
           settleInstruction instruction = do
@@ -77,7 +76,7 @@ template Batch
               Pledge cid -> Some <$> fetch cid
               _ -> pure None
             oSettledHoldingCid <- exercise (toInterfaceContractId @Instruction.I instructionCid)
-              Instruction.Execute with actors
+              Instruction.Execute with actors = actors `union` requestors
             oSettledHolding <- T.mapA fetch oSettledHoldingCid
             let
               usedTypeRepOpts = fmap
@@ -86,15 +85,12 @@ template Batch
             oHoldingCid <-
               T.mapA (\tCid -> fromOptional tCid <$> undiscloseT actors tCid) oSettledHoldingCid
             pure (oHoldingCid, usedTypeRepOpts)
-
         -- execute instructions
         (oHoldingCids, oUsedTypeReps) <- unzip <$> mapA settleInstruction orderedInstructions
-
         -- consistency check
         forA_ (groupOn fst . catOptionals . concat $ oUsedTypeReps) \ts ->
           assertMsg "Allocated holdings of the same instrument must have the same template type rep"
             $ size (fromList ts) == 1
-
         pure $ catOptionals oHoldingCids
 
 -- | HIDE
