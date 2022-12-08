@@ -266,7 +266,7 @@ supports both choices.
 Pricing (Experimental)
 **********************
 
-This is an **experimental** feature. Expect breaking changes.
+This is an *experimental* feature. Expect breaking changes.
 
 The :ref:`ContigentClaims.Valuation.Stochastic <module-contingentclaims-valuation-stochastic-37844>`
 module can be used for valuation. There is a ``fapf``

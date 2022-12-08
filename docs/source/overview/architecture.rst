@@ -33,7 +33,8 @@ The interface layer consists of the following packages:
 - ``Daml.Finance.Interface.Claims`` contains interfaces used for
   :doc:`Contingent Claims <../concepts/contingent-claims>` based instrument types
 - ``Daml.Finance.Interface.Data`` defines interfaces related to reference data
-- ``Daml.Finance.Interface.Types`` provides common types
+- ``Daml.Finance.Interface.Types.Common`` provides common types
+- ``Daml.Finance.Interface.Types.Date`` provides types related to dates
 - ``Daml.Finance.Interface.Util`` defines utilities and interfaces used by other interface
   packages.
 - ``ContingentClaims.Core`` contains types for representing
@@ -72,15 +73,16 @@ The implementation layer consists of the following packages:
 Versioning and Compatibility
 ****************************
 
-Daml Finance follows the semantic versioning scheme. The interface packages define the public API of
-the library. Specifically, the interface definitions, which include interface views, methods, and
-choices are guaranteed to remain stable within a major version of a package.
+Daml Finance follows the semantic versioning scheme.
 
-Note that this does not include the package id itself. So purely additive (e.g. adding new
-interfaces), or non-functional changes (like compiling a package with a later SDK version), which do
-change the package id of a package but do not change the interface definitions, can be released in
-minor or patch version increments. Such changes will require dependent applications to be recompiled
-and upgraded, but the upgrades are trivial as none of the existing interfaces changed functionally.
+The interface packages define the public API of the library. Specifically, the interface definitions
+which include interface views, methods and choices are guaranteed to remain stable within a major
+version of a package. Note that this does not include the package id itself. So purely additive
+(e.g. adding new interfaces), or non-functional changes (like compiling a package with a later SDK
+version), which do change the package id of a package but do not change the interface definitions,
+can be released in minor or patch version increments. Such changes will require dependent
+applications to be recompiled and upgraded, but the upgrades are trivial as none of the existing
+interfaces changed functionally.
 
 Implementation packages follow a similar convention. A purely additive change, or a change that
 does not affect the implemented interfaces can be rolled out as a minor or patch version increase.

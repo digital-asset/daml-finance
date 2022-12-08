@@ -58,7 +58,8 @@ In order to execute the FX transaction, we first need to:
 - allocate, i.e., specify which holding should be used
 - approve, i.e., specify to which account the asset should be transferred
 
-for each :ref:`Instruction <module-daml-finance-settlement-instruction-87187>`.
+Allcation and approval is required for
+each :ref:`Instruction <module-daml-finance-settlement-instruction-87187>`.
 
 Alice :ref:`allocates <module-daml-finance-interface-settlement-instruction-10970>` the instruction
 where she is the sender by pledging her holding. Bob does the same on the instruction where he is
@@ -92,7 +93,8 @@ Remarks
 
 There are some assumptions that need to hold in order for the settlement to work in practice:
 
-- Bob needs to have an account at the custodian where Alice's holding is held and vice versa.
+- Bob needs to have an account at the custodian where Alice's holding is held and vice versa (for
+  an example with intermediaries, see `Route provider`_ below.
 - Both holdings need to be
   :ref:`Transferable <type-daml-finance-interface-holding-transferable-transferable-24986>`
 - The transfer must be fully authorized (i.e., the parties allocating and approving an instruction
@@ -196,7 +198,7 @@ Batch
 The :ref:`Batch <type-daml-finance-interface-settlement-batch-batch-97497>` is used to execute a set
 of instructions atomically. Execution will fail if any of the
 :ref:`Instructions <module-daml-finance-settlement-instruction-87187>` is not fully allocated
-/ approved, or if the transfer is for some reason unsuccessful.
+/ approved, or if the transfer is unsuccessful.
 
 Remarks and further references
 ******************************
