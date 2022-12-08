@@ -3,15 +3,13 @@
 
 module Daml.Finance.Settlement.Test.Batch where
 
-import DA.Date (addDays, toDateUTC)
-import DA.Map qualified as M (empty)
-import DA.Set (empty, fromList, singleton)
-import DA.Time (time)
+import DA.Map qualified as M (fromList)
+import DA.Set (fromList, singleton, toList)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (qty)
-import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
+import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Cancel(..), Settle(..))
 import Daml.Finance.Interface.Settlement.Factory qualified as Factory (I, Instruct(..))
-import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..), Execute(..))
 import Daml.Finance.Interface.Settlement.RouteProvider qualified as RouteProvider (I, Discover(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), Step(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..))
@@ -38,6 +36,8 @@ data TestParties = TestParties
       -- ^ Buyer of the equity instrument.
     seller : Party
       -- ^ Seller of the equity instrument.
+    publicParty : Party
+      -- ^ The public party. Every party can readAs the public party.
 
 -- DvP via settlement chain and instructions.
 -- Seller transfers equity to buyer in exchange for cash.
@@ -52,14 +52,15 @@ data TestParties = TestParties
 -- |     \  /       | securities            |
 -- |     Bank       |                       |
 -- +----------------+-----------------------+
-run: Bool -> Script ()
-run settleCashOnLedger = script do
+run: Bool -> Bool -> Script ()
+run settleCashOnLedger bankIsRequesting = script do
   TestParties{..} <- setupParties
 
   -- Account and holding factory
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank []
   holdingFactoryCid <- toInterfaceContractId <$> submit bank do
-    createCmd Fungible.Factory with provider = bank; observers = M.empty
+    createCmd Fungible.Factory with
+      provider = bank; observers = M.fromList [("PublicParty", singleton publicParty)]
 
   -- Originate instruments
   now <- getTime
@@ -86,24 +87,39 @@ run settleCashOnLedger = script do
       , Step with
           sender = buyer; receiver = seller; quantity = Instrument.qty 200_000.0 cashInstrument
       ]
-    settlementTime = time (addDays (toDateUTC now) 1) 0 0 0
 
   -- Discover settlement routes
   routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit bank do
     createCmd SingleCustodian with
-      provider = bank; observers = empty; custodian = bank
+      provider = bank; custodian = bank; observers = singleton publicParty
   routedSteps <- submit bank do
     exerciseCmd routeProviderCid RouteProvider.Discover with
       discoverors = singleton bank; contextId = None; steps
 
-  -- Instruct settlement
-  settlementFactoryCid <- toInterfaceContractId @Factory.I <$> submit bank do
-    createCmd Factory with provider = bank; observers = empty
-  (batchCid, [equityInstructionCid, cashInstructionCid]) <-
+  -- Setup settlement factory
+  settlementFactoryCid <- toInterfaceContractId @Factory.I <$>
     submit bank do
+      createCmd Factory with provider = bank; observers = singleton publicParty
+
+  -- Instruct settlement
+  let
+    requestors = fromList $ if bankIsRequesting then [bank] else [buyer, seller]
+    settlers = fromList [buyer, seller]
+    instructCmd = submitMulti (toList requestors) [publicParty] do
       exerciseCmd settlementFactoryCid Factory.Instruct with
-        instructors = singleton bank; settlers = singleton bank; id = Id "APPL 1000@200.0USD"
-        description = "DVP"; contextId = None; routedSteps; settlementTime = Some settlementTime
+        instructors = requestors; settlers; id = Id "APPL 1000@200.0USD"; description = "DVP"
+        contextId = None; routedSteps; settlementTime = None
+
+  -- Create batch and instructions, and then cancel
+  (batchCid, _) <- instructCmd
+  -- seller can't cancel batch
+  submitMustFail seller do exerciseCmd batchCid Batch.Cancel with actors = singleton seller
+  -- requestors can cancel batch
+  submitMulti (toList requestors) [] do
+    exerciseCmd batchCid Batch.Cancel with actors = requestors
+
+  -- Create batch and instructions
+  (batchCid, [equityInstructionCid, cashInstructionCid]) <- instructCmd
 
   -- Allocate and approve equity instruction
   (equityInstructionCid, _) <- submit seller do
@@ -127,7 +143,7 @@ run settleCashOnLedger = script do
             actors = singleton seller; approval = TakeDelivery sellerCashAccount
     else
       do
-        -- Settle by off ledger trasnfer
+        -- Settle by off ledger transfer
         (cashInstructionCid, _) <- submitMulti [buyer, bank] [] do
           exerciseCmd cashInstructionCid Instruction.Allocate with
             actors = fromList [buyer, bank]; allocation = SettleOffLedger
@@ -135,11 +151,23 @@ run settleCashOnLedger = script do
           exerciseCmd cashInstructionCid Instruction.Approve with
             actors = fromList [seller, bank]; approval = SettleOffLedgerAcknowledge
 
-  -- Set time
-  setTime settlementTime
-
   -- Settle batch
-  cids <- submit bank do exerciseCmd batchCid Batch.Settle with actors = singleton bank
+  -- neither the bank, nor seller, nor buyer can execute an instruction
+  submitMustFail bank do
+    exerciseCmd cashInstructionCid Instruction.Execute with actors = singleton bank
+  submitMustFail seller do
+    exerciseCmd cashInstructionCid Instruction.Execute with actors = singleton seller
+  submitMustFail buyer do
+    exerciseCmd cashInstructionCid Instruction.Execute with actors = singleton buyer
+  -- the bank can't settle the batch
+  if bankIsRequesting then
+    submitMultiMustFail [bank] [] do
+      exerciseCmd batchCid Batch.Settle with actors = singleton bank
+  else
+    pure ()
+  -- any of the settlers can settle the batch (i.e., buyer or seller)
+  cids <- submitMulti [buyer] [publicParty] do
+    exerciseCmd batchCid Batch.Settle with actors = singleton buyer
 
   -- Assert state
   let ts = zip [buyer, seller] cids
@@ -148,17 +176,25 @@ run settleCashOnLedger = script do
 
   pure ()
 
--- Settles cash by off-ledger means.
+-- Settle cash on-ledger
+-- with bank as requestor
 run1 : Script ()
-run1 = run True
-
--- Settles cash on-ledger.
+run1 = run True True
+-- with buyer and seller as requestors
 run2 : Script ()
-run2 = run False
+run2 = run True False
+
+-- Settle cash off-ledger
+-- with bank as requestor
+run3 : Script ()
+run3 = run False True
+-- with buyer and seller as requestors
+run4 : Script ()
+run4 = run False False
 
 -- | Settup parties for the scripts
 setupParties : Script TestParties
 setupParties = do
-  [cb, csd, bank, issuer, buyer, seller] <- createParties
-    ["CentralBank", "CentralSecurityDepository", "Bank", "Issuer", "Buyer", "Seller"]
-  pure TestParties with cb, csd, bank, issuer, buyer, seller
+  [cb, csd, bank, issuer, buyer, seller, publicParty] <- createParties
+    ["CentralBank", "CentralSecurityDepository", "Bank", "Issuer", "Buyer", "Seller", "PublicParty"]
+  pure TestParties with cb, csd, bank, issuer, buyer, seller, publicParty
