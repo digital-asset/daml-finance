@@ -178,7 +178,7 @@ An account is co-signed by the account ``owner`` and the ``custodian``.
 Keys
 ====
 
-Accounts are keyed by an:
+Accounts are keyed by an
 :ref:`AccountKey <type-daml-finance-interface-types-common-types-accountkey-41482>`, which comprises:
 
 - the account ``owner``
@@ -204,8 +204,8 @@ The account can be created with arbitrary
 :ref:`controllers <type-daml-finance-interface-account-account-controllers-36430>`
 (for incoming and outgoing transfers).
 
-In our examples, we typically let accounts be owners-controlled, i.e., the owner and the new owner
-must authorize transfers.
+In our examples, we typically let accounts be owners-controlled, i.e., both the current owner and
+the new owner must authorize transfers.
 
 Examples
 ********
@@ -220,13 +220,14 @@ We start by modeling a standard cash bank account. There are three parties invol
 a Commercial Bank, and a Retail Client.
 
 The Central Bank defines the economic terms of the currency asset and is generally a highly trusted
-entity; hence, it acts as ``issuer`` as well as ``depository`` of the corresponding instrument.
+entity. Hence, it acts as ``issuer`` as well as ``depository`` of the corresponding instrument.
 
 We can use the :ref:`Token <type-daml-finance-instrument-token-instrument-instrument-62305>`
 instrument implementation for a currency asset, as we do not need any lifecycling logic.
 
-The Retail Client has an Account at the Commercial Bank, with the former acting as ``owner`` and the
-latter as ``custodian``.
+The Retail Client has an
+:ref:`Account <module-daml-finance-interface-account-account-92922>` at the Commercial Bank, with
+the former acting as ``owner`` and the latter as ``custodian``.
 
 Finally, the Retail Client is ``owner`` of a
 :ref:`fungible holding <type-daml-finance-holding-fungible-fungible-28517>` at the Commercial Bank
