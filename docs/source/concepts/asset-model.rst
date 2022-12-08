@@ -78,7 +78,7 @@ A holding contract represents the ownership of a certain amount of an instrument
 custodian.
 
 Whereas an instrument defines *what* a party holds (the rights and obligations), a holding defines
-*how much* (ie., the quantity) of an instrument and *against which party* (ie., the custodian) the
+*how much* (ie., the amount) of an instrument and *against which party* (ie., the custodian) the
 instrument is being held.
 
 It is important to understand that the economic terms of an asset (the instrument) are separated
