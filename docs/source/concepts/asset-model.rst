@@ -220,7 +220,7 @@ We start by modeling a standard cash bank account. There are three parties invol
 a Commercial Bank, and a Retail Client.
 
 The Central Bank defines the economic terms of the currency asset and is generally a highly trusted
-entity. Hence, it acts as ``issuer`` as well as ``depository`` of the corresponding instrument.
+entity, therefore it acts as ``issuer`` as well as ``depository`` of the corresponding instrument.
 
 We can use the :ref:`Token <type-daml-finance-instrument-token-instrument-instrument-62305>`
 instrument implementation for a currency asset, as we do not need any lifecycling logic.
