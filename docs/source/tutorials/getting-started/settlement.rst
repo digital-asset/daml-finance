@@ -166,8 +166,8 @@ three :ref:`RoutedStep <type-daml-finance-interface-settlement-types-routedstep-
 
 The same dynamics can be reproduced in Daml with a :ref:`Route Provider
 <type-daml-finance-interface-settlement-routeprovider-routeprovider-53805>` implementation, allowing
-for on-ledger intermediated settlement. An example will be covered in one of the following
-tutorials.
+for on-ledger intermediated settlement. For example, see the
+:doc:`Intermediated Lifecycling <../instrument-modeling/intermediated-lifecycling>` tutorial.
 
 Why do we need a settlement factory?
 ====================================

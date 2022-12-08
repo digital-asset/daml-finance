@@ -204,7 +204,7 @@ If you look at the implementation of the ``Transfer`` workflow, you will notice 
 The first line converts the holding contract id (of type
 :ref:`ContractId Holding.I <type-daml-finance-interface-holding-base-base-14854>`) to the
 :ref:`Transferable.I <type-daml-finance-interface-holding-transferable-transferable-24986>`
-interface using ``coerceContractId``.
+interface using ``coerceInterfaceContractId``.
 
 Then, the ``Transfer`` choice, defined as part of the
 :ref:`Transferable <type-daml-finance-interface-holding-transferable-transferable-24986>`
@@ -222,7 +222,7 @@ used by our holding implementation.
         Transferable, and Fungible are each linked by arrows pointing left. Below is an arrow, also
         pointing left, labelled Implements.
 
-We use ``coerceContractId`` to convert the
+We use ``coerceInterfaceContractId`` to convert the
 :ref:`Holding.I <type-daml-finance-interface-holding-base-base-14854>`
 to a
 :ref:`Transferable <type-daml-finance-interface-holding-transferable-transferable-24986>`.
@@ -323,7 +323,9 @@ In order to do that, you can leverage the fact that
 implements the
 :ref:`Disclosure <type-daml-finance-interface-util-disclosure-disclosure-97052>`
 interface. This interface exposes the ``AddObservers`` and ``RemoveObservers`` choices, which can be
-used to disclose / undisclose Bob's account contract to Alice.
+used to disclose / undisclose Bob's account contract to Alice. In order to exercise these choices,
+you can use the :ref:`Account.exerciseInterfaceByKey <function-daml-finance-interface-account-account-exerciseinterfacebykey-13671>`
+utility function.
 
 Summary
 *******

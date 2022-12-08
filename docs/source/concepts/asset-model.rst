@@ -33,7 +33,7 @@ Keys and Versioning
 ===================
 
 Instruments are keyed by an
-:ref:`InstrumentKey <constr-daml-finance-interface-types-common-instrumentkey-1593>`,
+:ref:`InstrumentKey <constr-daml-finance-interface-types-common-types-instrumentkey-32970>`,
 which comprises:
 
 - the instrument ``issuer``
@@ -179,7 +179,7 @@ Keys
 ====
 
 Accounts are keyed by an:
-:ref:`AccountKey <type-daml-finance-interface-types-common-accountkey-85835>`, which comprises:
+:ref:`AccountKey <type-daml-finance-interface-types-common-types-accountkey-41482>`, which comprises:
 
 - the account ``owner``
 - the account ``custodian``

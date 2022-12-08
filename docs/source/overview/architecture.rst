@@ -33,7 +33,8 @@ The interface layer consists of the following packages:
 - ``Daml.Finance.Interface.Claims`` contains interfaces used for
   :doc:`Contingent Claims <../concepts/contingent-claims>` based instrument types
 - ``Daml.Finance.Interface.Data`` defines interfaces related to reference data
-- ``Daml.Finance.Interface.Types`` provides common types
+- ``Daml.Finance.Interface.Types.Common`` provides common types
+- ``Daml.Finance.Interface.Types.Date`` provides types related to dates
 - ``Daml.Finance.Interface.Util`` defines utilities and interfaces used by other interface
   packages.
 - ``ContingentClaims.Core`` contains types for representing
