@@ -3,7 +3,6 @@
 
 module Daml.Finance.Instrument.Equity.Test.StockSplit where
 
-import DA.Date (toDateUTC)
 import DA.Map qualified as M (fromList)
 import DA.Set (fromList, singleton)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
@@ -14,7 +13,7 @@ import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (E
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
-import Daml.Finance.Interface.Types.Common (Id(..))
+import Daml.Finance.Interface.Types.Common.Types (Id(..))
 import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
 import Daml.Finance.Lifecycle.Rule.Replacement qualified as Replacement (Rule(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
@@ -29,10 +28,10 @@ import Daml.Script
 run : Script ()
 run = script do
   -- Create parties
-  [issuer, investor, public] <- createParties ["Issuer", "Investor", "Public"]
+  [issuer, investor, publicParty] <- createParties ["Issuer", "Investor", "PublicParty"]
 
   -- Create factories
-  let pp = [("Public", singleton public)]
+  let pp = [("PublicParty", singleton publicParty)]
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory issuer pp
   holdingFactoryCid <- toInterfaceContractId <$> submit issuer do
     createCmd Fungible.Factory with provider = issuer; observers = M.fromList pp
@@ -46,7 +45,7 @@ run = script do
     createCmd Replacement.Rule with
       providers = singleton issuer
       lifecycler = issuer
-      observers = singleton public
+      observers = singleton publicParty
       id = Id "LifecycleRule"
       description = "Rule to lifecycle an instrument following a replacement event"
 
@@ -56,7 +55,7 @@ run = script do
   postEquityInstrument <- originateEquity issuer issuer "INST-1" "1" "AAPL" [] now
 
   -- Distribute holdings
-  investorEquityCid <- Account.credit [public] preEquityInstrument 1_000.0 investorSecuritiesAccount
+  investorEquityCid <- Account.credit [publicParty] preEquityInstrument 1_000.0 investorSecuritiesAccount
 
   -- Create stock split event
   replacementEventCid <-
@@ -64,7 +63,7 @@ run = script do
       Equity.DeclareStockSplit with
         id = Id $ "APPL - " <> show now
         description = "Stocksplit"
-        effectiveDate = toDateUTC now
+        effectiveTime = now
         newInstrument = postEquityInstrument
         adjustmentFactor = 0.5
 
@@ -78,9 +77,9 @@ run = script do
   -- Claim effect
   routeProviderCid <- toInterfaceContractId <$> submit issuer do
     createCmd SingleCustodian with
-      provider = issuer; observers = singleton public; custodian = issuer
+      provider = issuer; observers = singleton publicParty; custodian = issuer
   settlementFactoryCid <- toInterfaceContractId <$> submit issuer do
-    createCmd Factory with provider = issuer; observers = singleton public
+    createCmd Factory with provider = issuer; observers = singleton publicParty
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit issuer do
     createCmd Claim.Rule with
       providers = singleton issuer
@@ -115,7 +114,7 @@ run = script do
       actors = singleton investor; approval = TakeDelivery investorSecuritiesAccount
 
   -- Settle batch
-  [investorEquityCid] <- submitMulti [investor] [public] do
+  [investorEquityCid] <- submitMulti [investor] [publicParty] do
     exerciseCmd result.batchCid Batch.Settle with actors = singleton investor
 
   -- Assert state

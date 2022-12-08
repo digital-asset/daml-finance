@@ -3,7 +3,6 @@
 
 module Daml.Finance.Instrument.Equity.Test.Dividend where
 
-import DA.Date (toDateUTC)
 import DA.Map qualified as M (fromList)
 import DA.Set (fromList, singleton)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
@@ -15,7 +14,7 @@ import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (E
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
-import Daml.Finance.Interface.Types.Common (Id(..))
+import Daml.Finance.Interface.Types.Common.Types (Id(..))
 import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
 import Daml.Finance.Lifecycle.Rule.Distribution qualified as Distribution (Rule(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
@@ -31,17 +30,18 @@ import Daml.Script
 run : Script ()
 run = script do
   -- Create parties
-  [cb, issuer, custodian, investor, public] <-
-    createParties ["CentralBank", "Issuer", "Custodian", "Investor", "Public"]
+  [cb, issuer, custodian, investor, publicParty] <-
+    createParties ["CentralBank", "Issuer", "Custodian", "Investor", "PublicParty"]
 
   -- Create holding and account factory
-  let pp = [("Public", singleton public)]
+  let pp = [("PublicParty", singleton publicParty)]
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory issuer pp
   holdingFactoryCid <- toInterfaceContractId <$> submit issuer do
     createCmd Fungible.Factory with provider = issuer; observers = M.fromList pp
 
   -- Create accounts
-  investorAccount <- Account.createAccount "Account" [public] accountFactoryCid holdingFactoryCid []
+  investorAccount <-
+    Account.createAccount "Account" [publicParty] accountFactoryCid holdingFactoryCid []
     Account.Owner custodian investor
 
   -- Originate instruments
@@ -51,14 +51,14 @@ run = script do
   exEquityInstrument <- originateEquity issuer issuer "EQUITY-INST-1" "1" "APPL" [] now
 
   -- Distribute holdings
-  investorEquityCid <- Account.credit [public] cumEquityInstrument 1_000.0 investorAccount
+  investorEquityCid <- Account.credit [publicParty] cumEquityInstrument 1_000.0 investorAccount
 
   -- Create cash dividend event
   distributionRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit issuer do
     createCmd Distribution.Rule with
       providers = singleton issuer
       lifecycler = issuer
-      observers = singleton public
+      observers = singleton publicParty
       id = Id "LifecycleRule"
       description = "Rule to lifecycle an instrument following a distribution event"
 
@@ -67,7 +67,7 @@ run = script do
       Equity.DeclareDividend with
         id = Id $ "APPL - " <> show now
         description = "Cash Dividend"
-        effectiveDate = toDateUTC now
+        effectiveTime = now
         newInstrument = exEquityInstrument
         perUnitDistribution = [Instrument.qty 2.0 cashInstrument]
 
@@ -80,9 +80,10 @@ run = script do
 
   -- Claim effect
   routeProviderCid <- toInterfaceContractId <$> submit custodian do
-    createCmd SingleCustodian with provider = custodian; observers = singleton public; custodian
+    createCmd SingleCustodian with
+      provider = custodian; observers = singleton publicParty; custodian
   settlementFactoryCid <- toInterfaceContractId <$> submit custodian do
-    createCmd Factory with provider = custodian; observers = singleton public
+    createCmd Factory with provider = custodian; observers = singleton publicParty
   claimRuleCid <- toInterfaceContractId @Claim.I <$> submit custodian do
     createCmd Claim.Rule with
       providers = singleton custodian
@@ -94,7 +95,7 @@ run = script do
 
   -- The effect is claimed and then settled by the custodian, but it could also be claimed and then
   -- settled by the investor.
-  result <- submitMulti [custodian] [public] do
+  result <- submitMulti [custodian] [publicParty] do
     exerciseCmd claimRuleCid Claim.ClaimEffect with
       claimer = custodian
       holdingCids = [investorEquityCid]
@@ -128,11 +129,11 @@ run = script do
       actors = singleton investor; approval = TakeDelivery investorAccount
 
   -- Settle batch
-  [investorEquityHoldingCid, investorCashHoldingCid] <- submitMulti [custodian] [public] do
+  [investorEquityHoldingCid, investorCashHoldingCid] <- submitMulti [custodian] [publicParty] do
     exerciseCmd result.batchCid Batch.Settle with actors = singleton custodian
 
   -- Assert state
-  Holding.verifyOwnerOfHolding
-    [(investor, investorEquityHoldingCid), (investor, coerceInterfaceContractId investorCashHoldingCid)]
+  Holding.verifyOwnerOfHolding [(investor, investorEquityHoldingCid),
+    (investor, coerceInterfaceContractId investorCashHoldingCid)]
 
   pure ()
