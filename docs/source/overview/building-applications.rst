@@ -47,8 +47,7 @@ Application Architecture
 ************************
 
 When building applications using Daml Finance it is important to ensure your application only
-depends on the interface layer (i.e., the public API) of Daml Finance. Furthermore, if your
-application :doc:`extends Daml Finance <extending-daml-finance>`, it is suggested
+depends on the interface layer (i.e., the public API) of Daml Finance. Furthermore, it is suggested
 that your application follows a similar split between interface (API) and implementation layer in
 order to maximize upgradability and minimize the impact of incremental changes to your application
 or Daml Finance.
