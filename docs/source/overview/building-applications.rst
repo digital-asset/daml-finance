@@ -14,7 +14,7 @@ tested to work with each other. The list of package versions for each Daml SDK r
 :ref:`here <releases>`. To facilitate getting started with a particular release set, the Daml SDK
 comes with a ``quickstart-finance`` template that contains a script to download these packages.
 
-After installing the Daml SDK, you can execute the following command to create a new Daml Finance
+After installing the Daml SDK, you can execute the following commands to create a new Daml Finance
 project based on the set of packages released with the given SDK version:
 
 On Unix-based systems execute:
@@ -31,7 +31,7 @@ On Windows-based systems execute:
 
    daml new quickstart-finance --template=quickstart-finance
    cd quickstart-finance
-   ./get-dependencies.bat
+   get-dependencies.bat
 
 You can then edit the ``daml.yaml`` file and uncomment the lines corresponding to the packages you
 require in your project.
@@ -47,7 +47,8 @@ Application Architecture
 ************************
 
 When building applications using Daml Finance it is important to ensure your application only
-depends on the interface layer (i.e., the public API) of Daml Finance. Furthermore, it is suggested
+depends on the interface layer (i.e., the public API) of Daml Finance. Furthermore, if your
+application :doc:`extends Daml Finance <extending-daml-finance>`, it is suggested
 that your application follows a similar split between interface (API) and implementation layer in
 order to maximize upgradability and minimize the impact of incremental changes to your application
 or Daml Finance.
