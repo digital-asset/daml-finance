@@ -7,12 +7,13 @@ import DA.Action (foldlA)
 import DA.Foldable (forA_)
 import DA.List (groupOn)
 import DA.Optional (catOptionals, fromOptional)
-import DA.Set (Set, empty, member, fromList, insert, size)
+import DA.Set (Set)
+import DA.Set qualified as S (empty, member, fromList, insert, intersection, isSubsetOf, null, size, union)
 import DA.Traversable qualified as T
 import Daml.Finance.Interface.Holding.Base qualified as Holding (I)
 import Daml.Finance.Interface.Holding.Util (undisclose)
-import Daml.Finance.Interface.Settlement.Batch qualified as Batch (HasImplementation, I, Settle(..), View(..))
-import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Execute(..), I)
+import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Cancel(..), HasImplementation, I, Settle(..), View(..))
+import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Cancel(..), Execute(..), I)
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), InstructionKey(..), RoutedStep(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..), Parties)
 import Daml.Finance.Settlement.Instruction (Instruction(..))
@@ -55,20 +56,20 @@ template Batch
 
     let
       (routedSteps, instructionIds) = unzip routedStepsWithInstructionId
-      undiscloseT actors = undisclose @Holding.I (show id, actors) actors
+      undiscloseT actors = undisclose @Holding.I (show id, settlers) actors
+      buildKey instructionId = InstructionKey with requestors; batchId = id; id = instructionId
 
     interface instance Batch.I for Batch where
       view = Batch.View with
         requestors; settlers; id; description; contextId; routedSteps; settlementTime
       settle Batch.Settle{actors} = do
+        assertMsg "actors must intersect with settlers" $
+          not $ S.null $ actors `S.intersection` settlers
         -- order instructions (such that they can be executed with passthroughs)
-        let
-          buildKey instructionId = InstructionKey with requestors; batchId = id; id = instructionId
         orderedInstructions <-
           orderPassThroughChains . fmap (fmap buildKey) $ routedStepsWithInstructionId
         assertMsg "ordering must be complete" $
           length orderedInstructions == length routedStepsWithInstructionId
-
         -- settle
         let
           settleInstruction instruction = do
@@ -77,7 +78,7 @@ template Batch
               Pledge cid -> Some <$> fetch cid
               _ -> pure None
             oSettledHoldingCid <- exercise (toInterfaceContractId @Instruction.I instructionCid)
-              Instruction.Execute with actors
+              Instruction.Execute with actors = actors `S.union` requestors
             oSettledHolding <- T.mapA fetch oSettledHoldingCid
             let
               usedTypeRepOpts = fmap
@@ -86,16 +87,22 @@ template Batch
             oHoldingCid <-
               T.mapA (\tCid -> fromOptional tCid <$> undiscloseT actors tCid) oSettledHoldingCid
             pure (oHoldingCid, usedTypeRepOpts)
-
         -- execute instructions
         (oHoldingCids, oUsedTypeReps) <- unzip <$> mapA settleInstruction orderedInstructions
-
         -- consistency check
         forA_ (groupOn fst . catOptionals . concat $ oUsedTypeReps) \ts ->
           assertMsg "Allocated holdings of the same instrument must have the same template type rep"
-            $ size (fromList ts) == 1
-
+            $ S.size (S.fromList ts) == 1
         pure $ catOptionals oHoldingCids
+      cancel Batch.Cancel{actors} = do
+        assertMsg "actors must contain requestors" $ requestors `S.isSubsetOf` actors
+        let
+          cancelInstruction instruction = do
+            instructionCid <- fst <$> (fetchByKey @Instruction instruction)
+            exercise (toInterfaceContractId @Instruction.I instructionCid) Instruction.Cancel with
+              actors
+        -- cancel instructions
+        catOptionals <$> mapA (cancelInstruction . buildKey . snd) routedStepsWithInstructionId
 
 -- | HIDE
 -- Partially order instructions, so that pass-through chains can be executed in order.
@@ -103,7 +110,7 @@ orderPassThroughChains : [(RoutedStep, InstructionKey)] -> Update [Instruction]
 orderPassThroughChains routedStepsWithInstructionKeys =
   reverse . fst <$> foldlA
     (\(orderedInstructions, usedInstructionIds) (routedStep, instructionKey) ->
-      if member instructionKey.id usedInstructionIds
+      if S.member instructionKey.id usedInstructionIds
       then
         -- instruction has already been visited, do not re-insert in list
         pure (orderedInstructions, usedInstructionIds)
@@ -112,7 +119,7 @@ orderPassThroughChains routedStepsWithInstructionKeys =
         assertMsg "routed step must match" $ routedStep == instruction.routedStep
         let
           orderedInstructions' = instruction :: orderedInstructions
-          usedInstructionIds' = insert instruction.id usedInstructionIds
+          usedInstructionIds' = S.insert instruction.id usedInstructionIds
         case instruction.allocation of
           Pledge _ ->
             -- a Pledge might be the start of a pass-through chain, try to follow the chain
@@ -122,7 +129,7 @@ orderPassThroughChains routedStepsWithInstructionKeys =
             pure (orderedInstructions, usedInstructionIds)
           _ ->
             pure (orderedInstructions', usedInstructionIds')
-    ) ([], empty) routedStepsWithInstructionKeys
+    ) ([], S.empty) routedStepsWithInstructionKeys
 
 -- | HIDE
 -- Follows the pass-through chain and collects the corresponding instructions in an ordered list.
@@ -135,9 +142,9 @@ collectPassThroughChain
       PassthroughTo (passthroughAccount, toInstructionKey) -> do
         toInstruction <- snd <$> fetchByKey @Instruction toInstructionKey
         assertMsg "toInstruction must not have been used before" $
-          not $ member toInstruction.id usedInstructionIds
+          not $ S.member toInstruction.id usedInstructionIds
         collectPassThroughChain
           (toInstruction :: orderedInstructions)
-          (insert toInstruction.id usedInstructionIds)
+          (S.insert toInstruction.id usedInstructionIds)
           toInstruction
       _ -> pure (orderedInstructions, usedInstructionIds)
