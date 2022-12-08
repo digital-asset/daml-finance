@@ -98,13 +98,13 @@ In order to download the repository, open a terminal and run:
    git clone git@github.com:digital-asset/daml-finance.git
 
 This creates a new folder ``daml-finance`` containing the Daml Finance source code. Navigate to the
-folder and run
+folder and run:
 
 .. code-block:: shell
 
    make build
 
-This downloads all required packages and builds the project. You can then run
+This downloads all required packages and builds the project. You can then run:
 
 .. code-block:: shell
 
