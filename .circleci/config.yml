@@ -150,49 +150,102 @@ commands:
                     -f sha=''${COMMIT}''
             EOF
 
-jobs:
-  build:
+aliases:
+  - &daml_finance_executor
     executor: daml-finance-executor
+  - &ignore_release_and_assembly
+    filters:
+      branches:
+        ignore:
+          - /^(R|r)elease.*$/
+          - /^(A|a)ssembly.*$/
+  - &only_release
+    filters:
+      branches:
+        only:
+          - /^(R|r)elease.*$/
+  - &only_assembly
+    filters:
+      branches:
+        only:
+          - /^(A|a)ssembly.*$/
+  - &build_jobs
+    - headers_check
+    - validate_data_dependencies
+    - build_daml
+    - build_docs
+    - build_java_codegen
+    - build_javascript_codegen
+    - execute_tests
+    - validate_packages
+
+jobs:
+  environment_setup:
+    <<: *daml_finance_executor
     steps:
       - checkout
       - setup_nix
+  headers_check:
+    <<: *daml_finance_executor
+    steps:
       - run:
           name: Validate Copyright headers
           command:
             make ci-headers-check
+  validate_data_dependencies:
+    <<: *daml_finance_executor
+    steps:
       - run:
           name: Validate package data-dependencies
           command:
             nix-shell --pure --run 'export LANG=C.UTF-8; packell data-dependencies validate'
+  build_daml:
+    <<: *daml_finance_executor
+    steps:
       - run:
           name: Build source and packages
           command:
             make ci-build
+      - save_cache:
+          paths:
+            - .dars
+          key: daml-finance-dars-{{ .Revision }}
+  build_java_codegen:
+    <<: *daml_finance_executor
+    steps:
       - run:
           name: Build java codegen
           command:
             make ci-build-java
+  build_javascript_codegen:
+    <<: *daml_finance_executor
+    steps:
       - run:
           name: Build javascript codegen
           command:
             make ci-build-js
+  execute_tests:
+    <<: *daml_finance_executor
+    steps:
       - run:
           name: Execute tests
           command:
             make ci-test
+  validate_packages:
+    <<: *daml_finance_executor
+    steps:
       - run:
           name: Validate packages
           command:
             make ci-validate
+  build_docs:
+    <<: *daml_finance_executor
+    steps:
       - run:
           name: Build docs
           command: |
             nix-shell --pure --run 'pipenv install'
             make ci-docs
-      - save_cache:
-          paths:
-            - .dars
-          key: daml-finance-dars-{{ .Revision }}
       - save_cache:
           paths:
             - docs/build
@@ -215,44 +268,125 @@ workflows:
   version: 2
   build:
     jobs:
-      - build:
-          filters:
-            branches:
-              ignore:
-                - /^(R|r)elease.*$/
-                - /^(A|a)ssembly.*$/
+      - environment_setup:
+          <<: *ignore_release_and_assembly
+      - headers_check:
+          requires:
+            - environment_setup
+          <<: *ignore_release_and_assembly
+      - validate_data_dependencies:
+          requires:
+            - environment_setup
+          <<: *ignore_release_and_assembly
+      - build_daml:
+          requires:
+            - environment_setup
+          <<: *ignore_release_and_assembly
+      - build_docs:
+          requires:
+            - build_daml
+          <<: *ignore_release_and_assembly
+      - build_java_codegen:
+          requires:
+            - build_daml
+          <<: *ignore_release_and_assembly
+      - build_javascript_codegen:
+          requires:
+            - build_daml
+          <<: *ignore_release_and_assembly
+      - execute_tests:
+          requires:
+            - build_daml
+          <<: *ignore_release_and_assembly
+      - validate_packages:
+          requires:
+            - build_daml
+          <<: *ignore_release_and_assembly
   release:
     jobs:
-      - build:
-          filters:
-            branches:
-              only:
-                - /^(R|r)elease.*$/
+      - environment_setup:
+          <<: *only_release
+      - headers_check:
+          requires:
+            - environment_setup
+          <<: *only_release
+      - validate_data_dependencies:
+          requires:
+            - environment_setup
+          <<: *only_release
+      - build_daml:
+          requires:
+            - environment_setup
+          <<: *only_release
+      - build_docs:
+          requires:
+            - build_daml
+          <<: *only_release
+      - build_java_codegen:
+          requires:
+            - build_daml
+          <<: *only_release
+      - build_javascript_codegen:
+          requires:
+            - build_daml
+          <<: *only_release
+      - execute_tests:
+          requires:
+            - build_daml
+          <<: *only_release
+      - validate_packages:
+          requires:
+            - build_daml
+          <<: *only_release
       - hold:
           type: approval
-          requires:
-            - build
+          requires: *build_jobs
       - release:
           context:
             - github-fin-eng-context
             - npn-publish
           requires:
             - hold
-          filters:
-            branches:
-              only:
-                - /^(R|r)elease.*$/
+          <<: *only_release
   assembly:
     jobs:
-      - build:
-          filters:
-            branches:
-              only:
-                - /^(A|a)ssembly.*$/
+      - environment_setup:
+          <<: *only_assembly
+      - headers_check:
+          requires:
+            - environment_setup
+          <<: *only_assembly
+      - validate_data_dependencies:
+          requires:
+            - environment_setup
+          <<: *only_assembly
+      - build_daml:
+          requires:
+            - environment_setup
+          <<: *only_assembly
+      - build_docs:
+          requires:
+            - build_daml
+          <<: *only_assembly
+      - build_java_codegen:
+          requires:
+            - build_daml
+          <<: *only_assembly
+      - build_javascript_codegen:
+          requires:
+            - build_daml
+          <<: *only_assembly
+      - execute_tests:
+          requires:
+            - build_daml
+          <<: *only_assembly
+      - validate_packages:
+          requires:
+            - build_daml
+          <<: *only_assembly
       - hold:
           type: approval
-          requires:
-            - build
+          requires: *build_jobs
       - assembly:
           context:
             - github-fin-eng-context
