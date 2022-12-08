@@ -59,12 +59,12 @@ template Instruction
     let
       messageSuffix = " / instruction id = " <> show id
       context = show batchId <> "(" <> show id <> ")"
-      mustContainActors : Parties -> Parties -> Update ()
-      mustContainActors actors others =
-        assertMsg ("actors must contain " <> show others) $ others `S.isSubsetOf` actors
-      mustBeCustodian : Party -> Update ()
-      mustBeCustodian other =
-        assertMsg ("custodian must match " <> show other) $ routedStep.custodian == other
+      assertIsSubsetOfActors : Parties -> Parties -> Update ()
+      assertIsSubsetOfActors actors others =
+        assertMsg (show others <> " must be a subset of actors") $ others `S.isSubsetOf` actors
+      assertIsCustodian : Party -> Update ()
+      assertIsCustodian other =
+        assertMsg ("custodian must be " <> show other) $ routedStep.custodian == other
       -- utilitise for disclose / undisclose
       discloseA = discloseAccountHelper Account.disclose (context, settlers)
       undiscloseA = discloseAccountHelper Account.undisclose (context, settlers)
@@ -115,7 +115,7 @@ template Instruction
         allocation
         approval
       allocate Instruction.Allocate{actors; allocation} = do
-        let mustAuthorize = mustContainActors actors
+        let mustAuthorize = assertIsSubsetOfActors actors
         assertMsg ("allocation must be new" <> messageSuffix) $ allocation /= this.allocation
         -- undisclose previous allocation
         obCid <- undisclosePreviousAllocation
@@ -129,7 +129,7 @@ template Instruction
             baseCid <- discloseB vSenderAccount.controllers.outgoing settlers baseCid
             mustAuthorize vSenderAccount.controllers.outgoing
             mustAuthorize $ Base.getLockers base
-            mustBeCustodian senderAccount.custodian
+            assertIsCustodian senderAccount.custodian
             getAmount base === routedStep.quantity.amount
             getInstrument base === routedStep.quantity.unit
             pure $ Pledge baseCid
@@ -137,7 +137,7 @@ template Instruction
             discloseA passthroughAccount True
             vSenderAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I passthroughAccount
             mustAuthorize vSenderAccount.controllers.outgoing
-            mustBeCustodian passthroughAccount.custodian
+            assertIsCustodian passthroughAccount.custodian
             pure $ PassthroughFrom (passthroughAccount, fromInstruction)
           CreditReceiver -> do
             mustAuthorize $ S.singleton routedStep.custodian
@@ -154,7 +154,7 @@ template Instruction
           signedSenders = if allocationDisclosed == Unallocated then S.empty else actors
         pure (cid, obCid)
       approve Instruction.Approve{actors; approval} = do
-        let mustAuthorize = mustContainActors actors
+        let mustAuthorize = assertIsSubsetOfActors actors
         assertMsg ("approval must be new" <> messageSuffix) $ approval /= this.approval
         -- undisclose previous approval
         undiclosePreviousApproval
@@ -164,18 +164,18 @@ template Instruction
             discloseA receiverAccount False
             vReceiverAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I receiverAccount
             mustAuthorize vReceiverAccount.controllers.incoming
-            mustBeCustodian receiverAccount.custodian
+            assertIsCustodian receiverAccount.custodian
           PassthroughTo (passthroughAccount, toInstruction) -> do
             discloseA passthroughAccount False
             vReceiverAccount <- view <$>
               fetchInterfaceByKey @Account.R @Account.I passthroughAccount
             mustAuthorize vReceiverAccount.controllers.incoming
             mustAuthorize vReceiverAccount.controllers.outgoing
-            mustBeCustodian passthroughAccount.custodian
+            assertIsCustodian passthroughAccount.custodian
             (_, toInstruction) <- fetchByKey @Instruction toInstruction
-            mustBeCustodian toInstruction.routedStep.custodian
+            assertIsCustodian toInstruction.routedStep.custodian
           DebitSender -> do
-            mustBeCustodian routedStep.receiver
+            assertIsCustodian routedStep.receiver
             mustAuthorize $ S.singleton routedStep.custodian
           SettleOffLedgerAcknowledge -> do
             mustAuthorize $ S.singleton routedStep.custodian
@@ -188,7 +188,7 @@ template Instruction
       execute Instruction.Execute{actors} = do
         assertMsg "actors must intersect with settlers" $
           not $ S.null $ actors `S.intersection` settlers
-        mustContainActors actors requestors
+        assertIsSubsetOfActors actors requestors
         let
           abortUnapproved = abort $ "instruction must be approved" <> messageSuffix
           abortOnOffLedgerMix =
@@ -249,7 +249,7 @@ template Instruction
           (CreditReceiver, a) ->
             case a of
               TakeDelivery receiverAccount -> do
-                mustBeCustodian routedStep.sender
+                assertIsCustodian routedStep.sender
                 baseCid <- Account.exerciseInterfaceByKey @Account.I receiverAccount
                   routedStep.custodian Account.Credit with quantity = routedStep.quantity
                 viewA <- view <$> fetchInterfaceByKey @Account.R @Account.I receiverAccount
@@ -270,7 +270,7 @@ template Instruction
               SettleOffLedgerAcknowledge -> pure None
               _ -> abortOnOffLedgerMix
       cancel Instruction.Cancel{actors} = do
-        mustContainActors actors requestors
+        assertIsSubsetOfActors actors requestors
         undiclosePreviousApproval
         undisclosePreviousAllocation
 
