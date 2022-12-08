@@ -4,16 +4,18 @@
 module Daml.Finance.Data.Test.HolidayCalendar where
 
 import DA.Date
-import DA.Map qualified as M (fromList)
+import DA.Map qualified as M (empty, fromList)
 import DA.Set (singleton)
 import Daml.Finance.Data.Reference.HolidayCalendar
+import Daml.Finance.Interface.Data.Reference.HolidayCalendar (GetView(..), UpdateCalendar(..))
+import Daml.Finance.Interface.Data.Reference.HolidayCalendar.Factory qualified as Factory (Create(..), F, Remove(..))
 import Daml.Finance.Interface.Types.Date.Calendar
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Script
 
--- | Test holiday calendars by a reference data agency
-test_reference_data_agency : Script ()
-test_reference_data_agency = script do
+-- | Test holiday calendars by a reference data provider.
+test_reference_data_provider : Script ()
+test_reference_data_provider = script do
   [reuters, publicParty] <- createParties ["Reuters", "PublicParty"]
 
   let
@@ -24,15 +26,18 @@ test_reference_data_agency = script do
     observers = [("PublicParty", singleton publicParty)]
 
   -- Reuters defines the USNY holiday calendar
+  -- Create calendar via factory
+  calendarFactoryCid <- toInterfaceContractId @Factory.F <$> submit reuters do
+    createCmd Factory with provider = reuters; observers = M.empty
+
   usnyCalendarCid <- submit reuters do
-    createCmd HolidayCalendar with
-      agency = reuters
-      entity = cal.id
+    exerciseCmd calendarFactoryCid Factory.Create with
+      provider = reuters
       calendar = cal
       observers = M.fromList observers
 
-  -- Retrieve the calendar from the ledger
-  Some usnyCalendar <- queryContractId publicParty usnyCalendarCid
+  -- Retrieve the calendar view from the ledger
+  usnyCalendarView <- submit reuters do exerciseCmd usnyCalendarCid GetView with viewer = reuters
 
   -- Define a new calendar locally
   let
@@ -52,10 +57,16 @@ test_reference_data_agency = script do
       newCalendar = cal2
 
   -- Retrieve the updated calendar from the ledger
-  Some usnyCalendar2 <- queryContractId publicParty usnyCalendarCid2
+  usnyCalendarView2 <- submit reuters do exerciseCmd usnyCalendarCid2 GetView with viewer = reuters
 
   -- Verify that the updated calendar now has different holidays
   assertMsg "The calendars should now have different holidays"
-    (usnyCalendar.calendar.holidays /= usnyCalendar2.calendar.holidays)
+    $ usnyCalendarView.calendar.holidays /= usnyCalendarView2.calendar.holidays
+
+  -- Archive calendar (via factory)
+  submit reuters do
+    exerciseCmd calendarFactoryCid Factory.Remove with
+      cid = usnyCalendarCid2
+      provider = reuters
 
   pure ()
