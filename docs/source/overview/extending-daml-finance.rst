@@ -7,7 +7,7 @@ Extending Daml Finance
 Daml Finance is designed to be extended whenever the provided implementations do not satisfy the
 requirements at hand. In principle, all interfaces in the :ref:`interface layer <interface-layer>`
 can be implemented with custom implementations. Specific extension points we expect and encourage
-users to customize are explained in the following.
+users to customize are explained below.
 
 Note that for all of the listed extension points we are happy to receive external contributions to
 be included in the library.
@@ -45,7 +45,7 @@ Custom Account Implementations
 The default account implementation in Daml Finance allows you to define authorization requirements
 for incoming and outgoing transfers through the
 :ref:`controllers <type-daml-finance-interface-account-account-controllers-36430>` property.
-For some cases, however, a custom account implementation is warranted:
+For some cases, however, a custom account implementation maybe warranted:
 
 - Restricted credit and debit: a custom implementation of the ``Credit`` and / or
   ``Debit`` choices on the
@@ -53,15 +53,15 @@ For some cases, however, a custom account implementation is warranted:
   additional restrictions on those actions that can depend, for example, on the presence of a
   separate know-your-customer (KYC) contract.
 - Additional information: a custom account implementation can serve to represent different concepts
-  of accounts. For example, the shelf in a vault for gold bars, or a specific location within a
+  of accounts. For example, a shelf in a vault for gold bars or a specific location within a
   warehouse can be represented by providing additional information on an account implementation.
 
 Custom Instrument Implementations
 *********************************
 
 Daml Finance provides default implementations for a wide range of financial instruments. However, we
-anticipate that specific requirements will lead to the adaptation of existing, or creation of
-entirely new instruments types. The following are typical examples of when a custom instrument
+anticipate that specific requirements will lead to the adaptation of existing, or the creation of
+entirely new instrument types. The following are typical examples of when a custom instrument
 implementation is required:
 
 - Additional information: a custom instrument implementation might, for example, build upon the
@@ -69,7 +69,7 @@ implementation is required:
   <type-daml-finance-interface-instrument-equity-instrument-instrument-99859>` to provide additional
   information pertinent to private equity (like share class, or liquidation preference).
 - New instrument types: if Daml Finance does not provide an implementation for a given instrument
-  type a custom implementation can be provided to fill that gap. The implementation can either
+  type, a custom implementation can be provided to fill that gap. The implementation can either
   leverage the :doc:`Contingent Claims <../concepts/contingent-claims>` framework, as described in
   :doc:`this tutorial <../tutorials/instrument-modeling/contingent-claims-instrument>`, or be
   implemented through standard interfaces, as seen in the implementation of the
@@ -108,4 +108,4 @@ There are cases, however, where a custom implementation might be required:
   settlement instructions in off-ledger rails. This could include, for example, information required
   to create SWIFT messages.
 - Cross-ledger settlement: mechanisms like Hashed Timelock Contracts or custodial-bridged settlement
-  might require a custom implementation of settlement choices.
+  might require a custom implementation of the settlement choices.

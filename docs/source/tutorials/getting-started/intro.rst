@@ -17,8 +17,8 @@ Quickstart
 This section explains how some key concepts of Daml Finance work in practice. It combines a step by
 step description of different workflows with supporting code.
 
-To follow the tutorials you can install the ``quickstart-finance`` project via the Daml assistant by executing
-the following commands.
+To follow the tutorials, you can install the ``quickstart-finance`` project via the Daml assistant
+by executing the following commands -
 
 On Unix-based systems execute:
 

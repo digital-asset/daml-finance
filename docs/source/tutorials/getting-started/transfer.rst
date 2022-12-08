@@ -32,19 +32,18 @@ Open a terminal and run:
 
    daml new quickstart-finance --template quickstart-finance
 
-This creates a new folder with contents from our template. Navigate to the folder and then run
+This creates a new folder with contents from our template. Navigate to the folder and then run the
+following to download the required ``daml-finance`` packages:
 
 .. code-block:: shell
 
    ./get-dependencies.sh
 
-to download the required ``daml-finance`` packages. You can then run
+Then run the following to open the code editor and inspect the code:
 
 .. code-block:: shell
 
    daml studio
-
-to open the code editor and inspect the code.
 
 .. _structure-of-code-dependencies:
 
@@ -68,18 +67,18 @@ to:
 
 The ``DvP`` workflow will be used in the next tutorial, so please ignore that one for now.
 
-Modules in the ``Workflows`` folder depend only on *interface* packages of ``daml-finance`` (the ones
-that start with ``Daml.Finance.Interface.*``), as you can see from the import list.
+Modules in the ``Workflows`` folder depend only on *interface* packages of ``daml-finance`` (the
+packages that start with ``Daml.Finance.Interface.*``), as you can see from the import list.
 
 This is important, as it decouples the user-defined business logic from the template implementations
-used in ``daml-finance``. This makes it easier to upgrade the one without being forced to
-upgrade the other.
+used in ``daml-finance`` which makes it easier to upgrade the application. The user-defined business
+logic in the ``Workflows`` will not need to be modified nor re-compiled to work with
+upgraded (ie., newer versions of) *implementation* packages.
 
-On the other hand, modules in the ``Scripts`` folder depend also on *implementation* packages (in
-this case, ``Daml.Finance.Account``, ``Daml.Finance.Holding``, and ``Daml.Finance.Instrument.Token``).
-
-This is not problematic, as scripts are meant to be run only once when the application is
-initialized.
+On the other hand, modules in the ``Scripts`` folder depend on both the *interface* packages and
+the *implementation* packages (in this case, ``Daml.Finance.Account``, ``Daml.Finance.Holding``,
+and ``Daml.Finance.Instrument.Token``). This is not problematic as scripts are meant to be run only
+once when the application is initialized.
 
 Run the Transfer Script
 ***********************
@@ -176,7 +175,7 @@ Transfer Cash from Alice to Bob
 ===============================
 
 The final step of our ``Setup`` script transfers Alice’s holding to Bob using the ``Transfer``
-workflow.
+workflow. In our tutorial example, the receiver of the cash makes the transfer request:
 
 .. literalinclude:: ../../../code-samples/getting-started/daml/Scripts/Transfer.daml
   :language: daml

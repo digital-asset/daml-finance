@@ -101,7 +101,7 @@ the associated entitlements.
   :start-after: -- CLAIM_EVENT_BEGIN
   :end-before: -- CLAIM_EVENT_END
 
-As a side-effect of claiming the effect the presented holding is exchanged for a holding of the new
+As a side-effect of claiming the effect, the presented holding is exchanged for a holding of the new
 token version. This is to prevent a holder from claiming a given effect twice.
 
 In our example of a cash dividend, only a single instruction is generated: the movement of cash from
