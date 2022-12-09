@@ -58,7 +58,7 @@ In order to execute the FX transaction, we first need to:
 - allocate, i.e., specify which holding should be used
 - approve, i.e., specify to which account the asset should be transferred
 
-Allcation and approval is required for
+Allocation and approval is required for
 each :ref:`Instruction <module-daml-finance-settlement-instruction-87187>`.
 
 Alice :ref:`allocates <module-daml-finance-interface-settlement-instruction-10970>` the instruction
@@ -158,15 +158,15 @@ In the :ref:`Allocation <type-daml-finance-interface-settlement-types-allocation
 sender acknowledges the transfer and determines how to send the holding. This is usually done by
 pledging one of the sender's existing holdings (which has the correct instrument and amount)
 at the custodian . When the sender is also the custodian, the instruction can be allocated with
-``CreditReceiver``. In this case, a new holding is minted at the custodian and then transferred to
-the target receiver.
+``CreditReceiver``. In this case, a new holding is directly credited into the receiver's account.
 
 In the :ref:`Approval <type-daml-finance-interface-settlement-types-approval-84286>` step, the
 receiver acknowledges the transfer and determines how to receive the holding. This is usually done
 by taking delivery to one of the receiver's accounts at the custodian. When the receiver is also the
 incoming holding's custodian, the instruction can be approved with ``DebitSender``. In this case,
-the holding is immediately archived after being transferred to the receiver (a holding owned by the
-custodian at the custodian has no economical value and can be archived).
+the holding is directly debited from the sender's account. A holding owned by the custodian at the
+custodian has no economical value, it is a liability against themselves and can therefore be
+archived without consequence.
 
 To clarify these concepts, here is how the 3 instructions in the intermediated example above would
 be allocated / approved.
@@ -177,10 +177,10 @@ be allocated / approved.
 | 1A : EUR 1000 from Alice to Bank A @ Bank A        | Alice pledges her    | Bank A approves      |
 |                                                    | holding              | with DebitSender     |
 +----------------------------------------------------+----------------------+----------------------+
-| 2A : EUR 1000 from Bank A to Bank B @ Central Bank | Bank A pledges       | Bank B takes delivery|
+| 1B : EUR 1000 from Bank A to Bank B @ Central Bank | Bank A pledges       | Bank B takes delivery|
 |                                                    | its holding          | to its account       |
 +----------------------------------------------------+----------------------+----------------------+
-| 3A : EUR 1000 from Bank B to Bob @ Bank B          | Bank B allocates     | Bob takes delivery   |
+| 1C : EUR 1000 from Bank B to Bob @ Bank B          | Bank B allocates     | Bob takes delivery   |
 |                                                    | with CreditReceiver  | to his account       |
 +----------------------------------------------------+----------------------+----------------------+
 
