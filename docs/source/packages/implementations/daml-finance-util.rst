@@ -4,8 +4,8 @@
 Daml.Finance.Util
 #################
 
-This package mainly contains utility functions related to dates, lists and maps. They are
-defined in the following modules:
+This package mainly contains utility functions related to dates, lists, maps, and disclosure. They
+are defined in the following modules:
 
 - :ref:`Date.Calendar <module-daml-finance-util-date-calendar-17588>`:
   Functions regarding dates and holiday calendars (business vs non-business days)
@@ -17,3 +17,5 @@ defined in the following modules:
   Functions to calculate a periodic schedule, including both adjusted and unadjusted dates
 - :ref:`Common <module-daml-finance-util-common-41560>`:
   Various functions related to lists and maps, which are commonly used in several packages
+- :ref:`Disclosure <module-daml-finance-util-disclosure-73352>`:
+  Utility functions related to disclosure, e.g., to add or remove observers

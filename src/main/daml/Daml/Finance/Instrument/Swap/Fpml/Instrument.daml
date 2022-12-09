@@ -15,7 +15,8 @@ import Daml.Finance.Interface.Instrument.Swap.Fpml.FpmlTypes
 import Daml.Finance.Interface.Instrument.Swap.Fpml.Instrument qualified as Fpml (HasImplementation, I, View(..))
 import Daml.Finance.Interface.Instrument.Swap.Fpml.Types (Fpml(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey(..), PartiesMap)
-import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
 import Prelude hiding (key)
 
 -- | Type synonym for `Instrument`.
@@ -56,7 +57,7 @@ template Instrument
     signatory depository, issuer
     observer Disclosure.flattenObservers observers
 
-    let instrumentKey = InstrumentKey with depository; issuer; id; version
+    let instrument = InstrumentKey with depository; issuer; id; version
 
     interface instance Claim.I for Instrument where
       view = Claim.View with acquisitionTime = dateToDateClockTime (daysSinceEpochToDate 0)
@@ -137,13 +138,13 @@ template Instrument
       asDisclosure = toInterface @Disclosure.I this
       view = BaseInstrument.View with
         depository; issuer; id; version; description; validAsOf = lastEventTimestamp
-      getKey = instrumentKey
+      getKey = instrument
 
     interface instance Fpml.I for Instrument where
       asBaseInstrument = toInterface @BaseInstrument.I this
       view = Fpml.View with
         fpml = Fpml with
-          instrument = instrumentKey
+          instrument
           description
           swapStreams
           issuerPartyRef
@@ -160,7 +161,10 @@ template Instrument
 
     interface instance Disclosure.I for Instrument where
       view = Disclosure.View with disclosureControllers = singleton issuer; observers
-      setObservers Disclosure.SetObservers{newObservers} = do
-        cid <- toInterfaceContractId <$> create this with observers = newObservers
-        BaseInstrument.disclosureUpdateReference newObservers instrumentKey cid
+      setObservers = setObserversImpl this $
+        Some (BaseInstrument.disclosureUpdateReference instrument)
+      addObservers = addObserversImpl @Instrument this $
+        Some (BaseInstrument.disclosureUpdateReference instrument)
+      removeObservers = removeObserversImpl this $
+        Some (BaseInstrument.disclosureUpdateReference instrument)
       archive' = archive . fromInterfaceContractId @Instrument
