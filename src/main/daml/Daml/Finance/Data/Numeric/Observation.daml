@@ -1,12 +1,12 @@
 -- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
-module Daml.Finance.Data.Numeric.Observation
-  ( Observation(..)
-  ) where
+module Daml.Finance.Data.Numeric.Observation where
 
 import DA.Map as M (Map, lookup)
 import DA.Set (singleton)
+import Daml.Finance.Interface.Data.Numeric.Observation qualified as Observation (I, View(..))
+import Daml.Finance.Interface.Data.Numeric.Observation.Factory qualified as ObservationFactory
 import Daml.Finance.Interface.Data.NumericObservable qualified as NumericObservable (HasImplementation, I, View(..))
 import Daml.Finance.Interface.Types.Common.Types (Id, PartiesMap)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
@@ -39,8 +39,40 @@ template Observation
           Some obs -> pure obs
           None -> fail $ "Missing observation for " <> show id <>" at t = " <> show t
 
+    interface instance Observation.I for Observation where
+      view = Observation.View with provider; id; observations; observers
+      asDisclosure = toInterface @Disclosure.I this
+      asNumericObservable = toInterface @NumericObservable.I this
+
     interface instance Disclosure.I for Observation where
       view = Disclosure.View with disclosureControllers = singleton provider; observers
       setObservers Disclosure.SetObservers{newObservers} = toInterfaceContractId <$>
         create this with observers = newObservers
       archive' = archive . fromInterfaceContractId @Observation
+
+-- | Implementation of the corresponding Observation Factory.
+template Factory
+  with
+    provider : Party
+      -- ^ The factory's provider.
+    observers : PartiesMap
+      -- ^ The factory's observers.
+  where
+    signatory provider
+    observer Disclosure.flattenObservers observers
+
+    interface instance ObservationFactory.F for Factory
+      where
+        asDisclosure = toInterface @Disclosure.I this
+        view = ObservationFactory.View with provider; observers
+        create' ObservationFactory.Create{id; observations; observers; provider} =
+          toInterfaceContractId <$>
+            create Observation with id; observations; observers; provider
+        remove ObservationFactory.Remove{observationCid} =
+          archive $ fromInterfaceContractId @Observation observationCid
+
+    interface instance Disclosure.I for Factory where
+      view = Disclosure.View with disclosureControllers = singleton provider; observers
+      setObservers Disclosure.SetObservers{newObservers} =
+        toInterfaceContractId <$> create this with observers = newObservers
+      archive' = archive . fromInterfaceContractId @Factory
