@@ -45,7 +45,7 @@ Custom Account Implementations
 The default account implementation in Daml Finance allows you to define authorization requirements
 for incoming and outgoing transfers through the
 :ref:`controllers <type-daml-finance-interface-account-account-controllers-36430>` property.
-For some cases, however, a custom account implementation maybe warranted:
+For some cases, however, a custom account implementation may be warranted:
 
 - Restricted credit and debit: a custom implementation of the ``Credit`` and / or
   ``Debit`` choices on the
