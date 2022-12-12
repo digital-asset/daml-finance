@@ -129,7 +129,7 @@ ci-data-dependencies:
 		--run 'export LANG=C.UTF-8; packell data-dependencies validate'
 
 .PHONY: ci-local
-ci-local: clean-all ci-headers-check ci-data-dependencies ci-build ci-build-java ci-build-js ci-test ci-validate ci-docs
+ci-local: clean-all ci-headers-check ci-data-dependencies ci-build ci-validate ci-build-java ci-build-js ci-test ci-docs
 
 #########
 # Cache #
