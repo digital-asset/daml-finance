@@ -14,10 +14,9 @@ import Daml.Finance.Instrument.Bond.InflationLinked.Instrument qualified as Infl
 import Daml.Finance.Instrument.Bond.ZeroCoupon.Instrument qualified as ZeroCoupon (Instrument(..))
 import Daml.Finance.Interface.Claims.Types (Deliverable)
 import Daml.Finance.Interface.Data.NumericObservable qualified as NumericObservable (I)
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (K, I, Q)
 import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (I, GetView(..))
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..))
-import Daml.Finance.Interface.Types.Common.Types
+import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey, InstrumentQuantity, Parties)
 import Daml.Finance.Interface.Types.Date.Calendar (BusinessDayAdjustment(..), BusinessDayConventionEnum)
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
 import Daml.Finance.Interface.Types.Date.RollConvention (PeriodEnum, RollConventionEnum(..))
@@ -56,7 +55,7 @@ createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds businessDayConv
 
 originateFixedRateBond : Party -> Party -> Text -> Text -> [(Text, Parties)] -> Time -> Date ->
   [Text] -> Party -> Date-> Date -> DayCountConventionEnum ->
-  BusinessDayConventionEnum -> Decimal -> PeriodEnum -> Int -> Instrument.K -> Script Instrument.K
+  BusinessDayConventionEnum -> Decimal -> PeriodEnum -> Int -> InstrumentKey -> Script InstrumentKey
 originateFixedRateBond depository issuer label description observers lastEventTimestamp issueDate
   holidayCalendarIds calendarDataProvider firstCouponDate maturityDate dayCountConvention
   businessDayConvention couponRate couponPeriod couponPeriodMultiplier currency = do
@@ -64,7 +63,7 @@ originateFixedRateBond depository issuer label description observers lastEventTi
       periodicSchedule = createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds
         businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate
     -- CREATE_FIXED_RATE_BOND_INSTRUMENT_BEGIN
-    cid <- toInterfaceContractId @Instrument.I <$> submitMulti [depository, issuer] [] do
+    cid <- toInterfaceContractId <$> submitMulti [depository, issuer] [] do
       createCmd FixedRate.Instrument with
         depository; issuer; id = Id label; version = "0"; description
         observers = M.fromList observers; lastEventTimestamp; periodicSchedule; holidayCalendarIds
@@ -73,7 +72,7 @@ originateFixedRateBond depository issuer label description observers lastEventTi
     createReference cid depository issuer observers
 
 originateZeroCouponBond : Party -> Party -> Text -> Text -> [(Text, Parties)] -> Time -> Date ->
-  Date -> Deliverable -> Script Instrument.K
+  Date -> Deliverable -> Script InstrumentKey
 originateZeroCouponBond depository issuer label description observers lastEventTimestamp issueDate
   maturityDate currency = do
     -- CREATE_ZERO_COUPON_BOND_INSTRUMENT_BEGIN
@@ -86,8 +85,8 @@ originateZeroCouponBond depository issuer label description observers lastEventT
 
 originateFloatingRateBond : Party -> Party -> Text -> Text -> [(Text, Parties)] -> Time -> Date ->
   [Text] -> Party -> Date -> Date -> DayCountConventionEnum ->
-  BusinessDayConventionEnum -> Decimal -> PeriodEnum -> Int -> Instrument.K ->
-  Text -> Script Instrument.K
+  BusinessDayConventionEnum -> Decimal -> PeriodEnum -> Int -> InstrumentKey ->
+  Text -> Script InstrumentKey
 originateFloatingRateBond depository issuer label description observers lastEventTimestamp issueDate
   holidayCalendarIds calendarDataProvider firstCouponDate maturityDate dayCountConvention
   businessDayConvention couponSpread couponPeriod couponPeriodMultiplier currency
@@ -106,8 +105,8 @@ originateFloatingRateBond depository issuer label description observers lastEven
 
 originateInflationLinkedBond : Party -> Party -> Text -> Text -> [(Text, Parties)] -> Time ->
   Date -> [Text] -> Party -> Date -> Date -> DayCountConventionEnum ->
-  BusinessDayConventionEnum -> Decimal -> PeriodEnum -> Int -> Instrument.K -> Text ->
-  Decimal -> Script Instrument.K
+  BusinessDayConventionEnum -> Decimal -> PeriodEnum -> Int -> InstrumentKey -> Text ->
+  Decimal -> Script InstrumentKey
 originateInflationLinkedBond depository issuer label description observers lastEventTimestamp
   issueDate holidayCalendarIds calendarDataProvider firstCouponDate maturityDate dayCountConvention
   businessDayConvention couponRate couponPeriod couponPeriodMultiplier currency inflationIndexId
@@ -127,8 +126,8 @@ originateInflationLinkedBond depository issuer label description observers lastE
 
 -- | Lifecycle the instrument as of this date. This is a general function that can be used for both
 -- bonds and swaps.
-lifecycleInstrument : [Party] -> Date -> Instrument.K -> Party ->
-  [ContractId NumericObservable.I] -> Script (Optional Instrument.K, [ContractId Effect.I])
+lifecycleInstrument : [Party] -> Date -> InstrumentKey -> Party ->
+  [ContractId NumericObservable.I] -> Script (Optional InstrumentKey, [ContractId Effect.I])
 lifecycleInstrument readAs today instrument issuer observableCids = do
   -- create clock update event
   clockEventCid <- createClockUpdateEvent (singleton issuer) today empty
@@ -153,7 +152,7 @@ lifecycleInstrument readAs today instrument issuer observableCids = do
 
 -- | Verify a that there are no lifecycle effects of the instrument on this date. This is a general
 -- function that can be used for both bonds and swaps.
-verifyNoLifecycleEffects : [Party] -> Date -> Instrument.K -> Party ->
+verifyNoLifecycleEffects : [Party] -> Date -> InstrumentKey -> Party ->
   [ContractId NumericObservable.I] -> Script ()
 verifyNoLifecycleEffects readAs today instrument issuer observableCids = do
   (bondLifecycleCid2, effectCids) <- lifecycleInstrument readAs today instrument issuer
@@ -161,9 +160,9 @@ verifyNoLifecycleEffects readAs today instrument issuer observableCids = do
   assertMsg ("There should be no lifecycle effects on " <> show today) (null effectCids)
 
 -- | Verify the payments from a payment date of a bond (excluding settlement)
-lifecycleAndVerifyBondPaymentEffects : [Party] -> Date -> Instrument.K -> Party ->
-  [ContractId NumericObservable.I] -> [Instrument.Q] -> [Instrument.Q] ->
-  Script (Optional Instrument.K)
+lifecycleAndVerifyBondPaymentEffects : [Party] -> Date -> InstrumentKey -> Party ->
+  [ContractId NumericObservable.I] -> [InstrumentQuantity] -> [InstrumentQuantity] ->
+  Script (Optional InstrumentKey)
 lifecycleAndVerifyBondPaymentEffects readAs today instrument issuer
   observableCids expectedConsumedQuantities expectedProducedQuantities = do
     (newBondInstrumentKey, [effectCid]) <-
