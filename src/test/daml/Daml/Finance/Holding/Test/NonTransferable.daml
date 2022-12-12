@@ -13,14 +13,13 @@ import Daml.Finance.Interface.Account.Account qualified as Account (Debit(..), I
 import Daml.Finance.Interface.Holding.Base qualified as Base (Acquire(..), I, LockType(..), Release(..))
 import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (I, Split(..))
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
-import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, AddObservers(..), RemoveObservers(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), submitExerciseInterfaceByKeyCmd, submitMustFailExerciseInterfaceByKeyCmd)
 import Daml.Script
 
 run : Script ()
 run = script do
   -- Create parties
-  tp@TestParties{custodian; issuer; investor; lockers; locker2} <- setupParties
+  tp@TestParties{custodian; issuer; investor; locker; locker2} <- setupParties
 
   -- Initialize state with `NonTransferable.Factory`
   TestInitialState {investorAccount; issuerAccount; issuerHoldingCid} <- setupInitialState
@@ -41,17 +40,17 @@ run = script do
         actors = S.fromList [issuer, investor]; newOwnerAccount = investorAccount
 
   -- Lock asset with a one time lock
-  baseCid <- submitMulti [issuer, lockers] [] do
+  baseCid <- submitMulti [issuer, locker] [] do
     exerciseCmd (coerceInterfaceContractId @Base.I issuerHoldingCid)
       Base.Acquire with
-        newLockers = S.singleton lockers; context = "Test Lock"; lockType = Base.Semaphore
+        newLockers = S.singleton locker; context = "Test Lock"; lockType = Base.Semaphore
 
   -- Same Locker attempts locks asset again
-  submitMultiMustFail [issuer, lockers] [] do
+  submitMultiMustFail [issuer, locker] [] do
     exerciseCmd baseCid Base.Acquire with
-      newLockers = S.singleton lockers; context = "Second attempt"; lockType = Base.Semaphore
+      newLockers = S.singleton locker; context = "Second attempt"; lockType = Base.Semaphore
 
-  -- Another lockers attempts to lock this asset
+  -- Another locker attempts to lock this asset
   submitMultiMustFail [issuer, locker2] [] do
     exerciseCmd baseCid Base.Acquire with
       newLockers = S.singleton locker2; context = "Steal lock"; lockType = Base.Semaphore
@@ -61,24 +60,24 @@ run = script do
     Account.Debit with holdingCid = toInterfaceContractId baseCid
 
   -- Unlock asset
-  baseCid <- submit lockers do exerciseCmd baseCid Base.Release with context = "Test Lock"
+  baseCid <- submit locker do exerciseCmd baseCid Base.Release with context = "Test Lock"
 
   -- Lock asset with a reentrant lock
-  baseCid <- submitMulti [issuer, lockers] [] do
+  baseCid <- submitMulti [issuer, locker] [] do
     exerciseCmd baseCid Base.Acquire with
-      newLockers = S.singleton lockers; context = "Lock 1"; lockType = Base.Reentrant
+      newLockers = S.singleton locker; context = "Lock 1"; lockType = Base.Reentrant
 
   -- Same Locker locks asset again for the same context
-  submitMultiMustFail [issuer, lockers] [] do
+  submitMultiMustFail [issuer, locker] [] do
     exerciseCmd baseCid Base.Acquire with
-      newLockers = S.singleton lockers; context = "Lock 1"; lockType = Base.Reentrant
+      newLockers = S.singleton locker; context = "Lock 1"; lockType = Base.Reentrant
 
   -- Lock asset with a reentrant lock for another context
-  baseCid <- submitMulti [issuer, lockers] [] do
+  baseCid <- submitMulti [issuer, locker] [] do
     exerciseCmd baseCid Base.Acquire with
-      newLockers = S.singleton lockers; context = "Lock 2"; lockType = Base.Reentrant
+      newLockers = S.singleton locker; context = "Lock 2"; lockType = Base.Reentrant
 
-  -- Another lockers attempts to lock this asset
+  -- Another locker attempts to lock this asset
   submitMultiMustFail [issuer, locker2] [] do
     exerciseCmd baseCid Base.Acquire with
        newLockers = S.singleton locker2; context = "Steal lock"; lockType = Base.Semaphore
@@ -87,67 +86,14 @@ run = script do
       newLockers = S.singleton locker2; context = "Steal lock"; lockType = Base.Reentrant
 
   -- Unlock one lock
-  baseCid <- submit lockers do exerciseCmd baseCid Base.Release with context = "Lock 2"
+  baseCid <- submit locker do exerciseCmd baseCid Base.Release with context = "Lock 2"
 
   -- Debit fails as the asset is still locked
   Account.submitMustFailExerciseInterfaceByKeyCmd @Account.I [custodian, issuer] [] issuerAccount $
     Account.Debit with holdingCid = toInterfaceContractId baseCid
 
   -- Unlock the final lock
-  baseCid <- submit lockers do exerciseCmd baseCid Base.Release with context = "Lock 1"
-
-  -- Disclose (under different contexts)
-  cid <- submit issuer do
-    exerciseCmd (toInterfaceContractId @Disclosure.I baseCid)
-      Disclosure.AddObservers with
-        disclosers = S.singleton issuer
-        observersToAdd = ("context-1", S.fromList [lockers, locker2])
-  cid <- submit issuer do
-    exerciseCmd cid Disclosure.AddObservers with
-      disclosers = S.singleton issuer; observersToAdd = ("context-2", S.fromList [lockers, locker2])
-
-  -- Undisclose (under different contexts)
-  -- issuer can remove anyone
-  Some cid <- submit issuer do
-    exerciseCmd (toInterfaceContractId @Disclosure.I cid)
-      Disclosure.RemoveObservers with
-        disclosers = S.singleton issuer
-        observersToRemove = ("context-1", S.fromList [lockers, locker2])
-  -- no update necessary
-  None <- submit issuer do
-    exerciseCmd (toInterfaceContractId @Disclosure.I cid)
-      Disclosure.RemoveObservers with
-         disclosers = S.singleton issuer
-         observersToRemove = ("context-1", S.fromList [lockers, locker2])
-  -- removing observers from context-2
-  -- unauthorized party can't remove
-  submitMustFail investor do
-    exerciseCmd (toInterfaceContractId @Disclosure.I cid)
-      Disclosure.RemoveObservers with
-         disclosers = S.singleton investor
-         observersToRemove = ("context-2", S.fromList [lockers, locker2])
-  -- lockers can't remove locker2
-  submitMustFail lockers do
-    exerciseCmd (toInterfaceContractId @Disclosure.I cid)
-      Disclosure.RemoveObservers with
-         disclosers = S.singleton lockers; observersToRemove = ("context-2", S.fromList [locker2])
-  -- lockers can remove itself
-  Some cid <- submit lockers do
-    exerciseCmd (toInterfaceContractId @Disclosure.I cid)
-      Disclosure.RemoveObservers with
-        disclosers = S.singleton lockers; observersToRemove = ("context-2", S.fromList [lockers])
-  -- removing observers from context-3
-  -- locker2 removes itself
-  Some cid <- submit locker2 do
-    exerciseCmd (toInterfaceContractId @Disclosure.I cid)
-      Disclosure.RemoveObservers with
-        disclosers = S.singleton locker2; observersToRemove = ("context-2", S.fromList [locker2])
-  -- trying to remove from non-existent context
-  None <- submit issuer do
-    exerciseCmd (toInterfaceContractId @Disclosure.I cid)
-      Disclosure.RemoveObservers with
-         disclosers = S.singleton issuer
-         observersToRemove = ("non-existing context", S.fromList [lockers, locker2])
+  holdingCid <- submit locker do exerciseCmd baseCid Base.Release with context = "Lock 1"
 
   -- Make sure the issuer account has no observers
   [(accountCid, account)] <- query @Account.T issuer
@@ -155,6 +101,6 @@ run = script do
 
   -- Debit asset
   Account.submitExerciseInterfaceByKeyCmd @Account.I [custodian, issuer] [] issuerAccount $
-    Account.Debit with holdingCid = coerceInterfaceContractId cid
+    Account.Debit with holdingCid
 
   pure ()
