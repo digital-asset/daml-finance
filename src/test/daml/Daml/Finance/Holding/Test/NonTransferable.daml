@@ -13,7 +13,6 @@ import Daml.Finance.Interface.Account.Account qualified as Account (Debit(..), I
 import Daml.Finance.Interface.Holding.Base qualified as Base (Acquire(..), I, LockType(..), Release(..))
 import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (I, Split(..))
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
-import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, AddObservers(..), RemoveObservers(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), submitExerciseInterfaceByKeyCmd, submitMustFailExerciseInterfaceByKeyCmd)
 import Daml.Script
 
@@ -94,60 +93,7 @@ run = script do
     Account.Debit with holdingCid = toInterfaceContractId baseCid
 
   -- Unlock the final lock
-  baseCid <- submit locker do exerciseCmd baseCid Base.Release with context = "Lock 1"
-
-  -- Disclose (under different contexts)
-  cid <- submit issuer do
-    exerciseCmd (toInterfaceContractId @Disclosure.I baseCid)
-      Disclosure.AddObservers with
-        disclosers = S.singleton issuer
-        observersToAdd = ("context-1", S.fromList [locker, locker2])
-  cid <- submit issuer do
-    exerciseCmd cid Disclosure.AddObservers with
-      disclosers = S.singleton issuer; observersToAdd = ("context-2", S.fromList [locker, locker2])
-
-  -- Undisclose (under different contexts)
-  -- issuer can remove anyone
-  Some cid <- submit issuer do
-    exerciseCmd (toInterfaceContractId @Disclosure.I cid)
-      Disclosure.RemoveObservers with
-        disclosers = S.singleton issuer
-        observersToRemove = ("context-1", S.fromList [locker, locker2])
-  -- no update necessary
-  None <- submit issuer do
-    exerciseCmd (toInterfaceContractId @Disclosure.I cid)
-      Disclosure.RemoveObservers with
-         disclosers = S.singleton issuer
-         observersToRemove = ("context-1", S.fromList [locker, locker2])
-  -- removing observers from context-2
-  -- unauthorized party can't remove
-  submitMustFail investor do
-    exerciseCmd (toInterfaceContractId @Disclosure.I cid)
-      Disclosure.RemoveObservers with
-         disclosers = S.singleton investor
-         observersToRemove = ("context-2", S.fromList [locker, locker2])
-  -- locker can't remove locker2
-  submitMustFail locker do
-    exerciseCmd (toInterfaceContractId @Disclosure.I cid)
-      Disclosure.RemoveObservers with
-         disclosers = S.singleton locker; observersToRemove = ("context-2", S.fromList [locker2])
-  -- locker can remove itself
-  Some cid <- submit locker do
-    exerciseCmd (toInterfaceContractId @Disclosure.I cid)
-      Disclosure.RemoveObservers with
-        disclosers = S.singleton locker; observersToRemove = ("context-2", S.fromList [locker])
-  -- removing observers from context-3
-  -- locker2 removes itself
-  Some cid <- submit locker2 do
-    exerciseCmd (toInterfaceContractId @Disclosure.I cid)
-      Disclosure.RemoveObservers with
-        disclosers = S.singleton locker2; observersToRemove = ("context-2", S.fromList [locker2])
-  -- trying to remove from non-existent context
-  None <- submit issuer do
-    exerciseCmd (toInterfaceContractId @Disclosure.I cid)
-      Disclosure.RemoveObservers with
-         disclosers = S.singleton issuer
-         observersToRemove = ("non-existing context", S.fromList [locker, locker2])
+  holdingCid <- submit locker do exerciseCmd baseCid Base.Release with context = "Lock 1"
 
   -- Make sure the issuer account has no observers
   [(accountCid, account)] <- query @Account.T issuer
@@ -155,6 +101,6 @@ run = script do
 
   -- Debit asset
   Account.submitExerciseInterfaceByKeyCmd @Account.I [custodian, issuer] [] issuerAccount $
-    Account.Debit with holdingCid = coerceInterfaceContractId cid
+    Account.Debit with holdingCid
 
   pure ()

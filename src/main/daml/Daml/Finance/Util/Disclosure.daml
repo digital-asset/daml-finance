@@ -1,15 +1,14 @@
 -- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
-{-# LANGUAGE AllowAmbiguousTypes #-}
-
 module Daml.Finance.Util.Disclosure where
 
-import DA.Traversable qualified as T (mapA)
 import DA.Foldable qualified as F (mapA_)
 import DA.Map qualified as M (delete, insert, lookup)
 import DA.Optional (fromOptional)
-import DA.Set qualified as S (difference, empty, intersection, isSubsetOf, null)
+import DA.Set (Set)
+import DA.Set qualified as S (difference, empty, intersection, null, union)
+import DA.Traversable qualified as T (mapA)
 import Daml.Finance.Interface.Types.Common.Types (PartiesMap)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (AddObservers(..), I, RemoveObservers(..), SetObservers(..))
 
@@ -25,10 +24,10 @@ setObserversImpl :
   ) => t -> Optional (PartiesMap -> ContractId i -> Update (ContractId Disclosure.I)) ->
     Disclosure.SetObservers -> Update (ContractId Disclosure.I)
 setObserversImpl this refUpdate Disclosure.SetObservers{disclosers; newObservers} = do
+  let v = view $ toInterface @Disclosure.I this
   assertMsg
     ("controller (" <> show disclosers <> ") must be authorized to SetObservers") $
-    not (S.null $ disclosers `S.intersection`
-      (view $ toInterface @Disclosure.I this).disclosureControllers)
+    mustIntersect disclosers v.disclosureControllers
   cid <- toInterfaceContractId @i <$> create this with observers = newObservers
   F.mapA_ (\f -> f newObservers cid) refUpdate
   pure $ toInterfaceContractId @Disclosure.I cid
@@ -45,21 +44,19 @@ addObserversImpl :
   ) =>
     t -> Optional (PartiesMap -> ContractId i -> Update (ContractId Disclosure.I)) ->
       Disclosure.AddObservers -> Update (ContractId Disclosure.I)
-addObserversImpl this refUpdate
-  Disclosure.AddObservers{disclosers; observersToAdd} = do
-    let
-      v = view $ toInterface @Disclosure.I this
-      context = fst observersToAdd
-      curObservers = v.observers
-      curParties = fromOptional S.empty $ M.lookup context curObservers
-      value = curParties <> snd observersToAdd
-      newObservers = M.insert context value curObservers
-    assertMsg
-      ("controller (" <> show disclosers <> ") must be authorized to AddObservers") $
-      disclosers `S.isSubsetOf` v.disclosureControllers
-    cid <- toInterfaceContractId @i <$> create this with observers = newObservers
-    F.mapA_ (\f -> f newObservers cid) refUpdate
-    pure $ toInterfaceContractId @Disclosure.I cid
+addObserversImpl this refUpdate Disclosure.AddObservers{disclosers; observersToAdd} = do
+  let
+    v = view $ toInterface @Disclosure.I this
+    context = fst observersToAdd
+    contextParties = fromOptional S.empty $ M.lookup context v.observers
+    value = contextParties <> snd observersToAdd
+    newObservers = M.insert context value v.observers
+  assertMsg
+    ("controller (" <> show disclosers <> ") must be authorized to SetObservers") $
+    mustIntersect disclosers v.disclosureControllers
+  cid <- toInterfaceContractId @i <$> create this with observers = newObservers
+  F.mapA_ (\f -> f newObservers cid) refUpdate
+  pure $ toInterfaceContractId @Disclosure.I cid
 
 removeObserversImpl :
   forall t i. ( HasCreate t
@@ -73,14 +70,14 @@ removeObserversImpl :
   t -> Optional (PartiesMap -> ContractId i -> Update (ContractId Disclosure.I))
     -> ContractId Disclosure.I
     -> Disclosure.RemoveObservers -> Update (Optional (ContractId Disclosure.I))
-removeObserversImpl this refUpdate self Disclosure.RemoveObservers{disclosers; observersToRemove} =
-  do
+removeObserversImpl this refUpdate self
+  Disclosure.RemoveObservers{disclosers; observersToRemove} = do
     let
       v = view $ toInterface @Disclosure.I this
-      k = fst observersToRemove
+      context = fst observersToRemove
+      contextParties = fromOptional S.empty $ M.lookup context v.observers
     assertMsg "disclosers must be authorized to RemoveObservers when removing other parties" $
-      not (S.null $ disclosers `S.intersection` snd observersToRemove) ||
-      not (S.null $ disclosers `S.intersection` v.disclosureControllers)
+      mustIntersect disclosers (v.disclosureControllers `S.union` contextParties)
     fromOptional None <$>
       T.mapA
         (\viewers -> do
@@ -91,10 +88,14 @@ removeObserversImpl this refUpdate self Disclosure.RemoveObservers{disclosers; o
             archive self
             let
               newObservers = if S.null updatedViewers
-                            then M.delete k v.observers
-                            else M.insert k updatedViewers v.observers
+                             then M.delete context v.observers
+                             else M.insert context updatedViewers v.observers
             cid <- toInterfaceContractId @i <$> create this with observers = newObservers
             F.mapA_ (\f -> f newObservers cid) refUpdate
             pure $ Some (toInterfaceContractId @Disclosure.I cid)
         )
-      (M.lookup k v.observers)
+      (M.lookup context v.observers)
+
+-- | HIDE
+mustIntersect : Ord k => Set k -> Set k -> Bool
+mustIntersect a b = not $ S.null $ a `S.intersection` b
