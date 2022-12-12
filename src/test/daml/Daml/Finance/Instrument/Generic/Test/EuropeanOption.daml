@@ -15,14 +15,14 @@ import DA.Time (time)
 import Daml.Finance.Data.Numeric.Observation (Observation(..))
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..), T)
 import Daml.Finance.Instrument.Generic.Election qualified as Election (Factory(..))
-import Daml.Finance.Instrument.Generic.Election.Workflow (CreateElection(..), ElectionOffer(..))
+import Daml.Finance.Instrument.Generic.Election.Workflow (CreateElection_Propose(..), CreateElection_Validate(..), ElectionOffer(..))
 import Daml.Finance.Instrument.Generic.Lifecycle.Rule qualified as Lifecycle (Rule(..))
 import Daml.Finance.Instrument.Generic.Test.Util (originateGeneric, dateToDateClockTime, mapClaimToUTCTime)
 import Daml.Finance.Interface.Account.Util (getOwner)
 import Daml.Finance.Interface.Claims.Types (C, Observable, Deliverable)
 import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (SplitResult(..), I, Split(..))
 import Daml.Finance.Interface.Holding.Util (getAmount)
-import Daml.Finance.Interface.Instrument.Generic.Election qualified as Election (Apply(..), I)
+import Daml.Finance.Interface.Instrument.Generic.Election qualified as Election (Apply(..))
 import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..), I)
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
@@ -34,6 +34,7 @@ import Daml.Finance.Settlement.RouteProvider.SingleCustodian (SingleCustodian(..
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
+import Daml.Finance.Test.Util.Time (createDateClock)
 import Daml.Script
 import Prelude hiding (or)
 
@@ -144,20 +145,26 @@ run = script do
 
   -- One cannot exercise for more units than they own
   submitMultiMustFail [investor1] [publicParty] do
-    exerciseCmd exerciseElectionFactoryCid CreateElection with
+    exerciseCmd exerciseElectionFactoryCid CreateElection_Propose with
       elector = investor1
       electionTime = dateToDateClockTime maturity
       holdingCid = investor1GenericHoldingCid
       amount = 5000.0
 
   -- Create election
-  exerciseOptionCid <- toInterfaceContractId @Election.I <$> submitMulti [investor1] [publicParty]
+  exerciseOptionProposalCid <- submitMulti [investor1] [publicParty]
     do
-      exerciseCmd exerciseElectionFactoryCid CreateElection with
+      exerciseCmd exerciseElectionFactoryCid CreateElection_Propose with
         elector = investor1
         electionTime = dateToDateClockTime maturity
         holdingCid = investor1GenericHoldingCid
         amount = 500.0
+
+  currentTimeCid <- createDateClock (singleton broker) maturity empty
+
+  exerciseOptionCid <- submit broker do
+    exerciseCmd exerciseOptionProposalCid CreateElection_Validate with
+      currentTimeCid
 
   -- Apply election to generate new instrument version + effects
   lifecycleRuleCid <- toInterfaceContractId <$> submit bank do
@@ -246,13 +253,16 @@ run = script do
   -- 1. ELECTION 2 : EXPIRE THE OPTION --
   -----------------------------------------
 
-  expireOptionCid : ContractId Election.I <- toInterfaceContractId <$>
-    submitMulti [investor2] [publicParty] do
-      exerciseCmd expireElectionFactoryCid CreateElection with
+  expireOptionProposalCid <- submitMulti [investor2] [publicParty] do
+      exerciseCmd expireElectionFactoryCid CreateElection_Propose with
         elector = investor2
         electionTime = dateToDateClockTime maturity
         holdingCid = investor2GenericHoldingCid
         amount = 1000.0
+
+  expireOptionCid <- submit broker do
+    exerciseCmd expireOptionProposalCid CreateElection_Validate with
+      currentTimeCid
 
   (_, [effectCid]) <- submit broker do
     exerciseCmd expireOptionCid Election.Apply with
