@@ -33,6 +33,14 @@ within this repository.
   import Daml.Finance.Interface.Asset.Holding qualified as Holding (view, I, V)
   ```
 
+### Exports
+
+- Only use explicit export lists when not all types or functions in a given module are exported
+- Use the `-- | HIDE` annotation for anything that is not exported
+- Do add comments for types and functions that are not exported
+- If you want an internal function to be tested individually, add it to the export list but
+  annotate it with the `-- | HIDE` comment.
+
 ### Module structure
 
 - Modules use the following newlines:
