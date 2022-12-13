@@ -35,13 +35,14 @@ Dividend
 
 The most common lifecycle event of an equity is probably dividends. This normally means that
 the holder of a stock receives a given amount of cash for each stock held. This is modeled using
-the ``DeclareDividend`` choice. It implements the
-:ref:`Distribution Event interface <module-daml-finance-interface-lifecycle-event-distribution-91943>`,
-which allows you to specify distribution of units of an instrument for each unit of a target
-instrument. In the case of a cash dividend, this would be a cash instrument. However, the
-company can also choose to distribute additional stock or even stock options. Since the
-:ref:`Distribution Event implementation <module-daml-finance-lifecycle-event-distribution-17302>`
-supports an arbitrary instrument, it can be used to model those use cases as well.
+the ``DeclareDividend`` choice. It creates a
+:ref:`Distribution Event <module-daml-finance-lifecycle-event-distribution-17302>`,
+which allows you to specify distribution per share. In the case of a cash dividend, this would be a
+cash instrument. However, the company can also choose to distribute additional stock or even stock
+options. Since the
+:ref:`Distribution Event <module-daml-finance-lifecycle-event-distribution-17302>`
+supports an arbitrary ``perUnitDistribution`` instrument, it can be used to model those use cases as
+well.
 
 In order to process a lifecycle event, you have to create two versions of the instrument:
 one before the event and one after the event. In the case of a dividend event, this means
@@ -61,8 +62,7 @@ and it has the issuer as signatory:
   :start-after: -- CREATE_EQUITY_DISTRIBUTION_RULE_BEGIN
   :end-before: -- CREATE_EQUITY_DISTRIBUTION_RULE_END
 
-We also need a distribution event. It is defined for instruments *cum* dividend and it produces
-(in addition to the dividend payment itself) an instrument *ex* dividend:
+We also need a distribution event, which defines the terms of the dividend:
 
 .. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Equity/Test/Dividend.daml
   :language: daml
@@ -86,8 +86,8 @@ A stock split is when a company increases its number of shares. For example, a 2
 means that a shareholder will have two shares after the split for every share held before the split.
 This is modeled using the ``DeclareStockSplit`` choice, which has an ``adjustmentFactor`` argument.
 
-The ``DeclareStockSplit`` choice implements the
-:ref:`Replacement Event interface <module-daml-finance-interface-lifecycle-event-replacement-2440>`,
+The ``DeclareStockSplit`` choice creates a
+:ref:`Replacement Event <module-daml-finance-lifecycle-event-replacement-51859>`,
 which allows you to replace units of an instrument with another instrument (or a basket of other
 instruments). Consequently, this interface can also be used for other types of corporate actions
 (for example, see the *merger* scenario below).
@@ -128,7 +128,7 @@ Merger
 
 The merger scenario models the case when one company acquires another company and pays for it using
 its own shares. This is modeled using the ``DeclareReplacement`` choice, which also uses the
-:ref:`Replacement Event interface <module-daml-finance-interface-lifecycle-event-replacement-2440>`
+:ref:`Replacement Event <module-daml-finance-lifecycle-event-replacement-51859>`
 (like the *stock split* scenario above).
 
 We start by defining the instrument before and after the merger. Shares of company ABC are being
