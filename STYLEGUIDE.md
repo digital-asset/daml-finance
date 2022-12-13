@@ -21,16 +21,25 @@ within this repository.
   import Daml.Script
   ```
 
+- Use qualified imports for interface modules:
+
+  ```haskell
+  import Daml.Finance.Interface.Asset.Holding qualified as Holding (view, I, V)
+  ```
+
 - Use explicit imports and order them alphabetically:
+
+  In case of no name clashes, use unqualified imports:
 
   ```haskell
   import DA.Set (empty, fromList, singleton)
   ```
 
-- Use qualified imports for interface modules:
+  and otherwise qualified imports:
 
   ```haskell
-  import Daml.Finance.Interface.Asset.Holding qualified as Holding (view, I, V)
+  import DA.Map qualified as M (fromList)
+  import DA.Set qualified as S (fromList, null)
   ```
 
 ### Exports

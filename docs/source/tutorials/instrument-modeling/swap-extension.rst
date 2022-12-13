@@ -111,7 +111,7 @@ quantity of the holding refers to the notional of the base currency. The notiona
 currency is defined as the quantity of the holding multiplied by the specified *fxRate*.
 
 Note that this template is limited to fixed rates. It also does not support exchange of notionals.
-If you need floating rates or exchange of notionals, please use the the
+If you need floating rates or exchange of notionals, please use the
 :ref:`FpML swap template <fpml-swaps-tutorial-section>` below. It supports both of those features.
 
 Here is how we create the currency swap instrument, using the two currencies defined above:
