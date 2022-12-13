@@ -4,12 +4,14 @@
 module Daml.Finance.Instrument.Equity.Instrument where
 
 import DA.Set (fromList, singleton)
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, View(..), disclosureUpdateReference, qty)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, View(..), disclosureUpdateReference)
 import Daml.Finance.Interface.Instrument.Equity.Instrument qualified as Equity (DeclareDividend(..), DeclareReplacement(..), DeclareStockSplit(..), HasImplementation, I, View(..))
 import Daml.Finance.Interface.Types.Common.Types (Id, InstrumentKey(..), PartiesMap)
-import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
+import Daml.Finance.Interface.Util.Common (qty)
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
 import Daml.Finance.Lifecycle.Event.Distribution qualified as Distribution (Event(..))
 import Daml.Finance.Lifecycle.Event.Replacement qualified as Replacement (Event(..))
+import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
 
 -- | Type synonym for `Instrument`.
 type T = Instrument
@@ -38,16 +40,16 @@ template Instrument
     signatory depository, issuer
     observer Disclosure.flattenObservers observers
 
-    let instrumentKey = InstrumentKey with depository; issuer; id; version
+    let instrument = InstrumentKey with depository; issuer; id; version
 
     interface instance BaseInstrument.I for Instrument where
       asDisclosure = toInterface @Disclosure.I this
       view = BaseInstrument.View with issuer; depository; id; version; description; validAsOf
-      getKey = instrumentKey
+      getKey = instrument
 
     interface instance Equity.I for Instrument where
       asBaseInstrument = toInterface @BaseInstrument.I this
-      view = Equity.View with instrument = instrumentKey
+      view = Equity.View with instrument
       declareDividend
         Equity.DeclareDividend{id; description; effectiveTime; newInstrument; perUnitDistribution} =
           toInterfaceContractId <$>
@@ -56,7 +58,7 @@ template Instrument
               id
               description
               effectiveTime
-              targetInstrument = instrumentKey
+              targetInstrument = instrument
               newInstrument
               perUnitDistribution
               observers = Disclosure.flattenObservers observers
@@ -69,8 +71,8 @@ template Instrument
               id
               description
               effectiveTime
-              targetInstrument = instrumentKey
-              perUnitReplacement = [BaseInstrument.qty (1.0 / adjustmentFactor) newInstrument]
+              targetInstrument = instrument
+              perUnitReplacement = [qty (1.0 / adjustmentFactor) newInstrument]
               observers = Disclosure.flattenObservers observers
       declareReplacement
         Equity.DeclareReplacement{id; description; effectiveTime; perUnitReplacement} =
@@ -80,13 +82,15 @@ template Instrument
               id
               description
               effectiveTime
-              targetInstrument = instrumentKey
+              targetInstrument = instrument
               perUnitReplacement
               observers = Disclosure.flattenObservers observers
 
     interface instance Disclosure.I for Instrument where
       view = Disclosure.View with disclosureControllers = singleton issuer; observers
-      setObservers Disclosure.SetObservers{newObservers} =
-        toInterfaceContractId <$> create this with observers = newObservers
-          >>= BaseInstrument.disclosureUpdateReference newObservers instrumentKey
-      archive' = archive . fromInterfaceContractId @Instrument
+      setObservers = setObserversImpl this $
+        Some (BaseInstrument.disclosureUpdateReference instrument)
+      addObservers = addObserversImpl this $
+        Some (BaseInstrument.disclosureUpdateReference instrument)
+      removeObservers = removeObserversImpl this $
+        Some (BaseInstrument.disclosureUpdateReference instrument)

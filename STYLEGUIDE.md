@@ -21,17 +21,34 @@ within this repository.
   import Daml.Script
   ```
 
-- Use explicit imports and order them alphabetically:
-
-  ```haskell
-  import DA.Set (empty, fromList, singleton)
-  ```
-
 - Use qualified imports for interface modules:
 
   ```haskell
   import Daml.Finance.Interface.Asset.Holding qualified as Holding (view, I, V)
   ```
+
+- Use explicit imports and order them alphabetically:
+
+  In case of no name clashes, use unqualified imports:
+
+  ```haskell
+  import DA.Set (empty, fromList, singleton)
+  ```
+
+  and otherwise qualified imports:
+
+  ```haskell
+  import DA.Map qualified as M (fromList)
+  import DA.Set qualified as S (fromList, null)
+  ```
+
+### Exports
+
+- Only use explicit export lists when not all types or functions in a given module are exported
+- Use the `-- | HIDE` annotation for anything that is not exported
+- Do add comments for types and functions that are not exported
+- If you want an internal function to be tested individually, add it to the export list but
+  annotate it with the `-- | HIDE` comment.
 
 ### Module structure
 

@@ -3,9 +3,7 @@
 
 module Daml.Finance.Interface.Util.Disclosure where
 
-import DA.Map qualified as M (delete, insert, lookup, values)
-import DA.Optional (fromOptional)
-import DA.Set qualified as S (difference, empty, intersection, isSubsetOf, null)
+import DA.Map qualified as M (values)
 import Daml.Finance.Interface.Types.Common.Types (PartiesMap, Parties)
 import Prelude hiding (null)
 
@@ -30,8 +28,11 @@ interface Disclosure where
 
   setObservers : SetObservers -> Update (ContractId Disclosure)
     -- ^ Implementation of the `SetObservers` choice.
-  archive' : ContractId Disclosure -> Update ()
-    -- ^ Implemetation of archiving the contract.
+  addObservers : AddObservers -> Update (ContractId Disclosure)
+    -- ^ Implementation of the `AddObservers` choice.
+  removeObservers : ContractId Disclosure -> RemoveObservers -> Update (Optional (
+    ContractId Disclosure))
+    -- ^ Implementation of the `RemoveObservers` choice.
 
   nonconsuming choice GetView : View
     -- ^ Retrieves the interface view.
@@ -51,8 +52,6 @@ interface Disclosure where
         -- ^ Observers to set for this contract. This overrides the existing observers.
     controller disclosers
     do
-      assertMsg "controller must be authorized to SetObservers" $
-        disclosers `S.isSubsetOf` (view this).disclosureControllers
       setObservers this arg
 
   choice AddObservers : ContractId Disclosure
@@ -64,19 +63,12 @@ interface Disclosure where
         -- ^ Observer context to add to a contract.
     controller disclosers
     do
-      assertMsg "controller must be authorized to AddObservers" $
-        disclosers `S.isSubsetOf` (view this).disclosureControllers
-      let
-        key = fst observersToAdd
-        curObservers = (view this).observers
-        curParties = fromOptional S.empty $ M.lookup key curObservers
-        value = curParties <> snd observersToAdd
-        newObservers = M.insert key value curObservers
-      setObservers this (SetObservers with disclosers; newObservers)
+      addObservers this arg
 
   nonconsuming choice RemoveObservers : Optional (ContractId Disclosure)
     -- ^ Remove observers from a context.
-    -- Any party can undisclose itself. None is returned if no update is needed.
+    -- None is returned if no update is needed. Parties for a context can be removed if any
+    -- of the disclosers are part of the observers to be removed or the disclosureControllers.
     with
       disclosers : Parties
         -- ^ Parties calling this choice.
@@ -84,25 +76,7 @@ interface Disclosure where
         -- ^ Observer context to remove.
     controller disclosers
     do
-      assertMsg "controller must be authorized to RemoveObservers when removing other parties" $
-        not (S.null $ disclosers `S.intersection` snd observersToRemove) ||
-        disclosers `S.isSubsetOf` (view this).disclosureControllers
-      let
-        key = fst observersToRemove
-        curObservers = (view this).observers
-      case M.lookup key curObservers of
-        Some observers -> do
-          let updatedObservers = observers `S.difference` snd observersToRemove
-          if updatedObservers == observers then
-            pure None
-          else do
-            let
-              newObservers = if S.null updatedObservers
-                then M.delete key curObservers
-                else M.insert key updatedObservers curObservers
-            archive' this $ toInterfaceContractId @I self
-            Some <$> setObservers this SetObservers with disclosers; newObservers
-        None -> pure None
+      removeObservers this self arg
 
 -- | Type constraint for requiring templates to implement `Disclosure`.
 type Implementation t = HasToInterface t I
