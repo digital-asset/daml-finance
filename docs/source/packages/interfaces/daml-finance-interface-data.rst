@@ -4,11 +4,8 @@
 Daml.Finance.Interface.Data
 ###########################
 
-This package contains the *interface* for inspecting observables, which are used in the context
-of lifecycling. It contains the following modules:
+This package contains the *interface* for inspecting and working with observables, which are used
+in the context of lifecycling. It contains the following modules:
 
-- :ref:`NumericObservable <module-daml-finance-interface-data-numericobservable-76523>`:
-  Interface to inspect time-dependent numerical values (e.g. a stock price or an interest rate
-  fixing)
-- :ref:`TimeObservable <module-daml-finance-interface-data-timeobservable-98854>`:
-  Interface implemented by templates exposing time information
+- :ref:`Reference.Time <module-daml-finance-interface-data-reference-time-54882>`:
+  Interface for contracts that control business time, providing choices to advance or rewind time
