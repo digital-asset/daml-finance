@@ -169,11 +169,6 @@ properties of a lifecycle event:
 
 Different implementations exist to cover typical event types:
 
-- The :ref:`DateClock Update
-  <type-daml-finance-lifecycle-event-dateclockupdate-dateclockupdateevent-18229>` event represents
-  passing of (market) time and can be used to trigger contractual, time-based cashflows, like
-  interest payments on a bond. It is, for example, used to drive the evolution and lifecycling of
-  :doc:`Contingent Claims <contingent-claims>`-based instruments.
 - The :ref:`Distribution <type-daml-finance-lifecycle-event-distribution-event-46459>` event can be
   used to distribute assets to holders of an instrument. This covers cash-, share-, and mixed
   dividends, rights issues, or the distribution of voting rights.
