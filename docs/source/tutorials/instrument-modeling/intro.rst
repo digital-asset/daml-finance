@@ -8,6 +8,7 @@ Instrument Modeling
    :hidden:
 
    bond-extension
+   equity-extension
    swap-extension
    generic-extension
    intermediated-lifecycling
@@ -21,6 +22,8 @@ The following tutorials are available:
 
 * The :doc:`Bond Extension <bond-extension>` tutorial introduces the different types of bonds
   supported in Daml Finance out of the box.
+* The :doc:`Equity Extension <equity-extension>` tutorial describes how to model the equity related
+  lifecycle events like dividends, stock splits and mergers.
 * The :doc:`Swap Extension <swap-extension>` tutorial describes how to use the different types of
   swaps in Daml Finance.
 * The :doc:`Generic Extension <generic-extension>` tutorial shows you how to define your own generic
