@@ -93,7 +93,7 @@ Bonus issue
 
 Instead of a cash dividend, a company may also decide to offer free shares (or warrants) instead of
 cash to current shareholders. This is called *bonus issue* and it is modeled in a similar way
-to the *dividend* above. The main difference is the distribution event, which now contains a
+to the *dividend* above. The main difference is in the distribution event, which now distributes a
 different instrument (equity instead of cash):
 
 .. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Equity/Test/Dividend.daml
