@@ -204,9 +204,9 @@ additional settlement modes:
   case, we allow the holding received from the first instruction to be passed through to settle the
   second instruction, i.e., without using any pre-existing holding of the intermediary. For this to
   work, the first instruction is approved with
-  :ref:`PassThroughTo <constr-daml-finance-interface-settlement-types-passthroughto-35428>` (i.e.,
+  :ref:`PassThroughTo <constr-daml-finance-interface-settlement-types-passthroughto-68260>` (i.e.,
   pass through to the second instruction), and the second instruction is allocated with
-  :ref:`PassThroughFrom <constr-daml-finance-interface-settlement-types-passthroughfrom-55637>`
+  :ref:`PassThroughFrom <constr-daml-finance-interface-settlement-types-passthroughfrom-69426>`
   (i.e., pass through from the first instruction). An intermediary account used for the passthrough
   is thereby also to be specified.
 
