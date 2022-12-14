@@ -71,7 +71,7 @@ and it has the issuer as signatory:
   :end-before: -- CREATE_EQUITY_DISTRIBUTION_RULE_END
 
 We also need a distribution event, which defines the terms of the dividend. In this case, it is
-2 USD cash per share (this also works for a fractional amount of shares):
+USD 2 cash per share (this also works for a fractional amount of shares):
 
 .. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Equity/Test/Dividend.daml
   :language: daml
