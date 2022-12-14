@@ -13,6 +13,14 @@ modules:
 - :ref:`Event <module-daml-finance-interface-lifecycle-event-43586>`:
   Interface for a lifecycle event. An event is any contract that triggers the processing of a
   lifecycle rule. Events can be, e.g., dividend announcements or simply the passing of time.
+- :ref:`Event.Distribution <module-daml-finance-interface-lifecycle-event-distribution-91943>`:
+  Event interface for the distribution of units of an instrument for each unit of a target
+  instrument (e\.g\. share or cash dividends)
+- :ref:`Event.Replacement <module-daml-finance-interface-lifecycle-event-replacement-2440>`:
+  Event interface for the replacement of units of an instrument with a basket of other
+  instruments (e\.g\. stock merger)
+- :ref:`Event.Time <module-daml-finance-interface-lifecycle-event-time-4252>`:
+  Event interface for events that signal the passing of (business) time
 - :ref:`Rule.Lifecycle <module-daml-finance-interface-lifecycle-rule-lifecycle-50431>`:
   Interface implemented by rules that lifecycle and evolve instruments
 - :ref:`Rule.Claim <module-daml-finance-interface-lifecycle-rule-claim-6739>`:
