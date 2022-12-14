@@ -88,6 +88,23 @@ This allows the issuer to lifecycle the instrument by exercising the ``Evolve`` 
 This results in a lifecycle effect, which can be settled. The settlement of effects is covered
 in the :doc:`Lifecycling tutorial <../getting-started/lifecycling>`.
 
+Bonus issue
+***********
+
+Instead of a cash dividend, a company may also decide to offer free shares (or warrants) instead of
+cash to current shareholders. This is called *bonus issue* and it is modeled in a similar way
+to the *dividend* above. The main difference is in the distribution event, which now distributes a
+different instrument (equity instead of cash):
+
+.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Equity/Test/Dividend.daml
+  :language: daml
+  :start-after: -- CREATE_EQUITY_BONUS_ISSUE_DISTRIBUTION_EVENT_BEGIN
+  :end-before: -- CREATE_EQUITY_BONUS_ISSUE_DISTRIBUTION_EVENT_END
+
+Similarly, if there is a bonus issue that awards warrants instead of equity, that can be modeled in
+the same way. Just replace the equity instrument by a warrant instrument on the
+``perUnitDistribution`` line above.
+
 Stock split
 ***********
 
