@@ -63,22 +63,22 @@ acquireImpl :
   , HasField "lock" t (Optional Base.Lock)
   , HasFromInterface t Base.I, HasToInterface t Base.I
   ) => t -> Base.Acquire -> Update (ContractId Base.I)
-acquireImpl base Base.Acquire{newLockers; context; lockType} = do
-  let v = view $ toInterface @Base.I base
+acquireImpl holding Base.Acquire{newLockers; context; lockType} = do
+  let v = view $ toInterface @Base.I holding
   whenSome v.lock \lock -> do
     lock.lockers === newLockers
     lock.lockType === lockType
     assertMsg "Contract must be locked." $ lock.lockType == Base.Reentrant
     assertMsg "Contract must not be locked for this context." $ S.notMember context lock.context
-  newLock <- case (base.lock, lockType) of
+  newLock <- case (holding.lock, lockType) of
     (Some existingLock, Base.Reentrant) -> pure existingLock with
       context = context `S.insert` existingLock.context
     (None, _) -> pure Base.Lock with lockers = newLockers; context = S.singleton context; lockType
     _ -> abort "Contract is already locked."
-  let newBase = base with lock = Some newLock
-  newBaseCid <- toInterfaceContractId <$> create newBase
-  S.fromList (signatory newBase) `S.intersection` newLockers === newLockers
-  pure newBaseCid
+  let newHolding = holding with lock = Some newLock
+  newHoldingCid <- toInterfaceContractId <$> create newHolding
+  S.fromList (signatory newHolding) `S.intersection` newLockers === newLockers
+  pure newHoldingCid
 
 -- | Default implementation of release from the Base interface.
 releaseImpl :
@@ -87,12 +87,12 @@ releaseImpl :
   , HasFromInterface t Base.I
   , HasToInterface t Base.I
   ) => t -> Base.Release -> Update (ContractId Base.I)
-releaseImpl base Base.Release{context} = do
+releaseImpl holding Base.Release{context} = do
   let
     f currentLock = do
       let newContext = context `S.delete` currentLock.context
       case (currentLock.lockType, S.null newContext) of
         (Base.Reentrant, False) -> Some currentLock with context = newContext
         _ -> None
-    releasedLock = base.lock >>= f
-  toInterfaceContractId <$> create base with lock = releasedLock
+    releasedLock = holding.lock >>= f
+  toInterfaceContractId <$> create holding with lock = releasedLock
