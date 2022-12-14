@@ -26,7 +26,7 @@ import Daml.Finance.Test.Util.Instrument (originate)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (submitExerciseInterfaceByKeyCmd)
 import Daml.Script
 
--- Cash dividend lifecycling and settlement
+-- Cash dividend (and bonus issue) lifecycling and settlement
 run : Script ()
 run = script do
   -- Create parties
@@ -147,42 +147,10 @@ run = script do
   Holding.verifyOwnerAndAmountOfHolding [(investor, 1000.25, investorEquityHoldingCid),
     (investor, 2000.50, investorCashHoldingCid)]
 
-  pure ()
-
--- Bonus issue (additional shares): lifecycling and settlement
-run_bonus_issue_shares : Script ()
-run_bonus_issue_shares = script do
-  -- Create parties
-  [cb, issuer, custodian, investor, publicParty] <-
-    createParties ["CentralBank", "Issuer", "Custodian", "Investor", "PublicParty"]
-
-  -- Create holding and account factory
-  let pp = [("PublicParty", singleton publicParty)]
-  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory issuer pp
-  holdingFactoryCid <- toInterfaceContractId <$> submit issuer do
-    createCmd Fungible.Factory with provider = issuer; observers = M.fromList pp
-
-  -- Create accounts
-  investorAccount <-
-    Account.createAccount "Account" [publicParty] accountFactoryCid holdingFactoryCid []
-    Account.Owner custodian investor
-
-  -- Originate instruments
-  now <- getTime
-  cumEquityInstrument <- originateEquity issuer issuer "EQUITY-INST-1" "0" "APPL" pp now
-  exEquityInstrument <- originateEquity issuer issuer "EQUITY-INST-1" "1" "APPL" [] now
+  -- Test bonus issue (works in a similar way to the dividend above)
 
   -- Distribute holdings: fractional holdings are also supported.
   investorEquityCid <- Account.credit [publicParty] cumEquityInstrument 1000.25 investorAccount
-
-  -- Create distribution rule
-  distributionRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit issuer do
-    createCmd Distribution.Rule with
-      providers = singleton issuer
-      lifecycler = issuer
-      observers = singleton publicParty
-      id = Id "LifecycleRule"
-      description = "Rule to lifecycle an instrument following a distribution event"
 
   -- CREATE_EQUITY_BONUS_ISSUE_DISTRIBUTION_EVENT_BEGIN
   -- Create bonus issue event: receive 2 additional shares for each share currently held
@@ -197,7 +165,7 @@ run_bonus_issue_shares = script do
         perUnitDistribution = [qty 2.0 exEquityInstrument]
   -- CREATE_EQUITY_BONUS_ISSUE_DISTRIBUTION_EVENT_END
 
-  -- Lifecycle bonus issue
+    -- Lifecycle bonus issue
   (_, [effectCid]) <- submit issuer do
     exerciseCmd distributionRuleCid Lifecycle.Evolve with
       observableCids = []
@@ -205,11 +173,6 @@ run_bonus_issue_shares = script do
       instrument = cumEquityInstrument
 
   -- Claim effect (enable netting so that there is only one holding with the new correct quantity)
-  routeProviderCid <- toInterfaceContractId <$> submit custodian do
-    createCmd SingleCustodian with
-      provider = custodian; observers = singleton publicParty; custodian
-  settlementFactoryCid <- toInterfaceContractId <$> submit custodian do
-    createCmd Factory with provider = custodian; observers = singleton publicParty
   claimRuleCid <- toInterfaceContractId @Claim.I <$> submit custodian do
     createCmd Claim.Rule with
       providers = singleton custodian
