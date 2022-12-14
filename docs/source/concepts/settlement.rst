@@ -156,14 +156,19 @@ used to settle a single holding transfer at a specific custodian, once it is ``a
 
 In the :ref:`Allocation <type-daml-finance-interface-settlement-types-allocation-46483>` step, the
 sender acknowledges the transfer and determines how to send the holding. This is usually done by
-pledging one of the sender's existing holdings (which has the correct instrument and amount)
-at the custodian . When the sender is also the custodian, the instruction can be allocated with
-``CreditReceiver``. In this case, a new holding is directly credited into the receiver's account.
+allocating with a :ref:`Pledge <constr-daml-finance-interface-settlement-types-pledge-99803>`
+of the sender's existing holding (which has the correct instrument quantity) at the custodian. When
+the sender is also the custodian, the instruction can be allocated with
+:ref:`CreditReceiver <constr-daml-finance-interface-settlement-types-creditreceiver-50700>`. In this
+case, a new holding is directly credited into the receiver's account.
 
 In the :ref:`Approval <type-daml-finance-interface-settlement-types-approval-84286>` step, the
 receiver acknowledges the transfer and determines how to receive the holding. This is usually done
-by taking delivery to one of the receiver's accounts at the custodian. When the receiver is also the
-incoming holding's custodian, the instruction can be approved with ``DebitSender``. In this case,
+by approving with
+:ref:`TakeDelivery <constr-daml-finance-interface-settlement-types-takedelivery-14079>` to one of
+the receiver's accounts at the custodian. When the receiver is also the incoming holding's
+custodian, the instruction can be approved with
+:ref:`DebitSender <constr-daml-finance-interface-settlement-types-debitsender-39086>`. In this case,
 the holding is directly debited from the sender's account. A holding owned by the custodian at the
 custodian has no economical value, it is a liability against themselves and can therefore be
 archived without consequence.
@@ -187,10 +192,23 @@ be allocated / approved.
 Finally, the :ref:`Instruction <module-daml-finance-settlement-instruction-87187>` supports two
 additional settlement modes:
 
-- :ref:`SettleOffLedger <constr-daml-finance-interface-settlement-types-settleoffledger-89308>`
-  for off-ledger settlement
-- :ref:`PassthroughFrom <constr-daml-finance-interface-settlement-types-passthroughfrom-55637>`
-  to allocate a holding that will be received by executing another instruction in the same batch
+- Any instruction can settle off-ledger (if the stakeholders agree to do so). For this to work, we
+  require the custodian and the sender to jointly allocate the instruction with a
+  :ref:`SettleOffledger <constr-daml-finance-interface-settlement-types-settleoffledger-15836>`,
+  and the custodian and the receiver to jointly approve the instruction with a
+  :ref:`SettleOffledgerAcknowledge
+  <constr-daml-finance-interface-settlement-types-settleoffledgeracknowledge-98269>`.
+- A special case occurs when a transfer happens via an intermediary at the same custodian, i.e., we
+  have 2 instructions having the same custodian and instrument quantity (in a batch), and the
+  receiver of the first instruction is the same as the sender of the second instruction. In this
+  case, we allow the holding received from the first instruction to be passed through to settle the
+  second instruction, i.e., without using any pre-existing holding of the intermediary. For this to
+  work, the first instruction is approved with
+  :ref:`PassThroughTo <constr-daml-finance-interface-settlement-types-passthroughto-68260>` (i.e.,
+  pass through to the second instruction), and the second instruction is allocated with
+  :ref:`PassThroughFrom <constr-daml-finance-interface-settlement-types-passthroughfrom-69429>`
+  (i.e., pass through from the first instruction). An intermediary account used for the passthrough
+  is thereby also to be specified.
 
 Batch
 =====
