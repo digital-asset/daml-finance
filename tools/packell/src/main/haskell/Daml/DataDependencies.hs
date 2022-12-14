@@ -16,7 +16,8 @@ import Control.Monad (when)
 import qualified Daml.Import as Import (getPackageModules)
 import Daml.Source (Source(..), getSource)
 import qualified Daml.Package as Daml (Package(..), damlConfig,  packageConfig)
-import qualified Daml.Version as Version (update)
+import Daml.Types (UpdatedConfig(..))
+import qualified Daml.Version as Version (increment, updateVersion)
 import qualified Daml.Yaml as Daml (Config(..), damlConfigFile, source, version, writeDamlConfig)
 import Data.Foldable (foldlM)
 import Data.Functor ((<&>))
@@ -32,18 +33,12 @@ import System.FilePattern.Directory (getDirectoryFiles, FilePattern)
 -- | The dar file extension.
 darExtension :: String = ".dar"
 
--- | Details a daml config to update alongside the related package information.
-data UpdatePackage = UpdatePackage {
-    package :: Daml.Package
-  , updatedConfig :: Daml.Config
-} deriving (Eq, Show)
-
 -- | Updates data-dependencies of a list of packages matches the usage in their sources.
 update :: FilePath -> Package.Config -> [Daml.Package] -> IO ()
 update root config localPackages =
   let
     getDamlPath package = root </> (Package.path . Daml.packageConfig) package </> Daml.damlConfigFile
-    writeUpdate (UpdatePackage package updateConfig) = do
+    writeUpdate (UpdatedConfig package updateConfig) = do
       cyanMessage . T.pack $ "Updating package '" <> (Package.getLocalName . Daml.packageConfig $ package) <> "'"
       flip Daml.writeDamlConfig updateConfig $ getDamlPath package
     writeSuccessMessage = successMessage . T.pack $ "Packages successfully updated!"
@@ -59,7 +54,7 @@ dryRun root config localPackages = do
     [] -> greenMessage . T.pack $ "All packages are up-to-date!"
     xs -> mapM_ printUpdate xs
   where
-    printUpdate (UpdatePackage package updateConfig) = do
+    printUpdate (UpdatedConfig package updateConfig) = do
       let
         version = Daml.version . Daml.damlConfig $ package
         newVersion = Daml.version updateConfig
@@ -88,7 +83,7 @@ validate root config localPackages =
         f acc p = if acc == "" then getPackageName p else acc <> ", " <> getPackageName p
 
 -- | Process data dependencies for all provided packages.
-processDataDependencies :: FilePath -> Package.Config -> [Daml.Package] -> IO [UpdatePackage]
+processDataDependencies :: FilePath -> Package.Config -> [Daml.Package] -> IO [UpdatedConfig]
 processDataDependencies root config allPackages =
   reverse . snd <$> foldlM (processDataDependency root config) (allPackages, []) allPackages
 
@@ -97,7 +92,7 @@ processDataDependencies root config allPackages =
 -- replace the original package from the list of overall packages with the updated package.
 -- Note - To not depend on build order, iterate through the package list twice (either calling
 --  processDataDependency' or searching through the data-dependencies of each package for the updated dependency)
-processDataDependency :: FilePath -> Package.Config -> ([Daml.Package], [UpdatePackage]) -> Daml.Package -> IO ([Daml.Package], [UpdatePackage])
+processDataDependency :: FilePath -> Package.Config -> ([Daml.Package], [UpdatedConfig]) -> Daml.Package -> IO ([Daml.Package], [UpdatedConfig])
 processDataDependency root config acc@(allPackages, updatedPackages) package =
   processDataDependency' root config allPackages package >>= \case
     Nothing             -> pure acc
@@ -109,13 +104,13 @@ processDataDependency root config acc@(allPackages, updatedPackages) package =
       Just updatedPackage -> pure (replacePackage updatedPackage, updatedPackage : updatedPackages)
 
 -- | Processes an individual package's data dependencies.
-processDataDependency' :: FilePath -> Package.Config -> [Daml.Package] -> Daml.Package -> IO (Maybe UpdatePackage)
+processDataDependency' :: FilePath -> Package.Config -> [Daml.Package] -> Daml.Package -> IO (Maybe UpdatedConfig)
 processDataDependency' root config allPackages package =
   let
     newDataDependencies damlModules = generateDataDependencies config allPackages package damlModules
     currentDamlConfig = Daml.damlConfig package
     currentDataDependenciesMaybe = Daml.dataDependencies currentDamlConfig
-    justUpdatePackage xs = Just . UpdatePackage package $ updateDamlDataDependencies currentDamlConfig xs
+    justUpdatePackage xs = Just . UpdatedConfig package $ updateDamlDataDependencies currentDamlConfig xs
   in
     Import.getPackageModules root package >>= \damlModules ->
       pure $ case (currentDataDependenciesMaybe, newDataDependencies damlModules) of
@@ -126,16 +121,16 @@ processDataDependency' root config allPackages package =
           | otherwise -> justUpdatePackage xs
 
 -- | Updates a package version, if required.
-validateVersion :: UpdatePackage -> IO (Maybe UpdatePackage)
-validateVersion updatedPackage@UpdatePackage{package, updatedConfig} =
+validateVersion :: UpdatedConfig -> IO (Maybe UpdatedConfig)
+validateVersion UpdatedConfig{package, updatedConfig} =
   let
     version = Daml.version updatedConfig
     packageConfig = Daml.packageConfig package
     incrementVersion = Package.incrementVersion packageConfig
     name = Package.getLocalName packageConfig
   in
-    Version.update name version incrementVersion >>= \case
-      Just version -> pure . Just . UpdatePackage package $ updateDamlVersion updatedConfig version
+    Version.increment name version incrementVersion >>= \case
+      Just version -> pure . Just . UpdatedConfig package $ Version.updateVersion updatedConfig version
       _ -> pure Nothing
 
 -- | Creates the data dependencies for a package based of the sourced daml modules.
@@ -177,7 +172,3 @@ generateDarName name version = name <> "-" <> version <> darExtension
 updateDamlDataDependencies :: Daml.Config -> [FilePath] -> Daml.Config
 updateDamlDataDependencies config [] = config { Daml.dataDependencies = Nothing }
 updateDamlDataDependencies config xs = config { Daml.dataDependencies = Just xs }
-
--- | Update the version of a daml config file.
-updateDamlVersion :: Daml.Config -> String -> Daml.Config
-updateDamlVersion config version = config { Daml.version = version }
