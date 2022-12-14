@@ -16,6 +16,10 @@ This package implements templates containing reference data. It includes the fol
 - :ref:`Time.DateClock <module-daml-finance-data-time-dateclock-65212>`:
   A contract specifying what is the current local date. It is used to inject date information in
   lifecycle processing rules
+- :ref:`Time.DateClockUpdate <module-daml-finance-data-time-dateclockupdate-48859>`:
+  A contract representing passing of (market) time that can be used to trigger contractual,
+  time-based cashflows, like interest payments on a bond. It is, for example, used to drive the
+  evolution and lifecycling of :doc:`Contingent Claims <../../concepts/contingent-claims>`-based instruments.
 - :ref:`Time.LedgerTime <module-daml-finance-data-time-ledgertime-84639>`:
   A time observable which uses ledger time
 

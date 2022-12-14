@@ -21,7 +21,7 @@ import Daml.Finance.Settlement.Factory (Factory(..))
 import Daml.Finance.Settlement.RouteProvider.SingleCustodian (SingleCustodian(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
-import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
+import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerAndAmountOfHolding)
 import Daml.Finance.Test.Util.Instrument (originate)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (submitExerciseInterfaceByKeyCmd)
 import Daml.Script
@@ -47,13 +47,18 @@ run = script do
   -- Originate instruments
   now <- getTime
   cashInstrument <- originate cb cb "USD" "United States Dollar" pp now
+  -- CREATE_EQUITY_INSTRUMENTS_BEGIN
   cumEquityInstrument <- originateEquity issuer issuer "EQUITY-INST-1" "0" "APPL" pp now
   exEquityInstrument <- originateEquity issuer issuer "EQUITY-INST-1" "1" "APPL" [] now
+  -- CREATE_EQUITY_INSTRUMENTS_END
 
-  -- Distribute holdings
-  investorEquityCid <- Account.credit [publicParty] cumEquityInstrument 1_000.0 investorAccount
+  -- CREATE_EQUITY_HOLDING_BEGIN
+  -- Distribute holdings: fractional holdings are also supported.
+  investorEquityCid <- Account.credit [publicParty] cumEquityInstrument 1000.25 investorAccount
+  -- CREATE_EQUITY_HOLDING_END
 
-  -- Create cash dividend event
+  -- CREATE_EQUITY_DISTRIBUTION_RULE_BEGIN
+  -- Create cash dividend rule
   distributionRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit issuer do
     createCmd Distribution.Rule with
       providers = singleton issuer
@@ -61,7 +66,10 @@ run = script do
       observers = singleton publicParty
       id = Id "LifecycleRule"
       description = "Rule to lifecycle an instrument following a distribution event"
+  -- CREATE_EQUITY_DISTRIBUTION_RULE_END
 
+  -- CREATE_EQUITY_DISTRIBUTION_EVENT_BEGIN
+  -- Create cash dividend event: USD 2 per share (this also works with fractional shares)
   distributionEventCid <-
     Instrument.submitExerciseInterfaceByKeyCmd @Equity.I [issuer] [] cumEquityInstrument
       Equity.DeclareDividend with
@@ -70,13 +78,16 @@ run = script do
         effectiveTime = now
         newInstrument = exEquityInstrument
         perUnitDistribution = [qty 2.0 cashInstrument]
+  -- CREATE_EQUITY_DISTRIBUTION_EVENT_END
 
+  -- LIFECYCLE_CASH_DIVIDEND_BEGIN
   -- Lifecycle cash dividend
   (_, [effectCid]) <- submit issuer do
     exerciseCmd distributionRuleCid Lifecycle.Evolve with
       observableCids = []
       eventCid = distributionEventCid
       instrument = cumEquityInstrument
+  -- LIFECYCLE_CASH_DIVIDEND_END
 
   -- Claim effect
   routeProviderCid <- toInterfaceContractId <$> submit custodian do
@@ -133,7 +144,7 @@ run = script do
     exerciseCmd result.batchCid Batch.Settle with actors = singleton custodian
 
   -- Assert state
-  Holding.verifyOwnerOfHolding [(investor, investorEquityHoldingCid),
-    (investor, coerceInterfaceContractId investorCashHoldingCid)]
+  Holding.verifyOwnerAndAmountOfHolding [(investor, 1000.25, investorEquityHoldingCid),
+    (investor, 2000.50, investorCashHoldingCid)]
 
   pure ()

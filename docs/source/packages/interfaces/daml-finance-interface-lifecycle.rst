@@ -7,18 +7,22 @@ Daml.Finance.Interface.Lifecycle
 This package contains the *interface* for lifecycle related processes. It contains the following
 modules:
 
-- :ref:`Event <module-daml-finance-interface-lifecycle-event-43586>`:
-  Interface for a lifecycle event. An event is any contract that triggers the processing of a
-  lifecycle rule. Events can be, e.g., dividend announcements or simply the passing of time.
 - :ref:`Effect <module-daml-finance-interface-lifecycle-effect-16050>`:
   Interface for contracts exposing effects of lifecycling processes, e.g., the payment resulting
   from a bond coupon
+- :ref:`Event <module-daml-finance-interface-lifecycle-event-43586>`:
+  Interface for a lifecycle event. An event is any contract that triggers the processing of a
+  lifecycle rule. Events can be, e.g., dividend announcements or simply the passing of time.
+- :ref:`Rule.Lifecycle <module-daml-finance-interface-lifecycle-rule-lifecycle-50431>`:
+  Interface implemented by rules that lifecycle and evolve instruments
 - :ref:`Rule.Claim <module-daml-finance-interface-lifecycle-rule-claim-6739>`:
   Interface for contracts that allow holders to claim an ``Effect`` and generate settlement
   instructions
-- :ref:`Rule.Lifecycle <module-daml-finance-interface-lifecycle-rule-lifecycle-50431>`:
-  Interface implemented by instruments that can be lifecycled (either by the instrument itself
-  or by a separate rule contract)
+- :ref:`Observable.NumericObservable <module-daml-finance-interface-lifecycle-observable-numericobservable-67288>`:
+  Interface to observe time-dependent numerical values (e.g. a stock price or an interest rate
+  fixing)
+- :ref:`Observable.TimeObservable <module-daml-finance-interface-lifecycle-observable-timeobservable-45971>`:
+  Interface implemented by templates exposing time information
 
 The :doc:`Lifecycling <../../concepts/lifecycling>` page contains an overview of the lifecycle
 process and explains the relationship between events, lifecycle rules and effects. Check out the
