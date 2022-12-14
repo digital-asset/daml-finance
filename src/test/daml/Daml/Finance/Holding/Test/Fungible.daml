@@ -3,15 +3,19 @@
 
 module Daml.Finance.Holding.Test.Fungible where
 
+import DA.Assert ((===))
 import DA.Map qualified as M (fromList)
 import DA.Optional (fromSome)
 import DA.Set qualified as S (fromList, singleton)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..), T)
 import Daml.Finance.Holding.Test.Common (TestInitialState(..), TestParties(..), setupInitialState, setupParties)
+import Daml.Finance.Holding.Util (getSplitRestAmount)
 import Daml.Finance.Interface.Account.Account qualified as Account (Debit(..), I)
 import Daml.Finance.Interface.Holding.Base qualified as Base (Acquire(..), I, LockType(..), Release(..))
-import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (I, Merge(..), Split(..), SplitResult(..), verifyAmountPreserving, verifySplit)
+import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (I, Merge(..), Split(..), SplitResult(..))
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
+import Daml.Finance.Interface.Holding.Util (getAmount)
+import Daml.Finance.Interface.Util.Common (verify)
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), submitExerciseInterfaceByKeyCmd, submitMustFailExerciseInterfaceByKeyCmd)
 import Daml.Finance.Test.Util.Common (validateAssertionFailure)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
@@ -86,48 +90,48 @@ run = script do
       [splitCid1, splitCid2, restCid]
 
   -- Test utility function `verifyAmountPreserving`
-  Fungible.verifyAmountPreserving [] []
-  Fungible.verifyAmountPreserving [fungible] [fungible1, fungible2, rest]
-  Fungible.verifyAmountPreserving
+  verifyAmountPreserving [] []
+  verifyAmountPreserving [fungible] [fungible1, fungible2, rest]
+  verifyAmountPreserving
     [fungible, fungible] [fungible1, fungible2, rest, fungible1, fungible2, rest]
-  Fungible.verifyAmountPreserving [fungible, fungible, fungible] [fungible, fungible, fungible]
-  validateAssertionFailure (Fungible.verifyAmountPreserving [fungible, fungible] [fungible]) $
+  verifyAmountPreserving [fungible, fungible, fungible] [fungible, fungible, fungible]
+  validateAssertionFailure (verifyAmountPreserving [fungible, fungible] [fungible]) $
     "Fungible::verifyAmountPreserving - Sum of fungible amounts do not match the expected " <>
     "amount. newAmounTotal=2000.0, previousAmountTotal=1000.0"
-  validateAssertionFailure (Fungible.verifyAmountPreserving [fungible] []) $
+  validateAssertionFailure (verifyAmountPreserving [fungible] []) $
     "Fungible::verifyAmountPreserving - Sum of fungible amounts do not match the expected " <>
     "amount. newAmounTotal=1000.0, previousAmountTotal=0.0"
-  validateAssertionFailure (Fungible.verifyAmountPreserving [] [fungible]) $
+  validateAssertionFailure (verifyAmountPreserving [] [fungible]) $
     "Fungible::verifyAmountPreserving - Sum of fungible amounts do not match the expected " <>
     "amount. newAmounTotal=0.0, previousAmountTotal=1000.0"
 
   -- Test utility function `verifySplit`
-  Fungible.verifySplit [1.0] 10.0
-  validateAssertionFailure(Fungible.verifySplit [1.0, 2.0, 3.0, 4.0] 9.0) $
+  getSplitRestAmount [1.0] 10.0 >>= (Some 9.0 ===)
+  validateAssertionFailure(getSplitRestAmount [1.0, 2.0, 3.0, 4.0] 9.0) $
     "Fungible::verifySplit - Amounts must be non-empty, strictly positive, and not exceed " <>
     "current amount. amounts=[1.0,2.0,3.0,4.0], splitAmountSum=10.0, currentAmount=9.0"
-  Fungible.verifySplit [1.0, 2.0, 3.0, 4.0] 10.0
-  validateAssertionFailure (Fungible.verifySplit [1.0, 0.0, 3.0, 4.0] 10.0) $
+  getSplitRestAmount [1.0, 2.0, 3.0, 4.0] 10.0 >>= (None ===)
+  validateAssertionFailure (getSplitRestAmount [1.0, 0.0, 3.0, 4.0] 10.0) $
     "Fungible::verifySplit - Amounts must be non-empty, strictly positive, and not exceed " <>
     "current amount. amounts=[1.0,0.0,3.0,4.0], splitAmountSum=8.0, currentAmount=10.0"
-  Fungible.verifySplit [1.0, 3.0, 4.0] 10.0
-  Fungible.verifySplit [1.0, 2.0, 3.0, 4.0] 11.0
-  validateAssertionFailure (Fungible.verifySplit [1.0, -2.0, 3.0, 4.0, 2.0] 10.0) $
+  getSplitRestAmount [1.0, 3.0, 4.0] 10.0 >>= (Some 2.0 ===)
+  getSplitRestAmount [1.0, 2.0, 3.0, 4.0] 11.0 >>= (Some 1.0 ===)
+  validateAssertionFailure (getSplitRestAmount [1.0, -2.0, 3.0, 4.0, 2.0] 10.0) $
     "Fungible::verifySplit - Amounts must be non-empty, strictly positive, and not exceed " <>
     "current amount. amounts=[1.0,-2.0,3.0,4.0,2.0], splitAmountSum=8.0, currentAmount=10.0"
-  validateAssertionFailure (Fungible.verifySplit [1.0, 2.0, 30.0, 4.0] 10.0) $
+  validateAssertionFailure (getSplitRestAmount [1.0, 2.0, 30.0, 4.0] 10.0) $
     "Fungible::verifySplit - Amounts must be non-empty, strictly positive, and not exceed " <>
     "current amount. amounts=[1.0,2.0,30.0,4.0], splitAmountSum=37.0, currentAmount=10.0"
-  validateAssertionFailure (Fungible.verifySplit [] 10.0) $
+  validateAssertionFailure (getSplitRestAmount [] 10.0) $
     "Fungible::verifySplit - Amounts must be non-empty, strictly positive, and not exceed " <>
     "current amount. amounts=[], splitAmountSum=0.0, currentAmount=10.0"
-  validateAssertionFailure (Fungible.verifySplit [-1.0] 10.0) $
+  validateAssertionFailure (getSplitRestAmount [-1.0] 10.0) $
     "Fungible::verifySplit - Amounts must be non-empty, strictly positive, and not exceed " <>
     "current amount. amounts=[-1.0], splitAmountSum=-1.0, currentAmount=10.0"
-  validateAssertionFailure (Fungible.verifySplit [] 0.0) $
+  validateAssertionFailure (getSplitRestAmount [] 0.0) $
     "Fungible::verifySplit - Amounts must be non-empty, strictly positive, and not exceed " <>
     "current amount. amounts=[], splitAmountSum=0.0, currentAmount=0.0"
-  validateAssertionFailure (Fungible.verifySplit [] (-1.0)) $
+  validateAssertionFailure (getSplitRestAmount [] (-1.0)) $
     "Fungible::verifySplit - Amounts must be non-empty, strictly positive, and not exceed " <>
     "current amount. amounts=[], splitAmountSum=0.0, currentAmount=-1.0"
 
@@ -138,7 +142,7 @@ run = script do
   -- Fungibles (after merge)
   fungible' <- fmap (\o -> toInterface @Fungible.I $ fromSome o) <$>
     queryContractId @Fungible.T issuer $ fromInterfaceContractId fungibleCid
-  Fungible.verifyAmountPreserving [fungible] [fungible']
+  verifyAmountPreserving [fungible] [fungible']
 
   -- Transfer
   transferableCid <- submitMulti [issuer, investor] [publicParty] do
@@ -154,3 +158,15 @@ run = script do
     Account.Debit with holdingCid = toInterfaceContractId transferableCid
 
   pure ()
+
+-- | Verifies that the original amount is preserved after a merge or a split.
+verifyAmountPreserving : CanAssert m => [Fungible.I] -> [Fungible.I] -> m ()
+verifyAmountPreserving newFungibles previousFungibles = do
+  let
+    sumAmounts fungibles = sum $ getAmount <$> fungibles
+    new = sumAmounts newFungibles
+    previous = sumAmounts previousFungibles
+  verify (new == previous) $ "Fungible::"
+    <> "verifyAmountPreserving - Sum of fungible amounts do not match the expected amount. "
+    <> "newAmounTotal=" <> show new
+    <> ", previousAmountTotal=" <> show previous

@@ -3,13 +3,12 @@
 
 module Daml.Finance.Holding.Fungible where
 
-import DA.Action (foldlA)
 import DA.Set (fromList, singleton)
-import Daml.Finance.Holding.Util (acquireImpl, releaseImpl, transferImpl)
+import Daml.Finance.Holding.Util (acquireImpl, releaseImpl, splitImpl, mergeImpl, transferImpl)
 import Daml.Finance.Interface.Holding.Base (getLockers)
 import Daml.Finance.Interface.Holding.Base qualified as Base (I, Lock(..), View(..))
 import Daml.Finance.Interface.Holding.Factory qualified as HoldingFactory (Create(..), F, HasImplementation(..), Remove(..), View(..))
-import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (HasImplementation, I, Merge(..), Split(..), SplitResult(..), View(..))
+import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (HasImplementation, I, View(..))
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, View(..))
 import Daml.Finance.Interface.Types.Common.Types (AccountKey(..), InstrumentKey(..), PartiesMap)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
@@ -65,23 +64,8 @@ template Fungible
     interface instance Fungible.I for Fungible where
       asTransferable = toInterface @Transferable.I this
       view = Fungible.View with modifiers = singleton account.owner
-      split Fungible.Split{amounts} = do
-        let rest = amount - sum amounts
-        assertMsg "split quantities are not more than the available amount" $ rest >= 0.0
-        splitCids <- forA amounts $ \q -> toInterfaceContractId <$> create this with amount = q
-        rest <- if rest == 0.0
-                then pure None
-                else Some . toInterfaceContractId <$> create this with amount = rest
-        pure $ Fungible.SplitResult with splitCids; rest
-      merge Fungible.Merge{fungibleCids} = do
-        let
-          f qty cid = do
-            Some (fungibleCid, fungible) <- fetchFromInterface @Fungible cid
-            archive fungibleCid
-            assertMsg "instrument must match" $ instrument == fungible.instrument
-            pure $ qty + fungible.amount
-        tot <- foldlA f amount fungibleCids
-        toInterfaceContractId <$> create this with amount = tot
+      split = splitImpl @Fungible this
+      merge = mergeImpl @Fungible this
 
 instance HoldingFactory.HasImplementation Factory
 -- | Implementation of the corresponding Holding Factory.

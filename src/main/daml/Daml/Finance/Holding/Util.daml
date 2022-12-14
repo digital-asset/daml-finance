@@ -5,14 +5,51 @@ module Daml.Finance.Holding.Util where
 
 import DA.Action (foldlA)
 import DA.Assert ((===))
+import DA.Foldable qualified as F (all)
 import DA.Optional (whenSome)
 import DA.Set qualified as S (delete, fromList, insert, intersection, isSubsetOf, notMember, null, singleton, toList)
+import DA.Traversable qualified as T (mapA)
 import Daml.Finance.Interface.Account.Account qualified as Account (Credit(..), Debit(..), I, R, exerciseInterfaceByKey)
 import Daml.Finance.Interface.Account.Util (fetchAccount)
 import Daml.Finance.Interface.Holding.Base qualified as Base (Acquire(..), I, Lock(..), LockType(..), Release(..), getLockers)
+import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (I, Merge(..), Split(..), SplitResult(..))
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
-import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey, qty)
+import Daml.Finance.Interface.Holding.Util (getAmount, getInstrument)
+import Daml.Finance.Interface.Types.Common.Types (InstrumentKey(..))
+import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey, verify, qty)
 import Prelude hiding (null)
+
+-- | Default implementation of split for the Fungible interface.
+splitImpl :
+  ( HasCreate t
+  , HasField "amount" t Decimal
+  , HasToInterface t Fungible.I
+  , HasFromInterface t Fungible.I
+  ) => t -> Fungible.Split -> Update Fungible.SplitResult
+splitImpl this Fungible.Split{amounts} = do
+  splitCids <- forA amounts $
+    \a -> toInterfaceContractId @Fungible.I <$> create this with amount = a
+  restAmount <- getSplitRestAmount amounts this.amount
+  rest <- T.mapA (\r -> toInterfaceContractId <$> create this with amount = r) restAmount
+  pure $ Fungible.SplitResult with splitCids; rest
+
+-- | Default implementation of merge for the Fungible interface.
+mergeImpl :
+  ( HasCreate t
+  , HasField "amount" t Decimal
+  , HasField "instrument" t InstrumentKey
+  , HasToInterface t Fungible.I
+  , HasFromInterface t Fungible.I
+  ) => t -> Fungible.Merge -> Update (ContractId Fungible.I)
+mergeImpl this Fungible.Merge{fungibleCids} = do
+  let
+    f a cid = do
+      Some (fungibleCid, fungible) <- fetchFromInterface @Fungible.I cid
+      archive fungibleCid
+      assertMsg "instrument must match" $ this.instrument == getInstrument fungible
+      pure $ a + getAmount fungible
+  tot <- foldlA f this.amount fungibleCids
+  toInterfaceContractId <$> create this with amount = tot
 
 -- | Default implementation of transfer for the Transferable interface.
 transferImpl : Transferable.I -> ContractId Transferable.I -> Transferable.Transfer
@@ -95,3 +132,16 @@ releaseImpl holding Base.Release{context} = do
         _ -> None
     releasedLock = holding.lock >>= f
   toInterfaceContractId <$> create holding with lock = releasedLock
+
+-- | Gets the rest amount of a split (if any) and verifies that split amounts are strictly positive
+-- and don't exceed the current amount.
+getSplitRestAmount : CanAssert m => [Decimal] -> Decimal -> m (Optional Decimal)
+getSplitRestAmount amounts currentAmount = do
+  let splitAmountSum = sum amounts
+  verify (splitAmountSum <= currentAmount && F.all (> 0.0) amounts && amounts /= []) $ "Fungible::"
+    <> "verifySplit - Amounts must be non-empty, strictly positive, and not exceed current amount. "
+    <> "amounts=" <> show amounts
+    <> ", splitAmountSum=" <> show splitAmountSum
+    <> ", currentAmount=" <> show currentAmount
+  let rest = currentAmount - splitAmountSum
+  pure $ if rest == 0.0 then None else Some rest
