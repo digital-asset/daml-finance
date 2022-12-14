@@ -206,7 +206,7 @@ additional settlement modes:
   work, the first instruction is approved with
   :ref:`PassThroughTo <constr-daml-finance-interface-settlement-types-passthroughto-68260>` (i.e.,
   pass through to the second instruction), and the second instruction is allocated with
-  :ref:`PassThroughFrom <constr-daml-finance-interface-settlement-types-passthroughfrom-69426>`
+  :ref:`PassThroughFrom <constr-daml-finance-interface-settlement-types-passthroughfrom-69429>`
   (i.e., pass through from the first instruction). An intermediary account used for the passthrough
   is thereby also to be specified.
 
