@@ -4,11 +4,12 @@
 module Daml.Finance.Holding.Util where
 
 import DA.Action (foldlA)
-import DA.Set qualified as S (delete, insert, isSubsetOf, null, singleton, toList)
+import DA.Assert ((===))
+import DA.Optional (whenSome)
+import DA.Set qualified as S (delete, fromList, insert, intersection, isSubsetOf, notMember, null, singleton, toList)
 import Daml.Finance.Interface.Account.Account qualified as Account (Credit(..), Debit(..), I, R, exerciseInterfaceByKey)
 import Daml.Finance.Interface.Account.Util (fetchAccount)
-import Daml.Finance.Interface.Holding.Base (getLockers)
-import Daml.Finance.Interface.Holding.Base qualified as Base (Acquire(..), I, Lock(..), LockType(..), Release(..))
+import Daml.Finance.Interface.Holding.Base qualified as Base (Acquire(..), I, Lock(..), LockType(..), Release(..), getLockers)
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
 import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey, qty)
 import Prelude hiding (null)
@@ -24,7 +25,7 @@ transferImpl this self Transferable.Transfer{actors; newOwnerAccount} = do
   let
     vBase = view base
     vAccount = view account
-    lockers = getLockers base
+    lockers = Base.getLockers base
   vNewAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I newOwnerAccount
   -- Verify
   assertMsg "actors must contain all transfer outgoing of the sender account" $
@@ -59,15 +60,24 @@ transferImpl this self Transferable.Transfer{actors; newOwnerAccount} = do
 acquireImpl :
   ( HasCreate t
   , HasField "lock" t (Optional Base.Lock)
-  , HasFromInterface t Base.I, HasToInterface t Base.I
+  , HasFromInterface t Base.I
+  , HasToInterface t Base.I
+  , HasSignatory t
   ) => t -> Base.Acquire -> Update (ContractId Base.I)
-acquireImpl base Base.Acquire{newLockers; context; lockType} = do
-  newLock <- case (base.lock, lockType) of
+acquireImpl holding Base.Acquire{newLockers; context; lockType} = do
+  whenSome holding.lock \lock -> do
+    lock.lockers === newLockers
+    lock.lockType === lockType
+    assertMsg "Contract must be locked." $ lock.lockType == Base.Reentrant
+    assertMsg "Contract must not be locked for this context." $ S.notMember context lock.context
+  newLock <- case (holding.lock, lockType) of
     (Some existingLock, Base.Reentrant) -> pure existingLock with
       context = context `S.insert` existingLock.context
     (None, _) -> pure Base.Lock with lockers = newLockers; context = S.singleton context; lockType
     _ -> abort "Contract is already locked."
-  toInterfaceContractId <$> create base with lock = Some newLock
+  let newHolding = holding with lock = Some newLock
+  S.fromList (signatory newHolding) `S.intersection` newLockers === newLockers
+  toInterfaceContractId <$> create newHolding
 
 -- | Default implementation of release from the Base interface.
 releaseImpl :
@@ -76,12 +86,12 @@ releaseImpl :
   , HasFromInterface t Base.I
   , HasToInterface t Base.I
   ) => t -> Base.Release -> Update (ContractId Base.I)
-releaseImpl base Base.Release{context} = do
+releaseImpl holding Base.Release{context} = do
   let
     f currentLock = do
       let newContext = context `S.delete` currentLock.context
       case (currentLock.lockType, S.null newContext) of
         (Base.Reentrant, False) -> Some currentLock with context = newContext
         _ -> None
-    releasedLock = base.lock >>= f
-  toInterfaceContractId <$> create base with lock = releasedLock
+    releasedLock = holding.lock >>= f
+  toInterfaceContractId <$> create holding with lock = releasedLock
