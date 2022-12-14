@@ -54,6 +54,14 @@ longer include the dividend):
   :start-after: -- CREATE_EQUITY_INSTRUMENTS_BEGIN
   :end-before: -- CREATE_EQUITY_INSTRUMENTS_END
 
+After the instrument has been created, you can book a holding on it. This is not limited to integer
+holdings, but fractional holdings are supported as well:
+
+.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Equity/Test/Dividend.daml
+  :language: daml
+  :start-after: -- CREATE_EQUITY_HOLDING_BEGIN
+  :end-before: -- CREATE_EQUITY_HOLDING_END
+
 We create a distribution rule for the cash dividend. It defines the business logic for the dividend
 and it has the issuer as signatory:
 
@@ -62,7 +70,8 @@ and it has the issuer as signatory:
   :start-after: -- CREATE_EQUITY_DISTRIBUTION_RULE_BEGIN
   :end-before: -- CREATE_EQUITY_DISTRIBUTION_RULE_END
 
-We also need a distribution event, which defines the terms of the dividend:
+We also need a distribution event, which defines the terms of the dividend. In this case, it is
+2 USD cash per share (this also works for a fractional amount of shares):
 
 .. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Equity/Test/Dividend.daml
   :language: daml
