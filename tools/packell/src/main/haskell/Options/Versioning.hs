@@ -7,8 +7,9 @@ module Options.Versioning (
 
 -- | Commands for versioning.
 data VersioningCommand
-    = BumpAll
-    | Update
+    = Update
     | Validate
     | DryRun
+    | BumpAll
+    | ForceBumpAll
   deriving (Show)

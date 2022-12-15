@@ -5,7 +5,8 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
 module Daml.Version (
-    increment
+    bumpAll
+  , increment
   , updateVersion
 ) where
 
@@ -15,40 +16,71 @@ import qualified Data.Text as T (pack)
 import Daml.Types (UpdatedConfig(..))
 import Data.Time.Calendar (toGregorian)
 import Data.Time.Clock (UTCTime(utctDay), getCurrentTime)
-import Package.Yaml (IncrementVersion(SNAPSHOT, PATCH, MINOR, MAJOR))
+import Package.Yaml (IncrementVersion(SNAPSHOT, PATCH, MINOR, MAJOR), LocalPackage (localPackage))
 import qualified Package.Yaml as Package (Config(..), getLocalName, incrementVersion, Local (path))
-import qualified Git.Commands as Git (tagExists)
+import qualified Git.Commands as Git (tagExists, hasDiff)
 import qualified Daml.Yaml as Daml (Config, version, damlConfigFile, writeDamlConfig)
 import Colourista (cyanMessage, successMessage)
 import System.FilePath ((</>))
 import Data.Maybe (catMaybes)
+import Daml.Source (Source(Source, sources), getSource)
 
-bumpAll :: FilePath -> Package.Config -> [Daml.Package] -> IO ()
-bumpAll root config localPackages =
+update :: FilePath -> [Daml.Package] -> IO ()
+update root localPackages = undefined
+
+processVersion :: FilePath -> Daml.Package -> IO (Maybe UpdatedConfig)
+processVersion root localPackage@Daml.Package{damlConfig, packageConfig} = do
+  let
+    name = Package.getLocalName packageConfig
+    version = Daml.version damlConfig
+    tag = name <> "/" <> version
+
+  tagExists <- Git.tagExists tag
+  if tagExists
+  then do
+    Source _ sources <- getSource root localPackage
+    hasDiff <- Git.hasDiff tag sources
+    if hasDiff
+    then incrementPackage False localPackage
+    else pure Nothing
+    pure Nothing
+  else
+    pure Nothing
+
+bumpAll :: FilePath -> [Daml.Package] -> Bool -> IO ()
+bumpAll root localPackages force =
   let
     getDamlPath package = root </> (Package.path . Daml.packageConfig) package </> Daml.damlConfigFile
     writeUpdate (UpdatedConfig package updateConfig) = do
-      cyanMessage . T.pack $ "Bumping version of package '" <> (Package.getLocalName . Daml.packageConfig $ package) <> "'"
+      cyanMessage . T.pack $ "Updating the version of package '"
+        <> (Package.getLocalName . Daml.packageConfig $ package) <> "'"
+        <> " from '" <> (Daml.version . Daml.damlConfig $ package) <> "'"
+        <> " to " <> Daml.version updateConfig <> "'"
       flip Daml.writeDamlConfig updateConfig $ getDamlPath package
     writeSuccessMessage = successMessage . T.pack $ "Packages successfully updated!"
   in
-    incrementPackages localPackages
+    incrementPackages localPackages force
       >>= mapM_ writeUpdate
       >>= const writeSuccessMessage
 
-incrementPackages :: [Daml.Package] -> IO [UpdatedConfig]
-incrementPackages packages = catMaybes <$> mapM incrementPackage packages
+incrementPackages :: [Daml.Package] -> Bool -> IO [UpdatedConfig]
+incrementPackages packages force = catMaybes <$> mapM (incrementPackage force) packages
 
-incrementPackage :: Daml.Package -> IO (Maybe UpdatedConfig)
-incrementPackage package@Daml.Package{damlConfig, packageConfig} =
+incrementPackage :: Bool -> Daml.Package -> IO (Maybe UpdatedConfig)
+incrementPackage force package@Daml.Package{damlConfig, packageConfig} =
   let
     name = Package.getLocalName packageConfig
     version = Daml.version damlConfig
     incrementConfig = Package.incrementVersion packageConfig
+    updateConfig = pure . Just . UpdatedConfig package . updateVersion damlConfig
   in
-    increment name version incrementConfig >>= \case
-      Just newVersion -> pure . Just . UpdatedConfig package $ updateVersion damlConfig newVersion
-      _ -> pure Nothing
+    if force
+    then
+      increment' version incrementConfig >>= updateConfig
+    else
+      increment name version incrementConfig >>= \case
+        Just newVersion -> updateConfig newVersion
+        _ -> pure Nothing
 
 -- | Checks if a tag/version already exists in the git repo
 -- When it already exists, it will compute the next increment of the version.

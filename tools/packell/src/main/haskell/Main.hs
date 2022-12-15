@@ -8,6 +8,7 @@ module Main where
 import Control.Monad (when)
 import qualified Daml.DataDependencies as D (update, validate, dryRun)
 import Daml.Package (getLocalPackages)
+import Daml.Version (bumpAll)
 import Options.Arguments (Arguments(..), Command(..), parseInputs)
 import qualified Options.DataDependencies as D (DataDependenciesCommand(..))
 import qualified Options.Versioning as V (VersioningCommand(..))
@@ -45,7 +46,8 @@ run Arguments{optPackageConfigPath, optFetch, optCommand} = do
       D.Validate -> D.validate packageRoot packageYaml packages
       D.DryRun -> D.dryRun packageRoot packageYaml packages
     Versioning command -> case command of
-      V.BumpAll -> putStrLn "BumpAll"
       V.Update -> putStrLn "Update"
       V.Validate -> putStrLn "Validate"
       V.DryRun -> putStrLn "DryRun"
+      V.BumpAll -> bumpAll packageRoot packages False
+      V.ForceBumpAll -> bumpAll packageRoot packages True

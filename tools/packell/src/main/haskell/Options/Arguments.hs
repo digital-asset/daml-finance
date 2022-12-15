@@ -63,10 +63,11 @@ dataDependenciesParser =
 versioningParser :: Parser Command
 versioningParser =
   Versioning
-    <$> hsubparser (command "bump-all" (info (pure V.BumpAll) (progDesc "Force update all package versions."))
-      <> command "update" (info (pure V.Update) (progDesc "Update package versions based on commits."))
+    <$> hsubparser (command "update" (info (pure V.Update) (progDesc "Update package versions based on commits."))
       <> command "validate" (info (pure V.Validate) (progDesc "Validate if package versions require updating based off commits. Throws an exception if any updates are found. This does not update any versions."))
-      <> command "dry-run" (info (pure V.DryRun) (progDesc "Displays all package versions that require updating based off commits. This does not update any versions.")))
+      <> command "dry-run" (info (pure V.DryRun) (progDesc "Displays all package versions that require updating based off commits. This does not update any versions."))
+      <> command "bump-all" (info (pure V.BumpAll) (progDesc "Update all package versions which match released packages."))
+      <> command "force-bump-all" (info (pure V.ForceBumpAll) (progDesc "Force update on all package versions, regardless if they have been released or not.")))
 
 -- | The main command parser.
 commandParser :: Parser Command
@@ -75,7 +76,7 @@ commandParser =
     command "data-dependencies" (info dataDependenciesParser (progDesc "Update package data-dependencies based on package sources."))
       <> metavar "data-dependencies COMMAND")
   <|> hsubparser (
-    command "versioning" (info versioningParser (progDesc "Update package versioning."))
+    command "versioning" (info versioningParser (progDesc "Update package versioning based on commits."))
       <> metavar "versioning COMMAND")
 
 -- | Input Parameters to the application.
