@@ -13,3 +13,5 @@ It contains the following modules:
   Factory interface to instantiate generic instruments
 - :ref:`Election <module-daml-finance-interface-instrument-generic-election-94835>`:
   Interface to allow for elections to be made on generic instruments
+- :ref:`Election.Factory <module-daml-finance-interface-instrument-generic-election-factory-39535>`:
+  Factory interface to instantiate elections on generic instruments
