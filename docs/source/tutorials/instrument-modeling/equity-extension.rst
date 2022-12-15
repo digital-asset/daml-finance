@@ -108,7 +108,7 @@ the same way. Just replace the equity instrument by a warrant instrument on the
 Dividend option
 ***************
 
-Sometimes, a company may give shareholders the option of choosing what kind of dividend they want to
+A company may give shareholders the option of choosing what kind of dividend they want to
 receive. For example, a shareholder could choose between a dividend in cash *or* in stock.
 The ``DeclareDividend`` choice can be used for this as well. The issuer creates one event for each
 dividend option that shareholders can choose from:
