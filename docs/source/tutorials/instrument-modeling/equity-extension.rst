@@ -105,6 +105,36 @@ Similarly, if there is a bonus issue that awards warrants instead of equity, tha
 the same way. Just replace the equity instrument by a warrant instrument on the
 ``perUnitDistribution`` line above.
 
+Dividend option
+***************
+
+Sometimes, a company may give shareholders the option of choosing what kind of dividend they want to
+receive. For example, a shareholder could choose between a dividend in cash *or* in stock.
+The ``DeclareDividend`` choice can be used for this as well. The issuer creates one event for each
+dividend option that shareholders can choose from:
+
+.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Equity/Test/Dividend.daml
+  :language: daml
+  :start-after: -- CREATE_EQUITY_DIVIDEND_OPTION_DISTRIBUTION_EVENT_BEGIN
+  :end-before: -- CREATE_EQUITY_DIVIDEND_OPTION_DISTRIBUTION_EVENT_END
+
+The issuer then lifecycles each event individually, to generate two alternative lifecycling effects:
+
+.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Equity/Test/Dividend.daml
+  :language: daml
+  :start-after: -- LIVECYCLE_DIVIDEND_OPTION_BEGIN
+  :end-before: -- LIVECYCLE_DIVIDEND_OPTION_END
+
+The investor can then claim one or the other:
+
+.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Equity/Test/Dividend.daml
+  :language: daml
+  :start-after: -- INVESTOR_CLAIMS_DIVIDEND_OPTION_BEGIN
+  :end-before: -- INVESTOR_CLAIMS_DIVIDEND_OPTION_END
+
+When this is settled, the investor's holding is consumed, which prevents the investor from receiving
+more than one of the dividend options.
+
 Stock split
 ***********
 
