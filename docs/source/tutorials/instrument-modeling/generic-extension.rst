@@ -78,7 +78,7 @@ On a coupon payment date of the bond instrument above, the issuer will need to l
 instrument. This will result in a lifecycle effect for the coupon, which can be cash settled. This
 is described in detail in :doc:`Getting Started: Lifecycling <../getting-started/lifecycling>`.
 
-Note: that tutorial mainly describes time-based lifecycling. The European option above requires
+Note: the tutorial mainly describes time-based lifecycling. The European option above requires
 an active ``Election`` by the holder. This is described in detail in
 ``src/test/daml/Daml/Finance/Instrument/Generic/Test/EuropeanOption.daml``.
 
