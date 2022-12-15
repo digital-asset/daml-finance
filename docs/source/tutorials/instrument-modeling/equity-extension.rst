@@ -135,6 +135,23 @@ The investor can then claim one or the other:
 When this is settled, the investor's holding is consumed, which prevents the investor from receiving
 more than one of the dividend options.
 
+Rights Issue
+************
+
+In order to raise money, a company may decide to give current shareholders the right (but not the
+obligation) to purchase additional shares at a discounted price. This can be modeled using two
+components:
+
+- An option instrument, which describes the economic term of the rights a shareholder recieves.
+  For example, this could be a European option with a strike price below the current spot price, and
+  a maturity three weeks in the future.
+  The :doc:`Generic Tutorial <generic-extension>` describes how to create and lifecycle a European
+  option.
+- The ``DeclareDividend`` choice to distribute the above option instrument in the correct proportion
+  (e.g. 3 option contracts for each 10 shares held). This can be done in the same way as the Bonus
+  Issue example described earlier, just change the ``perUnitDistribution`` line to distribute the
+  option instrument you created above.
+
 Stock split
 ***********
 
