@@ -142,7 +142,7 @@ In order to raise money, a company may decide to give current shareholders the r
 obligation) to purchase additional shares at a discounted price. This can be modeled using two
 components:
 
-- An option instrument, which describes the economic term of the rights a shareholder recieves.
+- An option instrument, which describes the economic term of the rights a shareholder receives.
   For example, this could be a European option with a strike price below the current spot price, and
   a maturity three weeks in the future.
   The :doc:`Generic Tutorial <generic-extension>` describes how to create a European option.
