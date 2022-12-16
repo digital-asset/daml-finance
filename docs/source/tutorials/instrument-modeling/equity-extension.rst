@@ -155,7 +155,7 @@ When current shareholders receive the option instrument they can typically choos
 
 #. Exercising the option. The :doc:`Generic Tutorial <generic-extension>` describes how to elect to
    exercise the option.
-#. Doing nothing. The option will expire worthless.
+#. Choosing not to exercise the option. The option will expire worthless.
 #. Selling the option. This is not always possible, it depends on the terms of the rights issue.
    :doc:`Getting Started: Settlement <../getting-started/settlement>` describes how this could be
    done.
