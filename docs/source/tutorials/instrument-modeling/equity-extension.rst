@@ -222,7 +222,7 @@ The merger scenario models the case when one company acquires another company an
 its own shares. This is modeled using the ``DeclareReplacement`` choice, which also uses the
 :ref:`Replacement Event <module-daml-finance-lifecycle-event-replacement-51859>`
 (like the *stock split* scenario above).
-This is a mandatory corporate action: no election is required by the shareholder.
+This is a mandatory exchange offer: no election is required (or possible) by the shareholder.
 
 We start by defining the instrument before and after the merger. Shares of company ABC are being
 replaced by shares of company XYZ:
