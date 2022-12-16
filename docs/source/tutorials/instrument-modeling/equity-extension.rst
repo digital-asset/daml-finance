@@ -196,6 +196,16 @@ This allows the issuer to lifecycle the instrument:
 
 This results in a lifecycle effect, which can be settled (similar to the *dividend* scenario above).
 
+Reverse Stock Split
+===================
+
+The stock split described above increases the number of shares available. Alternatively, a company
+may also decide to *decrease* the number of shares. This is referred to as *reverse stock split* or
+*stock consolidation*.
+
+The ``DeclareStockSplit`` choice supports this as well. For example, for a 1-for-10 reverse split,
+modify the ``adjustmentFactor`` to 10/1 = 10.0 in the example above.
+
 Merger
 ******
 
