@@ -145,12 +145,21 @@ components:
 - An option instrument, which describes the economic term of the rights a shareholder recieves.
   For example, this could be a European option with a strike price below the current spot price, and
   a maturity three weeks in the future.
-  The :doc:`Generic Tutorial <generic-extension>` describes how to create and lifecycle a European
-  option.
+  The :doc:`Generic Tutorial <generic-extension>` describes how to create a European option.
 - The ``DeclareDividend`` choice to distribute the above option instrument in the correct proportion
   (e.g. 3 option contracts for each 10 shares held). This can be done in the same way as the Bonus
   Issue example described earlier, just change the ``perUnitDistribution`` line to distribute the
   option instrument you created above.
+
+When current shareholders receive the option instrument they can typically choose between:
+
+#. Exercising the option. The :doc:`Generic Tutorial <generic-extension>` describes how to elect to
+   exercise the option.
+#. Doing nothing. The option will expire worthless.
+#. Selling the option. This is not always possible, it depends on the terms of the rights issue.
+   :doc:`Getting Started: Settlement <../getting-started/settlement>` describes how this could be
+   done.
+
 
 Stock split
 ***********
@@ -213,6 +222,7 @@ The merger scenario models the case when one company acquires another company an
 its own shares. This is modeled using the ``DeclareReplacement`` choice, which also uses the
 :ref:`Replacement Event <module-daml-finance-lifecycle-event-replacement-51859>`
 (like the *stock split* scenario above).
+This is a mandatory corporate action: no election is required by the shareholder.
 
 We start by defining the instrument before and after the merger. Shares of company ABC are being
 replaced by shares of company XYZ:
