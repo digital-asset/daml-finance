@@ -1974,3 +1974,237 @@ run_fpml_2 = script do
     expectedConsumedQuantities expectedProducedQuantities
 
   pure ()
+
+-- fpml.org Example 3 - Fixed/Floating Single Currency Interest Rate Swap with Compounding, Payment
+-- Delay and Final Rate Rounding
+-- https://www.fpml.org/spec/fpml-5-11-7-rec-1/html/confirmation/fpml-5-11-examples.html#s2
+run_fpml_3 : Script ()
+run_fpml_3 = script do
+  [custodian, issuer, calendarDataProvider, publicParty] <-
+    createParties ["Custodian", "Issuer", "Calendar Data Provider", "PublicParty"]
+
+  -- Create commercial-bank cash
+  now <- getTime
+  let observers = [("PublicParty", singleton publicParty)]
+  cashInstrumentCid <- Instrument.originate custodian issuer "EUR" "Euro" observers now
+
+  -- Create swap
+  let
+    rollDay = 27
+    issueDate = date 2000 Apr rollDay
+    firstRegularDateFloat = date 1995 Jun rollDay
+    firstRegularDateFixed = date 1995 Dec rollDay
+    maturityDate = date 2002 Apr rollDay
+    referenceRateId = "EUR/LIBOR/BBA/3M"
+    fixRate = 0.0585
+    notional = 100000000.0
+    ccy = "EUR"
+    paymentPeriod = M
+    paymentPeriodMultiplier = 6
+    calcPeriodFloat = M
+    calcPeriodMultiplierFloat = 3
+    businessDayConvention = ModifiedFollowing
+    observations = M.fromList
+      [ (dateToDateClockTime (date 2000 Apr 25), 0.063)
+      , (dateToDateClockTime (date 2000 Jul 25), 0.065)
+      , (dateToDateClockTime (date 2000 Oct 25), 0.067)
+      , (dateToDateClockTime (date 2001 Jan 25), 0.069)
+      , (dateToDateClockTime (date 2001 Apr 25), 0.071)
+      ]
+    primaryBusinessCenters = ["GBLO", "USNY"]
+    cal =
+      HolidayCalendarData with
+        id = "USNY"
+        weekend = [Saturday, Sunday]
+        holidays = []
+    fixingBusinessCenters = ["GBLO"]
+    fixingCal =
+      HolidayCalendarData with
+        id = "GBLO"
+        weekend = [Saturday, Sunday]
+        holidays = []
+
+    issuerPartyRef = "party2"
+    clientPartyRef = "party1"
+
+    swapStreamFloatingLeg = SwapStream with
+      payerPartyReference = issuerPartyRef
+      receiverPartyReference = clientPartyRef
+      calculationPeriodDates = CalculationPeriodDates with
+        id = "floatingCalcPeriodDates"
+        effectiveDate = AdjustableDate with
+          unadjustedDate = issueDate
+          dateAdjustments = BusinessDayAdjustments with
+            businessDayConvention = NoAdjustment
+            businessCenters = []
+        terminationDate = AdjustableDate with
+          unadjustedDate = maturityDate
+          dateAdjustments = BusinessDayAdjustments with
+            businessDayConvention = ModifiedFollowing
+            businessCenters = primaryBusinessCenters
+        calculationPeriodDatesAdjustments = CalculationPeriodDatesAdjustments with
+          businessDayConvention = ModifiedFollowing
+          businessCenters = primaryBusinessCenters -- TODO: implement businessCentersReference?
+        firstRegularPeriodStartDate = None
+        lastRegularPeriodEndDate = None
+        calculationPeriodFrequency = CalculationPeriodFrequency with
+          periodMultiplier = calcPeriodMultiplierFloat
+          period = calcPeriodFloat
+          rollConvention = DOM rollDay
+      paymentDates = PaymentDates with
+        calculationPeriodDatesReference = "floatingCalcPeriodDates"
+        paymentFrequency = PaymentFrequency with
+          periodMultiplier = paymentPeriodMultiplier
+          period = paymentPeriod
+        firstPaymentDate = None
+        lastRegularPaymentDate = None
+        payRelativeTo = CalculationPeriodEndDate
+        -- todo: implement Optional payment date offset (similar to fixingDates offset below)
+{-
+        <paymentDaysOffset>
+<periodMultiplier>5</periodMultiplier>
+<period>D</period>
+<dayType>Business</dayType>
+ -}
+        paymentDatesAdjustments = BusinessDayAdjustments with
+            businessDayConvention = ModifiedFollowing
+            businessCenters = primaryBusinessCenters
+      resetDates = Some ResetDates with
+        calculationPeriodDatesReference = "floatingCalcPeriodDates"
+        resetRelativeTo = CalculationPeriodStartDate
+        fixingDates = FixingDates with
+          periodMultiplier = -2
+          period = D
+          dayType = Business
+          businessDayConvention = NoAdjustment
+          businessCenters = fixingBusinessCenters
+        resetFrequency = ResetFrequency with
+          periodMultiplier = calcPeriodMultiplierFloat
+          period = calcPeriodFloat
+        resetDatesAdjustments = ResetDatesAdjustments with
+          businessDayConvention = ModifiedFollowing
+          businessCenters = primaryBusinessCenters
+      calculationPeriodAmount = CalculationPeriodAmount with
+        calculation = Calculation with
+          notionalScheduleValue = NotionalSchedule_Regular NotionalSchedule with
+            id = "floatingLegNotionalSchedule"
+            notionalStepSchedule = NotionalStepSchedule with
+              initialValue = notional
+              step = []
+              currency = ccy
+          rateTypeValue = RateType_Floating FloatingRateCalculation with
+            floatingRateIndex = referenceRateId
+            indexTenor = Some Period with
+              periodMultiplier = calcPeriodMultiplierFloat
+              period = calcPeriodFloat
+            -- TODO: implement rounding
+{-
+<finalRateRounding>
+<roundingDirection>Nearest</roundingDirection>
+<precision>7</precision>
+</finalRateRounding>
+ -}
+            spreadSchedule = []
+          dayCountFraction = Act360
+          -- TODO: implement compounding
+{-
+<compoundingMethod>Flat</compoundingMethod>
+ -}
+      stubCalculationPeriodAmount = None
+      principalExchanges = None
+
+    swapStreamFixedLeg = SwapStream with
+      payerPartyReference = clientPartyRef
+      receiverPartyReference = issuerPartyRef
+      calculationPeriodDates = CalculationPeriodDates with
+        id = "fixedCalcPeriodDates"
+        effectiveDate = AdjustableDate with
+          unadjustedDate = issueDate
+          dateAdjustments = BusinessDayAdjustments with
+            businessDayConvention = NoAdjustment
+            businessCenters = []
+        terminationDate = AdjustableDate with
+          unadjustedDate = maturityDate
+          dateAdjustments = BusinessDayAdjustments with
+            businessDayConvention = ModifiedFollowing
+            businessCenters = primaryBusinessCenters
+        calculationPeriodDatesAdjustments = CalculationPeriodDatesAdjustments with
+          businessDayConvention = ModifiedFollowing
+          businessCenters = primaryBusinessCenters
+        firstRegularPeriodStartDate = None
+        lastRegularPeriodEndDate = None
+        calculationPeriodFrequency = CalculationPeriodFrequency with
+          periodMultiplier = paymentPeriodMultiplier
+          period = paymentPeriod
+          rollConvention = DOM rollDay
+      paymentDates = PaymentDates with
+        calculationPeriodDatesReference = "fixedCalcPeriodDates"
+        paymentFrequency = PaymentFrequency with
+          periodMultiplier = paymentPeriodMultiplier
+          period = paymentPeriod
+        firstPaymentDate = None
+        lastRegularPaymentDate = None
+        payRelativeTo = CalculationPeriodEndDate
+        -- todo: implement Optional payment date offset (similar to fixingDates offset below)
+{-
+        <paymentDaysOffset>
+<periodMultiplier>5</periodMultiplier>
+<period>D</period>
+<dayType>Business</dayType>
+ -}
+        paymentDatesAdjustments = BusinessDayAdjustments with
+            businessDayConvention = ModifiedFollowing
+            businessCenters = primaryBusinessCenters
+      resetDates = None
+      calculationPeriodAmount = CalculationPeriodAmount with
+        calculation = Calculation with
+          notionalScheduleValue = NotionalSchedule_Regular NotionalSchedule with
+            id = "fixedLegNotionalSchedule"
+            notionalStepSchedule = NotionalStepSchedule with
+              initialValue = notional
+              step = []
+              currency = ccy
+          rateTypeValue = RateType_Fixed FixedRateSchedule with
+            initialValue = fixRate
+          dayCountFraction = Basis30360
+      stubCalculationPeriodAmount = None
+      principalExchanges = None
+
+    swapStreams = [swapStreamFloatingLeg, swapStreamFixedLeg]
+    currencies = [cashInstrumentCid, cashInstrumentCid]
+
+  -- A reference data provider publishes the holiday calendars on the ledger
+  calendarCid <- submit calendarDataProvider do
+    createCmd HolidayCalendar with
+      provider = calendarDataProvider; calendar = cal
+      observers = M.fromList observers
+  fixingCalendarCid <- submit calendarDataProvider do
+    createCmd HolidayCalendar with
+      provider = calendarDataProvider; calendar = fixingCal
+      observers = M.fromList observers
+
+  observableCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Observation with
+      provider = issuer; id = Id referenceRateId; observations; observers = M.empty
+  let observableCids = [observableCid]
+
+  swapInstrument <- originateFpmlSwap custodian issuer "SwapTest1" "Interest rate swap" observers
+    now swapStreams calendarDataProvider currencies issuerPartyRef
+
+  -- First payment date: Lifecycle and verify the fix and floating payments (regular 6M period)
+  let
+    expectedConsumedQuantities = [qty 2925000.0 cashInstrumentCid]
+    expectedProducedQuantities = [qty 3253611.11 cashInstrumentCid]
+  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifySwapPaymentEffects [publicParty]
+    (date 2000 Oct 27) swapInstrument issuer observableCids expectedConsumedQuantities
+    expectedProducedQuantities
+
+  -- Second payment date: Lifecycle and verify the fix and floating payments (regular 6M period)
+  let
+    expectedConsumedQuantities = [qty 2925000.0 cashInstrumentCid]
+    expectedProducedQuantities = [qty 3436111.11 cashInstrumentCid]
+  Some swapInstrumentAfterSecondPayment <- lifecycleAndVerifySwapPaymentEffects [publicParty]
+    (date 2001 Apr 27) swapInstrumentAfterFirstPayment issuer observableCids
+    expectedConsumedQuantities expectedProducedQuantities
+
+  pure ()
