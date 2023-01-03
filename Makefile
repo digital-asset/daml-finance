@@ -49,9 +49,11 @@ test-packages: build-packages
 validate-packages: build-packages
 	./$(SCRIPTS_DIR)/validate-packages.sh
 
-.PHONY: update-data-dependencies-packages
-update-data-dependencies-packages:
-	packell data-dependencies update -f
+.PHONY: update-packages
+update-packages:
+	git fetch
+	packell versioning update
+	packell data-dependencies update
 	make headers-update
 
 ###############################
@@ -122,6 +124,12 @@ ci-assembly:
 		--pure \
 		--run './docs/scripts/build-assembly.sh'
 
+.PHONY: ci-versioning
+ci-versioning:
+	@nix-shell \
+		--pure \
+		--run 'export LANG=C.UTF-8; packell versioning validate'
+
 .PHONY: ci-data-dependencies
 ci-data-dependencies:
 	@nix-shell \
@@ -129,7 +137,7 @@ ci-data-dependencies:
 		--run 'export LANG=C.UTF-8; packell data-dependencies validate'
 
 .PHONY: ci-local
-ci-local: clean-all ci-headers-check ci-data-dependencies ci-build ci-validate ci-build-java ci-build-js ci-test ci-docs
+ci-local: clean-all ci-headers-check ci-versioning ci-data-dependencies ci-build ci-validate ci-build-java ci-build-js ci-test ci-docs
 
 #########
 # Cache #

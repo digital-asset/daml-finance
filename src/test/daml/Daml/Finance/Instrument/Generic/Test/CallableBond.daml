@@ -11,13 +11,14 @@ import DA.Map qualified as M (empty, fromList)
 import DA.Set (empty, fromList, singleton, toList)
 import DA.Time (time)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..), T)
-import Daml.Finance.Instrument.Generic.Election (CreateElection(..), ElectionFactory(..))
+import Daml.Finance.Instrument.Generic.Election qualified as Election (Factory(..))
 import Daml.Finance.Instrument.Generic.Lifecycle.Rule qualified as Lifecycle (Rule(..))
+import Daml.Finance.Instrument.Generic.Test.Election.Workflow (CreateElectionCandidate(..), ValidateElectionCandidate(..), ElectionOffer(..))
 import Daml.Finance.Instrument.Generic.Test.Util (originateGeneric, dateToDateClockTime, mapClaimToUTCTime)
 import Daml.Finance.Interface.Account.Util (getOwner)
 import Daml.Finance.Interface.Claims.Types (C, Deliverable)
 import Daml.Finance.Interface.Holding.Util (getAmount)
-import Daml.Finance.Interface.Instrument.Generic.Election qualified as Election (Apply(..), I)
+import Daml.Finance.Interface.Instrument.Generic.Election qualified as Election (Apply(..))
 import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..), I)
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
@@ -29,6 +30,7 @@ import Daml.Finance.Settlement.RouteProvider.SingleCustodian (SingleCustodian(..
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
+import Daml.Finance.Test.Util.Time (createDateClock)
 import Daml.Script
 import Prelude hiding (and, or)
 
@@ -89,7 +91,7 @@ run = script do
 
   -- Create and distribute a generic derivative
   let
-    acquisitionTime = time (D.date 2022 Jul 01) 00 00 0
+    acquisitionTime = time (D.date 2022 Jul 01) 0 0 0
     intermediateDate = D.date 2022 Jul 07
     maturityDate = D.date 2023 Jul 07
     couponAmount = 1_000.0
@@ -100,15 +102,21 @@ run = script do
     acquisitionTime bond pp now
   investorGenericHoldingCid <- Account.credit [publicParty] genericInstrument 1.0 investorAccount
 
-  -- Create election factory to allow custodian to create elections
+  -- Create election offer to allow the custodian to create elections
+  electionFactoryCid <- submit issuer do
+    toInterfaceContractId <$> createCmd Election.Factory with
+      provider = issuer
+      observers = M.fromList [("Custodian", singleton bank)]
+
   callElectionFactoryCid <- submit issuer do
-    createCmd ElectionFactory with
+    createCmd ElectionOffer with
       provider = issuer
       id = Id "bondcall1"
       description = "Bond - Call"
       claim = called
       observers = singleton publicParty
       instrument = genericInstrument
+      factoryCid = electionFactoryCid
 
   ---------------------------------
   -- 2. ELECTION : CALL THE BOND --
@@ -116,19 +124,25 @@ run = script do
 
   -- One cannot exercise for more units than they own
   submitMultiMustFail [bank] [publicParty] do
-    exerciseCmd callElectionFactoryCid CreateElection with
+    exerciseCmd callElectionFactoryCid CreateElectionCandidate with
       elector = bank
       electionTime = dateToDateClockTime intermediateDate
       holdingCid = investorGenericHoldingCid
       amount = 5000.0
 
   -- Create election
-  callBondCid <- toInterfaceContractId @Election.I <$> submitMulti [bank] [publicParty] do
-    exerciseCmd callElectionFactoryCid CreateElection with
+  electionProposalCid <- submitMulti [bank] [publicParty] do
+    exerciseCmd callElectionFactoryCid CreateElectionCandidate with
       elector = bank
       electionTime = dateToDateClockTime intermediateDate
       holdingCid = fromInterfaceContractId investorGenericHoldingCid
       amount = 1.0
+
+  currentTimeCid <- createDateClock (singleton issuer) intermediateDate empty
+
+  electionCid <- submit issuer do
+    exerciseCmd electionProposalCid ValidateElectionCandidate with
+      currentTimeCid
 
   -- Apply election to generate new instrument version + effects
   lifecycleRuleCid <- toInterfaceContractId <$> submit bank do
@@ -140,7 +154,7 @@ run = script do
       description = "Rule to lifecycle a generic instrument"
 
   (_, [effectCid]) <- submit issuer do
-    exerciseCmd callBondCid Election.Apply with
+    exerciseCmd electionCid Election.Apply with
       observableCids = []
       exercisableCid = lifecycleRuleCid
 
@@ -188,9 +202,6 @@ run = script do
   bankCashInstructionCouponAndPrincipalCid <- submit investor do
     exerciseCmd bankCashInstructionCouponAndPrincipalCid Instruction.Approve with
       actors = singleton investor; approval = TakeDelivery investorAccount
-
-  -- Set time
-  setTime $ time intermediateDate 0 0 0
 
   -- Settle batch
   [investorCashHoldingCouponAndPrincipalCid] <- submitMulti (toList settlers) [publicParty] do

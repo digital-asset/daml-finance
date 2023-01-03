@@ -9,11 +9,12 @@ import Daml.Finance.Claims.Util.Builders
 import Daml.Finance.Instrument.Bond.Util
 import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, GetClaims(..), View(..))
 import Daml.Finance.Interface.Claims.Dynamic.Instrument qualified as DynamicInstrument (I, CreateNewVersion(..), View(..))
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, K, View(..), createReference, disclosureUpdateReference)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, View(..), createReference, disclosureUpdateReference)
 import Daml.Finance.Interface.Instrument.Bond.ZeroCoupon.Instrument qualified as ZeroCoupon (HasImplementation, I, View(..))
 import Daml.Finance.Interface.Instrument.Bond.ZeroCoupon.Types (ZeroCoupon(..))
 import Daml.Finance.Interface.Types.Common.Types (Id, InstrumentKey(..), PartiesMap)
-import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
 import Prelude hiding (key)
 
 -- | Type synonym for `Instrument`.
@@ -39,7 +40,7 @@ template Instrument
       -- ^ The date when the bond was issued.
     maturityDate : Date
       -- ^ The redemption date of the bond.
-    currency : BaseInstrument.K
+    currency : InstrumentKey
       -- ^ The currency of the bond. For example, if the bond pays in USD this should be a USD cash
       -- instrument.
     observers : PartiesMap
@@ -81,14 +82,16 @@ template Instrument
 
     interface instance DynamicInstrument.I for Instrument where
       view = DynamicInstrument.View with lifecycler = issuer; lastEventTimestamp
-      createNewVersion DynamicInstrument.CreateNewVersion{version, lastEventTimestamp} = do
+      createNewVersion DynamicInstrument.CreateNewVersion{version; lastEventTimestamp} = do
         cid <- create this with version, lastEventTimestamp
         BaseInstrument.createReference issuer $ toInterfaceContractId cid
         pure $ toInterfaceContractId cid
 
     interface instance Disclosure.I for Instrument where
       view = Disclosure.View with disclosureControllers = singleton issuer; observers
-      setObservers Disclosure.SetObservers{newObservers} = do
-        cid <- toInterfaceContractId <$> create this with observers = newObservers
-        BaseInstrument.disclosureUpdateReference newObservers instrument cid
-      archive' = archive . fromInterfaceContractId @Instrument
+      setObservers = setObserversImpl this $
+        Some (BaseInstrument.disclosureUpdateReference instrument)
+      addObservers = addObserversImpl @Instrument this $
+        Some (BaseInstrument.disclosureUpdateReference instrument)
+      removeObservers = removeObserversImpl this $
+        Some (BaseInstrument.disclosureUpdateReference instrument)

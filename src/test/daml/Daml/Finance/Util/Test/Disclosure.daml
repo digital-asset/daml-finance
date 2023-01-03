@@ -1,0 +1,160 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Util.Test.Disclosure where
+
+import DA.Assert ((===))
+import DA.Map qualified as M (fromList, lookup, member)
+import DA.Optional (fromSome)
+import DA.Set qualified as S (fromList, singleton)
+import Daml.Finance.Interface.Types.Common.Types (PartiesMap)
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, AddObservers(..), RemoveObservers(..), SetObservers(..), View(..), flattenObservers)
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Util.Disclosure (addObserversImpl, setObserversImpl, removeObserversImpl)
+import Daml.Script
+
+template TestDisclosure
+  with
+    p1 : Party
+    p2 : Party
+    observers : PartiesMap
+  where
+    signatory p1, p2
+    observer Disclosure.flattenObservers observers
+
+    interface instance Disclosure.I for TestDisclosure where
+      view = Disclosure.View with disclosureControllers = S.fromList [p1, p2]; observers
+      setObservers = setObserversImpl @TestDisclosure @Disclosure.I this None
+      addObservers = addObserversImpl @TestDisclosure @Disclosure.I this None
+      removeObservers = removeObserversImpl @TestDisclosure @Disclosure.I this None
+
+run : Script ()
+run = script do
+  -- Create parties
+  [custodian, issuer, alice, bob, charlie] <-
+    createParties ["Custodian", "Issuer", "Alice", "Bob", "Charlie"]
+
+  -- Create test contract to disclose
+  cid <- toInterfaceContractId @Disclosure.I <$> submitMulti [custodian, issuer] [] do
+    createCmd TestDisclosure with p1 = custodian; p2 = issuer; observers = M.fromList []
+
+  -- Set observers
+  -- only disclosure controllers, i.e., custodian or issuer, can `SetObservers`.
+  cid <- submit custodian do
+    exerciseCmd cid Disclosure.SetObservers with
+      disclosers = S.singleton custodian
+      newObservers = M.fromList [("context 1", S.fromList [alice, bob])]
+  submitMustFail alice do
+    exerciseCmd cid Disclosure.SetObservers with
+      disclosers = S.singleton alice
+      newObservers = M.fromList [("context 2", S.fromList [alice, bob])]
+  cid <- submit issuer do
+    exerciseCmd cid Disclosure.SetObservers with
+      disclosers = S.singleton issuer
+      newObservers =
+        M.fromList [("context 1", S.fromList [alice, bob]), ("context 2", S.fromList [alice, bob])]
+
+  -- Add observers
+  -- any disclosure controller can `AddObservers`, but no others
+  -- add observers (for context 3)
+  cid <- submit custodian do
+    exerciseCmd cid Disclosure.AddObservers with
+      disclosers = S.singleton custodian
+      observersToAdd = ("context 3", S.fromList [alice, bob, charlie])
+  -- add observers (for context 4)
+  cid <- submit issuer do
+    exerciseCmd cid Disclosure.AddObservers with
+      disclosers = S.singleton issuer
+      observersToAdd = ("context 4", S.fromList [alice, bob])
+  -- a non-disclosure controller can't add observers
+  submitMustFail alice do
+    exerciseCmd cid Disclosure.AddObservers with
+      disclosers = S.singleton alice; observersToAdd = ("context 4", S.fromList [charlie])
+  -- add obsevers (for context 4)
+  cid <- submit issuer do
+    exerciseCmd cid Disclosure.AddObservers with
+      disclosers = S.singleton issuer
+      observersToAdd = ("context 4", S.fromList [charlie])
+
+  -- Remove observers
+  -- any disclosure controller can remove observers (from any context)
+  -- remove observer party (for context 3)
+  Some cid <- submit custodian do
+    exerciseCmd cid
+      Disclosure.RemoveObservers with
+        disclosers = S.singleton custodian
+        observersToRemove = ("context 3", S.fromList [charlie])
+  -- remove observer party (no update necessary)
+  None <- submit issuer do
+    exerciseCmd cid
+      Disclosure.RemoveObservers with
+         disclosers = S.singleton issuer
+         observersToRemove = ("context 3", S.fromList [charlie])
+  -- remove observer party (for context 3)
+  Some cid <- submit issuer do
+    exerciseCmd cid
+      Disclosure.RemoveObservers with
+        disclosers = S.singleton issuer
+        observersToRemove = ("context 3", S.fromList [alice, bob])
+  -- assert no context 3
+  Some testDisclosure <- queryContractId issuer $ fromInterfaceContractId @TestDisclosure cid
+  M.member "context 3" testDisclosure.observers === False
+  -- any party of a context can remove any other party in the same context
+  Some cid <- submit alice do
+    exerciseCmd cid
+      Disclosure.RemoveObservers with
+         disclosers = S.singleton alice
+         observersToRemove = ("context 4", S.fromList [charlie])
+  -- unauthorized party can't remove observer party
+  submitMustFail charlie do
+    exerciseCmd cid
+      Disclosure.RemoveObservers with
+         disclosers = S.singleton charlie
+         observersToRemove = ("context 4", S.fromList [alice])
+  Some cid <- submit bob do
+    exerciseCmd cid
+      Disclosure.RemoveObservers with
+         disclosers = S.singleton bob
+         observersToRemove = ("context 4", S.fromList [alice, bob])
+  -- assert no context 4
+  Some testDisclosure <- queryContractId issuer $ fromInterfaceContractId @TestDisclosure cid
+  M.member "context 4" testDisclosure.observers === False
+  -- can't remove a party for a non-existent context
+  None <- submit issuer do
+    exerciseCmd cid
+      Disclosure.RemoveObservers with
+         disclosers = S.singleton issuer
+         observersToRemove = ("non-existing context", S.fromList [alice, bob])
+  -- a disclosure controller can remove all parties
+  Some cid <- submit custodian do
+    exerciseCmd cid
+      Disclosure.RemoveObservers with
+         disclosers = S.singleton custodian
+         observersToRemove = ("context 1", S.fromList [alice, bob, custodian])
+  -- assert no context 1
+  Some testDisclosure <- queryContractId issuer $ fromInterfaceContractId @TestDisclosure cid
+  M.member "context 1" testDisclosure.observers === False
+
+  -- Any authorized party can remove observers together with an unauthorized party
+  Some cid <- submitMulti [alice, charlie] [] do
+    exerciseCmd cid Disclosure.RemoveObservers with
+      disclosers = S.fromList [alice, charlie]
+      observersToRemove = ("context 2", S.fromList [alice, bob])
+  -- assert no context 2
+  Some testDisclosure <- queryContractId custodian $ fromInterfaceContractId @TestDisclosure cid
+  M.member "context 2" testDisclosure.observers === False
+  -- Any authorized party can set observers together with an unauthorized party
+  cid <- submitMulti [custodian, charlie] [] do
+    exerciseCmd cid Disclosure.SetObservers with
+      disclosers = S.fromList [custodian, charlie]
+      newObservers = M.fromList [("context 2", S.fromList [alice])]
+  -- Any authorized party can add observers together with an unauthorized party
+  cid <- submitMulti [custodian, charlie] [] do
+    exerciseCmd cid Disclosure.AddObservers with
+      disclosers = S.fromList [custodian, charlie]
+      observersToAdd = ("context 2", S.fromList [bob])
+  -- assert context 2 is set properly
+  Some testDisclosure <- queryContractId custodian $ fromInterfaceContractId @TestDisclosure cid
+  fromSome (M.lookup "context 2" testDisclosure.observers) === S.fromList [alice, bob]
+
+  pure ()

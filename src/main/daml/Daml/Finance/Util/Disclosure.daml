@@ -1,0 +1,112 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+-- | This module contains default implementations for the methods of the `Disclosure` interface.
+-- These are used across multiple templates in the library.
+module Daml.Finance.Util.Disclosure where
+
+import DA.Foldable qualified as F (mapA_)
+import DA.Map qualified as M (delete, insert, lookup)
+import DA.Optional (fromOptional)
+import DA.Set (Set)
+import DA.Set qualified as S (difference, empty, intersection, null, union)
+import DA.Traversable qualified as T (mapA)
+import Daml.Finance.Interface.Types.Common.Types (PartiesMap)
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (AddObservers(..), I, RemoveObservers(..), SetObservers(..))
+
+-- | Default implementation for `setObservers`.
+-- The `refUpdate` argument is used to update the corresponding contract `Reference` and
+-- can be set to `None` if your template does not have an accompanying `Reference` contract.
+setObserversImpl :
+  forall t i.
+  ( HasCreate t
+  , HasField "observers" t PartiesMap
+  , HasFromInterface t Disclosure.I
+  , HasToInterface t Disclosure.I
+  , HasInterfaceTypeRep i
+  , HasToInterface i Disclosure.I
+  , HasToInterface t i
+  ) => t -> Optional (PartiesMap -> ContractId i -> Update (ContractId Disclosure.I)) ->
+    Disclosure.SetObservers -> Update (ContractId Disclosure.I)
+setObserversImpl this refUpdate Disclosure.SetObservers{disclosers; newObservers} = do
+  let v = view $ toInterface @Disclosure.I this
+  assertMsg
+    ("controller (" <> show disclosers <> ") must be authorized to SetObservers") $
+    mustIntersect disclosers v.disclosureControllers
+  cid <- toInterfaceContractId @i <$> create this with observers = newObservers
+  F.mapA_ (\f -> f newObservers cid) refUpdate
+  pure $ toInterfaceContractId @Disclosure.I cid
+
+-- | Default implementation for `addObservers`.
+-- The `refUpdate` argument is used to update the corresponding contract `Reference` and
+-- can be set to `None` if your template does not have an accompanying `Reference` contract.
+addObserversImpl :
+  forall t i.
+  ( HasCreate t
+  , HasField "observers" t PartiesMap
+  , HasFromInterface t Disclosure.I
+  , HasToInterface t Disclosure.I
+  , HasInterfaceTypeRep i
+  , HasToInterface i Disclosure.I
+  , HasToInterface t i
+  ) =>
+    t -> Optional (PartiesMap -> ContractId i -> Update (ContractId Disclosure.I)) ->
+      Disclosure.AddObservers -> Update (ContractId Disclosure.I)
+addObserversImpl this refUpdate Disclosure.AddObservers{disclosers; observersToAdd} = do
+  let
+    v = view $ toInterface @Disclosure.I this
+    context = fst observersToAdd
+    contextParties = fromOptional S.empty $ M.lookup context v.observers
+    value = contextParties <> snd observersToAdd
+    newObservers = M.insert context value v.observers
+  assertMsg
+    ("controller (" <> show disclosers <> ") must be authorized to SetObservers") $
+    mustIntersect disclosers v.disclosureControllers
+  cid <- toInterfaceContractId @i <$> create this with observers = newObservers
+  F.mapA_ (\f -> f newObservers cid) refUpdate
+  pure $ toInterfaceContractId @Disclosure.I cid
+
+-- | Default implementation for `removeObservers`.
+-- The `refUpdate` argument is used to update the corresponding contract `Reference` and
+-- can be set to `None` if your template does not have an accompanying `Reference` contract.
+removeObserversImpl :
+  forall t i. ( HasCreate t
+  , HasField "observers" t PartiesMap
+  , HasFromInterface t Disclosure.I
+  , HasToInterface t Disclosure.I
+  , HasInterfaceTypeRep i
+  , HasToInterface i Disclosure.I
+  , HasToInterface t i
+  ) =>
+  t -> Optional (PartiesMap -> ContractId i -> Update (ContractId Disclosure.I))
+    -> ContractId Disclosure.I
+    -> Disclosure.RemoveObservers -> Update (Optional (ContractId Disclosure.I))
+removeObserversImpl this refUpdate self
+  Disclosure.RemoveObservers{disclosers; observersToRemove} = do
+    let
+      v = view $ toInterface @Disclosure.I this
+      context = fst observersToRemove
+      contextParties = fromOptional S.empty $ M.lookup context v.observers
+    assertMsg "disclosers must be authorized to RemoveObservers when removing other parties" $
+      mustIntersect disclosers (v.disclosureControllers `S.union` contextParties)
+    fromOptional None <$>
+      T.mapA
+        (\viewers -> do
+          let updatedViewers = viewers `S.difference` snd observersToRemove
+          if updatedViewers == viewers then
+            pure None
+          else do
+            archive self
+            let
+              newObservers = if S.null updatedViewers
+                             then M.delete context v.observers
+                             else M.insert context updatedViewers v.observers
+            cid <- toInterfaceContractId @i <$> create this with observers = newObservers
+            F.mapA_ (\f -> f newObservers cid) refUpdate
+            pure $ Some (toInterfaceContractId @Disclosure.I cid)
+        )
+      (M.lookup context v.observers)
+
+-- | HIDE
+mustIntersect : Ord k => Set k -> Set k -> Bool
+mustIntersect a b = not . S.null $ a `S.intersection` b

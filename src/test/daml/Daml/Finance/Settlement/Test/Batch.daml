@@ -6,13 +6,13 @@ module Daml.Finance.Settlement.Test.Batch where
 import DA.Map qualified as M (fromList)
 import DA.Set (fromList, singleton, toList)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (qty)
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Cancel(..), Settle(..))
-import Daml.Finance.Interface.Settlement.Factory qualified as Factory (I, Instruct(..))
+import Daml.Finance.Interface.Settlement.Factory qualified as Settlement (F, Instruct(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..), Execute(..))
 import Daml.Finance.Interface.Settlement.RouteProvider qualified as RouteProvider (I, Discover(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), Step(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..))
+import Daml.Finance.Interface.Util.Common (qty)
 import Daml.Finance.Settlement.Factory (Factory(..))
 import Daml.Finance.Settlement.RouteProvider.SingleCustodian (SingleCustodian(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
@@ -53,7 +53,7 @@ data TestParties = TestParties
 -- |     Bank       |                       |
 -- +----------------+-----------------------+
 run: Bool -> Bool -> Script ()
-run settleCashOnLedger bankIsRequesting = script do
+run settleCashOnledger bankIsRequesting = script do
   TestParties{..} <- setupParties
 
   -- Account and holding factory
@@ -82,11 +82,8 @@ run settleCashOnLedger bankIsRequesting = script do
   -- Settlement steps
   let
     steps =
-      [ Step with
-          sender = seller; receiver = buyer; quantity = Instrument.qty 1_000.0 equityInstrument
-      , Step with
-          sender = buyer; receiver = seller; quantity = Instrument.qty 200_000.0 cashInstrument
-      ]
+      [ Step with sender = seller; receiver = buyer; quantity = qty 1_000.0 equityInstrument
+      , Step with sender = buyer; receiver = seller; quantity = qty 200_000.0 cashInstrument ]
 
   -- Discover settlement routes
   routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit bank do
@@ -97,7 +94,7 @@ run settleCashOnLedger bankIsRequesting = script do
       discoverors = singleton bank; contextId = None; steps
 
   -- Setup settlement factory
-  settlementFactoryCid <- toInterfaceContractId @Factory.I <$>
+  settlementFactoryCid <- toInterfaceContractId @Settlement.F <$>
     submit bank do
       createCmd Factory with provider = bank; observers = singleton publicParty
 
@@ -106,7 +103,7 @@ run settleCashOnLedger bankIsRequesting = script do
     requestors = fromList $ if bankIsRequesting then [bank] else [buyer, seller]
     settlers = fromList [buyer, seller]
     instructCmd = submitMulti (toList requestors) [publicParty] do
-      exerciseCmd settlementFactoryCid Factory.Instruct with
+      exerciseCmd settlementFactoryCid Settlement.Instruct with
         instructors = requestors; settlers; id = Id "APPL 1000@200.0USD"; description = "DVP"
         contextId = None; routedSteps; settlementTime = None
 
@@ -130,7 +127,7 @@ run settleCashOnLedger bankIsRequesting = script do
       actors = singleton buyer; approval = TakeDelivery buyerCustodyAccount
 
   -- Allocate and approve cash instruction
-  cashInstructionCid <- if settleCashOnLedger
+  cashInstructionCid <- if settleCashOnledger
     then
       do
         -- Settle by on-ledger transfer
@@ -146,10 +143,10 @@ run settleCashOnLedger bankIsRequesting = script do
         -- Settle by off ledger transfer
         (cashInstructionCid, _) <- submitMulti [buyer, bank] [] do
           exerciseCmd cashInstructionCid Instruction.Allocate with
-            actors = fromList [buyer, bank]; allocation = SettleOffLedger
+            actors = fromList [buyer, bank]; allocation = SettleOffledger
         submitMulti [seller, bank] [] do
           exerciseCmd cashInstructionCid Instruction.Approve with
-            actors = fromList [seller, bank]; approval = SettleOffLedgerAcknowledge
+            actors = fromList [seller, bank]; approval = SettleOffledgerAcknowledge
 
   -- Settle batch
   -- neither the bank, nor seller, nor buyer can execute an instruction

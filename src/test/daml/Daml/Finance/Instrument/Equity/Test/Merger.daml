@@ -7,7 +7,6 @@ import DA.Map qualified as M (fromList)
 import DA.Set (fromList, singleton)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Instrument.Equity.Test.Util (originateEquity)
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (qty)
 import Daml.Finance.Interface.Instrument.Equity.Instrument qualified as Equity (I, DeclareReplacement(..))
 import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..), I)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I)
@@ -15,6 +14,7 @@ import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..))
+import Daml.Finance.Interface.Util.Common (qty)
 import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
 import Daml.Finance.Lifecycle.Rule.Replacement qualified as Replacement (Rule(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
@@ -26,6 +26,7 @@ import Daml.Finance.Test.Util.Instrument qualified as Instrument (submitExercise
 import Daml.Script
 
 -- Merger lifecycling and settlement
+-- This is a mandatory corporate action: no election is required by the shareholder.
 run : Script ()
 run = script do
   -- Create parties
@@ -42,6 +43,7 @@ run = script do
   investorSecuritiesAccount <- Account.createAccount "Securities Account" [] accountFactoryCid
     holdingFactoryCid [] Account.Owner custodian investor
 
+  -- CREATE_EQUITY_REPLACEMENT_RULE_BEGIN
   -- Create lifecycle rules
   replacementRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit merging do
     createCmd Replacement.Rule with
@@ -50,30 +52,39 @@ run = script do
       observers = singleton publicParty
       id = Id "LifecycleRule"
       description = "Rule to lifecycle an instrument following a replacement event"
+  -- CREATE_EQUITY_REPLACEMENT_RULE_END
 
   -- Originate instruments
   now <- getTime
+  -- CREATE_EQUITY_INSTRUMENTS_BEGIN
   mergingInstrument <- originateEquity merging merging "INST-1" "0" "ABC" pp now
   mergedInstrument <- originateEquity merged merged "INST-2" "0" "XYZ" pp now
+  -- CREATE_EQUITY_INSTRUMENTS_END
 
   -- Distribute holdings
   investorEquityCid <- Account.credit [] mergingInstrument 2_000.0 investorSecuritiesAccount
 
+  -- CREATE_EQUITY_REPLACEMENT_EVENT_BEGIN
   -- Create replacement event
+  -- perUnitReplacement is an arbitrary list of instruments, so the investor can also receive a
+  -- combination of shares and cash.
   replacementEventCid <-
     Instrument.submitExerciseInterfaceByKeyCmd @Equity.I [merging] [] mergingInstrument
       Equity.DeclareReplacement with
         id = Id $ "ABC merge - " <> show now
         description = "Merge"
         effectiveTime = now
-        perUnitReplacement = [Instrument.qty 0.5 mergedInstrument]
+        perUnitReplacement = [qty 0.5 mergedInstrument]
+  -- CREATE_EQUITY_REPLACEMENT_EVENT_END
 
+  -- LIFECYCLE_MERGER_BEGIN
   -- Lifecycle replacement event
   (_, [effectCid]) <- submit merging do
     exerciseCmd replacementRuleCid Lifecycle.Evolve with
       eventCid = replacementEventCid
       observableCids = []
       instrument = mergingInstrument
+  -- LIFECYCLE_MERGER_END
 
   -- Claim effect
   routeProviderCid <- toInterfaceContractId <$> submit custodian do

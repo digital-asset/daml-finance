@@ -14,14 +14,15 @@ import DA.Text (sha256)
 import DA.Time (time)
 import Daml.Finance.Data.Numeric.Observation (Observation(..))
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..), T)
-import Daml.Finance.Instrument.Generic.Election (CreateElection(..), ElectionFactory(..))
+import Daml.Finance.Instrument.Generic.Election qualified as Election (Factory(..))
 import Daml.Finance.Instrument.Generic.Lifecycle.Rule qualified as Lifecycle (Rule(..))
+import Daml.Finance.Instrument.Generic.Test.Election.Workflow (CreateElectionCandidate(..), ValidateElectionCandidate(..), ElectionOffer(..))
 import Daml.Finance.Instrument.Generic.Test.Util (originateGeneric, dateToDateClockTime, mapClaimToUTCTime)
 import Daml.Finance.Interface.Account.Util (getOwner)
 import Daml.Finance.Interface.Claims.Types (C, Observable, Deliverable)
 import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (SplitResult(..), I, Split(..))
 import Daml.Finance.Interface.Holding.Util (getAmount)
-import Daml.Finance.Interface.Instrument.Generic.Election qualified as Election (Apply(..), I)
+import Daml.Finance.Interface.Instrument.Generic.Election qualified as Election (Apply(..))
 import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..), I)
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
@@ -33,6 +34,7 @@ import Daml.Finance.Settlement.RouteProvider.SingleCustodian (SingleCustodian(..
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
+import Daml.Finance.Test.Util.Time (createDateClock)
 import Daml.Script
 import Prelude hiding (or)
 
@@ -63,10 +65,12 @@ data TestParties = TestParties
 -- | Creates the claim for a European Call option and the corresponding elections
 bootstrapOption : Date -> Decimal -> Observable -> Deliverable -> (C, C, C)
 bootstrapOption maturity strike spot ccy =
+  -- CREATE_CC_OPTION_INSTRUMENT_VARIABLES_BEGIN
   let
     exercised = scale (Observe spot - Const strike) $ one ccy
     notExercised = zero
     option = european maturity $ exercised `or` notExercised
+  -- CREATE_CC_OPTION_INSTRUMENT_VARIABLES_END
   in (mapClaimToUTCTime option, mapClaimToUTCTime exercised, mapClaimToUTCTime notExercised)
 
 run : Script ()
@@ -111,24 +115,31 @@ run = script do
   investor2GenericHoldingCid <-
     Account.credit [publicParty] genericInstrument 1_000.0 investor2Account
 
-  -- Create election factory to allow holders to create elections
+  -- Create election offers to allow holders to create elections
+  electionFactoryCid <- submit broker do
+    toInterfaceContractId <$> createCmd Election.Factory with
+      provider = broker
+      observers = M.fromList pp
+
   exerciseElectionFactoryCid <- submit broker do
-    createCmd ElectionFactory with
+    createCmd ElectionOffer with
       provider = broker
       id = Id . sha256 $ show exercised
       description = "OPTION-AAPL - Exercise"
       claim = exercised
       observers = singleton publicParty
       instrument = genericInstrument
+      factoryCid = electionFactoryCid
 
   expireElectionFactoryCid <- submit broker do
-    createCmd ElectionFactory with
+    createCmd ElectionOffer with
       provider = broker
       id = Id . sha256 $ show notExercised
       description = "OPTION-AAPL - Expire"
       claim = notExercised
       observers = singleton publicParty
       instrument = genericInstrument
+      factoryCid = electionFactoryCid
 
   -----------------------------------------
   -- 1. ELECTION 1 : EXERCISE THE OPTION --
@@ -136,20 +147,26 @@ run = script do
 
   -- One cannot exercise for more units than they own
   submitMultiMustFail [investor1] [publicParty] do
-    exerciseCmd exerciseElectionFactoryCid CreateElection with
+    exerciseCmd exerciseElectionFactoryCid CreateElectionCandidate with
       elector = investor1
       electionTime = dateToDateClockTime maturity
       holdingCid = investor1GenericHoldingCid
       amount = 5000.0
 
   -- Create election
-  exerciseOptionCid <- toInterfaceContractId @Election.I <$> submitMulti [investor1] [publicParty]
+  exerciseOptionProposalCid <- submitMulti [investor1] [publicParty]
     do
-      exerciseCmd exerciseElectionFactoryCid CreateElection with
+      exerciseCmd exerciseElectionFactoryCid CreateElectionCandidate with
         elector = investor1
         electionTime = dateToDateClockTime maturity
         holdingCid = investor1GenericHoldingCid
         amount = 500.0
+
+  currentTimeCid <- createDateClock (singleton broker) maturity empty
+
+  exerciseOptionCid <- submit broker do
+    exerciseCmd exerciseOptionProposalCid ValidateElectionCandidate with
+      currentTimeCid
 
   -- Apply election to generate new instrument version + effects
   lifecycleRuleCid <- toInterfaceContractId <$> submit bank do
@@ -238,13 +255,16 @@ run = script do
   -- 1. ELECTION 2 : EXPIRE THE OPTION --
   -----------------------------------------
 
-  expireOptionCid : ContractId Election.I <- toInterfaceContractId <$>
-    submitMulti [investor2] [publicParty] do
-      exerciseCmd expireElectionFactoryCid CreateElection with
+  expireOptionProposalCid <- submitMulti [investor2] [publicParty] do
+      exerciseCmd expireElectionFactoryCid CreateElectionCandidate with
         elector = investor2
         electionTime = dateToDateClockTime maturity
         holdingCid = investor2GenericHoldingCid
         amount = 1000.0
+
+  expireOptionCid <- submit broker do
+    exerciseCmd expireOptionProposalCid ValidateElectionCandidate with
+      currentTimeCid
 
   (_, [effectCid]) <- submit broker do
     exerciseCmd expireOptionCid Election.Apply with

@@ -4,7 +4,9 @@
 module Daml.Finance.Holding.Fungible where
 
 import DA.Action (foldlA)
-import DA.Set qualified as S (fromList, singleton)
+import DA.Foldable qualified as F (all)
+import DA.Set (fromList, singleton)
+import DA.Traversable qualified as T (forA)
 import Daml.Finance.Holding.Util (acquireImpl, releaseImpl, transferImpl)
 import Daml.Finance.Interface.Holding.Base (getLockers)
 import Daml.Finance.Interface.Holding.Base qualified as Base (I, Lock(..), View(..))
@@ -12,7 +14,9 @@ import Daml.Finance.Interface.Holding.Factory qualified as HoldingFactory (Creat
 import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (HasImplementation, I, Merge(..), Split(..), SplitResult(..), View(..))
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, View(..))
 import Daml.Finance.Interface.Types.Common.Types (AccountKey(..), InstrumentKey(..), PartiesMap)
-import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
+import Daml.Finance.Interface.Util.Common (verify)
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
 import Prelude hiding (null)
 
 -- | Type synonym for `Factory`.
@@ -23,8 +27,8 @@ type T = Fungible
 
 instance Fungible.HasImplementation T
 -- | Implementation of a fungible holding.
---   The `Fungible` template implements the interface `Fungible.I` (which requires `Transferable.I`,
---   `Base.I` and `Disclosure.I` to be implemented).
+-- The `Fungible` template implements the interface `Fungible.I` (which requires `Transferable.I`,
+-- `Base.I` and `Disclosure.I` to be implemented).
 template Fungible
   with
     instrument : InstrumentKey
@@ -45,10 +49,10 @@ template Fungible
 
     interface instance Disclosure.I for Fungible where
       view = Disclosure.View with
-        disclosureControllers = S.fromList [account.owner, account.custodian]; observers
-      setObservers Disclosure.SetObservers{newObservers} =
-        toInterfaceContractId <$> create this with observers = newObservers
-      archive' = archive . fromInterfaceContractId @Fungible
+        disclosureControllers = fromList [account.owner, account.custodian]; observers
+      setObservers = setObserversImpl @Fungible @Disclosure.I this None
+      addObservers = addObserversImpl @Fungible @Disclosure.I this None
+      removeObservers = removeObserversImpl @Fungible @Disclosure.I this None
 
     interface instance Base.I for Fungible where
       asDisclosure = toInterface @Disclosure.I this
@@ -63,22 +67,19 @@ template Fungible
 
     interface instance Fungible.I for Fungible where
       asTransferable = toInterface @Transferable.I this
-      view = Fungible.View with modifiers = S.singleton account.owner
+      view = Fungible.View with modifiers = singleton account.owner
       split Fungible.Split{amounts} = do
-        let rest = amount - sum amounts
-        assertMsg "split quantities are not more than the available amount" $ rest >= 0.0
-        splitCids <- forA amounts $ \q -> toInterfaceContractId <$> create this with amount = q
-        rest <- if rest == 0.0
-                then pure None
-                else Some . toInterfaceContractId <$> create this with amount = rest
-        pure $ Fungible.SplitResult with splitCids; rest
+        splitCids <- forA amounts \a -> toInterfaceContractId <$> create this with amount = a
+        restAmount <- getRestAmount amounts amount
+        rest <- T.forA restAmount \r -> toInterfaceContractId <$> create this with amount = r
+        pure Fungible.SplitResult with splitCids; rest
       merge Fungible.Merge{fungibleCids} = do
         let
-          f qty cid = do
+          f a cid = do
             Some (fungibleCid, fungible) <- fetchFromInterface @Fungible cid
-            archive fungibleCid
             assertMsg "instrument must match" $ instrument == fungible.instrument
-            pure $ qty + fungible.amount
+            archive fungibleCid
+            pure $ a + fungible.amount
         tot <- foldlA f amount fungibleCids
         toInterfaceContractId <$> create this with amount = tot
 
@@ -98,14 +99,28 @@ template Factory
       where
         asDisclosure = toInterface @Disclosure.I this
         view = HoldingFactory.View with provider
-        create' HoldingFactory.Create{instrument; account; amount; observers} =
+        create' HoldingFactory.Create{instrument; account; amount; observers} = do
+          assertMsg "amount must be positive" $ amount > 0.0
           toInterfaceContractId <$>
             create Fungible with instrument; account; amount; observers; lock = None
         remove HoldingFactory.Remove{holdingCid} =
           archive $ fromInterfaceContractId @Fungible holdingCid
 
     interface instance Disclosure.I for Factory where
-      view = Disclosure.View with disclosureControllers = S.singleton provider; observers
-      setObservers Disclosure.SetObservers{newObservers} =
-        toInterfaceContractId <$> create this with observers = newObservers
-      archive' = archive . fromInterfaceContractId @Factory
+      view = Disclosure.View with disclosureControllers = singleton provider; observers
+      setObservers = setObserversImpl @Factory @Disclosure.I this None
+      addObservers = addObserversImpl @Factory @Disclosure.I this None
+      removeObservers = removeObserversImpl @Factory @Disclosure.I this None
+
+-- | HIDE Gets the rest amount of a split (if any) and verifies that split amounts are strictly
+-- positive and don't exceed the current amount.
+getRestAmount : CanAssert m => [Decimal] -> Decimal -> m (Optional Decimal)
+getRestAmount amounts currentAmount = do
+  let splitAmountSum = sum amounts
+  verify (splitAmountSum <= currentAmount && F.all (> 0.0) amounts && amounts /= []) $ "Fungible::"
+    <> "verifySplit - Amounts must be non-empty, strictly positive, and not exceed current amount. "
+    <> "amounts=" <> show amounts
+    <> ", splitAmountSum=" <> show splitAmountSum
+    <> ", currentAmount=" <> show currentAmount
+  let rest = currentAmount - splitAmountSum
+  pure $ if rest == 0.0 then None else Some rest

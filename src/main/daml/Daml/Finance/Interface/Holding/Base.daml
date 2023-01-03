@@ -3,10 +3,8 @@
 
 module Daml.Finance.Interface.Holding.Base where
 
-import DA.Assert ((===))
-import DA.Optional (fromSomeNote, whenSome)
-import DA.Set (Set, fromList, intersection, notMember)
-import Daml.Finance.Interface.Types.Common.Types (AccountKey, Parties, InstrumentKey)
+import DA.Set (Set)
+import Daml.Finance.Interface.Types.Common.Types (AccountKey, InstrumentKey, Parties)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, Implementation)
 
 -- | Type synonym for `Base`.
@@ -78,19 +76,13 @@ interface Base where
         -- ^ Type of lock to acquire
     controller (view this).account.owner, newLockers
     do
-      validateRequest this arg
-      baseCid <- acquire this arg
-      base <- fetch baseCid
-      let lock = fromSomeNote "Contract has not been locked." (view base).lock
-      lock.lockers === newLockers
-      fromList (signatory base) `intersection` newLockers === newLockers
-      pure baseCid
+      acquire this arg
 
   choice Release : ContractId Base
     -- ^ Unlock a locked contract.
     with
       context : Text
-    controller case (view this).lock of None -> mempty; Some lock -> lock.lockers
+    controller getLockers this
     do
       release this arg
 
@@ -100,18 +92,6 @@ instance HasToInterface I Disclosure.I where _toInterface = asDisclosure
 class (Implementation t) => HasImplementation t
 instance HasImplementation I
 
--- | Get the lockers of a base holding.
-getLockers : (HasToInterface t I) => t -> Parties
-getLockers base = optional mempty (.lockers) (view $ toInterface @I base).lock
-
--- | HIDE
--- Validate a new acquire request.
-validateRequest : Base -> Acquire -> Update (Optional Lock)
-validateRequest this Acquire{newLockers; context; lockType} = do
-  let oLock = (view this).lock
-  whenSome oLock \lock -> do
-    lock.lockers === newLockers
-    lock.lockType === lockType
-    assertMsg "Contract must be locked." $ lock.lockType == Reentrant
-    assertMsg "Contract must not be locked for this context." $ notMember context lock.context
-  pure oLock
+-- | Get the lockers of a holding.
+getLockers : (HasToInterface t Base) => t -> Parties
+getLockers holding = optional mempty (.lockers) (view $ toInterface @Base holding).lock

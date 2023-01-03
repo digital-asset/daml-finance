@@ -1,0 +1,133 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+-- | This module includes helper contracts to delegate the right to create `Election`\s
+-- referencing a specific `Instrument`. A number of sensible sanity-checks are performed.
+-- The provider of the `ElectionOffer` delegates the ability to create `Election`\s to any party
+-- that has visibility on the `ElectionOffer` contract.
+-- In order to create an `ElectionCandidate`, a valid `Holding` must be presented which identifies
+-- the choice controller as either the owner or the custodian to the `Holding`.
+-- The `ElectionCandidate` then needs to be validated in order to create an `Election`.
+-- This module is not part of the main Daml Finance library as we consider the delegation /
+-- sanity-checking logic herein to be application-specific rather than generic.
+module Daml.Finance.Instrument.Generic.Test.Election.Workflow where
+
+import DA.Map qualified as M (fromList)
+import DA.Set qualified as S (fromList, singleton)
+import DA.Text (sha256)
+import Daml.Finance.Interface.Claims.Types (C)
+import Daml.Finance.Interface.Holding.Base qualified as Base (I)
+import Daml.Finance.Interface.Instrument.Generic.Election qualified as Election (I)
+import Daml.Finance.Interface.Instrument.Generic.Election.Factory qualified as Election (Create(..), F)
+import Daml.Finance.Interface.Lifecycle.Observable.TimeObservable qualified as TimeObservable (GetTime(..), I)
+import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey, Parties)
+import Daml.Finance.Interface.Util.Common (verify)
+
+-- | Template used to facilitate creation of an `Election`.
+template ElectionOffer
+  with
+    provider : Party
+      -- ^ The provider.
+    id : Id
+      -- ^ Election identifier.
+    description : Text
+      -- ^ A human readable description of the election claim.
+    claim : C
+      -- ^ The elected sub-tree.
+    instrument : InstrumentKey
+      -- ^ Key of the instrument to which the election applies.
+    factoryCid : ContractId Election.F
+      -- ^ Election factory contract.
+    observers : Parties
+      -- ^ Observers of the contract.
+  where
+    signatory provider
+    observer observers
+
+    nonconsuming choice CreateElectionCandidate : ContractId ElectionCandidate
+      -- ^ Creates an `Election` on an instrument. This choice must be exercised by the `elector`.
+      with
+        elector : Party
+          -- ^ Entity making the election.
+        electionTime : Time
+          -- ^ Time at which the election is put forward.
+        holdingCid : ContractId Base.I
+          -- ^ A holding used to verify that the elector is entitled to make the election.
+        amount : Decimal
+          -- ^ Number of units of instrument to which the election applies.
+      controller elector
+      do
+        holding <- view <$> fetch holdingCid
+        verify (holding.instrument == instrument)
+          "Invalid holding presented : reference instrument"
+        verify (holding.amount >= amount) $
+          "Invalid holding presented : amount is " <> show holding.amount <>
+          " but elected amount is " <> show amount
+        let
+          custodian = holding.account.custodian
+          owner = holding.account.owner
+          electorIsOwner
+            | elector == owner = True
+            | elector == custodian = False
+            | otherwise = error "Election can be made only on behalf of the owner or the custodian"
+          counterparty = if electorIsOwner then elector else custodian
+        create ElectionCandidate
+          with
+            validator = provider; id; description; claim; instrument; factoryCid; elector; electionTime
+            amount; counterparty; electorIsOwner
+
+-- | An `Election` that has to be validated.
+template ElectionCandidate
+  with
+    validator : Party
+      -- ^ The party responsible for validating the election candidate.
+    elector : Party
+      -- ^ Entity making the election.
+    counterparty : Party
+      -- ^ The counterparty to the election.
+    id : Id
+      -- ^ Election identifier.
+    description : Text
+      -- ^ A human readable description of the election claim.
+    claim : C
+      -- ^ The elected sub-tree.
+    instrument : InstrumentKey
+      -- ^ Key of the instrument to which the election applies.
+    factoryCid : ContractId Election.F
+      -- ^ Election factory contract.
+    electionTime : Time
+      -- ^ Time at which the election is put forward.
+    amount : Decimal
+      -- ^ Number of units of instrument to which the election applies.
+    electorIsOwner : Bool
+      -- ^ Flag indicating if the elector is the holding owner or the custodian.
+  where
+    signatory elector
+    observer validator
+
+    choice ValidateElectionCandidate : ContractId Election.I
+      with
+        currentTimeCid : ContractId TimeObservable.I
+      controller validator
+      do
+        -- Sanity check against current time
+        currentTime <- exercise currentTimeCid TimeObservable.GetTime with
+          actors = S.singleton validator
+        assertMsg ("Election time " <> show electionTime
+          <> " must be greater or equal than current time " <> show currentTime)
+          $ electionTime >= currentTime
+
+        -- Create election
+        exercise factoryCid Election.Create with
+          actors = S.fromList [elector, validator]
+          id = Id . sha256 $ show id <> show claim <> show elector <> show electionTime
+          description
+          claim
+          electionTime
+          electorIsOwner
+          elector
+          counterparty
+          instrument
+          amount
+          observers = M.fromList [("Holders", S.fromList [ validator, elector, counterparty] )]
+          provider = validator

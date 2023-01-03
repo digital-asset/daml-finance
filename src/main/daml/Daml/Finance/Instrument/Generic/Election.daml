@@ -3,17 +3,14 @@
 
 module Daml.Finance.Instrument.Generic.Election where
 
-import DA.Map qualified as M (fromList)
-import DA.Set qualified as S (fromList, singleton)
-import DA.Text (sha256)
+import DA.Set qualified as S (singleton)
 import Daml.Finance.Interface.Claims.Types (C)
-import Daml.Finance.Interface.Holding.Base qualified as Base (I)
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (K)
-import Daml.Finance.Interface.Instrument.Generic.Election qualified as Election (HasImplementation, I, View(..))
+import Daml.Finance.Interface.Instrument.Generic.Election qualified as Election (Apply(..), ApplyElection(..), HasImplementation, I, View(..))
+import Daml.Finance.Interface.Instrument.Generic.Election.Factory qualified as Factory (Create(..), F, HasImplementation, View(..))
 import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I, View(..))
-import Daml.Finance.Interface.Types.Common.Types (Id(..), Parties, PartiesMap)
-import Daml.Finance.Interface.Util.Common (verify)
-import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, SetObservers(..), View(..), flattenObservers)
+import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey, PartiesMap)
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
 
 -- | Type synonym for `Election`.
 type T = Election
@@ -33,12 +30,12 @@ template Election
       -- ^ Election identifier.
     description : Text
       -- ^ A human readable description of the election.
-    instrument : Instrument.K
+    instrument : InstrumentKey
       -- ^ The instrument to which the election applies.
     amount : Decimal
       -- ^ Number of units of instrument to which the election applies.
     claim : C
-      -- ^ the elected sub-tree.
+      -- ^ The elected sub-tree.
     electorIsOwner : Bool
       -- ^ `True` if the elector is the owner of a claim, `False` otherwise.
     electionTime : Time
@@ -54,13 +51,19 @@ template Election
       view = Election.View with
         id; description; amount; elector; counterparty; electorIsOwner; observers; provider
         instrument; claim
-      archive' = archive . fromInterfaceContractId @Election
+      apply self Election.Apply{observableCids; exercisableCid} = do
+        let v = view $ toInterface @Election.I this
+        (newInstrumentCid, effects) <- exercise exercisableCid Election.ApplyElection with
+          observableCids
+          electionCid = toInterfaceContractId self
+        archive self -- this is needed as we can't write postconsuming choices on interfaces
+        pure (newInstrumentCid, effects)
 
     interface instance Disclosure.I for Election where
       view = Disclosure.View with disclosureControllers = S.singleton elector; observers
-      setObservers Disclosure.SetObservers{newObservers} =
-        toInterfaceContractId <$> create this with observers = newObservers
-      archive' = archive . fromInterfaceContractId @Election
+      setObservers = setObserversImpl @Election @Disclosure.I this None
+      addObservers = addObserversImpl @Election @Disclosure.I this None
+      removeObservers = removeObserversImpl @Election @Disclosure.I this None
 
     interface instance Event.I for Election where
       view = Event.View with
@@ -69,64 +72,30 @@ template Election
         description
         eventTime = electionTime
 
--- | Helper contract to delegate the right to create `Election`\s referencing a specific
--- `Instrument`. The provider delegates the ability to create `Election`\s to any party that has
--- visibility on the `ElectionFactory` contract. In order to create the `Election`, a valid
--- `Holding` must be presented which identifies the choice controller as either the owner or the
--- custodian to the `Holding`.
-template ElectionFactory
+instance Factory.HasImplementation Factory
+-- | Factory template to create an `Election`.
+template Factory
   with
     provider : Party
-      -- ^ The provider.
-    id : Id
-      -- ^ Election identifier
-    description : Text
-      -- ^ A human readable description of the election claim.
-    claim : C
-      -- ^ the elected sub-tree
-    observers : Parties
-      -- ^ observers of the contract
-    instrument : Instrument.K
-      -- ^ key of the instrument to which the election applies
+      -- ^ The provider of the `Factory`.
+    observers : PartiesMap
+      -- ^ A set of observers.
   where
     signatory provider
-    observer observers
+    observer Disclosure.flattenObservers observers
 
-    nonconsuming choice CreateElection : ContractId Election
-      -- ^ Creates an `Election` on an instrument. This choice must be exercised by the `elector`.
-      with
-        elector : Party
-          -- ^ Entity making the election.
-        electionTime : Time
-          -- ^ Time at which the election is put forward.
-        holdingCid : ContractId Base.I
-          -- ^ A holding used to verify that the elector is entitled to make the election.
-        amount : Decimal
-          -- ^ Number of units of instrument to which the election applies.
-      controller elector
-      do
-        holding <- view <$> fetch holdingCid
-        verify (holding.instrument == instrument)
-          "Invalid holding presented : reference instrument"
-        verify (holding.amount >= amount) $
-          "Invalid holding presented : amount is " <> show holding.amount <>
-          " but elected amount is " <> show amount
-        let
-          custodian = holding.account.custodian
-          owner = holding.account.owner
-          electorIsOwner
-            | elector == owner = True
-            | elector == custodian = False
-            | otherwise = error "Election can be made only on behalf of the owner or the custodian"
-        create Election with
-          id = Id . sha256 $ show id <> show claim <> show elector <> show electionTime
-          description
-          claim
-          electionTime
-          electorIsOwner
-          elector
-          counterparty = if electorIsOwner then custodian else owner
-          instrument
-          amount
-          observers = M.fromList [("Holders", S.fromList [ custodian, owner, provider] )]
-          provider
+    interface instance Factory.F for Factory where
+      view = Factory.View with provider
+      create' Factory.Create{id, description, claim, elector, counterparty, electorIsOwner
+        , electionTime, observers, amount, provider, instrument} =
+        toInterfaceContractId <$> create Election with
+          id; description; claim; elector; counterparty; electorIsOwner; electionTime
+          observers; amount; provider; instrument
+      remove arg = archive arg.electionCid
+      asDisclosure = toInterface @Disclosure.I this
+
+    interface instance Disclosure.I for Factory where
+      view = Disclosure.View with disclosureControllers = S.singleton provider; observers
+      setObservers = setObserversImpl @Factory @Disclosure.I this None
+      addObservers = addObserversImpl @Factory @Disclosure.I this None
+      removeObservers = removeObserversImpl @Factory @Disclosure.I this None

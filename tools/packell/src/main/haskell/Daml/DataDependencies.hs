@@ -38,10 +38,10 @@ update :: FilePath -> Package.Config -> [Daml.Package] -> IO ()
 update root config localPackages =
   let
     getDamlPath package = root </> (Package.path . Daml.packageConfig) package </> Daml.damlConfigFile
-    writeUpdate (UpdatedConfig package updateConfig) = do
+    writeUpdate UpdatedConfig{package, updatedConfig} = do
       cyanMessage . T.pack $ "Updating package '" <> (Package.getLocalName . Daml.packageConfig $ package) <> "'"
-      flip Daml.writeDamlConfig updateConfig $ getDamlPath package
-    writeSuccessMessage = successMessage . T.pack $ "Packages successfully updated!"
+      flip Daml.writeDamlConfig updatedConfig $ getDamlPath package
+    writeSuccessMessage = successMessage . T.pack $ "Packages successfully processed!"
   in
     processDataDependencies root config localPackages
       >>= mapM_ writeUpdate
@@ -49,17 +49,17 @@ update root config localPackages =
 
 -- | Writes to console packages which require their imports to be updated.
 dryRun :: FilePath -> Package.Config -> [Daml.Package] -> IO ()
-dryRun root config localPackages = do
+dryRun root config localPackages =
   processDataDependencies root config localPackages >>= \case
     [] -> greenMessage . T.pack $ "All packages are up-to-date!"
     xs -> mapM_ printUpdate xs
   where
-    printUpdate (UpdatedConfig package updateConfig) = do
+    printUpdate UpdatedConfig{package, updatedConfig} = do
       let
         version = Daml.version . Daml.damlConfig $ package
-        newVersion = Daml.version updateConfig
+        newVersion = Daml.version updatedConfig
         dataDependencies = L.concat . maybeToList . Daml.dataDependencies . Daml.damlConfig $ package
-        newDataDependencies = L.concat . maybeToList . Daml.dataDependencies $ updateConfig
+        newDataDependencies = L.concat . maybeToList . Daml.dataDependencies $ updatedConfig
       warningMessage . T.pack $ "Package to update : " <> (Package.getLocalName . Daml.packageConfig $ package)
       when (version /= newVersion) $ redMessage . T.pack $ "Current version : " <> version
       redMessage . T.pack $ "Removing data-dependencies :"
@@ -69,7 +69,8 @@ dryRun root config localPackages = do
       mapM_ (cyanMessage . T.pack) $ newDataDependencies \\ dataDependencies
       putStr "\n"
 
--- | Validates if any package data-dependences requires updating. Throws an exception if any package requires updating.
+-- | Validates if any package data-dependences requires updating.
+-- Throws an exception if any package requires updating.
 validate :: FilePath -> Package.Config -> [Daml.Package] -> IO ()
 validate root config localPackages =
   processDataDependencies root config localPackages >>= \case
@@ -79,8 +80,8 @@ validate root config localPackages =
       errorMessage . T.pack $ "Packages=[" <> foldl f "" xs <> "]."
       error "Run 'packell data-dependencies update' to resolve this error."
         where
-        getPackageName = Package.getLocalName . Daml.packageConfig . package
-        f acc p = if acc == "" then getPackageName p else acc <> ", " <> getPackageName p
+          getPackageName = Package.getLocalName . Daml.packageConfig . package
+          f acc p = if acc == "" then getPackageName p else acc <> ", " <> getPackageName p
 
 -- | Process data dependencies for all provided packages.
 processDataDependencies :: FilePath -> Package.Config -> [Daml.Package] -> IO [UpdatedConfig]
