@@ -19,7 +19,7 @@ fetch = shelly . silently $ run_ "git" [ "fetch" ]
 hasDiff :: String -> [FilePath] -> IO Bool
 hasDiff tag files = do
   fullPaths <- mapM canonicalizePath files
-  (/=) mempty <$> (shelly . verbosely $ run "git" $ ["diff", "--shortstat", toTextArg tag, "HEAD"] ++ map toTextArg fullPaths)
+  (/=) mempty <$> (shelly . silently $ run "git" $ ["diff", "--shortstat", toTextArg tag, "HEAD"] ++ map toTextArg fullPaths)
 
 -- | Checks if a tag already exists.
 tagExists :: String -> IO Bool

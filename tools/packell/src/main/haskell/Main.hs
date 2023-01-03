@@ -6,9 +6,12 @@
 module Main where
 
 import Control.Monad (when)
-import Daml.DataDependencies (update, validate, dryRun)
+import qualified Daml.DataDependencies as D (update, validate, dryRun)
 import Daml.Package (getLocalPackages)
-import Options.Arguments (Arguments(..), Command(..), DataDependenciesCommand(..), parseInputs)
+import qualified  Daml.Version as V (bumpAll, validate, dryRun, update)
+import Options.Arguments (Arguments(..), Command(..), parseInputs)
+import qualified Options.DataDependencies as D (DataDependenciesCommand(..))
+import qualified Options.Versioning as V (VersioningCommand(..))
 import Package.Yaml (readPackageYaml)
 import System.Directory (makeAbsolute)
 import System.FilePath (takeDirectory)
@@ -39,7 +42,12 @@ run Arguments{optPackageConfigPath, optFetch, optCommand} = do
 
   case optCommand of
     DataDependencies command -> case command of
-      Update -> update packageRoot packageYaml packages
-      Validate -> validate packageRoot packageYaml packages
-      DryRun -> dryRun packageRoot packageYaml packages
-    Info -> putStrLn "Congratulations, you have called a placeholder for future commands!"
+      D.Update -> D.update packageRoot packageYaml packages
+      D.Validate -> D.validate packageRoot packageYaml packages
+      D.DryRun -> D.dryRun packageRoot packageYaml packages
+    Versioning command -> case command of
+      V.Update -> V.update packageRoot packages
+      V.Validate -> V.validate packageRoot packages
+      V.DryRun -> V.dryRun packageRoot packages
+      V.BumpAll -> V.bumpAll packageRoot packages False
+      V.ForceBumpAll -> V.bumpAll packageRoot packages True

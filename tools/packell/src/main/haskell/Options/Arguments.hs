@@ -4,7 +4,6 @@
 module Options.Arguments (
     Arguments(..)
   , Command(..)
-  , DataDependenciesCommand(..)
   , parameters
   , parseInputs
 ) where
@@ -36,18 +35,13 @@ import Options.Applicative (
   , switch
   , value
   )
+import qualified Options.Versioning as V (VersioningCommand(..))
+import qualified Options.DataDependencies as D (DataDependenciesCommand(..))
 
 -- | Packell main commands set.
 data Command
-    = DataDependencies DataDependenciesCommand
-    | Info
-  deriving (Show)
-
--- | Commands for working with dependencies.
-data DataDependenciesCommand
-    = Update
-    | Validate
-    | DryRun
+    = DataDependencies D.DataDependenciesCommand
+    | Versioning V.VersioningCommand
   deriving (Show)
 
 -- | Input arguments to the application.
@@ -57,6 +51,24 @@ data Arguments = Arguments {
   , optCommand :: Command
   } deriving (Show)
 
+-- | Command parser for dependencies.
+dataDependenciesParser :: Parser Command
+dataDependenciesParser =
+  DataDependencies
+    <$> hsubparser (command "update" (info (pure D.Update) (progDesc "Update package data-dependencies based on imports in package sources."))
+      <> command "validate" (info (pure D.Validate) (progDesc "Validate if package data-dependencies require updating. Throws an exception if any updates are found. This does not update any data-dependencies."))
+      <> command "dry-run" (info (pure D.DryRun) (progDesc "Displays all package data-dependencies that require updating. This does not update any data-dependencies.")))
+
+-- | Command parser for versioning.
+versioningParser :: Parser Command
+versioningParser =
+  Versioning
+    <$> hsubparser (command "update" (info (pure V.Update) (progDesc "Update package versions based on commits."))
+      <> command "validate" (info (pure V.Validate) (progDesc "Validate if package versions require updating based off commits. Throws an exception if any updates are found. This does not update any versions."))
+      <> command "dry-run" (info (pure V.DryRun) (progDesc "Displays all package versions that require updating based off commits. This does not update any versions."))
+      <> command "bump-all" (info (pure V.BumpAll) (progDesc "Update all package versions which match released packages."))
+      <> command "force-bump-all" (info (pure V.ForceBumpAll) (progDesc "Force update on all package versions, regardless if they have been released or not.")))
+
 -- | The main command parser.
 commandParser :: Parser Command
 commandParser =
@@ -64,16 +76,8 @@ commandParser =
     command "data-dependencies" (info dataDependenciesParser (progDesc "Update package data-dependencies based on package sources."))
       <> metavar "data-dependencies COMMAND")
   <|> hsubparser (
-    command "info" (info (pure Info) (progDesc "Test command - a stub for future commands."))
-      <> metavar "info")
-
--- | Command parser for dependencies.
-dataDependenciesParser :: Parser Command
-dataDependenciesParser =
-  DataDependencies
-    <$> hsubparser (command "update" (info (pure Update) (progDesc "Update package data-dependencies based on imports in package sources."))
-      <> command "validate" (info (pure Validate) (progDesc "Validate if package data-dependencies require updating. Throws an exception if any updates are found. This does not update any data-dependencies."))
-      <> command "dry-run" (info (pure DryRun) (progDesc "Displays all package data-dependencies that require updating. This does not update any data-dependencies.")))
+    command "versioning" (info versioningParser (progDesc "Update package versioning based on commits."))
+      <> metavar "versioning COMMAND")
 
 -- | Input Parameters to the application.
 parameters :: Parser Arguments

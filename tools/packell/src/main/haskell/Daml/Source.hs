@@ -35,11 +35,10 @@ getSources = mapM . getSource
 
 -- | Gets all daml files given a root directory.
 getSource :: FilePath -> Daml.Package -> IO Source
-getSource root localPackage = do
+getSource root localPackage =
   let
     path = Package.path . Daml.packageConfig $ localPackage
     source = Daml.source . Daml.damlConfig $ localPackage
     sourceDir = root </> path </> source
-
-  damlFiles <- map (sourceDir </>) <$> getDirectoryFiles sourceDir damlFilePattern
-  pure $ Source localPackage damlFiles
+  in
+    Source localPackage . map (sourceDir </>) <$> getDirectoryFiles sourceDir damlFilePattern

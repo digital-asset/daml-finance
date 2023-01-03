@@ -25,7 +25,8 @@ data Package = Package {
 
 -- | For a provided package config, extract the daml config per local package.
 getLocalPackages :: Package.Config -> FilePath -> IO [Package]
-getLocalPackages config packageRoot = mapM (`getLocalPackage` packageRoot) $ Package.getlocalPackages config
+getLocalPackages config packageRoot =
+  mapM (`getLocalPackage` packageRoot) $ Package.getlocalPackages config
 
 -- | For a given root file path, extract the necessary package information.
 getLocalPackage :: Package.Local -> FilePath -> IO Package
