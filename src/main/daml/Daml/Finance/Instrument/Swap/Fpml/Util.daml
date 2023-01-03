@@ -5,6 +5,7 @@ module Daml.Finance.Instrument.Swap.Fpml.Util where
 
 import ContingentClaims.Core.Claim (Inequality(..), give, one, scale, when)
 import ContingentClaims.Core.Observation (Observation(..))
+import DA.BigNumeric qualified as BN
 import DA.Date
 import DA.Foldable (foldMap)
 import DA.List (head, init, last, tail)
@@ -20,7 +21,7 @@ import Daml.Finance.Interface.Types.Date.Schedule (Frequency(..), PeriodicSchedu
 import Daml.Finance.Util.Date.Calendar (addBusinessDays, adjustDate, merge)
 import Daml.Finance.Util.Date.DayCount (calcPeriodDcf)
 import Daml.Finance.Util.Date.RollConvention (addPeriod)
-import Prelude hiding (key)
+import Prelude hiding (key, Down)
 
 type O = Observation Date Decimal Observable
 
@@ -314,6 +315,18 @@ calculatePrincipalExchangePaymentClaims paymentScheduleAligned issuerPaysLeg cur
     in
       prepareAndTagClaims dateToDateClockTime principalClaims "Principal exchange payment"
 
+-- | Apply rounding convention to the rate used in a calculation period.
+-- Takes a Rounding FpML object as an input:
+-- https://www.fpml.org/spec/fpml-5-11-3-lcwd-1/html/confirmation/schemaDocumentation/schemas/fpml-shared-5-11_xsd/complexTypes/FloatingRateCalculation/finalRateRounding.html
+roundRate : BigNumeric -> Rounding -> Decimal
+roundRate rate rounding =
+  fromBigNumeric $ BN.round rounding.precision roundingMode rate
+    where
+      roundingMode = case rounding.roundingDirection of
+        Up -> RoundingCeiling
+        Down -> RoundingFloor
+        Nearest -> RoundingHalfUp
+
 -- | Create claims from swapStream that describes a fixed or floating coupon stream.
 calculateFloatingPaymentClaimsFromSwapStream : FloatingRateCalculation -> SwapStream ->
   PeriodicSchedule -> [SchedulePeriod] -> [SchedulePeriod] -> Bool -> Bool -> Deliverable ->
@@ -363,6 +376,11 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s periodicS
                   rateFixingCalendar
                   s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessDayConvention
                   fixLeg
+{-
+          rate = case floatingRateCalculation.finalRateRounding of
+            None -> rawRate
+            Some finalRateRounding -> roundRate rawRate finalRateRounding
+             -}
       claimAmounts = mconcat $ zipWith3 createClaim (zip calculationSchedule notionals)
         paymentScheduleAligned rateFixingDates
       claims = if issuerPaysLeg then claimAmounts else give claimAmounts
