@@ -9,7 +9,7 @@ import DA.BigNumeric qualified as BN
 import DA.Date
 import DA.Foldable (foldMap)
 import DA.List (dedup, head, init, last, tail)
-import DA.Optional (fromOptional, fromSome, isNone, isSome)
+import DA.Optional (fromOptional, fromSome, isNone, isSome, whenSome)
 import Daml.Finance.Claims.Util.Builders (prepareAndTagClaims)
 import Daml.Finance.Instrument.Swap.Util
 import Daml.Finance.Interface.Claims.Types (Deliverable, Observable, TaggedClaim(..))
@@ -343,10 +343,9 @@ calculateCompoundedFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
     (rateFixingDates, rateFixingCalendar) <- getRateFixingsAndCalendars s (fromSome s.resetDates)
       calculationSchedule issuer calendarDataAgency
 
-    case fxFixingDates of
-      Some fxDates ->
-        assertMsg "fxFixingDates must match rateFixingDates" $ fxDates == rateFixingDates
-      None -> assertMsg "No fx fixing dates provided" True
+    whenSome fxFixingDates $ \fxDates ->
+      assertMsg "fxFixingDates must match rateFixingDates" $ fxDates == rateFixingDates
+
     let
       fixLeg = False
       calculationNotionalFixings = zip3 calculationSchedule notionals rateFixingDates
@@ -395,18 +394,16 @@ calculateCompoundedFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
             where
               dcf = Const (calcPeriodDcf s.calculationPeriodAmount.calculation.dayCountFraction c
                 useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency)
-              rate = case c.stubType of
-                None -> regularRate
-                Some stubType -> case s.stubCalculationPeriodAmount of
-                  None -> regularRate
-                  Some scpa -> fromOptional regularRate $
-                    getStubRate
-                      scpa
-                      (stubType == LongInitial || stubType == ShortInitial)
-                      p
-                      rateFixingCalendar
-                      s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessDayConvention
-                      fixLeg
+              rate = case (c.stubType, s.stubCalculationPeriodAmount) of
+                (Some stubType, Some scpa) -> fromOptional regularRate $
+                  getStubRate
+                    scpa
+                    (stubType == LongInitial || stubType == ShortInitial)
+                    p
+                    rateFixingCalendar
+                    s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessDayConvention
+                    fixLeg
+                _ -> regularRate
 
           compoundedRates = foldl
             foldRates
@@ -446,10 +443,8 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s periodicS
     assertMsg "rate rounding not yet supported" $ isNone floatingRateCalculation.finalRateRounding
     (rateFixingDates, rateFixingCalendar) <- getRateFixingsAndCalendars s (fromSome s.resetDates)
       calculationSchedule issuer calendarDataAgency
-    case fxFixingDates of
-      Some fxDates ->
-        assertMsg "fxFixingDates must match rateFixingDates" $ fxDates == rateFixingDates
-      None -> assertMsg "No fx fixing dates provided" True
+    whenSome fxFixingDates $ \fxDates ->
+      assertMsg "fxFixingDates must match rateFixingDates" $ fxDates == rateFixingDates
     let
       fixLeg = False
       -- calculate floating rate claims
@@ -473,18 +468,16 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s periodicS
             _ -> error "Multiple SpreadSchedules not yet supported"
           referenceRateId = floatingRateCalculation.floatingRateIndex
           regularRate = Observe referenceRateId + Const floatingRateSpread
-          rate = case c.stubType of
-            None -> regularRate
-            Some stubType -> case s.stubCalculationPeriodAmount of
-              None -> regularRate
-              Some scpa -> fromOptional regularRate $
-                getStubRate
-                  scpa
-                  (stubType == LongInitial || stubType == ShortInitial)
-                  p
-                  rateFixingCalendar
-                  s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessDayConvention
-                  fixLeg
+          rate = case (c.stubType, s.stubCalculationPeriodAmount) of
+            (Some stubType, Some scpa) -> fromOptional regularRate $
+              getStubRate
+                scpa
+                (stubType == LongInitial || stubType == ShortInitial)
+                p
+                rateFixingCalendar
+                s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessDayConvention
+                fixLeg
+            _ -> regularRate
       claimAmounts = mconcat $ zipWith3 createClaim (zip calculationSchedule notionals)
         paymentScheduleAligned rateFixingDates
       claims = if issuerPaysLeg then claimAmounts else give claimAmounts
