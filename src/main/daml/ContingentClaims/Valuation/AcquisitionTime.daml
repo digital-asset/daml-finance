@@ -1,0 +1,50 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module ContingentClaims.Valuation.AcquisitionTime
+  ( AcquisitionTime(..)
+  , beforeOrAtToday
+  , extend
+  , isNever
+  ) where
+
+import ContingentClaims.Core.Claim (Inequality(..))
+import Prelude hiding (Time, sequence, mapA, const)
+
+-- | Acquisition time of a contract in the context of the valuation semantics.
+-- It is either a deterministic time (`Time t`) or it is defined based on a list of `Inequality`.
+-- For inequalities [i_1, i_2, ..., i_N], the acquisition time is defined as the first instant `t` for which there exist times `t_1 ≤ t_2 ≤ ... ≤ t_N ≤ t` such that `t_k` verifies `i_k` for each `k`.
+-- In both cases, the time `t` is a stopping time in the mathematical sense.
+data AcquisitionTime t x o
+  = Time t
+    -- ^ Acquisition at time `t`.
+  | AtInequality { inequalities : [Inequality t x o] }
+    -- ^ Acquisition when inequalities are verified. The order of the inequalities matters (see definition above).
+  | Never
+    -- ^ Acquisition never happens.
+  deriving (Eq,Show)
+
+-- | Given an inequality and an acquisition time τ1, it returns the acquisition time τ2 corresponding to the first instant such that
+-- - the inequality is verified
+-- - τ2 ≥ τ1
+-- The name `extend` comes from the fact that we are extending the set of inequality constraints that need to be verified.
+extend : (Ord t) => Inequality t x o -> AcquisitionTime t x o -> AcquisitionTime t x o
+extend _ Never = Never
+extend (TimeGte s) (Time t) = Time $ max s t
+extend (TimeLte s) (Time t) | s >= t = Time t
+extend (TimeLte s) (Time t) = Never
+extend ineq@(Lte _) (Time t) = AtInequality [TimeGte t, ineq]
+extend ineq (AtInequality ineqs) = AtInequality $ ineqs <> [ineq]
+
+-- | Checks if an acquisition time falls before or at the today date.
+-- `None` is returned if the acquisition time is unknown.
+beforeOrAtToday : (Ord t) => t -> AcquisitionTime t x a -> Optional Bool
+beforeOrAtToday _ Never = Some False
+beforeOrAtToday today (Time s) = Some $ s <= today
+beforeOrAtToday today (AtInequality _) = None
+
+-- | Checks if an acquisition time is `Never`.
+-- This is used to avoid requiring the (Eq o) constraint.
+isNever : AcquisitionTime t x a -> Bool
+isNever Never = True
+isNever _ = False
