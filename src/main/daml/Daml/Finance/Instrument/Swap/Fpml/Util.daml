@@ -8,8 +8,8 @@ import ContingentClaims.Core.Observation (Observation(..))
 import DA.BigNumeric qualified as BN
 import DA.Date
 import DA.Foldable (foldMap)
-import DA.List (head, init, last, tail)
-import DA.Optional (fromOptional, fromSome, isNone, isSome)
+import DA.List (dedup, head, init, last, tail)
+import DA.Optional (fromOptional, fromSome, isNone, isSome, whenSome)
 import Daml.Finance.Claims.Util.Builders (prepareAndTagClaims)
 import Daml.Finance.Instrument.Swap.Util
 import Daml.Finance.Interface.Claims.Types (Deliverable, Observable, TaggedClaim(..))
@@ -229,7 +229,7 @@ getRateFixingsAndCalendars s r calculationSchedule issuer calendarDataAgency = d
       ) calculationSchedule
   pure (rateFixingDates, rateFixingCalendar)
 
--- | Create claims from swapStream that describes a fixed or floating coupon stream.
+-- | Create claims from swapStream that describes a fixed coupon stream.
 calculateFixPaymentClaimsFromSwapStream : FixedRateSchedule -> SwapStream -> PeriodicSchedule ->
   [SchedulePeriod] -> [SchedulePeriod] -> Bool -> Bool -> Deliverable -> Party -> Party ->
   Optional Text -> Optional [Date] -> [(Decimal, Bool)] -> Update [TaggedClaim]
@@ -240,6 +240,8 @@ calculateFixPaymentClaimsFromSwapStream fixedRateSchedule s periodicSchedule cal
       isNone s.principalExchanges
     assertMsg "Non-standard stub rates not supported for the fixed rate leg" $
       isNone s.stubCalculationPeriodAmount
+    assertMsg "Compounding not supported for the fixed rate leg" $
+      isNone s.calculationPeriodAmount.calculation.compoundingMethodEnum
     let
       -- calculate fix rate claims
       createClaim (c, (n, fxAdjRequired)) p =
@@ -327,20 +329,123 @@ roundRate rate rounding =
         Down -> RoundingFloor
         Nearest -> RoundingHalfUp
 
--- | Create claims from swapStream that describes a fixed or floating coupon stream.
-calculateFloatingPaymentClaimsFromSwapStream : FloatingRateCalculation -> SwapStream ->
+-- | Create claims from swapStream that describes a floating coupon stream.
+-- This function can handle compounding of rates (currently only straight compounding)
+-- Integrate this in calculateFloatingPaymentClaimsFromSwapStream once the other compounding
+-- methods have been implemented.
+calculateCompoundedFloatingPaymentClaimsFromSwapStream : FloatingRateCalculation -> SwapStream ->
   PeriodicSchedule -> [SchedulePeriod] -> [SchedulePeriod] -> Bool -> Bool -> Deliverable ->
   Party -> Party -> Optional Text -> Optional [Date] -> [(Decimal, Bool)] -> Update [TaggedClaim]
-calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s periodicSchedule
-  calculationSchedule paymentScheduleAligned useAdjustedDatesForDcf issuerPaysLeg currency issuer
-  calendarDataAgency fxRateId fxFixingDates notionals = do
+calculateCompoundedFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
+  periodicSchedule calculationSchedule paymentSchedule useAdjustedDatesForDcf issuerPaysLeg currency
+  issuer calendarDataAgency fxRateId fxFixingDates notionals = do
     assertMsg "rate rounding not yet supported" $ isNone floatingRateCalculation.finalRateRounding
     (rateFixingDates, rateFixingCalendar) <- getRateFixingsAndCalendars s (fromSome s.resetDates)
       calculationSchedule issuer calendarDataAgency
-    case fxFixingDates of
-      Some fxDates ->
-        assertMsg "fxFixingDates must match rateFixingDates" $ fxDates == rateFixingDates
-      None -> assertMsg "No fx fixing dates provided" True
+
+    whenSome fxFixingDates $ \fxDates ->
+      assertMsg "fxFixingDates must match rateFixingDates" $ fxDates == rateFixingDates
+
+    let
+      fixLeg = False
+      calculationNotionalFixings = zip3 calculationSchedule notionals rateFixingDates
+
+      -- calculate the notional and fixing dates for a payment period
+      calculateNotionalAndFixings p =
+        (notional, fxAdjRequired, calculationNotionalFixingsFiltered)
+          where
+            calculationNotionalFixingsFiltered = filter (\(c, nf, f) ->
+              c.unadjustedEndDate <= p.unadjustedEndDate &&
+              c.unadjustedStartDate >= p.unadjustedStartDate)
+              calculationNotionalFixings
+
+            -- Ensure that all notionals and fxAdjRequireds are the same for each paymentPeriod
+            notionals = map (\(_, (n, _), _) -> n) calculationNotionalFixingsFiltered
+            n = if length (dedup notionals) <= 1 then head notionals
+              else error "notional must be constant within a payment period"
+            fxAdjRequireds = map (\(_, (_, fxAdjRequired), _) -> fxAdjRequired)
+              calculationNotionalFixingsFiltered
+            fxAdjRequired = if length (dedup fxAdjRequireds) <= 1 then
+              head fxAdjRequireds
+              else error "fxAdjRequired must be constant within a payment period"
+
+            notionalConst = Const n
+            notional = case fxRateId of
+              None -> notionalConst
+              Some fxRateId -> if fxAdjRequired then notionalConst * fxRateObs else notionalConst
+                where fxRateObs = Observe fxRateId
+
+      -- calculate floating rate claim for a payment period
+      createClaim p =
+        scale notional $ compoundedRates
+        where
+          (notional, fxAdjRequired, calculationNotionalFixingsFiltered) =
+            calculateNotionalAndFixings p
+
+          floatingRateSpread = case floatingRateCalculation.spreadSchedule of
+            [] -> 0.0
+            [se] -> se.initialValue
+            _ -> error "Multiple SpreadSchedules not yet supported"
+          referenceRateId = floatingRateCalculation.floatingRateIndex
+          regularRate = Observe referenceRateId + Const floatingRateSpread
+
+          foldRates acc (c, (n, fxAdjRequired), f) =
+            when (TimeGte f) $ scale (Const 1.0 + rate * dcf) acc
+            where
+              dcf = Const (calcPeriodDcf s.calculationPeriodAmount.calculation.dayCountFraction c
+                useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency)
+              rate = case (c.stubType, s.stubCalculationPeriodAmount) of
+                (Some stubType, Some scpa) -> fromOptional regularRate $
+                  getStubRate
+                    scpa
+                    (stubType == LongInitial || stubType == ShortInitial)
+                    p
+                    rateFixingCalendar
+                    s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessDayConvention
+                    fixLeg
+                _ -> regularRate
+
+          compoundedRates = foldl
+            foldRates
+            (when (TimeGte p.adjustedEndDate) $ one currency)
+            (reverse calculationNotionalFixingsFiltered)
+
+      -- Calculate a floating rate correction claim for a payment period
+      -- (corresponding to the "-1" in a perf calculation)
+      createCorrectionClaim p =
+        scale notional $ when (TimeGte p.adjustedEndDate) $ one currency
+        where
+          (notional, _, _) = calculateNotionalAndFixings p
+
+      claimAmounts = mconcat $ map createClaim paymentSchedule
+      claims = if issuerPaysLeg then claimAmounts else give claimAmounts
+      correctionClaimAmounts = mconcat $ map createCorrectionClaim paymentSchedule
+      correctionClaims = if issuerPaysLeg then give correctionClaimAmounts else
+        correctionClaimAmounts
+      claimsTagged = prepareAndTagClaims dateToDateClockTime [claims, correctionClaims]
+        "Floating rate payment"
+      allTaggedClaims = case s.principalExchanges of
+        None -> [claimsTagged]
+        Some principalExchanges -> [claimsTagged, principalClaimsTagged]
+          where
+            principalClaimsTagged = calculatePrincipalExchangePaymentClaims paymentSchedule
+              issuerPaysLeg currency fxRateId notionals rateFixingDates principalExchanges
+
+    pure allTaggedClaims
+
+-- | Create claims from swapStream that describes a floating coupon stream.
+calculateFloatingPaymentClaimsFromSwapStream : FloatingRateCalculation -> SwapStream ->
+  PeriodicSchedule -> [SchedulePeriod] -> [SchedulePeriod] -> Bool -> Bool ->
+  Deliverable -> Party -> Party -> Optional Text -> Optional [Date] -> [(Decimal, Bool)] ->
+  Update [TaggedClaim]
+calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
+  periodicSchedule calculationSchedule paymentScheduleAligned useAdjustedDatesForDcf issuerPaysLeg
+  currency issuer calendarDataAgency fxRateId fxFixingDates notionals = do
+    assertMsg "rate rounding not yet supported" $ isNone floatingRateCalculation.finalRateRounding
+    (rateFixingDates, rateFixingCalendar) <- getRateFixingsAndCalendars s (fromSome s.resetDates)
+      calculationSchedule issuer calendarDataAgency
+    whenSome fxFixingDates $ \fxDates ->
+      assertMsg "fxFixingDates must match rateFixingDates" $ fxDates == rateFixingDates
     let
       fixLeg = False
       -- calculate floating rate claims
@@ -364,18 +469,16 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s periodicS
             _ -> error "Multiple SpreadSchedules not yet supported"
           referenceRateId = floatingRateCalculation.floatingRateIndex
           regularRate = Observe referenceRateId + Const floatingRateSpread
-          rate = case c.stubType of
-            None -> regularRate
-            Some stubType -> case s.stubCalculationPeriodAmount of
-              None -> regularRate
-              Some scpa -> fromOptional regularRate $
-                getStubRate
-                  scpa
-                  (stubType == LongInitial || stubType == ShortInitial)
-                  p
-                  rateFixingCalendar
-                  s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessDayConvention
-                  fixLeg
+          rate = case (c.stubType, s.stubCalculationPeriodAmount) of
+            (Some stubType, Some scpa) -> fromOptional regularRate $
+              getStubRate
+                scpa
+                (stubType == LongInitial || stubType == ShortInitial)
+                p
+                rateFixingCalendar
+                s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessDayConvention
+                fixLeg
+            _ -> regularRate
       claimAmounts = mconcat $ zipWith3 createClaim (zip calculationSchedule notionals)
         paymentScheduleAligned rateFixingDates
       claims = if issuerPaysLeg then claimAmounts else give claimAmounts
@@ -394,8 +497,6 @@ calculateClaimsFromSwapStream : SwapStream -> PeriodicSchedule -> [SchedulePerio
   Update [TaggedClaim]
 calculateClaimsFromSwapStream s periodicSchedule calculationSchedule paymentSchedule
   swapStreamNotionalRef useAdjustedDatesForDcf issuerPaysLeg currency issuer calendarDataAgency = do
-    assertMsg "Compounding not yet supported" $
-      isNone s.calculationPeriodAmount.calculation.compoundingMethodEnum
     assertMsg "Payment lag not yet supported" $
       isNone s.paymentDates.paymentDaysOffset
     case s.calculationPeriodAmount.calculation.notionalScheduleValue of
@@ -450,6 +551,13 @@ calculateClaimsFromSwapStream s periodicSchedule calculationSchedule paymentSche
           calculationSchedule paymentScheduleAligned useAdjustedDatesForDcf issuerPaysLeg currency
           issuer calendarDataAgency fxRateId fxFixingDates notionals
       RateType_Floating floatingRateCalculation ->
-        calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s periodicSchedule
-          calculationSchedule paymentScheduleAligned useAdjustedDatesForDcf issuerPaysLeg currency
-          issuer calendarDataAgency fxRateId fxFixingDates notionals
+        case s.calculationPeriodAmount.calculation.compoundingMethodEnum of
+          None ->
+            calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s periodicSchedule
+              calculationSchedule paymentScheduleAligned useAdjustedDatesForDcf issuerPaysLeg currency
+              issuer calendarDataAgency fxRateId fxFixingDates notionals
+          Some Straight ->
+            calculateCompoundedFloatingPaymentClaimsFromSwapStream floatingRateCalculation s periodicSchedule
+              calculationSchedule paymentSchedule useAdjustedDatesForDcf issuerPaysLeg currency
+              issuer calendarDataAgency fxRateId fxFixingDates notionals
+          _ -> error "Compounding method not supported"
