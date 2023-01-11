@@ -71,7 +71,7 @@ lifecycle spot claim acquisitionTime today
   = fmap (uncurry $ flip Result)
   . runWriterT
   . apoCataM pruneZeros' acquireThenSettle
-  . (1.0, ) -- initial scaling factor
+  . (Observation.Const 1.0, ) -- initial scaling factor
   $ (acquisitionTime, claim)
   where
     acquireThenSettle =
@@ -166,7 +166,7 @@ fixAcquisitionTime' other = other
 
 -- | Carrier type used for `lifecycle`. It consists of a claim, its acquisition time and the
 -- accumulated scaling factor.
-type LifecycleCarrier t a o = (Decimal, (t, C t a o))
+type LifecycleCarrier t a o = (Observation.Observation t Decimal o, (t, C t a o))
 
 -- | HIDE
 -- Evaluate any observables in `Scale` nodes, accumulating scale factors top-down. Log the scale
@@ -174,17 +174,17 @@ type LifecycleCarrier t a o = (Decimal, (t, C t a o))
 -- guaranteeing liveness. Replace any Ones that can be reached with Zeros.
 lifecycle' : (Ord t, CanAbort m)
   => (o -> t -> m Decimal)
-  -> (Decimal, (t, Acquired t a o))
+  -> (Observation.Observation t Decimal o, (t, Acquired t a o))
   -- ^ the acquired input claim, its acquisition time and the accumulated scaling factor
   -> WriterT [Pending t a] m (FE t a o (LifecycleCarrier t a o))
-lifecycle' _ (qty, (s, OneF asset)) = do
-  tell [Pending s qty asset]
+lifecycle' spot (qty, (s, OneF asset)) = do
+  k <- lift $ Observation.eval spot qty s
+  tell [Pending s k asset]
   pure $ ZeroF
 lifecycle' _ (qty, (_, GiveF c)) =
   pure . GiveF $ (-qty, ) <$> c
-lifecycle' spot (qty, (s, ScaleF obs c)) = do
-  k <- lift $ Observation.eval spot obs s
-  pure . ScaleF obs $ (k * qty, ) <$> c
+lifecycle' _ (qty, (s, ScaleF obs c)) = do
+  pure . ScaleF obs $ (Observation.fixObservationTime s obs * qty, ) <$> c
 lifecycle' _ (_, (_, c@OrF{})) =
   pure $ stop c
   where stop = fmap $ Left . (identity ||| snd)
