@@ -26,6 +26,19 @@ import Prelude hiding (key, Down)
 type O = Observation Date Decimal Observable
 type C = Claim Date Decimal Deliverable Observable
 
+-- | Static data for a single period in the calculation schedule of a floating rate leg.
+data CalculationPeriodStaticData = CalculationPeriodStaticData
+  with
+    calculationPeriod : SchedulePeriod
+      -- ^ Calculation period that this static data refers to
+    notional : Decimal
+      -- ^ Notional used for this calculation period
+    fxAdjRequired : Bool
+      -- ^ Indicates whether the notional should be FX adjusted
+    rateFixingDate : Date
+      -- ^ The fixing date used for the floating rate.
+  deriving (Eq, Show)
+
 -- | Create a schedule for calculation periods.
 createCalculationPeriodicSchedule : CalculationPeriodDates -> PeriodicSchedule
 createCalculationPeriodicSchedule c =
@@ -384,23 +397,22 @@ calcFlatCompounding notional currency p s
 -- | HIDE
 -- Calculate notional and fixing data for a payment period.
 calculateNotionalAndFixings : SchedulePeriod -> SwapStream ->
-  [(SchedulePeriod, (Decimal, Bool), Date)] -> Optional Text -> Bool -> PeriodicSchedule ->
+  [CalculationPeriodStaticData] -> Optional Text -> Bool -> PeriodicSchedule ->
   (O, [(SchedulePeriod, Date, O)])
 calculateNotionalAndFixings p s
-  calculationNotionalFixings fxRateId useAdjustedDatesForDcf periodicSchedule =
-  (notional, calculationFixings)
+  paymentPeriodStaticData fxRateId useAdjustedDatesForDcf periodicSchedule =
+  (notional, paymentPeriodData)
   where
-    calculationNotionalFixingsFiltered = filter (\(c, nf, f) ->
-      c.unadjustedEndDate <= p.unadjustedEndDate &&
-      c.unadjustedStartDate >= p.unadjustedStartDate)
-      calculationNotionalFixings
+    paymentPeriodStaticDataFiltered = filter (\c ->
+      c.calculationPeriod.unadjustedEndDate <= p.unadjustedEndDate &&
+      c.calculationPeriod.unadjustedStartDate >= p.unadjustedStartDate)
+      paymentPeriodStaticData
 
     -- Ensure that all notionals and fxAdjRequireds are the same for each paymentPeriod
-    notionals = map (\(_, (n, _), _) -> n) calculationNotionalFixingsFiltered
+    notionals = map (.notional) paymentPeriodStaticDataFiltered
     n = if length (dedup notionals) <= 1 then head notionals
       else error "notional must be constant within a payment period"
-    fxAdjRequireds = map (\(_, (_, fxAdjRequired), _) -> fxAdjRequired)
-      calculationNotionalFixingsFiltered
+    fxAdjRequireds = map (.fxAdjRequired) paymentPeriodStaticDataFiltered
     fxAdjRequired = if length (dedup fxAdjRequireds) <= 1 then head fxAdjRequireds
       else error "fxAdjRequired must be constant within a payment period"
 
@@ -409,11 +421,14 @@ calculateNotionalAndFixings p s
       None -> notionalConst
       Some fxRateId -> if fxAdjRequired then notionalConst * fxRateObs else notionalConst
         where fxRateObs = Observe fxRateId
-    calculationFixings = map
-      (\(c, nf, f) ->
-        (c, f, Const (calcPeriodDcf s.calculationPeriodAmount.calculation.dayCountFraction c
-        useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency)))
-      calculationNotionalFixingsFiltered
+    paymentPeriodData = map
+      (\c -> (
+        c.calculationPeriod,
+        c.rateFixingDate,
+        Const (calcPeriodDcf s.calculationPeriodAmount.calculation.dayCountFraction c.calculationPeriod
+        useAdjustedDatesForDcf periodicSchedule.terminationDate periodicSchedule.frequency)
+      ))
+      paymentPeriodStaticDataFiltered
 
 -- | Create claims from swapStream that describes a floating coupon stream.
 calculateFloatingPaymentClaimsFromSwapStream : FloatingRateCalculation -> SwapStream ->
@@ -430,7 +445,13 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
 
     let
       fixLeg = False
-      calculationNotionalFixings = zip3 calculationSchedule notionals rateFixingDates
+      calculationScheduleStaticData2 = zip3 calculationSchedule notionals rateFixingDates
+      calculationScheduleStaticData = zipWith3 (\c (n, fx) f -> CalculationPeriodStaticData with
+          calculationPeriod = c
+          notional = n
+          fxAdjRequired = fx
+          rateFixingDate = f
+        ) calculationSchedule notionals rateFixingDates
       floatingRateSpread = case floatingRateCalculation.spreadSchedule of
         [] -> 0.0
         [se] -> se.initialValue
@@ -443,8 +464,8 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
       createClaim regularRate p =
         scale notional $ compoundedRates
         where
-          (notional, calculationFixings) = calculateNotionalAndFixings p s
-            calculationNotionalFixings fxRateId useAdjustedDatesForDcf periodicSchedule
+          (notional, paymentPeriodData) = calculateNotionalAndFixings p s
+            calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
 
           compoundRates acc (c, f, dcf) =
             when (TimeGte f) $ scale (Const 1.0 + rate * dcf) acc
@@ -454,22 +475,22 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
           compoundedRates = foldl
             compoundRates
             (when (TimeGte p.adjustedEndDate) $ one currency)
-            (reverse calculationFixings)
+            (reverse paymentPeriodData)
 
       -- calculate all calculation period claims (using flat compounding) for a payment period
       createCalcPeriodClaim p =
         mconcat $ calcFlatCompounding notional currency p s regularRateInclSpread
-          regularRateExclSpread rateFixingCalendar fixLeg calculationFixings []
+          regularRateExclSpread rateFixingCalendar fixLeg paymentPeriodData []
         where
-          (notional, calculationFixings) = calculateNotionalAndFixings p s
-            calculationNotionalFixings fxRateId useAdjustedDatesForDcf periodicSchedule
+          (notional, paymentPeriodData) = calculateNotionalAndFixings p s
+            calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
 
       -- calculate simple interest rate claim (no compounding) for a payment period
       createSimpleClaim regularRate p =
-        mconcat $ map createSimpleRate calculationFixings
+        mconcat $ map createSimpleRate paymentPeriodData
         where
-          (notional, calculationFixings) = calculateNotionalAndFixings p s
-            calculationNotionalFixings fxRateId useAdjustedDatesForDcf periodicSchedule
+          (notional, paymentPeriodData) = calculateNotionalAndFixings p s
+            calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
           createSimpleRate (c, f, dcf) =
             when (TimeGte f) $ scale notional $ when (TimeGte f) $ scale (rate * dcf) $
               when (TimeGte p.adjustedEndDate) $ one currency
@@ -482,20 +503,20 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
       createCorrectionClaim p =
         give $ scale notional $ when (TimeGte p.adjustedEndDate) $ one currency
         where
-          (notional, _) = calculateNotionalAndFixings p s calculationNotionalFixings fxRateId
+          (notional, _) = calculateNotionalAndFixings p s calculationScheduleStaticData fxRateId
             useAdjustedDatesForDcf periodicSchedule
 
       -- calculate floating rate spread claim for a payment period
       createSpreadClaim p =
         mconcat $ simpleInterestSpreadClaims
         where
-          (notional, calculationFixings) = calculateNotionalAndFixings p s
-            calculationNotionalFixings fxRateId useAdjustedDatesForDcf periodicSchedule
+          (notional, paymentPeriodData) = calculateNotionalAndFixings p s
+            calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
           spread = Const floatingRateSpread
           simpleInterestSpreadClaims = map
             (\(c, f, dcf) -> scale (notional * spread * dcf) $
               when (TimeGte p.adjustedEndDate) $ one currency)
-            (reverse calculationFixings)
+            (reverse paymentPeriodData)
 
       claimAmounts = case s.calculationPeriodAmount.calculation.compoundingMethodEnum of
         Some Straight -> [claimAmounts, correctionClaimAmounts]
