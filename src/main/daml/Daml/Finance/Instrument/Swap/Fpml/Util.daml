@@ -17,7 +17,7 @@ import Daml.Finance.Interface.Instrument.Swap.Fpml.FpmlTypes
 import Daml.Finance.Interface.Types.Common.Types (Id(..))
 import Daml.Finance.Interface.Types.Date.Calendar
 import Daml.Finance.Interface.Types.Date.RollConvention
-import Daml.Finance.Interface.Types.Date.Schedule (Frequency(..), PeriodicSchedule(..), SchedulePeriod, StubPeriodTypeEnum(..))
+import Daml.Finance.Interface.Types.Date.Schedule (Frequency(..), PeriodicSchedule(..), SchedulePeriod(..), StubPeriodTypeEnum(..))
 import Daml.Finance.Util.Date.Calendar (addBusinessDays, adjustDate, merge)
 import Daml.Finance.Util.Date.DayCount (calcPeriodDcf)
 import Daml.Finance.Util.Date.RollConvention (addPeriod)
@@ -79,6 +79,35 @@ adjustDateAccordingToBusinessDayAdjustments unadjustedDate businessDayAdjustment
     case businessDayAdjustments.businessDayConvention of
       NoAdjustment -> pure $ unadjustedDate
       _ -> getCalendarsAndAdjust unadjustedDate businessDayAdjustments issuer calendarDataAgency
+
+-- Adjust payment schedule according to paymentDaysOffset (if available).
+applyPaymentDaysOffset : [SchedulePeriod] -> PaymentDates -> [HolidayCalendarData] ->
+  [SchedulePeriod]
+applyPaymentDaysOffset paymentSchedule paymentDates paymentCalendars =
+  case paymentDates.paymentDaysOffset of
+    Some dateOffset -> case dateOffset.dayType of
+      Some Business -> map (\p -> SchedulePeriod with
+          adjustedEndDate = addBusinessDays cals nDays p.adjustedEndDate
+          adjustedStartDate = p.adjustedStartDate
+          unadjustedEndDate = p.unadjustedEndDate
+          unadjustedStartDate = p.unadjustedStartDate
+          stubType = p.stubType
+        ) paymentSchedule
+      Some Calendar -> map (\p -> SchedulePeriod with
+          adjustedEndDate = adjustDate cals
+            paymentDates.paymentDatesAdjustments.businessDayConvention
+            (addDays p.adjustedEndDate nDays)
+          adjustedStartDate = p.adjustedStartDate
+          unadjustedEndDate = p.unadjustedEndDate
+          unadjustedStartDate = p.unadjustedStartDate
+          stubType = p.stubType
+        ) paymentSchedule
+      _ -> error "Only Business or Calendar day type supported"
+      where
+        nDays = if dateOffset.period == D then dateOffset.periodMultiplier
+          else error "Only daily offset supported"
+        cals = merge paymentCalendars
+    None -> paymentSchedule
 
 -- | Define observable part of claim when one specific floating rate is provided for a stub period.
 getSingleStubRate : StubFloatingRate -> Optional O
@@ -497,8 +526,6 @@ calculateClaimsFromSwapStream : SwapStream -> PeriodicSchedule -> [SchedulePerio
   Update [TaggedClaim]
 calculateClaimsFromSwapStream s periodicSchedule calculationSchedule paymentSchedule
   swapStreamNotionalRef useAdjustedDatesForDcf issuerPaysLeg currency issuer calendarDataAgency = do
-    assertMsg "Payment lag not yet supported" $
-      isNone s.paymentDates.paymentDaysOffset
     case s.calculationPeriodAmount.calculation.notionalScheduleValue of
       NotionalSchedule_FxLinked fxl -> assertMsg
         "swapStream currency does not match swap currency" $
