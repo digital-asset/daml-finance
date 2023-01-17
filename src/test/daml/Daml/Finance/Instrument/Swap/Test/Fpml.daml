@@ -2415,3 +2415,302 @@ runCompounding = script do
     expectedProducedQuantities
 
   pure ()
+
+-- ISDA calculation example for flat compounding, example 4.2:
+-- https://www.isda.org/a/2KiDE/isda-compounding-memo.pdf
+runCompoundingFlat : Script ()
+runCompoundingFlat = script do
+  [custodian, issuer, calendarDataProvider, publicParty] <-
+    createParties ["Custodian", "Issuer", "Calendar Data Provider", "PublicParty"]
+
+  -- Create commercial-bank cash
+  now <- getTime
+  let observers = [("PublicParty", singleton publicParty)]
+  cashInstrumentCid <- Instrument.originate custodian issuer "USD" "US Dollar" observers now
+
+  -- Create swap
+  let
+    rollDay = 27
+    issueDate = date 2022 Apr rollDay
+    maturityDate = date 2023 Apr rollDay
+    referenceRateId = "USD/LIBOR/BBA/1M"
+    notional = 10000000.0
+    ccy = "USD"
+    paymentPeriod = M
+    paymentPeriodMultiplier = 3
+    calcPeriodFloat = M
+    calcPeriodMultiplierFloat = 1
+    businessDayConvention = ModifiedFollowing
+    observations = M.fromList
+      [ (dateToDateClockTime (date 2022 Apr 25), 0.040)
+      , (dateToDateClockTime (date 2022 May 25), 0.045)
+      , (dateToDateClockTime (date 2022 Jun 23), 0.050)
+      , (dateToDateClockTime (date 2022 Jul 25), 0.000)
+      ]
+    primaryBusinessCenters = ["GBLO", "USNY"]
+    cal =
+      HolidayCalendarData with
+        id = "USNY"
+        weekend = [Saturday, Sunday]
+        holidays = []
+    fixingBusinessCenters = ["GBLO"]
+    fixingCal =
+      HolidayCalendarData with
+        id = "GBLO"
+        weekend = [Saturday, Sunday]
+        holidays = []
+
+    issuerPartyRef = "party2"
+    clientPartyRef = "party1"
+
+    swapStreamFloatingLeg = SwapStream with
+      payerPartyReference = issuerPartyRef
+      receiverPartyReference = clientPartyRef
+      calculationPeriodDates = CalculationPeriodDates with
+        id = "floatingCalcPeriodDates"
+        effectiveDate = AdjustableDate with
+          unadjustedDate = issueDate
+          dateAdjustments = BusinessDayAdjustments with
+            businessDayConvention = NoAdjustment
+            businessCenters = []
+        terminationDate = AdjustableDate with
+          unadjustedDate = maturityDate
+          dateAdjustments = BusinessDayAdjustments with
+            businessDayConvention = ModifiedFollowing
+            businessCenters = primaryBusinessCenters
+        calculationPeriodDatesAdjustments = CalculationPeriodDatesAdjustments with
+          businessDayConvention = ModifiedFollowing
+          businessCenters = primaryBusinessCenters
+        firstRegularPeriodStartDate = None
+        lastRegularPeriodEndDate = None
+        calculationPeriodFrequency = CalculationPeriodFrequency with
+          periodMultiplier = calcPeriodMultiplierFloat
+          period = calcPeriodFloat
+          rollConvention = DOM rollDay
+      paymentDates = PaymentDates with
+        calculationPeriodDatesReference = "floatingCalcPeriodDates"
+        paymentFrequency = PaymentFrequency with
+          periodMultiplier = paymentPeriodMultiplier
+          period = paymentPeriod
+        firstPaymentDate = None
+        lastRegularPaymentDate = None
+        payRelativeTo = CalculationPeriodEndDate
+        paymentDaysOffset = None
+        paymentDatesAdjustments = BusinessDayAdjustments with
+            businessDayConvention = ModifiedFollowing
+            businessCenters = primaryBusinessCenters
+      resetDates = Some ResetDates with
+        calculationPeriodDatesReference = "floatingCalcPeriodDates"
+        resetRelativeTo = CalculationPeriodStartDate
+        fixingDates = FixingDates with
+          periodMultiplier = -2
+          period = D
+          dayType = Business
+          businessDayConvention = NoAdjustment
+          businessCenters = fixingBusinessCenters
+        resetFrequency = ResetFrequency with
+          periodMultiplier = calcPeriodMultiplierFloat
+          period = calcPeriodFloat
+        resetDatesAdjustments = ResetDatesAdjustments with
+          businessDayConvention = ModifiedFollowing
+          businessCenters = primaryBusinessCenters
+      calculationPeriodAmount = CalculationPeriodAmount with
+        calculation = Calculation with
+          notionalScheduleValue = NotionalSchedule_Regular NotionalSchedule with
+            id = "floatingLegNotionalSchedule"
+            notionalStepSchedule = NotionalStepSchedule with
+              initialValue = notional
+              step = []
+              currency = ccy
+          rateTypeValue = RateType_Floating FloatingRateCalculation with
+            floatingRateIndex = referenceRateId
+            indexTenor = Some Period with
+              periodMultiplier = calcPeriodMultiplierFloat
+              period = calcPeriodFloat
+            spreadSchedule = [SpreadSchedule with initialValue = 0.001]
+            finalRateRounding = None
+          dayCountFraction = Basis30360ICMA
+          compoundingMethodEnum = Some Flat
+      stubCalculationPeriodAmount = None
+      principalExchanges = None
+
+    swapStreams = [swapStreamFloatingLeg]
+    currencies = [cashInstrumentCid]
+
+  -- A reference data provider publishes the holiday calendars on the ledger
+  calendarCid <- submit calendarDataProvider do
+    createCmd HolidayCalendar with
+      provider = calendarDataProvider; calendar = cal
+      observers = M.fromList observers
+  fixingCalendarCid <- submit calendarDataProvider do
+    createCmd HolidayCalendar with
+      provider = calendarDataProvider; calendar = fixingCal
+      observers = M.fromList observers
+
+  observableCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Observation with
+      provider = issuer; id = Id referenceRateId; observations; observers = M.empty
+  let observableCids = [observableCid]
+
+  swapInstrument <- originateFpmlSwap custodian issuer "SwapTest1" "Interest rate swap" observers
+    now swapStreams calendarDataProvider currencies issuerPartyRef
+
+  -- First payment date: Lifecycle and verify the floating payment (3 compounded 1M periods)
+  let
+    expectedConsumedQuantities = []
+    expectedProducedQuantities = [qty 115430.7421911761 cashInstrumentCid]
+  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifySwapPaymentEffects [publicParty]
+    (date 2022 Jul 27) swapInstrument issuer observableCids expectedConsumedQuantities
+    expectedProducedQuantities
+
+  pure ()
+
+-- ISDA calculation example for compounding, example 4.3:
+-- https://www.isda.org/a/2KiDE/isda-compounding-memo.pdf
+-- treating Spread as simple interest
+runCompoundingSpreadSimple : Script ()
+runCompoundingSpreadSimple = script do
+  [custodian, issuer, calendarDataProvider, publicParty] <-
+    createParties ["Custodian", "Issuer", "Calendar Data Provider", "PublicParty"]
+
+  -- Create commercial-bank cash
+  now <- getTime
+  let observers = [("PublicParty", singleton publicParty)]
+  cashInstrumentCid <- Instrument.originate custodian issuer "USD" "US Dollar" observers now
+
+  -- Create swap
+  let
+    rollDay = 27
+    issueDate = date 2022 Apr rollDay
+    maturityDate = date 2023 Apr rollDay
+    referenceRateId = "USD/LIBOR/BBA/1M"
+    notional = 10000000.0
+    ccy = "USD"
+    paymentPeriod = M
+    paymentPeriodMultiplier = 3
+    calcPeriodFloat = M
+    calcPeriodMultiplierFloat = 1
+    businessDayConvention = ModifiedFollowing
+    observations = M.fromList
+      [ (dateToDateClockTime (date 2022 Apr 25), 0.040)
+      , (dateToDateClockTime (date 2022 May 25), 0.045)
+      , (dateToDateClockTime (date 2022 Jun 23), 0.050)
+      , (dateToDateClockTime (date 2022 Jul 25), 0.000)
+      ]
+    primaryBusinessCenters = ["GBLO", "USNY"]
+    cal =
+      HolidayCalendarData with
+        id = "USNY"
+        weekend = [Saturday, Sunday]
+        holidays = []
+    fixingBusinessCenters = ["GBLO"]
+    fixingCal =
+      HolidayCalendarData with
+        id = "GBLO"
+        weekend = [Saturday, Sunday]
+        holidays = []
+
+    issuerPartyRef = "party2"
+    clientPartyRef = "party1"
+
+    swapStreamFloatingLeg = SwapStream with
+      payerPartyReference = issuerPartyRef
+      receiverPartyReference = clientPartyRef
+      calculationPeriodDates = CalculationPeriodDates with
+        id = "floatingCalcPeriodDates"
+        effectiveDate = AdjustableDate with
+          unadjustedDate = issueDate
+          dateAdjustments = BusinessDayAdjustments with
+            businessDayConvention = NoAdjustment
+            businessCenters = []
+        terminationDate = AdjustableDate with
+          unadjustedDate = maturityDate
+          dateAdjustments = BusinessDayAdjustments with
+            businessDayConvention = ModifiedFollowing
+            businessCenters = primaryBusinessCenters
+        calculationPeriodDatesAdjustments = CalculationPeriodDatesAdjustments with
+          businessDayConvention = ModifiedFollowing
+          businessCenters = primaryBusinessCenters
+        firstRegularPeriodStartDate = None
+        lastRegularPeriodEndDate = None
+        calculationPeriodFrequency = CalculationPeriodFrequency with
+          periodMultiplier = calcPeriodMultiplierFloat
+          period = calcPeriodFloat
+          rollConvention = DOM rollDay
+      paymentDates = PaymentDates with
+        calculationPeriodDatesReference = "floatingCalcPeriodDates"
+        paymentFrequency = PaymentFrequency with
+          periodMultiplier = paymentPeriodMultiplier
+          period = paymentPeriod
+        firstPaymentDate = None
+        lastRegularPaymentDate = None
+        payRelativeTo = CalculationPeriodEndDate
+        paymentDaysOffset = None
+        paymentDatesAdjustments = BusinessDayAdjustments with
+            businessDayConvention = ModifiedFollowing
+            businessCenters = primaryBusinessCenters
+      resetDates = Some ResetDates with
+        calculationPeriodDatesReference = "floatingCalcPeriodDates"
+        resetRelativeTo = CalculationPeriodStartDate
+        fixingDates = FixingDates with
+          periodMultiplier = -2
+          period = D
+          dayType = Business
+          businessDayConvention = NoAdjustment
+          businessCenters = fixingBusinessCenters
+        resetFrequency = ResetFrequency with
+          periodMultiplier = calcPeriodMultiplierFloat
+          period = calcPeriodFloat
+        resetDatesAdjustments = ResetDatesAdjustments with
+          businessDayConvention = ModifiedFollowing
+          businessCenters = primaryBusinessCenters
+      calculationPeriodAmount = CalculationPeriodAmount with
+        calculation = Calculation with
+          notionalScheduleValue = NotionalSchedule_Regular NotionalSchedule with
+            id = "floatingLegNotionalSchedule"
+            notionalStepSchedule = NotionalStepSchedule with
+              initialValue = notional
+              step = []
+              currency = ccy
+          rateTypeValue = RateType_Floating FloatingRateCalculation with
+            floatingRateIndex = referenceRateId
+            indexTenor = Some Period with
+              periodMultiplier = calcPeriodMultiplierFloat
+              period = calcPeriodFloat
+            spreadSchedule = [SpreadSchedule with initialValue = 0.001]
+            finalRateRounding = None
+          dayCountFraction = Basis30360ICMA
+          compoundingMethodEnum = Some SpreadExclusive
+      stubCalculationPeriodAmount = None
+      principalExchanges = None
+
+    swapStreams = [swapStreamFloatingLeg]
+    currencies = [cashInstrumentCid]
+
+  -- A reference data provider publishes the holiday calendars on the ledger
+  calendarCid <- submit calendarDataProvider do
+    createCmd HolidayCalendar with
+      provider = calendarDataProvider; calendar = cal
+      observers = M.fromList observers
+  fixingCalendarCid <- submit calendarDataProvider do
+    createCmd HolidayCalendar with
+      provider = calendarDataProvider; calendar = fixingCal
+      observers = M.fromList observers
+
+  observableCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Observation with
+      provider = issuer; id = Id referenceRateId; observations; observers = M.empty
+  let observableCids = [observableCid]
+
+  swapInstrument <- originateFpmlSwap custodian issuer "SwapTest1" "Interest rate swap" observers
+    now swapStreams calendarDataProvider currencies issuerPartyRef
+
+  -- First payment date: Lifecycle and verify the floating payment (3 compounded 1M periods)
+  let
+    expectedConsumedQuantities = []
+    expectedProducedQuantities = [qty 115420.6597209434 cashInstrumentCid]
+  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifySwapPaymentEffects [publicParty]
+    (date 2022 Jul 27) swapInstrument issuer observableCids expectedConsumedQuantities
+    expectedProducedQuantities
+
+  pure ()
