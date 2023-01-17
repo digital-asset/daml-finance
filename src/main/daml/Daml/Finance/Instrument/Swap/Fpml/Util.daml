@@ -8,7 +8,7 @@ import ContingentClaims.Core.Observation (Observation(..))
 import DA.BigNumeric qualified as BN
 import DA.Date
 import DA.Foldable (foldMap)
-import DA.List (dedup, head, init, last, tail)
+import DA.List (dedup, head, init, last, sortOn, tail)
 import DA.Optional (fromOptional, fromSome, isNone, isSome, whenSome)
 import Daml.Finance.Claims.Util.Builders (prepareAndTagClaims)
 import Daml.Finance.Instrument.Swap.Util
@@ -607,21 +607,23 @@ calculateClaimsFromSwapStream s periodicSchedule calculationSchedule paymentSche
           NotionalSchedule_Regular nr -> nr
         _ -> case s.calculationPeriodAmount.calculation.notionalScheduleValue of
           NotionalSchedule_Regular nr -> nr
-          _ -> error ""
-      notionalSteps = n.notionalStepSchedule.step
-      notionalBase
-        | length notionalSteps == length calculationSchedule
-            = if
-                any (\(n, p) -> n.stepDate /= p.unadjustedStartDate) $
-                  zip notionalSteps calculationSchedule
-              then error "notional step schedule does not match calculationSchedule"
-              else map (\e -> (e.stepValue, fxAdjustmentRequired)) notionalSteps
-        | null notionalSteps
-            = replicate (length calculationSchedule)
-                (n.notionalStepSchedule.initialValue, fxAdjustmentRequired)
-        | otherwise
-            = error ("number of notional steps do not match the number of calculationSchedule " <>
-                "periods")
+          _ -> error "Regular notional schedule required if no swapStream notional ref provided."
+
+      -- Find the notional of a calculation period in the notional step list
+      findNotional notionalSteps fxAdjustmentRequired calculationPeriod =
+        (notionalValue, fxAdjustmentRequired)
+        where
+          notionalStepsFiltered = filter (\n -> n.stepDate <= calculationPeriod.unadjustedStartDate)
+            notionalSteps
+          lastMatching = last $ sortOn (.stepDate) notionalStepsFiltered
+          notionalValue = lastMatching.stepValue
+
+      initialStep = Step with
+        stepDate = (.unadjustedStartDate) $ head calculationSchedule
+        stepValue = n.notionalStepSchedule.initialValue
+      notionalStepScheduleInclInitial = initialStep :: n.notionalStepSchedule.step
+      notionalBase = map (findNotional notionalStepScheduleInclInitial fxAdjustmentRequired)
+        calculationSchedule
       notionals = case fxLinkedNotionalInitialValue of
         None -> notionalBase
         Some iv -> (iv, False) :: (drop 1 notionalBase)
