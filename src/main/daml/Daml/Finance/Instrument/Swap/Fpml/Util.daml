@@ -22,6 +22,7 @@ import Daml.Finance.Util.Date.Calendar (addBusinessDays, adjustDate, merge)
 import Daml.Finance.Util.Date.DayCount (calcPeriodDcf)
 import Daml.Finance.Util.Date.RollConvention (addPeriod)
 import Prelude hiding (key, Down)
+import Prelude qualified as P (Down(..))
 
 type O = Observation Date Decimal Observable
 type C = Claim Date Decimal Deliverable Observable
@@ -263,15 +264,15 @@ getRateFixingsAndCalendars s r calculationSchedule issuer calendarDataAgency = d
       s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessCenters
   assertMsg "Only daily fixing date period supported" $ r.fixingDates.period == D
   assertMsg "Only Business day type supported" $ r.fixingDates.dayType == Business
-  assertMsg "Only fixing dates relative to calculation start dates supported" $
-    r.resetRelativeTo == CalculationPeriodStartDate
   assertMsg "No adjustements (besides business day type) supported" $
     r.fixingDates.businessDayConvention == NoAdjustment
   rateFixingCalendars <- getHolidayCalendars issuer calendarDataAgency r.fixingDates.businessCenters
   let
     rateFixingCalendar = merge rateFixingCalendars
     rateFixingDates = map (\p ->
-        addBusinessDays rateFixingCalendar r.fixingDates.periodMultiplier p.adjustedStartDate
+        addBusinessDays rateFixingCalendar r.fixingDates.periodMultiplier $
+          if r.resetRelativeTo == CalculationPeriodStartDate then p.adjustedStartDate
+          else p.adjustedEndDate
       ) calculationSchedule
   pure (rateFixingDates, rateFixingCalendar)
 
@@ -289,6 +290,19 @@ calculateFixPaymentClaimsFromSwapStream fixedRateSchedule s periodicSchedule cal
     assertMsg "Compounding not supported for the fixed rate leg" $
       isNone s.calculationPeriodAmount.calculation.compoundingMethodEnum
     let
+      initialStep = Step with
+        stepDate = (.unadjustedStartDate) $ head calculationSchedule
+        stepValue = fixedRateSchedule.initialValue
+      rateStepScheduleInclInitial = sortOn (\x -> P.Down x.stepDate) $
+        initialStep :: fixedRateSchedule.step
+
+      -- Find the fixed rate for the current date in the step list
+      findRate rateSteps calculationPeriod =
+        lastMatching.stepValue
+        where
+          lastMatching = fromSome $ find (\r -> r.stepDate <= calculationPeriod.unadjustedStartDate)
+            rateSteps
+
       -- calculate fix rate claims
       createClaim (c, (n, fxAdjRequired)) p =
         when (TimeGte p.adjustedEndDate)
@@ -305,7 +319,7 @@ calculateFixPaymentClaimsFromSwapStream fixedRateSchedule s periodicSchedule cal
             Some fxRateId -> if fxAdjRequired
                               then error "fx adjusted notional not yet supported for fix rate leg"
                               else notionalConst
-          fixRate = fixedRateSchedule.initialValue
+          fixRate = findRate rateStepScheduleInclInitial c
           regularRate = Const fixRate
           rate = regularRate
       claimAmounts =
@@ -611,17 +625,16 @@ calculateClaimsFromSwapStream s periodicSchedule calculationSchedule paymentSche
 
       -- Find the notional of a calculation period in the notional step list
       findNotional notionalSteps fxAdjustmentRequired calculationPeriod =
-        (notionalValue, fxAdjustmentRequired)
+        (lastMatching.stepValue, fxAdjustmentRequired)
         where
-          notionalStepsFiltered = filter (\n -> n.stepDate <= calculationPeriod.unadjustedStartDate)
+          lastMatching = fromSome $ find (\n -> n.stepDate <= calculationPeriod.unadjustedStartDate)
             notionalSteps
-          lastMatching = last $ sortOn (.stepDate) notionalStepsFiltered
-          notionalValue = lastMatching.stepValue
 
       initialStep = Step with
         stepDate = (.unadjustedStartDate) $ head calculationSchedule
         stepValue = n.notionalStepSchedule.initialValue
-      notionalStepScheduleInclInitial = initialStep :: n.notionalStepSchedule.step
+      notionalStepScheduleInclInitial = sortOn (\x -> P.Down x.stepDate) $
+        initialStep :: n.notionalStepSchedule.step
       notionalBase = map (findNotional notionalStepScheduleInclInitial fxAdjustmentRequired)
         calculationSchedule
       notionals = case fxLinkedNotionalInitialValue of
