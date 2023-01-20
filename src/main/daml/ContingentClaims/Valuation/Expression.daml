@@ -1,0 +1,212 @@
+-- Copyright (c) 2022 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module ContingentClaims.Valuation.Expression (
+  Expr(..),
+  ExprF(..),
+  simplify
+) where
+
+import ContingentClaims.Core.Claim (Inequality(..))
+import ContingentClaims.Valuation.AcquisitionTime(AcquisitionTime(..))
+import DA.Foldable
+import DA.Traversable
+import Daml.Control.Recursion
+import Prelude hiding (Time, sequence, mapA, const)
+
+-- | Represents an algebraic expression of a t-adapted stochastic process.
+-- t : time parameter.
+-- x : state parameter, typically Decimal (our best approximation of real numbers).
+-- o : reference used to identify observables.
+-- b : type describing elementary processes.
+data Expr t x o b
+  = Const x
+    -- ^ A constant process.
+  | Proc { name : b }
+    -- ^ An elementary process which we cannot decompose further.
+  -- | Sup { lowerBound: t, tau: t, rv : Expr t }
+    -- -- ^ Sup, needs to be reworked using feasible exercise strategies.
+  | Sum [Expr t x o b]
+    -- ^ Sum process.
+  | Neg (Expr t x o b)
+    -- ^ Negation process.
+  | Mul (Expr t x o b, Expr t x o b)
+    -- ^ Multiplication of two processes (`p1 * p2`).
+  | Inv (Expr t x o b)
+    -- ^ Inverse of a process (`1 / p`).
+  | Max [Expr t x o b]
+    -- ^ Maximum process.
+  | I (Inequality t x o)
+    -- ^ Indicator function. I(p) is 1 if p(t) = True, False otherwise, where
+    -- `p` is the boolean process corresponding to the provided inequality.
+    -- Specifically, this means
+    -- - for `o1 ≤ o2`, `p = υ(o1) ≤ υ(o2)`
+    -- - for `TimeGte t`, `p(s) = s ≥ t`
+    -- - for `TimeLte t`, `p(s) = s ≤ t`
+  | E { process : Expr t x o b, time : AcquisitionTime t x o, filtration : AcquisitionTime t x o }
+    -- ^ Conditional expectation of `process(time)` conditioned on the filtration F_`t`.
+  -- | Snell { process : Expr t x o b, time : AcquisitionTime t x o, predicate : Inequality t x o}
+  --     -- ^ Snell envelope of a stochastic process.
+  --     -- We need the predicate to identify the feasible region
+  --     -- I feel that we need the acquisition time to identify the conditional filtration, but it might not be needed.
+  -- | Absorb { process : Expr t x o b, time : AcquisitionTime t x o, predicate : Inequality t x o}
+  --     -- ^ Absorb primitive.
+  --     -- It feels that absorb hides an expectation, but I need to write this down in formulas for better understanding.
+  -- In order to write until valuation explicitly, we need to introduce a new class of boolean processes, namely those that we start observing at a time tau and have never been true since (we can then use an indicator function to transform it to a real process)
+  -- We can use the absorb primitive to cover this case, which we can then distribute. across the other primitives.
+  deriving (Eq,Show)
+
+-- | Base functor for `Expr`.
+data ExprF t x o b c
+  = ConstF x
+  | ProcF { name : b }
+  -- | Sup { lowerBound: t, tau: t, rv : Expr t }
+  | SumF [c]
+  | NegF c
+  | MulF { lhs : c, rhs : c }
+  | InvF c
+  | MaxF [c]
+  | I_F (Inequality t x o)
+  | E_F { process : c, time : AcquisitionTime t x o, filtration : AcquisitionTime t x o }
+  deriving (Functor)
+
+instance Recursive (Expr t x o b) (ExprF t x o b) where
+  project (Const d) = ConstF d
+  project Proc{..} = ProcF with ..
+  -- project Sup{..} = SupF with ..
+  project (Sum xs) = SumF xs
+  project (Neg x) = NegF x
+  project (Mul (x,x')) = MulF x x'
+  project (Inv x) = InvF x
+  project (Max xs) = MaxF xs
+  project (I x) = I_F x
+  project E{..} = E_F with ..
+
+instance Corecursive (Expr t x o b) (ExprF t x o b) where
+  embed (ConstF d) = Const d
+  embed ProcF{..} = Proc with ..
+  -- embed SupF{..} = Sup with ..
+  embed (SumF xs) = Sum xs
+  embed (NegF x) = Neg x
+  embed (MulF x x') = Mul (x, x')
+  embed (InvF x) = Inv x
+  embed (MaxF xs) = Max xs
+  embed (I_F x) = I x
+  embed E_F{..} = E with ..
+
+instance Foldable (ExprF t x o b) where
+  foldMap f (ConstF _) = mempty
+  foldMap f (ProcF _) = mempty
+  -- foldMap f (SupF _ _ x) = f x
+  foldMap f (SumF xs) = foldMap f xs
+  foldMap f (NegF x) = f x
+  foldMap f (MulF x x') = f x <> f x'
+  foldMap f (InvF x) = f x
+  foldMap f (MaxF xs) = foldMap f xs
+  foldMap f (I_F _) = mempty
+  foldMap f (E_F x _ _) = f x
+
+instance Traversable (ExprF t x o b) where
+  sequence (ConstF d) = pure $ ConstF d
+  sequence (ProcF x) = pure $ ProcF x
+--   sequence (SupF t τ fa) = SupF t τ <$> fa
+  sequence (SumF [fa]) = (\a -> SumF [a]) <$> fa
+  sequence (SumF (fa :: fas)) = s <$> fa <*> sequence fas
+    where s a as = SumF (a :: as)
+  sequence (SumF []) = error "Traversable ExprF: sequence empty SumF"
+  sequence (NegF fa) = NegF <$> fa
+  sequence (MulF fa fa') = MulF <$> fa <*> fa'
+  sequence (InvF fa) = InvF <$> fa
+  sequence (MaxF (fa :: fas)) = s <$> fa <*> sequence fas
+    where s a as = MaxF (a :: as)
+  sequence (MaxF []) = error "Traversable ExprF: sequence empty MaxF"
+  sequence (I_F p) = pure $ I_F p
+  sequence (E_F fa t f) = (\a -> E_F a t f) <$> fa
+
+instance (Additive x) => Additive (Expr t x o b) where
+  x + y = Sum [x, y]
+  negate = Neg
+  aunit = Const aunit
+
+instance (Multiplicative x) => Multiplicative (Expr t x o b) where
+  (*) = curry Mul
+  munit = Const munit
+  x ^ y | y > 0 = x * (x ^ pred y)
+  x ^ 0 = munit
+  x ^ y = Inv x ^ (-y)
+
+instance (Multiplicative x) => Divisible (Expr t x o b) where
+  x / y = curry Mul x $ Inv y
+
+-- | This is meant to be a function that algebraically simplifies the FAPF by
+-- 1) using simple identities and ring laws
+-- 2) change of numeraire technique.
+simplify : (Eq x, Eq b, Eq t, Eq o, Multiplicative x) => Expr t x o b -> Expr t x o b
+simplify =
+    cata unitIdentity
+  -- . cata zeroIdentity
+  . cata factNeg
+  -- . \case [] -> Const aunit
+  --         [x] -> x
+  --         xs -> Sum xs
+  -- . cata distSum
+  -- . ana commuteLeft
+  -- . cata mulBeforeSum
+
+-- {- Functions below here are helpers for simplifying the expression tree, used mainly in `simplify` -}
+
+-- | Algebra that simplifies sums, multiplications, expectations involving 0.0.
+-- BUG I need to add an additive typeclass constraint, otherwise aunit is just a pattern match.
+zeroIdentity : ExprF t x o b (Expr t x o b) -> Expr t x o b
+zeroIdentity (MulF (Const aunit) x) = Const aunit
+zeroIdentity (MulF x (Const aunit)) = Const aunit
+zeroIdentity (SumF xs) = Sum $ filter (not . isZero) xs
+  where isZero (Const aunit) = True
+        isZero _ = False
+zeroIdentity (E_F (Const aunit) _ _) = Const aunit
+zeroIdentity other = embed other
+
+-- | Algebra that simplifies multiplications and divisions by 1.0.
+unitIdentity : (Eq x, Eq b, Eq t, Eq o, Multiplicative x) => ExprF t x o b (Expr t x o b) -> Expr t x o b
+unitIdentity (MulF a b) | a == munit = b
+unitIdentity (MulF a b) | b == munit = a
+unitIdentity (InvF x) | x == munit = munit
+unitIdentity other = embed other
+
+-- | Algebra that collects and simplifies minuses.
+factNeg : ExprF t x o b (Expr t x o b) -> Expr t x o b
+factNeg (NegF (Neg x)) = x
+-- factNeg (MulF (Neg x) (Neg y)) = Mul (x, y) -- [ML] I think this is redundant
+factNeg (MulF (Neg x) y) = Neg $ Mul (x, y)
+factNeg (MulF y (Neg x)) = Neg $ Mul (y, x)
+factNeg (E_F (Neg x) t f) = Neg $ E x t f
+factNeg other = embed other
+
+-- -- | Turn any expression into a list of terms to be summed together
+-- distSum : ExprF t x o b [Expr t x o b] -> [Expr t x o b]
+-- distSum = \case
+--   ConstF x -> [Const x]
+--   SumF xs -> join xs
+--   MulF xs xs' -> curry Mul <$> xs <*> xs'
+--   NegF xs -> Neg <$> xs
+--   E_F xs t -> flip E t <$> xs
+--   I_F xs xs' -> [I (unroll xs, unroll xs')]
+--   ProcF{..} -> [Proc{..}]
+--   where unroll xs = Sum xs
+
+-- | Algebra that changes `(a + b) x c` to `c x (a + b)`
+-- mulBeforeSum : ExprF t x o b (Expr t x o b) -> Expr t x o b
+-- mulBeforeSum (MulF y@Sum{} x) = Mul (x, y)
+-- mulBeforeSum (MulF (Mul (x, y@Sum{})) x') = Mul (Mul (x,x'), y)
+-- mulBeforeSum other = embed other
+
+-- | Algebra that applies commutative property to all multiplications.
+-- commute : ExprF t x o b (Expr t x o b) -> Expr t x o b
+-- commute (MulF a b) = embed $ MulF b a
+-- commute other = embed other
+
+-- | Change e.g. `a x (b x c)` to `(a x b) x c`.
+-- We are not using commutative property, but rather associative --> should rename
+-- commuteLeft : Expr t x o b -> ExprF t x o b (Expr t x o b)
+-- commuteLeft (Mul (a,(Mul (b, c)))) = Mul (a, b) `MulF` c
+-- commuteLeft other = project other
