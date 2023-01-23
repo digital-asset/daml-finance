@@ -502,6 +502,7 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
         [] -> 0.0
         [se] -> se.initialValue
         _ -> error "Multiple SpreadSchedules not yet supported"
+      compoundedRefRate = floatingRateCalculation.floatingRateIndex == "USD-SOFR-COMPOUND"
       regularRateExclSpread = Observe floatingRateCalculation.floatingRateIndex
       regularRateInclSpread = regularRateExclSpread + Const floatingRateSpread
 
@@ -531,7 +532,7 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
           (notional, paymentPeriodData) = calculateNotionalAndFixings p s
             calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
 
-      -- calculate simple interest rate claim (no compounding) for a payment period
+      -- calculate simple interest rate claim (no calc period compounding) for a payment period
       createSimpleClaim regularRate p =
         mconcat $ map createSimpleRate paymentPeriodData
         where
@@ -541,6 +542,20 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
             when (TimeGte pp.rateFixingDate) $ scale notional $
             when (TimeGte pp.rateFixingDate) $ scale (rate * pp.dcf) $
               when (TimeGte p.adjustedEndDate) $ one currency
+            where
+              rate = getFloatingRate s pp.calculationPeriod p regularRate rateFixingCalendar fixLeg
+
+      -- calculate simple interest rate claim (no calc period compounding) for a payment period
+      createSimpleClaimCompoundedRefRate regularRate p =
+        mconcat $ map createSimpleRateCompoundingRefRate paymentPeriodData
+        where
+          (notional, paymentPeriodData) = calculateNotionalAndFixings p s
+            calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
+          createSimpleRateCompoundingRefRate pp =
+            when (TimeGte pp.calculationPeriod.adjustedStartDate) $ scale (Const 1.0 / rate) $
+            when (TimeGte pp.calculationPeriod.adjustedEndDate) $ scale (rate) $
+            when (TimeGte pp.rateFixingDate) $ scale notional $
+            when (TimeGte p.adjustedEndDate) $ one currency
             where
               rate = getFloatingRate s pp.calculationPeriod p regularRate rateFixingCalendar fixLeg
 
@@ -565,19 +580,34 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
               when (TimeGte p.adjustedEndDate) $ one currency)
             (reverse paymentPeriodData)
 
+      -- calculate floating rate when there is no payment period compounding
+      -- (but a compounded reference rate can still be used)
+      calcRateNoCompounding compoundedRefRate =
+        if compoundedRefRate then
+          let
+            claimAmounts = mconcat $
+              map (createSimpleClaimCompoundedRefRate regularRateExclSpread) paymentSchedule
+            spreadClaimAmounts = mconcat $ map createSpreadClaim paymentSchedule
+            correctionClaimAmounts = mconcat $ map createCorrectionClaim paymentSchedule
+          in [claimAmounts, spreadClaimAmounts, correctionClaimAmounts]
+        else map (createSimpleClaim regularRateInclSpread) paymentSchedule
+
       claimAmounts = case s.calculationPeriodAmount.calculation.compoundingMethodEnum of
-        Some Straight -> [claimAmounts, correctionClaimAmounts]
+        Some Straight -> if compoundedRefRate then error "compounded ref rate not supported"
+          else [claimAmounts, correctionClaimAmounts]
           where
             claimAmounts = mconcat $ map (createClaim regularRateInclSpread) paymentSchedule
             correctionClaimAmounts = mconcat $ map createCorrectionClaim paymentSchedule
-        Some SpreadExclusive -> [claimAmounts, spreadClaimAmounts, correctionClaimAmounts]
+        Some SpreadExclusive -> if compoundedRefRate then error "compounded ref rate not supported"
+          else [claimAmounts, spreadClaimAmounts, correctionClaimAmounts]
           where
             claimAmounts = mconcat $ map (createClaim regularRateExclSpread) paymentSchedule
             spreadClaimAmounts = mconcat $ map createSpreadClaim paymentSchedule
             correctionClaimAmounts = mconcat $ map createCorrectionClaim paymentSchedule
-        Some Flat -> map createCalcPeriodClaim paymentSchedule
-        Some NoCompounding -> map (createSimpleClaim regularRateInclSpread) paymentSchedule
-        None -> map (createSimpleClaim regularRateInclSpread) paymentSchedule
+        Some Flat -> if compoundedRefRate then error "compounded ref rate not supported"
+          else map createCalcPeriodClaim paymentSchedule
+        Some NoCompounding -> calcRateNoCompounding compoundedRefRate
+        None -> calcRateNoCompounding compoundedRefRate
 
       claims = if issuerPaysLeg then claimAmounts else fmap give claimAmounts
       claimsTagged = prepareAndTagClaims dateToDateClockTime claims "Floating rate payment"
