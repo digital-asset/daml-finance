@@ -16,6 +16,7 @@ import Daml.Finance.Interface.Claims.Types (Deliverable, Observable, TaggedClaim
 import Daml.Finance.Interface.Instrument.Swap.Fpml.FpmlTypes
 import Daml.Finance.Interface.Types.Common.Types (Id(..))
 import Daml.Finance.Interface.Types.Date.Calendar
+import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum(..))
 import Daml.Finance.Interface.Types.Date.RollConvention
 import Daml.Finance.Interface.Types.Date.Schedule (Frequency(..), PeriodicSchedule(..), SchedulePeriod(..), StubPeriodTypeEnum(..))
 import Daml.Finance.Util.Date.Calendar (addBusinessDays, adjustDate, merge)
@@ -533,6 +534,7 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
             calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
 
       -- calculate simple interest rate claim (no calc period compounding) for a payment period
+      -- using a non-compounded reference rate
       createSimpleClaim regularRate p =
         mconcat $ map createSimpleRate paymentPeriodData
         where
@@ -546,18 +548,28 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
               rate = getFloatingRate s pp.calculationPeriod p regularRate rateFixingCalendar fixLeg
 
       -- calculate simple interest rate claim (no calc period compounding) for a payment period
+      -- using a compounded reference rate
       createSimpleClaimCompoundedRefRate regularRate p =
         mconcat $ map createSimpleRateCompoundingRefRate paymentPeriodData
         where
           (notional, paymentPeriodData) = calculateNotionalAndFixings p s
             calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
-          createSimpleRateCompoundingRefRate pp =
-            when (TimeGte pp.calculationPeriod.adjustedStartDate) $ scale (Const 1.0 / rate) $
-            when (TimeGte pp.calculationPeriod.adjustedEndDate) $ scale (rate) $
-            when (TimeGte pp.rateFixingDate) $ scale notional $
-            when (TimeGte p.adjustedEndDate) $ one currency
+          createSimpleRateCompoundingRefRate pp = mconcat $ [claim, correctionClaim]
             where
               rate = getFloatingRate s pp.calculationPeriod p regularRate rateFixingCalendar fixLeg
+              dcfMethodImpliedInSofrIndex = Act360
+              dcfImpl = Const (calcPeriodDcf dcfMethodImpliedInSofrIndex
+                pp.calculationPeriod useAdjustedDatesForDcf periodicSchedule.terminationDate
+                periodicSchedule.frequency)
+              notionalAndDcf =
+                when (TimeGte pp.rateFixingDate) $ scale notional $
+                scale (pp.dcf / dcfImpl) $
+                when (TimeGte p.adjustedEndDate) $ one currency
+              claim =
+                when (TimeGte pp.calculationPeriod.adjustedStartDate) $ scale (Const 1.0 / rate) $
+                when (TimeGte pp.calculationPeriod.adjustedEndDate) $ scale (rate) $
+                notionalAndDcf
+              correctionClaim = give $ notionalAndDcf
 
       -- Calculate a floating rate correction claim for a payment period
       -- (corresponding to the "-1" in a perf calculation)
@@ -589,7 +601,8 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
               map (createSimpleClaimCompoundedRefRate regularRateExclSpread) paymentSchedule
             spreadClaimAmounts = mconcat $ map createSpreadClaim paymentSchedule
             correctionClaimAmounts = mconcat $ map createCorrectionClaim paymentSchedule
-          in [claimAmounts, spreadClaimAmounts, correctionClaimAmounts]
+          --in [claimAmounts, spreadClaimAmounts, correctionClaimAmounts]
+          in [claimAmounts, spreadClaimAmounts]
         else map (createSimpleClaim regularRateInclSpread) paymentSchedule
 
       claimAmounts = case s.calculationPeriodAmount.calculation.compoundingMethodEnum of
@@ -618,6 +631,7 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
             principalClaimsTagged = calculatePrincipalExchangePaymentClaims paymentSchedule
               issuerPaysLeg currency fxRateId notionals rateFixingDates principalExchanges
 
+    debug allTaggedClaims
     pure allTaggedClaims
 
 -- | Create claims from swapStream that describes a fixed or floating coupon stream.
