@@ -17,6 +17,9 @@ import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..), Schedul
 import Daml.Finance.Util.Date.DayCount (calcPeriodDcf)
 import Prelude hiding (key)
 
+type O = Observation Date Decimal Observable
+type C = Claim Date Decimal Deliverable Observable
+
 -- | Convert the claims to UTCTime and tag them.
 prepareAndTagClaims : (Date -> Time) -> [Claim Date Decimal Deliverable Observable] ->
   Text -> TaggedClaim
@@ -130,13 +133,10 @@ createAssetPerformancePaymentClaims : (Date -> Time) -> Schedule -> PeriodicSche
 createAssetPerformancePaymentClaims dateToTime schedule periodicSchedule useAdjustedDatesForDcf
   ownerReceives dayCountConvention notional cashInstrumentCid referenceAssetId =
   let
+    endClaim = scale (Const notional) $ one cashInstrumentCid
     assetClaimAmounts = mconcat $ map (\p ->
-        when (TimeGte p.adjustedStartDate)
-        $ scale (Const 1.0 / Observe referenceAssetId)
-        $ when (TimeGte p.adjustedEndDate)
-        $ scale (Observe referenceAssetId)
-        $ scale (Const notional)
-        $ one cashInstrumentCid
+        scaleByAssetPerformance p.adjustedStartDate p.adjustedEndDate (Observe referenceAssetId)
+          endClaim
       ) schedule
     correctionClaimAmounts = mconcat $ map (\p ->
       when (TimeGte p.adjustedEndDate) $ scale (Const notional) $ one cashInstrumentCid) schedule
@@ -164,3 +164,11 @@ createFxAdjustedPrincipalClaim dateToTime ownerReceives fxRateMultiplier notiona
   in
     prepareAndTagClaims dateToTime [fxLegClaim] "Principal payment"
 -- FIXED_RATE_BOND_REDEMPTION_CLAIM_END
+
+-- | Scale a claim by an asset performance
+scaleByAssetPerformance : Date -> Date -> O -> C -> C
+scaleByAssetPerformance startDate endDate asset claim =
+  when (TimeGte startDate) $ scale (Const 1.0 / asset) $
+  when (TimeGte endDate) $ scale (asset) $
+  claim
+

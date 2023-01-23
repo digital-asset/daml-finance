@@ -10,7 +10,7 @@ import DA.Date
 import DA.Foldable (foldMap)
 import DA.List (dedup, head, init, last, sortOn, tail)
 import DA.Optional (fromOptional, fromSome, isNone, isSome, whenSome)
-import Daml.Finance.Claims.Util.Builders (prepareAndTagClaims)
+import Daml.Finance.Claims.Util.Builders (prepareAndTagClaims, scaleByAssetPerformance)
 import Daml.Finance.Instrument.Swap.Util
 import Daml.Finance.Interface.Claims.Types (Deliverable, Observable, TaggedClaim(..))
 import Daml.Finance.Interface.Instrument.Swap.Fpml.FpmlTypes
@@ -478,6 +478,17 @@ calculateNotionalAndFixings p s
       )
       paymentPeriodStaticDataFiltered
 
+-- | Check whether a FloatingRateCalculation uses a reference rate that needs to be compounded.
+-- Seems there is no FpML element that specificies this, but that it is implicit in the rate name,
+-- for example "USD-SOFR-COMPOUND"
+-- If it is a compounded reference rate, also return the daycount convention that was used for the
+-- corresponding reference index, e.g. Act360 in the case of the SOFR Index.
+checkRefRateCompounding : FloatingRateCalculation -> (Bool, Optional DayCountConventionEnum)
+checkRefRateCompounding floatingRateCalculation =
+  case floatingRateCalculation.floatingRateIndex of
+    "USD-SOFR-COMPOUND" -> (True, Some Act360)
+    _ -> (False, None)
+
 -- | Create claims from swapStream that describes a floating coupon stream.
 calculateFloatingPaymentClaimsFromSwapStream : FloatingRateCalculation -> SwapStream ->
   PeriodicSchedule -> [SchedulePeriod] -> [SchedulePeriod] -> Bool -> Bool -> Deliverable ->
@@ -503,7 +514,7 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
         [] -> 0.0
         [se] -> se.initialValue
         _ -> error "Multiple SpreadSchedules not yet supported"
-      compoundedRefRate = floatingRateCalculation.floatingRateIndex == "USD-SOFR-COMPOUND"
+      (compoundedRefRate, dcfConventionImplied) = checkRefRateCompounding floatingRateCalculation
       regularRateExclSpread = Observe floatingRateCalculation.floatingRateIndex
       regularRateInclSpread = regularRateExclSpread + Const floatingRateSpread
 
@@ -557,10 +568,10 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
           createSimpleRateCompoundingRefRate pp = mconcat $ [claim, correctionClaim]
             where
               rate = getFloatingRate s pp.calculationPeriod p regularRate rateFixingCalendar fixLeg
-                -- Act360 was implicitly used for the SOFR Index, see page 35 here:
+                -- Calculate dcf using the method implicitly used for the rate Index,
+                -- for example Act360 in the case of SOFR Index, see page 35 here:
                 -- https://www.newyorkfed.org/medialibrary/Microsites/arrc/files/2021/users-guide-to-sofr2021-update.pdf
-              dcfMethodImpliedInSofrIndex = Act360
-              dcfImpl = Const (calcPeriodDcf dcfMethodImpliedInSofrIndex
+              dcfImpl = Const (calcPeriodDcf (fromSome dcfConventionImplied)
                 pp.calculationPeriod useAdjustedDatesForDcf periodicSchedule.terminationDate
                 periodicSchedule.frequency)
               notionalAndDcf = if pp.rateFixingDate < pp.calculationPeriod.adjustedEndDate then
@@ -570,11 +581,11 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
                   scale (pp.dcf / dcfImpl) $
                   when (TimeGte p.adjustedEndDate) $ one currency
               claim =
-                -- calculate compounded SOFR via the SOFR Index, see page 36 here:
+                -- calculate a daily compounded reference rate using the corresponding index,
+                -- see page 36 here:
                 -- https://www.newyorkfed.org/medialibrary/Microsites/arrc/files/2021/users-guide-to-sofr2021-update.pdf
-                when (TimeGte pp.calculationPeriod.adjustedStartDate) $ scale (Const 1.0 / rate) $
-                when (TimeGte pp.calculationPeriod.adjustedEndDate) $ scale (rate) $
-                notionalAndDcf
+                scaleByAssetPerformance pp.calculationPeriod.adjustedStartDate
+                  pp.calculationPeriod.adjustedEndDate rate notionalAndDcf
               correctionClaim = give $ notionalAndDcf
 
       -- Calculate a floating rate correction claim for a payment period
