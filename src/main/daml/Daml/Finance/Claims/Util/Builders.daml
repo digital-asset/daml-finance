@@ -133,18 +133,16 @@ createAssetPerformancePaymentClaims : (Date -> Time) -> Schedule -> PeriodicSche
 createAssetPerformancePaymentClaims dateToTime schedule periodicSchedule useAdjustedDatesForDcf
   ownerReceives dayCountConvention notional cashInstrumentCid referenceAssetId =
   let
-    endClaim = scale (Const notional) $ one cashInstrumentCid
     assetClaimAmounts = mconcat $ map (\p ->
+      let
+        endClaim = when (TimeGte p.adjustedEndDate) $ scale (Const notional) $ one cashInstrumentCid
+      in
         scaleByAssetPerformance p.adjustedStartDate p.adjustedEndDate (Observe referenceAssetId)
           endClaim
       ) schedule
-    correctionClaimAmounts = mconcat $ map (\p ->
-      when (TimeGte p.adjustedEndDate) $ scale (Const notional) $ one cashInstrumentCid) schedule
     assetClaims = if ownerReceives then assetClaimAmounts else give assetClaimAmounts
-    correctionAssetClaims =
-      if ownerReceives then give correctionClaimAmounts else correctionClaimAmounts
   in
-    prepareAndTagClaims dateToTime [assetClaims, correctionAssetClaims] "Asset performance payment"
+    prepareAndTagClaims dateToTime [assetClaims] "Asset performance payment"
 -- ASSET_PERFORMANCE_CLAIMS_END
 
 -- FIXED_RATE_BOND_REDEMPTION_CLAIM_BEGIN
@@ -165,10 +163,15 @@ createFxAdjustedPrincipalClaim dateToTime ownerReceives fxRateMultiplier notiona
     prepareAndTagClaims dateToTime [fxLegClaim] "Principal payment"
 -- FIXED_RATE_BOND_REDEMPTION_CLAIM_END
 
--- | Scale a claim by an asset's performance. Specifically, this multiplies the input claim by the quantity `S(endDate) / S(startDate) - 1.0`
+-- | Scale a claim by an asset's performance. Specifically, this multiplies the input claim by the
+-- quantity `S(endDate) / S(startDate) - 1.0`
 scaleByAssetPerformance : Date -> Date -> O -> C -> C
 scaleByAssetPerformance startDate endDate asset claim =
-  when (TimeGte startDate) $ scale (Const 1.0 / asset) $
-  when (TimeGte endDate) $ scale (asset) $
-  claim
-
+  mconcat $ [perfClaim, correctionClaim]
+  where
+    perfClaim =
+      when (TimeGte startDate) $ scale (Const 1.0 / asset) $
+      when (TimeGte endDate) $ scale (asset) $
+      claim
+    correctionClaim =
+      give $ claim
