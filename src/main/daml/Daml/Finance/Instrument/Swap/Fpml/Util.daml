@@ -569,24 +569,27 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
           createSimpleRateCompoundingRefRate pp = claim
             where
               rate = getFloatingRate s pp.calculationPeriod p regularRate rateFixingCalendar fixLeg
-                -- Calculate dcf using the method implicitly used for the rate Index,
-                -- for example Act360 in the case of SOFR Index, see page 35 here:
-                -- https://www.newyorkfed.org/medialibrary/Microsites/arrc/files/2021/users-guide-to-sofr2021-update.pdf
+              -- Calculate dcf using the method implicitly used for the rate Index,
+              -- for example Act360 in the case of SOFR Index, see page 35 here:
+              -- https://www.newyorkfed.org/medialibrary/Microsites/arrc/files/2021/users-guide-to-sofr2021-update.pdf
               dcfImpl = Const (calcPeriodDcf (fromSome dcfConventionImplied)
                 pp.calculationPeriod useAdjustedDatesForDcf periodicSchedule.terminationDate
                 periodicSchedule.frequency)
-              notionalAndDcf = if pp.rateFixingDate < pp.calculationPeriod.adjustedEndDate then
+              -- The implicit dcf used for index calculation does not necessarily match the actual
+              -- dcf of the current swap -> calculate an annualized rate and apply the actual dcf:
+              convertImpliedDcfToActualDcf = pp.dcf / dcfImpl
+              endClaim = if pp.rateFixingDate < pp.calculationPeriod.adjustedEndDate then
                 error "fixing of notional must not occur before the final calculation date"
                 else
                   when (TimeGte pp.rateFixingDate) $ scale notional $
-                  scale (pp.dcf / dcfImpl) $
+                  scale (convertImpliedDcfToActualDcf) $
                   when (TimeGte p.adjustedEndDate) $ one currency
               claim =
                 -- calculate a daily compounded reference rate using the corresponding index,
                 -- see page 36 here:
                 -- https://www.newyorkfed.org/medialibrary/Microsites/arrc/files/2021/users-guide-to-sofr2021-update.pdf
                 scaleByAssetPerformance pp.calculationPeriod.adjustedStartDate
-                  pp.calculationPeriod.adjustedEndDate rate notionalAndDcf
+                  pp.calculationPeriod.adjustedEndDate rate endClaim
 
       -- Calculate a floating rate correction claim for a payment period
       -- (corresponding to the "-1" in a perf calculation)
