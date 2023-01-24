@@ -10,12 +10,13 @@ import DA.Date
 import DA.Foldable (foldMap)
 import DA.List (dedup, head, init, last, sortOn, tail)
 import DA.Optional (fromOptional, fromSome, isNone, isSome, whenSome)
-import Daml.Finance.Claims.Util.Builders (prepareAndTagClaims)
+import Daml.Finance.Claims.Util.Builders (prepareAndTagClaims, scaleByAssetPerformance)
 import Daml.Finance.Instrument.Swap.Util
 import Daml.Finance.Interface.Claims.Types (Deliverable, Observable, TaggedClaim(..))
 import Daml.Finance.Interface.Instrument.Swap.Fpml.FpmlTypes
 import Daml.Finance.Interface.Types.Common.Types (Id(..))
 import Daml.Finance.Interface.Types.Date.Calendar
+import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum(..))
 import Daml.Finance.Interface.Types.Date.RollConvention
 import Daml.Finance.Interface.Types.Date.Schedule (Frequency(..), PeriodicSchedule(..), SchedulePeriod(..), StubPeriodTypeEnum(..))
 import Daml.Finance.Util.Date.Calendar (addBusinessDays, adjustDate, merge)
@@ -477,6 +478,17 @@ calculateNotionalAndFixings p s
       )
       paymentPeriodStaticDataFiltered
 
+-- | Check whether a FloatingRateCalculation uses a reference rate that needs to be compounded.
+-- Seems there is no FpML element that specificies this, but that it is implicit in the rate name,
+-- for example "USD-SOFR-COMPOUND"
+-- If it is a compounded reference rate, also return the daycount convention that was used for the
+-- corresponding reference index, e.g. Act360 in the case of the SOFR Index.
+checkRefRateCompounding : FloatingRateCalculation -> (Bool, Optional DayCountConventionEnum)
+checkRefRateCompounding floatingRateCalculation =
+  case floatingRateCalculation.floatingRateIndex of
+    "USD-SOFR-COMPOUND" -> (True, Some Act360)
+    _ -> (False, None)
+
 -- | Create claims from swapStream that describes a floating coupon stream.
 calculateFloatingPaymentClaimsFromSwapStream : FloatingRateCalculation -> SwapStream ->
   PeriodicSchedule -> [SchedulePeriod] -> [SchedulePeriod] -> Bool -> Bool -> Deliverable ->
@@ -502,6 +514,7 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
         [] -> 0.0
         [se] -> se.initialValue
         _ -> error "Multiple SpreadSchedules not yet supported"
+      (compoundedRefRate, dcfConventionImplicit) = checkRefRateCompounding floatingRateCalculation
       regularRateExclSpread = Observe floatingRateCalculation.floatingRateIndex
       regularRateInclSpread = regularRateExclSpread + Const floatingRateSpread
 
@@ -531,7 +544,8 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
           (notional, paymentPeriodData) = calculateNotionalAndFixings p s
             calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
 
-      -- calculate simple interest rate claim (no compounding) for a payment period
+      -- calculate simple interest rate claim (no calc period compounding) for a payment period
+      -- using a non-compounded reference rate
       createSimpleClaim regularRate p =
         mconcat $ map createSimpleRate paymentPeriodData
         where
@@ -543,6 +557,38 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
               when (TimeGte p.adjustedEndDate) $ one currency
             where
               rate = getFloatingRate s pp.calculationPeriod p regularRate rateFixingCalendar fixLeg
+
+      -- calculate simple interest rate claim (no calc period compounding) for a payment period
+      -- using a compounded reference rate
+      createSimpleClaimCompoundedRefRate regularRate p =
+        mconcat $ map createSimpleRateCompoundingRefRate paymentPeriodData
+        where
+          (notional, paymentPeriodData) = calculateNotionalAndFixings p s
+            calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
+          createSimpleRateCompoundingRefRate pp = claim
+            where
+              rate = getFloatingRate s pp.calculationPeriod p regularRate rateFixingCalendar fixLeg
+              -- Calculate dcf using the method implicitly used for the rate Index,
+              -- for example Act360 in the case of SOFR Index, see page 35 here:
+              -- https://www.newyorkfed.org/medialibrary/Microsites/arrc/files/2021/users-guide-to-sofr2021-update.pdf
+              dcfImpl = Const (calcPeriodDcf (fromSome dcfConventionImplicit)
+                pp.calculationPeriod useAdjustedDatesForDcf periodicSchedule.terminationDate
+                periodicSchedule.frequency)
+              -- The implicit dcf used for index calculation does not necessarily match the actual
+              -- dcf of the current swap -> calculate an annualized rate and apply the actual dcf:
+              convertImplicitDcfToActualDcf = pp.dcf / dcfImpl
+              endClaim = if pp.rateFixingDate < pp.calculationPeriod.adjustedEndDate then
+                error "fixing of notional must not occur before the final calculation date"
+                else
+                  when (TimeGte pp.rateFixingDate) $ scale notional $
+                  scale (convertImplicitDcfToActualDcf) $
+                  when (TimeGte p.adjustedEndDate) $ one currency
+              claim =
+                -- calculate a daily compounded reference rate using the corresponding index,
+                -- see page 36 here:
+                -- https://www.newyorkfed.org/medialibrary/Microsites/arrc/files/2021/users-guide-to-sofr2021-update.pdf
+                scaleByAssetPerformance pp.calculationPeriod.adjustedStartDate
+                  pp.calculationPeriod.adjustedEndDate rate endClaim
 
       -- Calculate a floating rate correction claim for a payment period
       -- (corresponding to the "-1" in a perf calculation)
@@ -565,19 +611,33 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
               when (TimeGte p.adjustedEndDate) $ one currency)
             (reverse paymentPeriodData)
 
+      -- calculate floating rate when there is no payment period compounding
+      -- (but a compounded reference rate can still be used)
+      calcRateNoCompounding compoundedRefRate =
+        if compoundedRefRate then
+          let
+            claimAmounts = mconcat $
+              map (createSimpleClaimCompoundedRefRate regularRateExclSpread) paymentSchedule
+            spreadClaimAmounts = mconcat $ map createSpreadClaim paymentSchedule
+          in [claimAmounts, spreadClaimAmounts]
+        else map (createSimpleClaim regularRateInclSpread) paymentSchedule
+
       claimAmounts = case s.calculationPeriodAmount.calculation.compoundingMethodEnum of
-        Some Straight -> [claimAmounts, correctionClaimAmounts]
+        Some Straight -> if compoundedRefRate then error "compounded ref rate not supported"
+          else [claimAmounts, correctionClaimAmounts]
           where
             claimAmounts = mconcat $ map (createClaim regularRateInclSpread) paymentSchedule
             correctionClaimAmounts = mconcat $ map createCorrectionClaim paymentSchedule
-        Some SpreadExclusive -> [claimAmounts, spreadClaimAmounts, correctionClaimAmounts]
+        Some SpreadExclusive -> if compoundedRefRate then error "compounded ref rate not supported"
+          else [claimAmounts, spreadClaimAmounts, correctionClaimAmounts]
           where
             claimAmounts = mconcat $ map (createClaim regularRateExclSpread) paymentSchedule
             spreadClaimAmounts = mconcat $ map createSpreadClaim paymentSchedule
             correctionClaimAmounts = mconcat $ map createCorrectionClaim paymentSchedule
-        Some Flat -> map createCalcPeriodClaim paymentSchedule
-        Some NoCompounding -> map (createSimpleClaim regularRateInclSpread) paymentSchedule
-        None -> map (createSimpleClaim regularRateInclSpread) paymentSchedule
+        Some Flat -> if compoundedRefRate then error "compounded ref rate not supported"
+          else map createCalcPeriodClaim paymentSchedule
+        Some NoCompounding -> calcRateNoCompounding compoundedRefRate
+        None -> calcRateNoCompounding compoundedRefRate
 
       claims = if issuerPaysLeg then claimAmounts else fmap give claimAmounts
       claimsTagged = prepareAndTagClaims dateToDateClockTime claims "Floating rate payment"
