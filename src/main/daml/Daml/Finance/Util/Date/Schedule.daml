@@ -9,7 +9,7 @@ import DA.List
 import DA.Optional
 import Daml.Finance.Interface.Types.Date.Calendar
 import Daml.Finance.Interface.Types.Date.RollConvention
-import Daml.Finance.Interface.Types.Date.Schedule(PeriodicSchedule(..), Schedule(..), SchedulePeriod(..), StubPeriodTypeEnum(..))
+import Daml.Finance.Interface.Types.Date.Schedule(Frequency(..), PeriodicSchedule(..), Schedule(..), ScheduleFrequency(..), SchedulePeriod(..), StubPeriodTypeEnum(..))
 import Daml.Finance.Util.Date.Calendar
 import Daml.Finance.Util.Date.RollConvention
 
@@ -17,9 +17,11 @@ import Daml.Finance.Util.Date.RollConvention
 createSchedule : [HolidayCalendarData] -> PeriodicSchedule -> Schedule
 createSchedule _ ps | Some errorMsg <- validDates ps = error errorMsg
 createSchedule cals ps@PeriodicSchedule {businessDayAdjustment; effectiveDateBusinessDayAdjustment;
-  terminationDateBusinessDayAdjustment} =
+  terminationDateBusinessDayAdjustment, frequency, effectiveDate, terminationDate} =
     let
-      (unadj, stubTypeInitial, stubTypeFinal) = generateUnadjustedDatesAndStubInfo ps
+      (unadj, stubTypeInitial, stubTypeFinal) = case frequency of
+        SinglePeriod -> ([effectiveDate, terminationDate], None, None)
+        Periodic f -> generateUnadjustedDatesAndStubInfo ps f
       adj = adjust
         cals
         businessDayAdjustment
@@ -50,21 +52,21 @@ validDates PeriodicSchedule{effectiveDate; terminationDate; firstRegularPeriodSt
 
 -- | HIDE
 generateUnadjustedDatesAndStubInfo :
-  PeriodicSchedule -> ([Date], Optional StubPeriodTypeEnum, Optional StubPeriodTypeEnum)
+  PeriodicSchedule -> Frequency ->
+  ([Date], Optional StubPeriodTypeEnum, Optional StubPeriodTypeEnum)
 generateUnadjustedDatesAndStubInfo PeriodicSchedule{effectiveDate; terminationDate;
-  firstRegularPeriodStartDate; lastRegularPeriodEndDate; frequency; stubPeriodType} =
+  firstRegularPeriodStartDate; lastRegularPeriodEndDate; stubPeriodType} frequency =
     let
       firstRegStartDate = fromOptional effectiveDate firstRegularPeriodStartDate
       lastRegEndDate = fromOptional terminationDate lastRegularPeriodEndDate
       explicitInitStub = firstRegStartDate /= effectiveDate
       explicitFinalStub = lastRegEndDate /= terminationDate
       stubType = getImplicitStubType stubPeriodType explicitInitStub explicitFinalStub
-      period = Period with period = frequency.period; periodMultiplier = frequency.periodMultiplier
     in
       case stubType of
         -- Roll forward for implicit final stub
         Some stubType | stubType == ShortFinal || stubType == LongFinal -> do
-          let dates = rollForward effectiveDate terminationDate period frequency.rollConvention
+          let dates = rollForward effectiveDate terminationDate frequency.period frequency.rollConvention
           -- No real stub
           if head dates == terminationDate then (reverse dates, None, None)
           else
@@ -74,7 +76,7 @@ generateUnadjustedDatesAndStubInfo PeriodicSchedule{effectiveDate; terminationDa
             in (reverse $ terminationDate::relevantDates, None, Some stubType)
         -- Roll backwards for implicit initial stub
         Some stubType | stubType == ShortInitial || stubType == LongInitial -> do
-          let dates = rollBackwards effectiveDate terminationDate period frequency.rollConvention
+          let dates = rollBackwards effectiveDate terminationDate frequency.period frequency.rollConvention
           -- No real stub
           if head dates == effectiveDate then (dates, None, None)
           else
@@ -86,7 +88,7 @@ generateUnadjustedDatesAndStubInfo PeriodicSchedule{effectiveDate; terminationDa
         _ ->
           -- Regular Periods
           let
-            dates = rollBackwards firstRegStartDate lastRegEndDate period frequency.rollConvention
+            dates = rollBackwards firstRegStartDate lastRegEndDate frequency.period frequency.rollConvention
             _ = if head dates /= firstRegStartDate
                 then error "expecting regular schedule between regular dates"
                 else ()
@@ -95,7 +97,7 @@ generateUnadjustedDatesAndStubInfo PeriodicSchedule{effectiveDate; terminationDa
               if explicitFinalStub
               then
                 ( dates++[terminationDate]
-                , if terminationDate < addPeriod lastRegEndDate period
+                , if terminationDate < addPeriod lastRegEndDate frequency.period
                   then Some ShortFinal
                   else Some LongFinal
                 )
@@ -104,7 +106,7 @@ generateUnadjustedDatesAndStubInfo PeriodicSchedule{effectiveDate; terminationDa
               if explicitInitStub
               then
                 ( effectiveDate::withFinalStub
-                , if addPeriod effectiveDate period > firstRegStartDate
+                , if addPeriod effectiveDate frequency.period > firstRegStartDate
                   then Some ShortInitial
                   else Some LongInitial
                 )

@@ -18,7 +18,7 @@ import Daml.Finance.Interface.Types.Common.Types (Id(..))
 import Daml.Finance.Interface.Types.Date.Calendar
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum(..))
 import Daml.Finance.Interface.Types.Date.RollConvention
-import Daml.Finance.Interface.Types.Date.Schedule (Frequency(..), PeriodicSchedule(..), SchedulePeriod(..), StubPeriodTypeEnum(..))
+import Daml.Finance.Interface.Types.Date.Schedule (Frequency(..), ScheduleFrequency(..), PeriodicSchedule(..), SchedulePeriod(..), StubPeriodTypeEnum(..))
 import Daml.Finance.Util.Date.Calendar (addBusinessDays, adjustDate, merge)
 import Daml.Finance.Util.Date.DayCount (calcPeriodDcf)
 import Daml.Finance.Util.Date.RollConvention (addPeriod)
@@ -61,10 +61,13 @@ createCalculationPeriodicSchedule c =
       convention = c.calculationPeriodDatesAdjustments.businessDayConvention
     effectiveDateBusinessDayAdjustment = None
     terminationDateBusinessDayAdjustment = None
-    frequency = Frequency with
-      rollConvention = c.calculationPeriodFrequency.rollConvention
-      period = c.calculationPeriodFrequency.period
-      periodMultiplier = c.calculationPeriodFrequency.periodMultiplier
+    frequency = case c.calculationPeriodFrequency.period of
+      Regular pe -> Periodic Frequency with
+        rollConvention = c.calculationPeriodFrequency.rollConvention
+        period = Period with
+          period = pe
+          periodMultiplier = c.calculationPeriodFrequency.periodMultiplier
+      T -> SinglePeriod
     effectiveDate = case c.firstPeriodStartDate of
       Some fp -> fp.unadjustedDate
       None -> c.effectiveDate.unadjustedDate
@@ -82,10 +85,13 @@ createPaymentPeriodicSchedule s =
       convention = s.paymentDates.paymentDatesAdjustments.businessDayConvention
     effectiveDateBusinessDayAdjustment = None
     terminationDateBusinessDayAdjustment = None
-    frequency = Frequency with
-      rollConvention = s.calculationPeriodDates.calculationPeriodFrequency.rollConvention
-      period = s.paymentDates.paymentFrequency.period
-      periodMultiplier = s.paymentDates.paymentFrequency.periodMultiplier
+    frequency = case s.paymentDates.paymentFrequency.period of
+      Regular pe -> Periodic Frequency with
+        rollConvention = s.calculationPeriodDates.calculationPeriodFrequency.rollConvention
+        period = Period with
+          period = pe
+          periodMultiplier = s.paymentDates.paymentFrequency.periodMultiplier
+      T -> SinglePeriod
     effectiveDate = s.calculationPeriodDates.effectiveDate.unadjustedDate
     firstRegularPeriodStartDate = s.paymentDates.firstPaymentDate
     lastRegularPeriodEndDate = s.paymentDates.lastRegularPaymentDate
@@ -266,17 +272,18 @@ getRateFixingsAndCalendars s r calculationSchedule issuer calendarDataAgency = d
     r.resetDatesAdjustments.businessCenters ==
       s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessCenters
   assertMsg "Only daily fixing date period supported" $ r.fixingDates.period == D
-  assertMsg "Only Business day type supported" $ r.fixingDates.dayType == Business
-  assertMsg "No adjustements (besides business day type) supported" $
-    r.fixingDates.businessDayConvention == NoAdjustment
+  whenSome r.fixingDates.dayType $ \dayType ->
+    assertMsg "Only Business day type supported" $ dayType == Business
   rateFixingCalendars <- getHolidayCalendars issuer calendarDataAgency r.fixingDates.businessCenters
   let
     rateFixingCalendar = merge rateFixingCalendars
-    rateFixingDates = map (\p ->
+    rateFixingDatesAfterAddDays = map (\p ->
         addBusinessDays rateFixingCalendar r.fixingDates.periodMultiplier $
           if r.resetRelativeTo == CalculationPeriodStartDate then p.adjustedStartDate
           else p.adjustedEndDate
       ) calculationSchedule
+    rateFixingDates = map (adjustDate rateFixingCalendar r.fixingDates.businessDayConvention)
+      rateFixingDatesAfterAddDays
   pure (rateFixingDates, rateFixingCalendar)
 
 -- | Create claims from swapStream that describes a fixed coupon stream.
@@ -499,6 +506,7 @@ checkRefRateCompounding : FloatingRateCalculation -> (Bool, Optional DayCountCon
 checkRefRateCompounding floatingRateCalculation =
   case floatingRateCalculation.floatingRateIndex of
     "USD-SOFR-COMPOUND" -> (True, Some Act360)
+    "EUR-EONIA-OIS-COMPOUND" -> (True, Some Act360)
     _ -> (False, None)
 
 -- | Create claims from swapStream that describes a floating coupon stream.
