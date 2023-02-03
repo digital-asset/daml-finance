@@ -5,7 +5,6 @@ module Daml.Finance.Holding.Util where
 
 import DA.Action (foldlA)
 import DA.Assert ((===))
-import DA.Optional (whenSome)
 import DA.Set qualified as S (delete, fromList, insert, intersection, isSubsetOf, notMember, null, singleton, toList)
 import Daml.Finance.Interface.Account.Account qualified as Account (Credit(..), Debit(..), I, R, exerciseInterfaceByKey)
 import Daml.Finance.Interface.Account.Util (fetchAccount)
@@ -65,16 +64,21 @@ acquireImpl :
   , HasSignatory t
   ) => t -> Base.Acquire -> Update (ContractId Base.I)
 acquireImpl holding Base.Acquire{newLockers; context; lockType} = do
-  whenSome holding.lock \lock -> do
-    lock.lockers === newLockers
-    lock.lockType === lockType
-    assertMsg "Contract must be locked." $ lock.lockType == Base.Reentrant
-    assertMsg "Contract must not be locked for this context." $ S.notMember context lock.context
-  newLock <- case (holding.lock, lockType) of
-    (Some existingLock, Base.Reentrant) -> pure existingLock with
-      context = context `S.insert` existingLock.context
-    (None, _) -> pure Base.Lock with lockers = newLockers; context = S.singleton context; lockType
-    _ -> abort "Contract is already locked."
+  newLock <- case holding.lock of
+    None -> pure Base.Lock with lockers = newLockers; context = S.singleton context; lockType
+    Some existingLock -> do
+      case lockType of
+        Base.Reentrant -> do
+          assertMsg "New lockers must match the existing lockers"
+            $ existingLock.lockers == newLockers
+          assertMsg "New lock type must match the existing lock type"
+            $ existingLock.lockType == lockType
+          assertMsg "Contract must not be already locked for the provided context."
+            $ S.notMember context existingLock.context
+          pure existingLock with
+            context = context `S.insert` existingLock.context
+        Base.Semaphore ->
+          abort "A Semaphore lock can not be locked multiple times."
   let newHolding = holding with lock = Some newLock
   S.fromList (signatory newHolding) `S.intersection` newLockers === newLockers
   toInterfaceContractId <$> create newHolding
