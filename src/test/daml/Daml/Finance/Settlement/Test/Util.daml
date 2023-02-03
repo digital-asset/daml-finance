@@ -1,0 +1,179 @@
+-- Copyright (c) 2023 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Settlement.Test.Util where
+
+import DA.Action (foldlA)
+import DA.List (head)
+import DA.Map qualified as M (empty)
+import DA.Set qualified as S (fromList)
+import Daml.Finance.Account.Account qualified as Account (T)
+import Daml.Finance.Interface.Account.Account qualified as Account (I, toKey)
+import Daml.Finance.Interface.Holding.Base qualified as Holding (I)
+import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Cancel(..), I, Settle(..))
+import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..), I, toKey)
+import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), InstructionKey(..))
+import Daml.Finance.Interface.Types.Common.Types (Id(..))
+import Daml.Finance.Interface.Util.Index qualified as Index (IndexTable(..), insert)
+import Daml.Finance.Settlement.Instruction qualified as Instruction (T)
+import Daml.Finance.Util.Common (mapWithIndex)
+import Daml.Script
+
+-- | Utility functions for allocating an instruction.
+allocateWithAny : [Party] -> ContractId Instruction.I -> Allocation ->
+  Script (ContractId Instruction.I, Optional (ContractId Holding.I), Index.IndexTable)
+allocateWithAny = allocateWithAnyHelper submitMulti
+
+-- | Utility functions for allocating an instruction which must fail.
+allocateWithAnyMustFail : [Party] -> ContractId Instruction.I -> Allocation -> Script ()
+allocateWithAnyMustFail = allocateWithAnyHelper submitMultiMustFail
+
+-- | HIDE
+allocateWithAnyHelper : ([Party] -> [Party] ->
+  Commands (ContractId Instruction.I, Optional (ContractId Holding.I), Index.IndexTable) ->
+  Script b) -> [Party] -> ContractId Instruction.I -> Allocation -> Script b
+allocateWithAnyHelper submit actors instructionCid allocation = do
+  r <- queryInterfaceContractId @Instruction.I actors instructionCid
+  idxsOld <- case r of
+    Some instruction -> buildIndexTableForAllocation actors instruction.allocation
+    None -> pure M.empty
+  idxsNew <- buildIndexTableForAllocation actors allocation
+  submit actors [] do
+    exerciseCmd instructionCid Instruction.Allocate with
+      actors = S.fromList actors; allocation; idx = mconcat [idxsNew, idxsOld]
+
+-- | Build index table for allocating an instruction.
+buildIndexTableForAllocation : [Party] -> Allocation -> Script (Index.IndexTable)
+buildIndexTableForAllocation actors allocation = do
+  case allocation of
+    Pledge holdingCid -> do
+      Some holding <- queryInterfaceContractId @Holding.I actors holdingCid
+      accountCid <- (toInterfaceContractId @Account.I . fst . head) <$>
+        queryFilter @Account.T actors
+          \i -> Account.toKey (view $ toInterface @Account.I i) == holding.account
+      pure $ Index.insert holding.account accountCid M.empty
+    PassThroughFrom (accountKey, fromInstructionKey) -> do
+      accountCid <- (toInterfaceContractId @Account.I . fst . head) <$>
+        queryFilter @Account.T actors
+          \i -> Account.toKey (view $ toInterface @Account.I i) == accountKey
+      instructionCid <- (toInterfaceContractId @Instruction.I . fst . head) <$>
+        queryFilter @Instruction.T actors
+          \i -> Instruction.toKey (view $ toInterface @Instruction.I i) == fromInstructionKey
+      pure $ Index.insert accountKey accountCid $
+        Index.insert fromInstructionKey instructionCid M.empty
+    _ -> pure M.empty
+
+-- | Utility functions for approving an instruction.
+approveWithAny : [Party] -> ContractId Instruction.I -> Approval ->
+  Script (ContractId Instruction.I, Index.IndexTable)
+approveWithAny = approveWithAnyHelper submitMulti
+
+-- | Utility functions for approving an instruction which must fail.
+approveWithAnyMustFail : [Party] -> ContractId Instruction.I -> Approval -> Script ()
+approveWithAnyMustFail = approveWithAnyHelper submitMultiMustFail
+
+-- | HIDE
+approveWithAnyHelper :
+  ([Party] -> [Party] -> Commands (ContractId Instruction.I, Index.IndexTable) -> Script b) ->
+  [Party] -> ContractId Instruction.I -> Approval -> Script b
+approveWithAnyHelper submit actors instructionCid approval = do
+  Some instruction <- queryInterfaceContractId @Instruction.I actors instructionCid
+  oldIdxs <- buildIndexTableForApproval actors instruction.approval
+  newIdxs <- buildIndexTableForApproval actors approval
+  let idx = mconcat [newIdxs, oldIdxs]
+  submit actors [] do
+    exerciseCmd instructionCid Instruction.Approve with
+      actors = S.fromList actors; approval; idx
+
+-- | Build index table for approving an instruction.
+buildIndexTableForApproval : [Party] -> Approval -> Script Index.IndexTable
+buildIndexTableForApproval actors approval =
+  case approval of
+    TakeDelivery accountKey -> do
+      accountCid <- (toInterfaceContractId @Account.I . fst . head) <$>
+        queryFilter @Account.T actors
+          \i -> Account.toKey (view $ toInterface @Account.I i) == accountKey
+      pure $ Index.insert @Account.I accountKey accountCid M.empty
+    PassThroughTo (accountKey, toInstructionKey) -> do
+      accountCid <- (toInterfaceContractId @Account.I . fst . head) <$>
+        queryFilter @Account.T actors
+          \i -> Account.toKey (view $ toInterface @Account.I i) == accountKey
+      instructionCid <- (toInterfaceContractId @Instruction.I . fst . head) <$>
+        queryFilter @Instruction.T actors
+          \i -> Instruction.toKey (view $ toInterface @Instruction.I i) == toInstructionKey
+      pure $ Index.insert accountKey accountCid $
+        Index.insert toInstructionKey instructionCid M.empty
+    _ ->
+      pure M.empty
+
+-- | Utility functions for settling a batch.
+settleWithAny : [Party] -> [Party] -> ContractId Batch.I -> Script [ContractId Holding.I]
+settleWithAny = settleWithAnyHelper submitMulti
+
+-- | Utility functions for settling a batch which must fail.
+settleWithAnyMustFail : [Party] -> [Party] -> ContractId Batch.I -> Script ()
+settleWithAnyMustFail = settleWithAnyHelper submitMultiMustFail
+
+-- | HIDE
+settleWithAnyHelper : ([Party] -> [Party] -> Commands [ContractId Holding.I] -> Script b) ->
+  [Party] -> [Party] -> ContractId Batch.I -> Script b
+settleWithAnyHelper submit actors observers batchCid = do
+  -- Build index table
+  idx <- buildIndexTableForBatchSettlement actors batchCid
+  -- Settle
+  submit actors observers do
+    exerciseCmd batchCid Batch.Settle with actors = S.fromList actors; idx
+
+-- | Build index table for settling a batch.
+buildIndexTableForBatchSettlement : [Party] -> ContractId Batch.I -> Script (Index.IndexTable)
+buildIndexTableForBatchSettlement actors batchCid = do
+  r <- queryInterfaceContractId actors batchCid
+  case r of
+    Some batch -> do
+      let
+        buildKey instructionId = InstructionKey with
+          requestors = batch.requestors; batchId = batch.id; id = instructionId
+        n = length batch.routedSteps - 1
+        instructionKeys = map (\i -> buildKey (Id (show i))) [0..n]
+      foldlA
+        (\idx instructionKey -> do
+          (instructionCid, instruction) <- do
+            t <- head <$> queryFilter @Instruction.T actors
+              \i -> Instruction.toKey (view $ toInterface @Instruction.I i) == instructionKey
+            pure (toInterfaceContractId t._1, view $ toInterface @Instruction.I t._2)
+          let idxs1 = Index.insert @Instruction.I instructionKey instructionCid idx
+          idxs2 <- buildIndexTableForAllocation actors instruction.allocation
+          idxs3 <- buildIndexTableForApproval actors instruction.approval
+          pure $ mconcat [idxs3, idxs2, idxs1]
+        )
+        M.empty $ instructionKeys
+    None -> abort "couldn't find any instructions for the batch"
+
+-- | Utility functions for cancelling a batch.
+cancelWithAny : [Party] -> [Party] -> ContractId Batch.I -> Script [ContractId Holding.I]
+cancelWithAny = cancelWithAnyHelper submitMulti
+
+-- | Utility functions for cancelling a batch which must fail.
+cancelWithAnyMustFail : [Party] -> [Party] -> ContractId Batch.I -> Script ()
+cancelWithAnyMustFail = cancelWithAnyHelper submitMultiMustFail
+
+-- | HIDE
+cancelWithAnyHelper : ([Party] -> [Party] -> Commands [ContractId Holding.I] -> Script b) ->
+  [Party] -> [Party] -> ContractId Batch.I -> Script b
+cancelWithAnyHelper submit actors observers batchCid = do
+  idx <- buildIndexTableForBatchCancelling actors batchCid
+  submit actors observers do
+    exerciseCmd batchCid Batch.Cancel with actors = S.fromList actors; idx
+
+-- | Build index table for cancelling a batch.
+buildIndexTableForBatchCancelling : [Party] -> ContractId Batch.I -> Script (Index.IndexTable)
+buildIndexTableForBatchCancelling actors batchCid = do
+  Some batch <- queryInterfaceContractId @Batch.I actors batchCid
+  foldlA
+    (\idx (routedStep, id) -> do
+      let instructionKey = InstructionKey with requestors = batch.requestors; batchId = batch.id; id
+      instructionCid <- (toInterfaceContractId @Instruction.I . fst . head) <$>
+        queryFilter @Instruction.T actors (\instruction ->
+          Instruction.toKey (view $ toInterface @Instruction.I instruction) == instructionKey)
+      pure $ Index.insert instructionKey instructionCid idx
+    ) M.empty $ mapWithIndex (\e idx -> (e, Id (show idx))) batch.routedSteps

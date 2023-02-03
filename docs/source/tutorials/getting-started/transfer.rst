@@ -323,9 +323,7 @@ In order to do that, you can leverage the fact that
 implements the
 :ref:`Disclosure <type-daml-finance-interface-util-disclosure-disclosure-97052>`
 interface. This interface exposes the ``AddObservers`` and ``RemoveObservers`` choices, which can be
-used to disclose / undisclose Bob's account contract to Alice. In order to exercise these choices,
-you can use the :ref:`Account.exerciseInterfaceByKey
-<function-daml-finance-interface-account-account-exerciseinterfacebykey-13671>` utility function.
+used to disclose / undisclose Bob's account contract to Alice.
 
 Summary
 *******

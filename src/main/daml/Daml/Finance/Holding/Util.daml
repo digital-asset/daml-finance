@@ -6,26 +6,27 @@ module Daml.Finance.Holding.Util where
 import DA.Action (foldlA)
 import DA.Assert ((===))
 import DA.Set qualified as S (delete, fromList, insert, intersection, isSubsetOf, notMember, null, singleton, toList)
-import Daml.Finance.Interface.Account.Account qualified as Account (Credit(..), Debit(..), I, R, exerciseInterfaceByKey)
-import Daml.Finance.Interface.Account.Util (fetchAccount)
+import Daml.Finance.Interface.Account.Account qualified as Account (Credit(..), Debit(..), I)
 import Daml.Finance.Interface.Holding.Base qualified as Base (Acquire(..), I, Lock(..), LockType(..), Release(..), getLockers)
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
-import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey, qty)
+import Daml.Finance.Interface.Types.Common.Types (AccountKey)
+import Daml.Finance.Interface.Util.Common (qty)
+import Daml.Finance.Interface.Util.Index qualified as Index (fetchInterfaceByKey)
 import Prelude hiding (null)
 
 -- | Default implementation of transfer for the Transferable interface.
-transferImpl : Transferable.I -> ContractId Transferable.I -> Transferable.Transfer
-  -> Update (ContractId Transferable.I)
-transferImpl this self Transferable.Transfer{actors; newOwnerAccount} = do
+transferImpl : Transferable.I -> ContractId Transferable.I -> Transferable.Transfer ->
+  Update (ContractId Transferable.I)
+transferImpl this self Transferable.Transfer{actors; newOwnerAccount; idx}  = do
   let
     baseCid = toInterfaceContractId @Base.I self
     base = toInterface @Base.I this
-  account <- fetchAccount base
-  let
     vBase = view base
-    vAccount = view account
     lockers = Base.getLockers base
-  vNewAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I newOwnerAccount
+  (accountCid, vAccount) <- fmap view <$> Index.fetchInterfaceByKey @Account.I @AccountKey
+    @Account.I idx vBase.account
+  (newAccountCid, vNewAccount) <- fmap view <$> Index.fetchInterfaceByKey @Account.I @AccountKey
+    @Account.I idx newOwnerAccount
   -- Verify
   assertMsg "actors must contain all transfer outgoing of the sender account" $
     vAccount.controllers.outgoing `S.isSubsetOf` actors
@@ -40,11 +41,10 @@ transferImpl this self Transferable.Transfer{actors; newOwnerAccount} = do
   baseCid <- toInterfaceContractId @Base.I <$>
     optional (pure baseCid) (releaseAll baseCid) vBase.lock
   -- Debit
-  Account.exerciseInterfaceByKey @Account.I vBase.account vBase.account.custodian
-    Account.Debit with holdingCid = baseCid
+  exercise accountCid Account.Debit with holdingCid = baseCid
   -- Credit
-  newBaseCid <- Account.exerciseInterfaceByKey @Account.I newOwnerAccount newOwnerAccount.custodian
-    Account.Credit with quantity = qty vBase.amount vBase.instrument
+  let quantity = qty vBase.amount vBase.instrument
+  newBaseCid <- exercise newAccountCid Account.Credit with quantity
   -- Consistency check
   newBase <- fetch newBaseCid
   assertMsg "credited and debited holding types must match" $

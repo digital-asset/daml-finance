@@ -6,17 +6,17 @@
 module Daml.Finance.Test.Util.Account where
 
 import DA.Assert ((===))
-import DA.List (head)
-import DA.Map qualified as M (fromList)
+import DA.Map qualified as M (empty, fromList)
 import DA.Set qualified as S (empty, fromList, singleton)
-import Daml.Finance.Account.Account qualified as Account (Factory(..))
-import Daml.Finance.Interface.Account.Account qualified as Account (Controllers(..), GetCid(..), Credit(..), Debit(..), I, R)
+import Daml.Finance.Account.Account qualified as Account (Factory(..), T)
+import Daml.Finance.Interface.Account.Account qualified as Account (Controllers(..), Credit(..), Debit(..), I)
 import Daml.Finance.Interface.Account.Factory qualified as Account (Create(..), F)
-import Daml.Finance.Interface.Holding.Base qualified as Base (GetView(..), I)
+import Daml.Finance.Interface.Holding.Base qualified as Holding (GetView(..), I)
 import Daml.Finance.Interface.Holding.Factory qualified as Holding (F)
 import Daml.Finance.Interface.Types.Common.Types (Id(..), AccountKey(..), InstrumentKey, Parties)
 import Daml.Finance.Interface.Util.Common (qty)
-import Daml.Finance.Test.Util.Common (submitExerciseInterfaceByKeyCmdHelper, submitMustFailExerciseInterfaceByKeyCmdHelper)
+import Daml.Finance.Interface.Util.Index qualified as Index (IndexTable(..), insert)
+import Daml.Finance.Test.Util.Common (queryByKey)
 import Daml.Script
 
 -- | Options for transfer controllers.
@@ -54,46 +54,33 @@ createAccount : Text -> [Party] -> ContractId Account.F -> ContractId Holding.F 
   [(Text, Parties)] -> ControlledBy -> Party -> Party -> Script AccountKey
 createAccount description readAs factoryCid holdingFactoryCid
   observers controlledBy custodian owner = do
-      let
-        account = AccountKey with
-          custodian; owner; id = Id $ show owner <> "@" <> show custodian <> "/" <> description
-      submitMulti [custodian, owner] readAs do
-        exerciseCmd factoryCid Account.Create with
-          account; holdingFactoryCid; controllers = toControllers custodian owner controlledBy
-          observers = M.fromList observers; description
-      pure account
+    let
+      account = AccountKey with
+        custodian; owner; id = Id $ show owner <> "@" <> show custodian <> "/" <> description
+    submitMulti [custodian, owner] readAs do
+      exerciseCmd factoryCid Account.Create with
+        account; holdingFactoryCid; controllers = toControllers custodian owner controlledBy
+        observers = M.fromList observers; description
+    pure account
 
 -- | Credit an `Account`.
-credit : [Party] -> InstrumentKey -> Decimal -> AccountKey -> Script (ContractId Base.I)
-credit readAs instrument amount account =
-  submitExerciseInterfaceByKeyCmdHelper @Account.R @Account.I [account.custodian, account.owner]
-  readAs account
-  (Account.GetCid with viewer = account.owner)
-  (Account.Credit with quantity = qty amount instrument)
+credit : [Party] -> InstrumentKey -> Decimal -> AccountKey -> Script (ContractId Holding.I)
+credit readAs instrument amount account = do
+  accountCid <- fst <$> queryByKey @Account.T @Account.I [account.custodian, account.owner] account
+  submitMulti [account.custodian, account.owner] readAs do
+    exerciseCmd accountCid Account.Credit with quantity = qty amount instrument
 
 -- | Debit an `Account`.
-debit : [Party] -> Party -> ContractId Base.I -> Script ()
+debit : [Party] -> Party -> ContractId Holding.I -> Script ()
 debit readAs holder holdingCid = do
-  v <- submit holder do exerciseCmd holdingCid Base.GetView with viewer = holder
+  v <- submit holder do exerciseCmd holdingCid Holding.GetView with viewer = holder
   v.account.owner === holder
-  submitExerciseInterfaceByKeyCmdHelper @Account.R @Account.I
-    [v.account.custodian, holder] readAs v.account
-    (Account.GetCid with viewer = holder) (Account.Debit with holdingCid)
+  accountCid <- fst <$> queryByKey @Account.T @Account.I [v.account.custodian, holder] v.account
+  submitMulti [v.account.custodian, holder] readAs do
+    exerciseCmd accountCid Account.Debit with holdingCid
 
--- | Utilty function for exercising an interface by key.
-submitExerciseInterfaceByKeyCmd : forall t2 c2 b.
-  (HasInterfaceTypeRep t2, HasTemplateTypeRep t2, HasToAnyTemplate t2, HasFromAnyTemplate t2,
-   HasFromAnyChoice t2 c2 b, HasToAnyChoice t2 c2 b, HasExercise t2 c2 b)
-   => [Party] -> [Party] -> AccountKey -> c2 -> Script b
-submitExerciseInterfaceByKeyCmd actAs readAs k arg =
-  submitExerciseInterfaceByKeyCmdHelper @Account.R @t2 actAs readAs k
-  (Account.GetCid with viewer = head actAs) arg
-
--- | Utilty function for exercising an interface by key.
-submitMustFailExerciseInterfaceByKeyCmd : forall t2 c2.
-  (HasInterfaceTypeRep t2, HasTemplateTypeRep t2, HasToAnyTemplate t2, HasFromAnyTemplate t2,
-   HasFromAnyChoice t2 c2 (), HasToAnyChoice t2 c2 (), HasExercise t2 c2 ())
-   => [Party] -> [Party] -> AccountKey -> c2 -> Script ()
-submitMustFailExerciseInterfaceByKeyCmd actAs readAs k arg =
-  submitMustFailExerciseInterfaceByKeyCmdHelper @Account.R @t2 actAs readAs k
-  (Account.GetCid with viewer = head actAs) arg
+-- | Build index table (from an account).
+buildIndexTable : IsParties p => p -> AccountKey -> Script Index.IndexTable
+buildIndexTable actors account = do
+  accountCid <- fst <$> queryByKey @Account.T @Account.I actors account
+  pure $ Index.insert account accountCid M.empty

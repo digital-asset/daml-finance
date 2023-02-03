@@ -7,6 +7,7 @@ import DA.Assert ((===))
 import DA.Map qualified as M (fromList)
 import DA.Optional (fromSome)
 import DA.Set qualified as S (fromList, singleton)
+import Daml.Finance.Account.Account qualified as Account (T)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..), T, getRestAmount)
 import Daml.Finance.Holding.Test.Common (TestInitialState(..), TestParties(..), setupInitialState, setupParties)
 import Daml.Finance.Interface.Account.Account qualified as Account (Debit(..), I)
@@ -15,9 +16,9 @@ import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (I, Merge(.
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
 import Daml.Finance.Interface.Holding.Util (getAmount)
 import Daml.Finance.Interface.Util.Common (verify)
-import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), submitExerciseInterfaceByKeyCmd, submitMustFailExerciseInterfaceByKeyCmd)
-import Daml.Finance.Test.Util.Common (validateAssertionFailure)
-import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
+import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), buildIndexTable)
+import Daml.Finance.Test.Util.Common (validateAssertionFailure, queryByKey)
+import Daml.Finance.Test.Util.Holding qualified as Holding (buildIndexTable, verifyOwnerOfHolding)
 import Daml.Script
 
 run : Script ()
@@ -38,20 +39,30 @@ run = script do
       Base.Acquire with
         newLockers = S.singleton locker; context = "Test Lock"; lockType = Base.Semaphore
 
+  -- Build index table
+  idx <- Holding.buildIndexTable [issuer, investor] baseCid
+
   -- Cannot split
   submitMultiMustFail [issuer, investor] [] do
     exerciseCmd (coerceInterfaceContractId @Fungible.I baseCid) Fungible.Split with
       amounts = [500.0, 250.0]
+      idx
+
+  -- Build index table
+  idxs1 <- Account.buildIndexTable [issuer, investor] investorAccount
+  idxs2 <- Holding.buildIndexTable [issuer, investor] $ toInterfaceContractId baseCid
+  let idx = idxs2 <> idxs1
 
   -- Cannot transfer
   submitMultiMustFail [issuer, investor] [] do
     exerciseCmd (coerceInterfaceContractId @Transferable.I baseCid)
       Transferable.Transfer with
-        actors = S.fromList [issuer, investor]; newOwnerAccount = investorAccount
+        actors = S.fromList [issuer, investor]; newOwnerAccount = investorAccount; idx
 
   -- Cannot debit
-  Account.submitMustFailExerciseInterfaceByKeyCmd @Account.I [custodian, issuer] [] issuerAccount $
-    Account.Debit with holdingCid = toInterfaceContractId baseCid
+  (issuerAccountCid, _) <- queryByKey @Account.T @Account.I [custodian, issuer] issuerAccount
+  submitMultiMustFail [custodian, issuer] [] do
+    exerciseCmd issuerAccountCid Account.Debit with holdingCid = toInterfaceContractId baseCid
 
   -- Unlock asset
   fungibleCid <- coerceInterfaceContractId @Fungible.I <$> submit locker do
@@ -59,19 +70,19 @@ run = script do
 
   -- Attempt to split more than the amount available fails
   submitMultiMustFail [issuer, investor] [] do
-    exerciseCmd fungibleCid Fungible.Split with amounts = [1_000.1]
+    exerciseCmd fungibleCid Fungible.Split with amounts = [1_000.1]; idx
   submitMultiMustFail [issuer, investor] [] do
-    exerciseCmd fungibleCid Fungible.Split with amounts = [1_000.0, 0.1]
+    exerciseCmd fungibleCid Fungible.Split with amounts = [1_000.0, 0.1]; idx
 
   -- Attempt to split negative amount fails
   submitMultiMustFail [issuer, investor] [] do
-    exerciseCmd fungibleCid Fungible.Split with amounts = [-20.0]
+    exerciseCmd fungibleCid Fungible.Split with amounts = [-20.0]; idx
   submitMultiMustFail [issuer, investor] [] do
-    exerciseCmd fungibleCid Fungible.Split with amounts = [100.0, -20.0]
+    exerciseCmd fungibleCid Fungible.Split with amounts = [100.0, -20.0]; idx
   submitMultiMustFail [issuer, investor] [] do
-    exerciseCmd fungibleCid Fungible.Split with amounts = [0.0]
+    exerciseCmd fungibleCid Fungible.Split with amounts = [0.0]; idx
   submitMultiMustFail [issuer, investor] [] do
-    exerciseCmd fungibleCid Fungible.Split with amounts = []
+    exerciseCmd fungibleCid Fungible.Split with amounts = []; idx
 
   -- Fungible (before split)
   fungible <- fmap (\o -> toInterface @Fungible.I $ fromSome o) <$>
@@ -80,7 +91,7 @@ run = script do
   -- Split fungible
   Fungible.SplitResult [splitCid1, splitCid2] (Some restCid) <-
     submitMulti [issuer, investor] [] do
-      exerciseCmd fungibleCid Fungible.Split with amounts = [500.0, 250.0]
+      exerciseCmd fungibleCid Fungible.Split with amounts = [500.0, 250.0]; idx
 
   -- Fungibles (after split)
   [fungible1, fungible2, rest] <- fmap (\f -> toInterface @Fungible.I $ fromSome f) <$>
@@ -136,25 +147,32 @@ run = script do
 
   -- Merge fungibles
   fungibleCid <- submitMulti [issuer, investor] [] do
-    exerciseCmd restCid Fungible.Merge with fungibleCids = [splitCid1, splitCid2]
+    exerciseCmd restCid Fungible.Merge with fungibleCids = [splitCid1, splitCid2]; idx
 
   -- Fungibles (after merge)
   fungible' <- fmap (\o -> toInterface @Fungible.I $ fromSome o) <$>
     queryContractId @Fungible.T issuer $ fromInterfaceContractId fungibleCid
   verifyAmountPreserving [fungible] [fungible']
 
+  -- Build index table
+  idxs1 <- Account.buildIndexTable [issuer, investor] investorAccount
+  idxs2 <- Holding.buildIndexTable [issuer, investor] $ toInterfaceContractId fungibleCid
+  let idx = idxs2 <> idxs1
+
   -- Transfer
   transferableCid <- submitMulti [issuer, investor] [publicParty] do
     exerciseCmd (coerceInterfaceContractId @Transferable.I fungibleCid)
       Transferable.Transfer with
-        actors = S.fromList [issuer, investor]; newOwnerAccount = investorAccount
+        actors = S.fromList [issuer, investor]; newOwnerAccount = investorAccount; idx
 
   -- Assert state
   Holding.verifyOwnerOfHolding [(investor, transferableCid)]
 
   -- Debit asset
-  Account.submitExerciseInterfaceByKeyCmd @Account.I [custodian, investor] [] investorAccount $
-    Account.Debit with holdingCid = toInterfaceContractId transferableCid
+  (investorAccountCid, _) <- queryByKey @Account.T @Account.I [custodian, investor] investorAccount
+  submitMulti [custodian, investor] [] do
+    exerciseCmd investorAccountCid Account.Debit with
+      holdingCid = toInterfaceContractId transferableCid
 
   pure ()
 

@@ -1,0 +1,49 @@
+-- Copyright (c) 2023 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
+module Daml.Finance.Interface.Util.Index where
+
+import DA.Assert ((===))
+import DA.Map qualified as M (Map, insert, delete, lookup)
+import DA.Optional (fromSome)
+import DA.Text (sha256)
+import DA.Traversable qualified as T (mapA)
+
+-- | Type for index table.
+type IndexTable = M.Map Text (ContractId I)
+
+-- | Type class for index table.
+class (Show k, Eq k, HasFetch i, HasInterfaceTypeRep i, HasInterfaceTypeRep i, HasToInterface i I, HasFromInterface i I) => HasIndexTable i k where
+    insert : k -> ContractId i -> IndexTable -> IndexTable
+    insert k cid m = M.insert (sha256 $ show k) (toInterfaceContractId @I cid) m
+    delete : k -> IndexTable -> IndexTable
+    delete k m = M.delete (sha256 $ show k) m
+    lookup : forall i2 v. (HasInterfaceTypeRep i2, HasFetch i2, HasInterfaceView i2 v) =>
+      IndexTable -> k -> Update (Optional (ContractId i2, i2))
+    lookup m k = T.mapA
+      ( \cid2 -> do
+          i2 <- fetch cid2
+          i <- fetch (coerceInterfaceContractId @i cid2) -- TODO: use requires (and HasToInterface i2 i1, HasFromInterface i2 i1)
+          k === getKey i
+          pure (cid2, i2)
+      )
+      $ (coerceInterfaceContractId @i2) <$> M.lookup @Text (sha256 $ show k) m
+    fetchInterfaceByKey : forall i2 v. (HasInterfaceTypeRep i2, HasFetch i2, HasInterfaceView i2 v) => IndexTable -> k -> Update (ContractId i2, i2)
+    fetchInterfaceByKey m k = fromSome <$> Daml.Finance.Interface.Util.Index.lookup @i @k @i2 @v m k
+    getKey : i -> k
+
+-- | Type synonym for `Instruction`.
+type I = Index
+
+-- | Type synonym for `View`.
+type V = View
+
+-- | View for `I`.
+data View = View {}
+  deriving (Eq, Show)
+
+-- | An interface for keyed interfaces.
+interface Index where
+  viewtype V

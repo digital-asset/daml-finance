@@ -6,16 +6,16 @@ module Daml.Finance.Settlement.Instruction where
 import DA.Assert ((===))
 import DA.List qualified as L (head)
 import DA.Set qualified as S (empty, fromList, intersection, isSubsetOf, null, singleton, toList)
-import Daml.Finance.Interface.Account.Account qualified as Account (Credit(..), Debit(..), I, R, disclose, exerciseInterfaceByKey, undisclose)
+import Daml.Finance.Interface.Account.Account qualified as Account (Credit(..), Debit(..), I, discloseByKey, undiscloseByKey)
 import Daml.Finance.Interface.Account.Util (getAccount)
 import Daml.Finance.Interface.Holding.Base qualified as Base (I, getLockers)
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
-import Daml.Finance.Interface.Holding.Util (disclose, getAmount, getInstrument, undisclose)
+import Daml.Finance.Interface.Holding.Util (getAmount, getInstrument)
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..), Cancel(..), Execute(..), HasImplementation, I, View(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), InstructionKey(..), RoutedStep)
 import Daml.Finance.Interface.Types.Common.Types (AccountKey, Id(..), Parties, PartiesMap)
-import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey)
-import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers, disclose, undisclose)
+import Daml.Finance.Interface.Util.Index qualified as Index (I, View(..), HasIndexTable(..), delete, fetchInterfaceByKey, insert)
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
 
 -- | Type synonym for `Instruction`.
@@ -54,10 +54,8 @@ template Instruction
     signatory requestors, signedSenders, signedReceivers
     observer routedStep.sender, routedStep.receiver, settlers, Disclosure.flattenObservers observers
 
-    key InstructionKey with requestors; batchId; id : InstructionKey
-    maintainer key.requestors
-
     let
+      instruction = InstructionKey with requestors; batchId; id
       messageSuffix = " / instruction id = " <> show id
       context = show batchId <> "(" <> show id <> ")"
       mustBe : Role -> Party -> Update ()
@@ -70,40 +68,43 @@ template Instruction
         assertMsg (show party <> " must match " <> show roleParty <> "(" <> show role <> ")") $
           party == roleParty
       -- utilitise for disclose / undisclose
-      discloseA = discloseAccountHelper Account.disclose (context, settlers)
-      undiscloseA = discloseAccountHelper Account.undisclose (context, settlers)
+      discloseA = \a idx -> fmap snd <$> Account.discloseByKey (context, settlers) a idx
+      undiscloseA = \a idx -> fmap snd <$> Account.undiscloseByKey (context, settlers) a idx
       discloseB disclosers settlers cid = do
         let viewer = L.head $ S.toList disclosers
-        disclose @Base.I (show batchId, settlers) viewer disclosers cid
+        Disclosure.disclose @Base.I (show batchId, settlers) viewer disclosers cid
       undiscloseB disclosers settlers cid =
-        undisclose @Base.I (show batchId, settlers) disclosers cid
-      undisclosePreviousAllocation =
+        Disclosure.undisclose @Base.I (show batchId, settlers) disclosers cid
+      undisclosePreviousAllocation idx =
         case allocation of
           Pledge previousBaseCid -> do
             previousBase <- fetch previousBaseCid
             let previousSenderAccount = getAccount previousBase
-            undiscloseA previousSenderAccount True
-            viewA <- view <$> fetchInterfaceByKey @Account.R @Account.I previousSenderAccount
-            undiscloseB viewA.controllers.outgoing settlers previousBaseCid
+            idx <- undiscloseA previousSenderAccount True idx
+            viewA <- view . snd <$>
+              Index.fetchInterfaceByKey @Account.I @AccountKey @Account.I idx previousSenderAccount
+            (, idx) <$> undiscloseB viewA.controllers.outgoing settlers previousBaseCid
           PassThroughFrom (previousPassthroughAccount, _) -> do
-            undiscloseA previousPassthroughAccount True
-            pure None
+            (None, ) <$> undiscloseA previousPassthroughAccount True idx
           _ ->
-            pure None
-      undiclosePreviousApproval =
+            pure (None, idx)
+      undisclosePreviousApproval idx =
         case approval of
           TakeDelivery previousReceiverAccount ->
-            undiscloseA previousReceiverAccount False
+            undiscloseA previousReceiverAccount False idx
           PassThroughTo (previousPassthroughAccount, _) ->
-            undiscloseA previousPassthroughAccount False
-          _ -> pure None
+            undiscloseA previousPassthroughAccount False idx
+          _ -> pure idx
+
+    interface instance Index.I for Instruction where
+      view = Index.View {}
 
     interface instance Disclosure.I for Instruction where
       view = Disclosure.View with
         disclosureControllers = S.fromList [routedStep.sender, routedStep.receiver]; observers
-      setObservers = setObserversImpl @Instruction @Disclosure.I this None
-      addObservers = addObserversImpl @Instruction @Disclosure.I this None
-      removeObservers = removeObserversImpl @Instruction @Disclosure.I this None
+      setObservers = setObserversImpl @Instruction this
+      addObservers = addObserversImpl @Instruction this
+      removeObservers = removeObserversImpl @Instruction this
 
     interface instance Instruction.I for Instruction where
       asDisclosure = toInterface @Disclosure.I this
@@ -118,18 +119,19 @@ template Instruction
         signedReceivers
         allocation
         approval
-      allocate Instruction.Allocate{actors; allocation} = do
+      allocate Instruction.Allocate{actors; allocation; idx} = do
         let mustAuthorize = mustAuthorizeHelper actors
         assertMsg ("allocation must be new" <> messageSuffix) $ allocation /= this.allocation
         -- undisclose previous allocation
-        obCid <- undisclosePreviousAllocation
+        (obCid, idx) <- undisclosePreviousAllocation idx
         -- allocate
-        allocationDisclosed <- case allocation of
+        (newAllocation, idx) <- case allocation of
           Pledge baseCid -> do
             base <- fetch baseCid
             let senderAccount = getAccount base
-            vSenderAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I senderAccount
-            discloseA senderAccount True
+            vSenderAccount <- view . snd <$>
+              Index.fetchInterfaceByKey @Account.I @AccountKey @Account.I idx senderAccount
+            idx <- discloseA senderAccount True idx
             baseCid <- discloseB vSenderAccount.controllers.outgoing settlers baseCid
             mustAuthorize vSenderAccount.controllers.outgoing
             mustAuthorize $ Base.getLockers base
@@ -137,67 +139,81 @@ template Instruction
             mustBe Sender senderAccount.owner
             getAmount base === routedStep.quantity.amount
             getInstrument base === routedStep.quantity.unit
-            pure $ Pledge baseCid
-          PassThroughFrom (passthroughAccount, fromInstructionKey) -> do
-            discloseA passthroughAccount True
-            vSenderAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I passthroughAccount
-            mustAuthorize vSenderAccount.controllers.outgoing
+            pure $ (Pledge baseCid, idx)
+          PassThroughFrom (passthroughAccount, fromInstruction) -> do
+            (fromInstructionCid, vFromInstruction) <- fmap view <$>
+              Index.fetchInterfaceByKey @Instruction.I @InstructionKey @Instruction.I idx
+                fromInstruction
+            idx <- discloseA passthroughAccount True idx
+            (passthroughAccountCid, vPassthroughAccount) <- fmap view <$>
+              Index.fetchInterfaceByKey @Account.I @AccountKey @Account.I idx passthroughAccount
+            mustAuthorize vPassthroughAccount.controllers.outgoing
             mustBe Custodian passthroughAccount.custodian
             mustBe Sender passthroughAccount.owner
-            (_, fromInstruction) <- fetchByKey @Instruction fromInstructionKey
-            mustBe Custodian fromInstruction.routedStep.custodian
-            mustBe Sender fromInstruction.routedStep.receiver
-            pure $ PassThroughFrom (passthroughAccount, fromInstructionKey)
+            assertMsg "must be part of the batch" $ vFromInstruction.batchId == batchId
+            mustBe Custodian vFromInstruction.routedStep.custodian
+            pure $ (allocation, idx)
           CreditReceiver -> do
             mustAuthorize $ S.singleton routedStep.custodian
-            pure CreditReceiver
+            pure (allocation, idx)
           SettleOffledger -> do
             mustAuthorize $ S.singleton routedStep.custodian
             mustAuthorize $ S.singleton routedStep.sender
-            pure SettleOffledger
+            pure (allocation, idx)
           Unallocated -> do
             mustAuthorize signedSenders
-            pure Unallocated
-        cid <- toInterfaceContractId <$> create this with
-          allocation = allocationDisclosed
-          signedSenders = if allocationDisclosed == Unallocated then S.empty else actors
-        pure (cid, obCid)
-      approve Instruction.Approve{actors; approval} = do
+            pure (allocation, idx)
+        cid <- toInterfaceContractId @Instruction.I <$>
+          create this with
+            allocation = newAllocation
+            signedSenders = if newAllocation == Unallocated then S.empty else actors
+        let newIdx = Index.insert instruction cid idx
+        pure (cid, obCid, newIdx)
+      approve Instruction.Approve{actors; approval; idx} = do
         let mustAuthorize = mustAuthorizeHelper actors
+        -- approval
         assertMsg ("approval must be new" <> messageSuffix) $ approval /= this.approval
         -- undisclose previous approval
-        undiclosePreviousApproval
+        idx <- undisclosePreviousApproval idx
         -- approve
-        case approval of
+        idx <- case approval of
           TakeDelivery receiverAccount -> do
-            discloseA receiverAccount False
-            vReceiverAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I receiverAccount
+            idx <- discloseA receiverAccount False idx
+            (receiverAccountCid, vReceiverAccount) <- fmap view <$>
+              Index.fetchInterfaceByKey @Account.I @AccountKey @Account.I idx receiverAccount
             mustAuthorize vReceiverAccount.controllers.incoming
-            mustBe Custodian receiverAccount.custodian
-            mustBe Receiver receiverAccount.owner
-          PassThroughTo (passthroughAccount, toInstructionKey) -> do
-            discloseA passthroughAccount False
-            vReceiverAccount <- view <$>
-              fetchInterfaceByKey @Account.R @Account.I passthroughAccount
-            mustAuthorize vReceiverAccount.controllers.incoming
-            mustAuthorize vReceiverAccount.controllers.outgoing
-            mustBe Custodian passthroughAccount.custodian
-            mustBe Receiver passthroughAccount.owner
-            (_, toInstruction) <- fetchByKey @Instruction toInstructionKey
-            mustBe Custodian toInstruction.routedStep.custodian
-            mustBe Receiver toInstruction.routedStep.sender
+            mustBe Custodian vReceiverAccount.custodian
+            mustBe Receiver vReceiverAccount.owner
+            pure idx
+          PassThroughTo (passthroughAccount, toInstruction) -> do
+            (toInstructionCid, vToInstruction) <- fmap view <$>
+              Index.fetchInterfaceByKey @Instruction.I @InstructionKey @Instruction.I idx
+                toInstruction
+            idx <- discloseA passthroughAccount False idx
+            (passThroughAccountCid, vPassThroughAccount) <- fmap view <$>
+              Index.fetchInterfaceByKey @Account.I @AccountKey @Account.I idx passthroughAccount
+            mustAuthorize vPassThroughAccount.controllers.incoming
+            mustAuthorize vPassThroughAccount.controllers.outgoing
+            mustBe Custodian vPassThroughAccount.custodian
+            mustBe Receiver vPassThroughAccount.owner
+            assertMsg "must be part of the batch" $ toInstruction.batchId == batchId
+            mustBe Custodian vToInstruction.routedStep.custodian
+            pure idx
           DebitSender -> do
             mustAuthorize $ S.singleton routedStep.custodian
             mustBe Custodian routedStep.receiver
+            pure idx
           SettleOffledgerAcknowledge -> do
-            mustAuthorize $ S.singleton routedStep.custodian
-            mustAuthorize $ S.singleton routedStep.receiver
-          Unapproved ->
+            mustAuthorize $ S.fromList [routedStep.custodian, routedStep.receiver]
+            pure idx
+          Unapproved -> do
             mustAuthorize signedReceivers
-        toInterfaceContractId <$> create this with
+            pure idx
+        instructionCid <- toInterfaceContractId <$> create this with
           approval
           signedReceivers = if approval == Unapproved then S.empty else actors
-      execute Instruction.Execute{actors} = do
+        pure (instructionCid, Index.insert instruction instructionCid idx)
+      execute Instruction.Execute{actors; idx} = do
         let mustAuthorize = mustAuthorizeHelper actors
         mustAuthorize requestors
         assertMsg "actors must intersect with settlers" $
@@ -207,8 +223,8 @@ template Instruction
           abortOnOffledgerMix =
             abort $ "mix of on- and off-ledger settlement is not supported" <> messageSuffix
         -- execute instruction
-        case (allocation, approval) of
-          (Unallocated, Unapproved) ->
+        (oCid, idx) <- case (allocation, approval) of
+          (Unallocated, Unapproved) -> do
             abort $ "instruction must be allocated and approved" <> messageSuffix
           (Unallocated, _) -> abort $ "instruction must be allocated" <> messageSuffix
           (_, Unapproved) -> abortUnapproved
@@ -225,68 +241,85 @@ template Instruction
                 baseCid <- toInterfaceContractId <$>
                   exercise transferableCid Transferable.Transfer with
                     actors = signedSenders <> signedReceivers; newOwnerAccount = receiverAccount
-                viewA <- view <$> fetchInterfaceByKey @Account.R @Account.I receiverAccount
+                    idx
+                viewA <- view . snd <$>
+                  Index.fetchInterfaceByKey @Account.I @AccountKey @Account.I idx receiverAccount
                 -- undiclose accounts
-                undiscloseA senderAccount True
-                undiscloseA receiverAccount False
+                idx <- undiscloseA senderAccount True idx
+                idx <- undiscloseA receiverAccount False idx
                 -- disclose to settlers (such that they can get the TemplateTypeRep in the Batch)
-                Some <$> discloseB viewA.controllers.incoming settlers baseCid
+                (, idx) . Some <$> discloseB viewA.controllers.incoming settlers baseCid
               DebitSender -> do
                 base <- fetch baseCid
                 let senderAccount = getAccount base
-                accountCid <- Account.exerciseInterfaceByKey @Account.I senderAccount
-                  routedStep.custodian Account.Debit with holdingCid = baseCid
-                undiscloseA senderAccount True
-                pure None
-              PassThroughTo (passthroughAccount, toInstructionKey) -> do
+                (senderAccountCid, _) <- Index.fetchInterfaceByKey @Account.I @AccountKey @Account.I
+                  idx senderAccount
+                exercise senderAccountCid Account.Debit with holdingCid = baseCid
+                (None,) <$> undiscloseA senderAccount True idx
+              PassThroughTo (passthroughAccount, toInstruction) -> do
+                (toInstructionCid, iToInstruction) <-
+                  Index.fetchInterfaceByKey @Instruction.I @InstructionKey @Instruction.I
+                    idx toInstruction
                 holding <- fetch baseCid
                 let
                   senderAccount = getAccount holding
                   transferableCid = coerceInterfaceContractId @Transferable.I baseCid
                 tCid <- toInterfaceContractId <$>
                   exercise transferableCid Transferable.Transfer with
-                    actors = signedSenders <> signedReceivers; newOwnerAccount = passthroughAccount
-                (toInstructionCid, toInstruction) <- fetchByKey @Instruction toInstructionKey
+                    actors = signedSenders <> signedReceivers
+                    newOwnerAccount = passthroughAccount
+                    idx
+                let vToInstruction = view iToInstruction
                 assertMsg "passthroughs must match" $
-                  toInstruction.allocation == PassThroughFrom (passthroughAccount, key this)
+                  vToInstruction.allocation ==
+                    PassThroughFrom (passthroughAccount, instruction)
                 -- (*) in case of a pass-through, the newly created holding is immediately allocated
                 -- to the next routedStep
-                exercise (toInterfaceContractId @Instruction.I toInstructionCid)
-                  Instruction.Allocate with
-                    actors = signedSenders <> signedReceivers; allocation = Pledge tCid
-                undiscloseA senderAccount True
-                undiscloseA passthroughAccount False
-                pure None
+                (toInstructionCid, toAllocation, idx) <-
+                  exercise (toInterfaceContractId @Instruction.I toInstructionCid)
+                    Instruction.Allocate with
+                      actors = signedSenders <> signedReceivers
+                      allocation = Pledge tCid
+                      idx
+                toInstruction <- view <$> fetch toInstructionCid
+                let newAllocation = toAllocation
+                idx <- undiscloseA senderAccount True idx
+                idx <- undiscloseA passthroughAccount False idx
+                pure (None, idx)
               SettleOffledgerAcknowledge -> abortOnOffledgerMix
               Unapproved -> abortUnapproved
           (CreditReceiver, a) ->
             case a of
               TakeDelivery receiverAccount -> do
                 mustBe Custodian routedStep.sender
-                baseCid <- Account.exerciseInterfaceByKey @Account.I receiverAccount
-                  routedStep.custodian Account.Credit with quantity = routedStep.quantity
-                viewA <- view <$> fetchInterfaceByKey @Account.R @Account.I receiverAccount
+                (receiverAccountCid, vReceiverAccount) <- fmap view <$>
+                  Index.fetchInterfaceByKey @Account.I @AccountKey @Account.I idx receiverAccount
+                baseCid <-
+                  exercise receiverAccountCid Account.Credit with quantity = routedStep.quantity
                 -- undisclose
-                undiscloseA receiverAccount False
+                idx <- undiscloseA receiverAccount False idx
                 -- disclose to actors (such that they can get the TemplateTypeRep in the Batch)
-                Some <$> discloseB signedReceivers actors baseCid
+                baseCid <- discloseB signedReceivers actors baseCid
+                pure (Some baseCid, idx)
               DebitSender -> do
+                mustBe Custodian routedStep.sender
                 assertMsg ("sender must be the same party as receiver" <> messageSuffix) $
                   routedStep.sender == routedStep.receiver
-                pure None
+                pure (None, idx)
               PassThroughTo _ ->
                 abort $ "passthroughs for credits are not supported" <> messageSuffix
               SettleOffledgerAcknowledge -> abortOnOffledgerMix
               Unapproved -> abortUnapproved
           (SettleOffledger, a) ->
             case a of
-              SettleOffledgerAcknowledge -> pure None
+              SettleOffledgerAcknowledge -> pure (None, idx)
               _ -> abortOnOffledgerMix
-      cancel Instruction.Cancel{actors} = do
+        pure (oCid, Index.delete @Instruction.I instruction idx)
+      cancel Instruction.Cancel{actors; idx} = do
         let mustAuthorize = mustAuthorizeHelper actors
         mustAuthorize requestors
-        undiclosePreviousApproval
-        undisclosePreviousAllocation
+        idx <- undisclosePreviousApproval idx
+        undisclosePreviousAllocation idx
 
 -- | HIDE
 data Role
@@ -300,15 +333,3 @@ mustAuthorizeHelper : Parties -> Parties -> Update ()
 mustAuthorizeHelper authorizers parties =
   assertMsg (show parties <> " must be a subset of authorizers (" <> show authorizers <> ")") $
     parties `S.isSubsetOf` authorizers
-
--- | HIDE
-discloseAccountHelper : forall a. ((Text, Parties) -> Party -> Parties -> AccountKey -> Update a) ->
-  (Text, Parties) -> AccountKey -> Bool -> Update a
-discloseAccountHelper f (context, settlers) account isInstructor = do
-  viewA <- view <$> fetchInterfaceByKey @Account.R @Account.I account
-  let
-    disclosers = if isInstructor
-                 then viewA.controllers.outgoing
-                 else viewA.controllers.incoming
-    viewer = L.head $ S.toList disclosers
-  f (context, settlers) viewer disclosers account

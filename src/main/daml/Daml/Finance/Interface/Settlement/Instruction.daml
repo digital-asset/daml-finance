@@ -4,12 +4,21 @@
 module Daml.Finance.Interface.Settlement.Instruction where
 
 import Daml.Finance.Interface.Holding.Base qualified as Holding (I)
-import Daml.Finance.Interface.Settlement.Types (Allocation, Approval, RoutedStep)
+import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), InstructionKey(..), RoutedStep)
 import Daml.Finance.Interface.Types.Common.Types (Id, Parties)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, Implementation)
+import Daml.Finance.Interface.Util.Index (IndexTable)
+import Daml.Finance.Interface.Util.Index qualified as Index (HasIndexTable(..), I)
+
+-- | Instance of has index table.
+instance Index.HasIndexTable I InstructionKey where
+  getKey = toKey . view
 
 -- | Type synonym for `Instruction`.
 type I = Instruction
+
+-- | Type synonym for `InstructionKey`.
+type K = InstructionKey
 
 -- | Type synonym for `View`.
 type V = View
@@ -39,19 +48,23 @@ data View = View
       -- ^ Additional signatories, used to collect authorization (on receiving side).
   deriving (Eq, Show)
 
+-- | Convert the account's 'View' to its key.
+toKey : V -> K
+toKey v = InstructionKey with requestors = v.requestors; batchId = v.batchId; id = v.id
+
 -- | An interface for providing a single instruction to transfer an asset.
-interface Instruction where
+interface Instruction requires Index.I where
   viewtype V
 
   asDisclosure : Disclosure.I
     -- ^ Conversion to `Disclosure` interface.
-  allocate : Allocate -> Update (ContractId Instruction, Optional (ContractId Holding.I))
+  allocate : Allocate -> Update (ContractId Instruction, Optional (ContractId Holding.I), IndexTable)
     -- ^ Implementation of the `Allocate` choice.
-  approve : Approve -> Update (ContractId Instruction)
+  approve : Approve -> Update (ContractId Instruction, IndexTable)
     -- ^ Implementation of the `Approve` choice.
-  execute : Execute -> Update (Optional (ContractId Holding.I))
+  execute : Execute -> Update (Optional (ContractId Holding.I), IndexTable)
     -- ^ Implementation of the `Execute` choice.
-  cancel : Cancel -> Update (Optional (ContractId Holding.I))
+  cancel : Cancel -> Update (Optional (ContractId Holding.I), IndexTable)
     -- ^ Implementation of the `Cancel` choice.
 
   nonconsuming choice GetView : View
@@ -63,42 +76,50 @@ interface Instruction where
     do
       pure $ view this
 
-  choice Allocate : (ContractId Instruction, Optional (ContractId Holding.I))
-    -- ^ Allocates this instruction and optionally returns a previously allocated (mutated) asset.
+  choice Allocate : (ContractId Instruction, Optional (ContractId Holding.I), IndexTable)
+    -- ^ Allocates this instruction and returns affected contract ids (if any).
     with
       actors : Parties
         -- ^ The parties allocating the instruction.
       allocation : Allocation
         -- ^ Allocation of an instruction.
+      idx : IndexTable
+        -- ^ The index table needed for the action.
     controller actors
     do
       allocate this arg
 
-  choice Approve : ContractId Instruction
+  choice Approve : (ContractId Instruction, IndexTable)
     -- ^ Approves this instruction.
     with
       actors : Parties
         -- ^ The parties approving the instruction.
       approval : Approval
         -- ^ Approval of an instruction.
+      idx : IndexTable
+        -- ^ The index table needed for the action.
     controller actors
     do
       approve this arg
 
-  choice Execute : Optional (ContractId Holding.I)
-    -- ^ Executes this instruction.
+  choice Execute : (Optional (ContractId Holding.I), IndexTable)
+    -- ^ Executes this instruction and returns affected contract cids (if any).
     with
       actors : Parties
         -- ^ The parties executing the instruction.
+      idx : IndexTable
+        -- ^ The index table needed for the action.
     controller actors
     do
       execute this arg
 
-  choice Cancel : Optional (ContractId Holding.I)
+  choice Cancel : (Optional (ContractId Holding.I), IndexTable)
     -- ^ Cancels this instruction.
     with
       actors : Parties
         -- ^ The parties canceling the instruction.
+      idx : IndexTable
+        -- ^ The index table needed for the action.
     controller actors
     do
       cancel this arg

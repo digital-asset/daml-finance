@@ -5,38 +5,29 @@
 
 module Daml.Finance.Test.Util.Instrument where
 
-import DA.List (head)
 import DA.Map qualified as M
 import Daml.Finance.Instrument.Token.Instrument (Instrument(..))
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (GetCid(..), GetView(..), I, R, Reference(..))
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (I)
 import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey, Parties)
-import Daml.Finance.Test.Util.Common (submitExerciseInterfaceByKeyCmdHelper)
+import Daml.Finance.Interface.Util.Index qualified as Index (IndexTable(..), getKey, insert)
+import Daml.Finance.Test.Util.Common (queryByKey)
 import Daml.Script
-
--- | Create a `Reference` for an instrument.
--- Note: This should only be called together with an instrument creation
-createReference : ContractId Instrument.I -> Party -> Party -> [(Text, Parties)] ->
-  Script InstrumentKey
-createReference cid depository issuer observers = do
-  instrumentView <- submitMulti [depository, issuer] [] do
-    exerciseCmd cid Instrument.GetView with viewer = issuer
-  let ref = Instrument.Reference with instrumentView; cid; observers = M.fromList observers
-  submitMulti [depository, issuer] [] do createCmd ref
-  pure $ key ref
 
 -- | Originate an `Instrument`.
 originate : Party -> Party -> Text -> Text-> [(Text, Parties)] -> Time -> Script InstrumentKey
 originate depository issuer label description observers timestamp = do
-  cid <- toInterfaceContractId <$> submitMulti [depository, issuer] [] do
-    createCmd Instrument with
+  let
+    instrument = Instrument with
       depository; issuer; id = Id label; version = "0"; description
       observers = M.fromList observers; validAsOf = timestamp
-  createReference cid depository issuer observers
+  cid <- toInterfaceContractId @Instrument.I <$> submitMulti [depository, issuer] [] do
+    createCmd instrument
+  pure $ Index.getKey @Instrument.I $ toInterface @Instrument.I instrument
 
--- | Utility for exercising an interface by key.
-submitExerciseInterfaceByKeyCmd : forall t2 c2 b.
-  ( HasInterfaceTypeRep t2, HasTemplateTypeRep t2, HasToAnyTemplate t2, HasFromAnyTemplate t2,
-    HasFromAnyChoice t2 c2 b, HasToAnyChoice t2 c2 b, HasExercise t2 c2 b)
-    => [Party] -> [Party] -> InstrumentKey -> c2 -> Script b
-submitExerciseInterfaceByKeyCmd actAs readAs k arg = submitExerciseInterfaceByKeyCmdHelper
-  @Instrument.R @t2 actAs readAs k (Instrument.GetCid with viewer = head actAs) arg
+-- | Build index table (from an instrument).
+buildIndexTable :
+  forall t p. (HasAgreement t, Template t, HasToInterface t Instrument.I, IsParties p) =>
+  p -> InstrumentKey -> Script Index.IndexTable
+buildIndexTable actors instrument = do
+  instrumentCid <- fst <$> queryByKey @t @Instrument.I actors instrument
+  pure $ Index.insert instrument instrumentCid M.empty
