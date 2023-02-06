@@ -50,10 +50,28 @@ For pre-release versioning we cannot use `-ALPHA`, `-SNAPSHOT`, `-RC1`, etc. For
 1.0.0-alpha < 1.0.0-alpha.1 < 1.0.0-alpha.beta < 1.0.0-beta < 1.0.0-beta.2 < 1.0.0-beta.11 < 1.0.0-rc.1 < 1.0.0
 ```
 
-To overcome this limitation, we will use dates to represent pre-release canditates. For example:
+To overcome this limitation, we will use `.99.` as a placeholder to signify a snapshot along with
+the date the snapshot was generated.
+
+The pre-release snapshot version for a MAJOR version has the `.99.` placeholder set as the MINOR
+version. For example, the pre-release snapshot for version `2.0.0` is :
 
 ```{}
-1.0.0.20220627.1 < 1.0.0.20220627.2 < 1.0.0.20220628.1 < 1.0.0
+1.99.0.20230206.1 < 1.99.0.20230206.2 < 1.99.0.20230207.1 < 1.99.1.20230207.1 < 2.0.0
+```
+
+The pre-release snapshot version for a MINOR version has the `.99.` placeholder in the PATCH
+version. For example, the pre-release snapshot for version `2.1.0` is :
+
+```{}
+2.0.99.20230206.1 < 2.0.99.20230206.2 < 2.0.99.20230207.1 < 2.1.0
+```
+
+The pre-release snapshot version for a PATCH version has the `.99.` placeholder after the PATCH
+version. For example, the pre-release snapshot for version `2.1.1` is :
+
+```{}
+2.1.0.99.20230206.1 < 2.1.0.99.20230206.2 < 2.1.0.99.20230207.1 < 2.1.1
 ```
 
 Therefore, any release version specified outside of the Official release versioning will be marked
