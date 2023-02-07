@@ -17,7 +17,6 @@ import Daml.Finance.Interface.Types.Common.Types (AccountKey(..), InstrumentKey(
 import Daml.Finance.Interface.Util.Common (verify)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
-import Prelude hiding (null)
 
 -- | Type synonym for `Factory`.
 type F = Factory
@@ -47,6 +46,8 @@ template Fungible
 
     ensure amount > 0.0
 
+    let spawn = \a -> toInterfaceContractId @Fungible.I <$> create this with amount = a
+
     interface instance Disclosure.I for Fungible where
       view = Disclosure.View with
         disclosureControllers = fromList [account.owner, account.custodian]; observers
@@ -69,19 +70,21 @@ template Fungible
       asTransferable = toInterface @Transferable.I this
       view = Fungible.View with modifiers = singleton account.owner
       split Fungible.Split{amounts} = do
-        splitCids <- forA amounts \a -> toInterfaceContractId <$> create this with amount = a
+        splitCids <- forA amounts spawn
         restAmount <- getRestAmount amounts amount
-        rest <- T.forA restAmount \r -> toInterfaceContractId <$> create this with amount = r
+        rest <- T.forA restAmount spawn
         pure Fungible.SplitResult with splitCids; rest
       merge Fungible.Merge{fungibleCids} = do
+        assertMsg "list of fungibles must be non-empty" $ not $ null fungibleCids
         let
-          f a cid = do
+          aggregate a cid = do
             Some (fungibleCid, fungible) <- fetchFromInterface @Fungible cid
             assertMsg "instrument must match" $ instrument == fungible.instrument
+            assertMsg "account must match" $ account == fungible.account
             archive fungibleCid
             pure $ a + fungible.amount
-        tot <- foldlA f amount fungibleCids
-        toInterfaceContractId <$> create this with amount = tot
+        tot <- foldlA aggregate amount fungibleCids
+        spawn tot
 
 instance HoldingFactory.HasImplementation Factory
 -- | Implementation of the corresponding Holding Factory.

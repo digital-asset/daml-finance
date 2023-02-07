@@ -27,10 +27,10 @@ run = script do
 
   -- Initialize state with `Fungible.Factory`
   TestInitialState {investorAccount; issuerAccount; issuerHoldingCid} <- setupInitialState
-      tp
-      Fungible.Factory with
-        provider = custodian; observers = M.fromList [("PublicParty", S.singleton publicParty)]
-      [] Account.Owner
+    tp
+    Fungible.Factory with
+      provider = custodian; observers = M.fromList [("PublicParty", S.singleton publicParty)]
+    [] Account.Owner
 
   -- Lock asset
   baseCid <- submitMulti [issuer, locker] [] do
@@ -39,7 +39,7 @@ run = script do
         newLockers = S.singleton locker; context = "Test Lock"; lockType = Base.Semaphore
 
   -- Cannot split
-  submitMultiMustFail [issuer, investor] [] do
+  submitMustFail issuer do
     exerciseCmd (coerceInterfaceContractId @Fungible.I baseCid) Fungible.Split with
       amounts = [500.0, 250.0]
 
@@ -58,19 +58,21 @@ run = script do
     exerciseCmd baseCid Base.Release with context = "Test Lock"
 
   -- Attempt to split more than the amount available fails
-  submitMultiMustFail [issuer, investor] [] do
+  submitMustFail issuer do
     exerciseCmd fungibleCid Fungible.Split with amounts = [1_000.1]
-  submitMultiMustFail [issuer, investor] [] do
+  submitMustFail issuer do
     exerciseCmd fungibleCid Fungible.Split with amounts = [1_000.0, 0.1]
 
   -- Attempt to split negative amount fails
-  submitMultiMustFail [issuer, investor] [] do
+  submitMustFail issuer do
     exerciseCmd fungibleCid Fungible.Split with amounts = [-20.0]
-  submitMultiMustFail [issuer, investor] [] do
+  submitMustFail issuer do
     exerciseCmd fungibleCid Fungible.Split with amounts = [100.0, -20.0]
-  submitMultiMustFail [issuer, investor] [] do
+  submitMustFail issuer do
     exerciseCmd fungibleCid Fungible.Split with amounts = [0.0]
-  submitMultiMustFail [issuer, investor] [] do
+
+  -- Attempt to split with empty list fails
+  submitMustFail issuer do
     exerciseCmd fungibleCid Fungible.Split with amounts = []
 
   -- Fungible (before split)
@@ -79,7 +81,7 @@ run = script do
 
   -- Split fungible
   Fungible.SplitResult [splitCid1, splitCid2] (Some restCid) <-
-    submitMulti [issuer, investor] [] do
+    submit issuer do
       exerciseCmd fungibleCid Fungible.Split with amounts = [500.0, 250.0]
 
   -- Fungibles (after split)
@@ -134,8 +136,18 @@ run = script do
     "Fungible::verifySplit - Amounts must be non-empty, strictly positive, and not exceed " <>
     "current amount. amounts=[], splitAmountSum=0.0, currentAmount=-1.0"
 
+  -- Attempt to merge with empty list fails
+  submitMustFail issuer do
+    exerciseCmd restCid Fungible.Merge with fungibleCids = []
+
+  -- Attemt to merge with an issuer@issuer holding fails
+  Some t <- queryContractId issuer $ fromInterfaceContractId @Fungible.T splitCid1
+  cid <- toInterfaceContractId @Fungible.I <$> submit issuer do
+    createCmd t with account = (t.account with custodian = issuer); amount = 1_000_000.0
+  submitMustFail issuer do exerciseCmd restCid Fungible.Merge with fungibleCids = [cid]
+
   -- Merge fungibles
-  fungibleCid <- submitMulti [issuer, investor] [] do
+  fungibleCid <- submit issuer do
     exerciseCmd restCid Fungible.Merge with fungibleCids = [splitCid1, splitCid2]
 
   -- Fungibles (after merge)
