@@ -18,9 +18,9 @@ in
 pkgs.mkShell {
   SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
   buildInputs = [
-    # (daml { stdenv = pkgs.stdenv;
-    #         jdk = pkgs.openjdk11_headless;
-    #         version = damlYaml.sdk-version; })
+    (daml { stdenv = pkgs.stdenv;
+            jdk = pkgs.openjdk11_headless;
+            version = damlYaml.sdk-version; })
     # (packell { pkgs = pkgs; stdenv = pkgs.stdenv; version = "0.1.0.0"; })
     pkgs.bash
     pkgs.binutils # cp, grep, etc.
@@ -33,7 +33,7 @@ pkgs.mkShell {
     pkgs.jq
     pkgs.openssh
     pkgs.yq-go]
-    # ++ (docs { pkgs = pkgs; })
+    ++ (docs { pkgs = pkgs; })
     # ++ (packell { pkgs = pkgsGhc; })
   ;
 }
