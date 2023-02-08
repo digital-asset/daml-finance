@@ -100,6 +100,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 #### Daml.Finance.Settlement
 
+- Additional sanity checks added to `Instruction`
+
 - Dependencies update
 
 #### Daml.Finance.Util
