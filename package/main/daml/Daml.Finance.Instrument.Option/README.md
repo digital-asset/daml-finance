@@ -1,4 +1,4 @@
-# Daml.Finance.Instrument.Swap
+# Daml.Finance.Instrument.Option
 
 This package contains Instrument implementations that model a variety of option products.
 
