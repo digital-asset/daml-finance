@@ -19,8 +19,7 @@ import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
 import Daml.Finance.Test.Util.Time (dateToDateClockTime)
 import Daml.Script
 
--- Calculate payments on an asset swap, including lifecycling and creation of new instrument
--- version.
+-- Define and lifecycle a European call option, which is automatically exercised and settled in cash
 run : Script ()
 run = script do
   [custodian, issuer, calendarDataProvider, publicParty] <-
@@ -37,7 +36,8 @@ run = script do
   let
     issueDate = date 2019 Jan 16
     firstPaymentDate = date 2019 Feb 15
-    maturityDate = date 2019 May 15
+    strike = 40.0
+    expiryDate = date 2019 May 15
     referenceAssetId = "AAPL-CLOSE-ADJ"
     ownerReceivesFix = False
     fixRate = 0.0201
@@ -70,39 +70,23 @@ run = script do
       provider = issuer; id = Id referenceAssetId; observations; observers = M.empty
 
   swapInstrument <- originateEuropeanOption custodian issuer "SwapTest1" "Asset swap" observers now
-    issueDate holidayCalendarId calendarDataProvider firstPaymentDate maturityDate
+    issueDate holidayCalendarId calendarDataProvider firstPaymentDate expiryDate strike
     dayCountConvention businessDayConvention fixRate paymentPeriod paymentPeriodMultiplier
     cashInstrumentCid referenceAssetId ownerReceivesFix
 
   -- One day before the first payment date: try to lifecycle and verify that there are no lifecycle
   -- effects.
-  verifyNoLifecycleEffects [publicParty] (subtractDays firstPaymentDate 1) swapInstrument issuer
+  verifyNoLifecycleEffects [publicParty] (subtractDays expiryDate 1) swapInstrument issuer
     [observableCid]
 
   -- First payment date: Lifecycle and verify the lifecycle effects for fix rate and asset
   -- performance payments.
   let
-    expectedConsumedQuantities = [qty 0.001675 cashInstrumentCid]
-    expectedProducedQuantities = [qty 0.0801561777 cashInstrumentCid]
-  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifySwapPaymentEffects [publicParty]
-    firstPaymentDate swapInstrument issuer [observableCid] expectedConsumedQuantities
+    expectedConsumedQuantities = []
+    expectedProducedQuantities = [qty 8.78 cashInstrumentCid]
+    --expectedProducedQuantities = []
+  swapInstrumentAfterFirstPayment <- lifecycleAndVerifySwapPaymentEffects [publicParty]
+    expiryDate swapInstrument issuer [observableCid] expectedConsumedQuantities
     expectedProducedQuantities
-
-  -- One day after the first payment date: try to lifecycle and verify that there are no lifecycle
-  -- effects.
-  verifyNoLifecycleEffects [publicParty] (addDays firstPaymentDate 1)
-    swapInstrumentAfterFirstPayment issuer [observableCid]
-
-  -- One day before expiry: try to lifecycle and verify that there are no lifecycle effects.
-  verifyNoLifecycleEffects [publicParty] (subtractDays maturityDate 1)
-    swapInstrumentAfterFirstPayment issuer [observableCid]
-
-  -- Lifecycle on the second payment date, which is also the expiry date. Verify the lifecycle
-  -- effects for fix rate and asset performance payments.
-  let
-    expectedConsumedQuantities = [qty 0.0049691667 cashInstrumentCid]
-    expectedProducedQuantities = [qty 0.0372102912 cashInstrumentCid]
-  lifecycleAndVerifySwapPaymentEffects [publicParty] maturityDate swapInstrumentAfterFirstPayment
-    issuer [observableCid] expectedConsumedQuantities expectedProducedQuantities
 
   pure ()
