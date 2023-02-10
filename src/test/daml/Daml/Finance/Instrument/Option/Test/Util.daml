@@ -3,7 +3,6 @@
 
 module Daml.Finance.Instrument.Option.Test.Util where
 
-import DA.Date
 import DA.List (head, sort)
 import DA.Map qualified as M (empty, fromList)
 import DA.Set qualified as S (empty, singleton)
@@ -13,79 +12,41 @@ import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (I, GetView(.
 import Daml.Finance.Interface.Lifecycle.Observable.NumericObservable qualified as NumericObservable (I)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey, InstrumentQuantity, Parties)
-import Daml.Finance.Interface.Types.Date.Calendar (BusinessDayAdjustment(..), BusinessDayConventionEnum)
-import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
-import Daml.Finance.Interface.Types.Date.RollConvention (Period(..), PeriodEnum, RollConventionEnum(..))
-import Daml.Finance.Interface.Types.Date.Schedule (Frequency(..), PeriodicSchedule(..), ScheduleFrequency(..))
 import Daml.Finance.Test.Util.Instrument (createReference)
 import Daml.Finance.Test.Util.Time (createClockUpdateEvent)
 import Daml.Script
 
--- | Create a schedule for periodic payments.
-createPaymentPeriodicSchedule : Date -> [Text] -> BusinessDayConventionEnum -> PeriodEnum -> Int ->
-  Date -> Date -> PeriodicSchedule
-createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds businessDayConvention couponPeriod
-  couponPeriodMultiplier issueDate maturityDate = do
-    -- CREATE_SWAP_PERIODIC_SCHEDULE_BEGIN
-    let
-      (y, m, d) = toGregorian firstCouponDate
-      periodicSchedule = PeriodicSchedule with
-        businessDayAdjustment =
-          BusinessDayAdjustment with
-            calendarIds = holidayCalendarIds
-            convention = businessDayConvention
-        effectiveDateBusinessDayAdjustment = None
-        terminationDateBusinessDayAdjustment = None
-        frequency =
-          Periodic Frequency with
-            rollConvention = DOM d
-            period = Period with
-              period = couponPeriod
-              periodMultiplier = couponPeriodMultiplier
-        effectiveDate = issueDate
-        firstRegularPeriodStartDate = Some firstCouponDate
-        lastRegularPeriodEndDate = Some maturityDate
-        stubPeriodType = None
-        terminationDate = maturityDate
-    -- CREATE_SWAP_PERIODIC_SCHEDULE_END
-    periodicSchedule
-
 -- | Originate an asset swap.
-originateEuropeanOption : Party -> Party -> Text -> Text -> [(Text, Parties)] -> Time -> Date ->
-  [Text] -> Party -> Date -> Date -> Decimal -> DayCountConventionEnum ->
-  BusinessDayConventionEnum -> Decimal -> PeriodEnum -> Int -> InstrumentKey -> Text ->
+originateEuropeanOption : Party -> Party -> Text -> Text -> [(Text, Parties)] -> Time ->
+  Date -> Decimal ->
+  InstrumentKey -> Text ->
   Bool -> Script InstrumentKey
-originateEuropeanOption depository issuer label description observers lastEventTimestamp issueDate
-  holidayCalendarIds calendarDataProvider firstCouponDate maturityDate strike dayCountConvention
-  businessDayConvention fixRate couponPeriod couponPeriodMultiplier currency referenceAssetId
-  ownerReceivesFix = do
-    let
-      periodicSchedule = createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds
-        businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate
+originateEuropeanOption depository issuer label description observers lastEventTimestamp
+  expiryDate strike
+  currency referenceAssetId
+  ownerReceives = do
     -- CREATE_ASSET_SWAP_INSTRUMENT_BEGIN
     cid <- toInterfaceContractId <$> submitMulti [depository, issuer] [] do
       createCmd EuropeanOption.Instrument with
         depository; issuer; id = Id label; version = "0"; description
-        observers = M.fromList observers; lastEventTimestamp; periodicSchedule; holidayCalendarIds
-        calendarDataProvider; dayCountConvention; ownerReceivesFix; strike; referenceAssetId; currency
+        observers = M.fromList observers; lastEventTimestamp
+        ownerReceives; strike; expiryDate
+        referenceAssetId; currency
     -- CREATE_ASSET_SWAP_INSTRUMENT_END
     createReference cid depository issuer observers
 
--- | Lifecycle the instrument as of this date. This is a general function that can be used for both
--- bonds and swaps.
+-- | Lifecycle the instrument as of this date.
 lifecycleInstrument : [Party] -> Date -> InstrumentKey -> Party ->
   [ContractId NumericObservable.I] -> Script (Optional InstrumentKey, [ContractId Effect.I])
 lifecycleInstrument readAs today instrument issuer observableCids = do
-  -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_BEGIN
   -- create clock update event
   clockEventCid <- createClockUpdateEvent (S.singleton issuer) today S.empty
-  -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_END
 
   -- Create a lifecycle rule
   lifecycleRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit issuer do
     createCmd Rule with
       providers = S.singleton issuer
-      observers= M.empty
+      observers = M.empty
       lifecycler = issuer
       id = Id "LifecycleRule"
       description = "Rule to lifecycle a swap instrument"
@@ -99,22 +60,20 @@ lifecycleInstrument readAs today instrument issuer observableCids = do
 
   pure (lifecycleCid, effectCids)
 
--- | Verify a that there are no lifecycle effects of the instrument on this date. This is a general
--- function that can be used for both bonds and swaps.
+-- | Verify a that there are no lifecycle effects of the instrument on this date.
 verifyNoLifecycleEffects : [Party] -> Date -> InstrumentKey -> Party ->
   [ContractId NumericObservable.I] -> Script ()
 verifyNoLifecycleEffects readAs today instrument issuer observableCids = do
-  (bondLifecycleCid2, effectCids) <- lifecycleInstrument readAs today instrument issuer
-    observableCids
+  (_, effectCids) <- lifecycleInstrument readAs today instrument issuer observableCids
   assertMsg ("There should be no lifecycle effects on " <> show today) (null effectCids)
 
--- | Verify the payments from a payment date of a swap (excluding settlement)
-lifecycleAndVerifySwapPaymentEffects : [Party] -> Date -> InstrumentKey -> Party ->
+-- | Verify the lifecycling effects of an option (excluding settlement)
+lifecycleAndVerifyEffects : [Party] -> Date -> InstrumentKey -> Party ->
   [ContractId NumericObservable.I] -> [InstrumentQuantity] -> [InstrumentQuantity] ->
   Script (Optional InstrumentKey)
-lifecycleAndVerifySwapPaymentEffects readAs today swapInstrument issuer
+lifecycleAndVerifyEffects readAs today swapInstrument issuer
   observableCids expectedConsumedQuantities expectedProducedQuantities = do
-    (newSwapInstrumentKey, effectCids) <- lifecycleInstrument readAs today swapInstrument issuer
+    (newInstrumentKey, effectCids) <- lifecycleInstrument readAs today swapInstrument issuer
       observableCids
     let effectCid = head effectCids -- gives a better error message in case there are no effects
 
@@ -133,4 +92,4 @@ lifecycleAndVerifySwapPaymentEffects readAs today swapInstrument issuer
     assertMsg "The produced quantities do not match the expected ones" $
       sort expectedProducedQuantities == sort effectView.otherProduced
 
-    pure newSwapInstrumentKey
+    pure newInstrumentKey
