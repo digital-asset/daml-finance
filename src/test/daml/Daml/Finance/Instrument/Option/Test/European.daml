@@ -14,6 +14,7 @@ import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
 import Daml.Finance.Test.Util.Time (dateToDateClockTime)
 import Daml.Script
+import Daml.Finance.Interface.Instrument.Option.European.Types (OptionTypeEnum(..))
 
 -- Define and lifecycle a European call option, which is automatically exercised and settled in cash
 run : Script ()
@@ -28,7 +29,8 @@ run = script do
 
   -- Create and distribute option
   let
-    strike = 40.0
+    strikeLow = 40.0
+    strikeHigh = 50.0
     expiryDate = date 2019 May 15
     referenceAssetId = "AAPL-CLOSE"
     ownerReceives = True
@@ -40,19 +42,47 @@ run = script do
     createCmd Observation with
       provider = issuer; id = Id referenceAssetId; observations; observers = M.empty
 
-  optionInstrument <- originateEuropeanOption custodian issuer "OptionTest" "Option" observers now
-    expiryDate strike cashInstrumentCid referenceAssetId ownerReceives
+  -- Issue instruments
+  itmCallInstrument <- originateEuropeanOption custodian issuer "ITM Call" "Option" observers now
+    expiryDate Call strikeLow cashInstrumentCid referenceAssetId ownerReceives
+  otmCallInstrument <- originateEuropeanOption custodian issuer "OTM Call" "Option" observers now
+    expiryDate Call strikeHigh cashInstrumentCid referenceAssetId ownerReceives
+  itmPutInstrument <- originateEuropeanOption custodian issuer "ITM Put" "Option" observers now
+    expiryDate Put strikeHigh cashInstrumentCid referenceAssetId ownerReceives
+  otmPutInstrument <- originateEuropeanOption custodian issuer "OTM Put" "Option" observers now
+    expiryDate Put strikeLow cashInstrumentCid referenceAssetId ownerReceives
 
   -- One day before the expiry date: try to lifecycle and verify that there are no lifecycle
   -- effects.
-  verifyNoLifecycleEffects [publicParty] (subtractDays expiryDate 1) optionInstrument issuer
+  verifyNoLifecycleEffects [publicParty] (subtractDays expiryDate 1) itmCallInstrument issuer
     [observableCid]
 
-  -- Expiry date: Lifecycle and verify the lifecycle effects for the option payoff.
+  -- Expiry date: Lifecycle and verify the lifecycle effects for an in-the-money call option.
   let
     expectedConsumedQuantities = []
     expectedProducedQuantities = [qty 8.78 cashInstrumentCid]
   optionInstrumentAfterFirstPayment <- lifecycleAndVerifyEffects [publicParty] expiryDate
-    optionInstrument issuer [observableCid] expectedConsumedQuantities expectedProducedQuantities
+    itmCallInstrument issuer [observableCid] expectedConsumedQuantities expectedProducedQuantities
+
+  -- Expiry date: Lifecycle and verify the lifecycle effects for an out-of-the-money call option.
+  let
+    expectedConsumedQuantities = []
+    expectedProducedQuantities = []
+  optionInstrumentAfterFirstPayment <- lifecycleAndVerifyEffects [publicParty] expiryDate
+    otmCallInstrument issuer [observableCid] expectedConsumedQuantities expectedProducedQuantities
+
+  -- Expiry date: Lifecycle and verify the lifecycle effects for an in-the-money put option.
+  let
+    expectedConsumedQuantities = []
+    expectedProducedQuantities = [qty 1.22 cashInstrumentCid]
+  optionInstrumentAfterFirstPayment <- lifecycleAndVerifyEffects [publicParty] expiryDate
+    itmPutInstrument issuer [observableCid] expectedConsumedQuantities expectedProducedQuantities
+
+  -- Expiry date: Lifecycle and verify the lifecycle effects for an out-of-the-money put option.
+  let
+    expectedConsumedQuantities = []
+    expectedProducedQuantities = []
+  optionInstrumentAfterFirstPayment <- lifecycleAndVerifyEffects [publicParty] expiryDate
+    otmPutInstrument issuer [observableCid] expectedConsumedQuantities expectedProducedQuantities
 
   pure ()
