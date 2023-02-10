@@ -17,23 +17,17 @@ import Daml.Finance.Test.Util.Instrument (createReference)
 import Daml.Finance.Test.Util.Time (createClockUpdateEvent)
 import Daml.Script
 
--- | Originate an asset swap.
+-- | Originate a European option.
 originateEuropeanOption : Party -> Party -> Text -> Text -> [(Text, Parties)] -> Time ->
-  Date -> OptionTypeEnum -> Decimal ->
-  InstrumentKey -> Text ->
-  Bool -> Script InstrumentKey
+  Date -> OptionTypeEnum -> Decimal -> InstrumentKey -> Text -> Bool -> Script InstrumentKey
 originateEuropeanOption depository issuer label description observers lastEventTimestamp
-  expiryDate optionType strike
-  currency referenceAssetId
-  ownerReceives = do
-    -- CREATE_ASSET_SWAP_INSTRUMENT_BEGIN
+  expiryDate optionType strike currency referenceAssetId ownerReceives = do
     cid <- toInterfaceContractId <$> submitMulti [depository, issuer] [] do
       createCmd EuropeanOption.Instrument with
         depository; issuer; id = Id label; version = "0"; description
         observers = M.fromList observers; lastEventTimestamp
         ownerReceives; optionType; strike; expiryDate
         referenceAssetId; currency
-    -- CREATE_ASSET_SWAP_INSTRUMENT_END
     createReference cid depository issuer observers
 
 -- | Lifecycle the instrument as of this date.
@@ -50,7 +44,7 @@ lifecycleInstrument readAs today instrument issuer observableCids = do
       observers = M.empty
       lifecycler = issuer
       id = Id "LifecycleRule"
-      description = "Rule to lifecycle a swap instrument"
+      description = "Rule to lifecycle an option instrument"
 
   -- Try to lifecycle instrument
   (lifecycleCid, effectCids) <- submitMulti [issuer] readAs do
@@ -72,20 +66,15 @@ verifyNoLifecycleEffects readAs today instrument issuer observableCids = do
 lifecycleAndVerifyEffects : [Party] -> Date -> InstrumentKey -> Party ->
   [ContractId NumericObservable.I] -> [InstrumentQuantity] -> [InstrumentQuantity] ->
   Script (Optional InstrumentKey)
-lifecycleAndVerifyEffects readAs today swapInstrument issuer
+lifecycleAndVerifyEffects readAs today optionInstrument issuer
   observableCids expectedConsumedQuantities expectedProducedQuantities = do
-    (newInstrumentKey, effectCids) <- lifecycleInstrument readAs today swapInstrument issuer
+    (newInstrumentKey, effectCids) <- lifecycleInstrument readAs today optionInstrument issuer
       observableCids
     let effectCid = head effectCids -- gives a better error message in case there are no effects
 
     -- Get the effect
     effectView <- submit issuer do
       exerciseCmd effectCid Effect.GetView with viewer = issuer
-
-    debug expectedConsumedQuantities
-    debug effectView.otherConsumed
-    debug expectedProducedQuantities
-    debug effectView.otherProduced
 
     -- Verify that the consumed/produced quantities match the expected ones
     assertMsg "The consumed quantities do not match the expected ones" $
