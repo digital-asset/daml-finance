@@ -77,6 +77,8 @@ Early Access Packages
 
 #### Daml.Finance.Instrument.Equity
 
+- Dependencies update
+
 #### Daml.Finance.Instrument.Generic
 
 - Dependencies update
@@ -134,6 +136,8 @@ Early Access Packages
 #### Daml.Finance.Interface.Instrument.Generic
 
 #### Daml.Finance.Interface.Instrument.Option
+
+- Add package
 
 #### Daml.Finance.Interface.Instrument.Swap
 
