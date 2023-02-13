@@ -22,7 +22,8 @@ To develop the Packell application, open `VS Code` at the root of the Packell pr
 
 ## Usage
 
-As part of nix setup, the `Packell` application is build and installed as a derivative into the nix store and added to the `PATH`. Running the following command will display all the available options :
+As part of nix setup, the `Packell` application is build and installed as a derivative into the nix
+store and added to the `PATH`. Running the following command will display all the available options :
 
 ```
 packell -h
@@ -45,3 +46,24 @@ An example for fish shell on MacOS :
 ```
 packell --fish-completion-script packell > ~/.config/fish/completions/packell.fish
 ```
+
+## Cross compilation
+
+Cross compilation will depend on your host system. For example, with a host using Apple silicon
+(ie., Apple M1), it's only possible to cross compile to Apple with an Intel CPU (ie., `x86_64`).
+
+By default, upon entering this directory `nix` will build `Packell` (if necessary) with the default
+instruction set architecture of the host system.
+
+To cross compile, for example, assuming an Apple M1 host to cross compile to `x86_64` run :
+
+```
+  nix-shell --system x86_64-darwin
+```
+
+To cross compile in the opposite direction, change the system variable in the command above to
+`aarch64-darwin` (untested).
+
+Compilation of the Linux `x86_64` Packell executable is done via the `CI` by the job
+`packell_linux_x86_64` and will be made available as an `artifact` upon successful completion of
+the `CI`. To run this job,simply create a branch beginning with `packell-release`.
