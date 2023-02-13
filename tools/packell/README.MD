@@ -55,7 +55,8 @@ Cross compilation will depend on your host system. For example, with a host usin
 By default, upon entering this directory `nix` will build `Packell` (if necessary) with the default
 instruction set architecture of the host system.
 
-To cross compile, for example, assuming an Apple M1 host to cross compile to `x86_64` run :
+To cross compile, for example, assuming an Apple M1 host cross compiling to Apple with an Intel CPU
+run :
 
 ```
   nix-shell --system x86_64-darwin
