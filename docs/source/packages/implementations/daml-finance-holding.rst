@@ -20,3 +20,14 @@ The :doc:`Asset Model <../../concepts/asset-model>` page explains the relationsh
 instruments, holdings, and accounts. Also, check out the
 :doc:`Transfer tutorial <../../tutorials/getting-started/transfer>` for a description of how to
 create a holding on an instrument and transfer it between accounts.
+
+Release Notes
+*************
+
+.. toctree::
+   :titlesonly:
+   :maxdepth: 1
+
+   Release Notes <release-notes/daml-finance-holding>
+
+
