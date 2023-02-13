@@ -121,7 +121,7 @@ Early Access Packages
 +--------------------------------------------+--------------------+--------+
 | Daml.Finance.Interface.Instrument.Equity   | 0.2.0              | Alpha  |
 +--------------------------------------------+--------------------+--------+
-| Daml.Finance.Interface.Instrument.Option   | 0.2.0              | Alpha  |
+| Daml.Finance.Interface.Instrument.Option   | 0.1.0              | Alpha  |
 +--------------------------------------------+--------------------+--------+
 | Daml.Finance.Interface.Instrument.Swap     | 0.2.0              | Alpha  |
 +--------------------------------------------+--------------------+--------+
