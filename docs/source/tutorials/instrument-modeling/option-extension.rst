@@ -25,19 +25,19 @@ give the holder the right, but not the obligation, to buy (in case of a *call*) 
 of a *put*) the underlying asset at predetermined *strike* price on a specific *expiry* date in the
 future.
 
-As an example, we will create an option instrument that gives the holder the right to buy AAPL stock
+As an example, consider an option instrument that gives the holder the right to buy AAPL stock
 at a given price. This example is taken from
 ``src/test/daml/Daml/Finance/Instrument/Option/Test/European.daml``, where all the details are
 available.
 
-We start by defining the terms:
+You start by defining the terms:
 
 .. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Option/Test/European.daml
   :language: daml
   :start-after: -- CREATE_EUROPEAN_OPTION_VARIABLES_BEGIN
   :end-before: -- CREATE_EUROPEAN_OPTION_VARIABLES_END
 
-Now that we have defined the terms we can create the option instrument:
+Now that the terms have been defined, you can create the option instrument:
 
 .. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Option/Test/Util.daml
   :language: daml
