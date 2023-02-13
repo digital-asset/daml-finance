@@ -71,9 +71,43 @@ Early Access Packages
 
 - Dependencies update
 
+#### Daml.Finance.Instrument.Bond
+
+- Dependencies update
+
+#### Daml.Finance.Instrument.Equity
+
 #### Daml.Finance.Instrument.Generic
 
 - Dependencies update
+
+#### Daml.Finance.Instrument.Option
+
+- Add package
+
+- Add support for cash-settled, auto-exercising European call and put options
+
+#### Daml.Finance.Instrument.Swap
+
+- Implement interest rate compounding (several calculation periods per payment period)
+
+- Support a more generic way of specifying notional step schedules
+
+- Support specification of a payment lag
+
+- Efficient calculation of SOFR-like daily compounded reference rates
+
+- Implement arrears reset
+
+- Implement step-up coupon
+
+- Add support for initial stub period that starts before the issue date of the swap
+
+- Improve handling of principal exchange
+
+- Add support for Term period of a swap leg
+
+- Additional improvements required to make the official FpML trades 1..7 work as expected
 
 #### Daml.Finance.Instrument.Token
 
@@ -91,7 +125,21 @@ Early Access Packages
 
 #### Daml.Finance.Interface.Instrument.Base
 
+#### Daml.Finance.Interface.Instrument.Bond
+
+- Dependencies update
+
+#### Daml.Finance.Interface.Instrument.Equity
+
 #### Daml.Finance.Interface.Instrument.Generic
+
+#### Daml.Finance.Interface.Instrument.Option
+
+#### Daml.Finance.Interface.Instrument.Swap
+
+- Updates to data types related to interest rate compounding and payment lag
+
+- Updates to data types related to Term period
 
 #### Daml.Finance.Interface.Instrument.Token
 
