@@ -12,7 +12,7 @@ Stable Packages
 | Daml.Finance.Account                       | 1.0.0              | 2.0.0          |
 | Daml.Finance.Claims                        | 1.0.0              | 1.0.1          |
 | Daml.Finance.Data                          | 1.0.0              | 2.0.0          |
-| Daml.Finance.Holding                       | 1.0.0              | 2.0.0          |
+| Daml.Finance.Holding                       | 1.0.1              | 2.0.0          |
 | Daml.Finance.Instrument.Generic            | 1.0.0              | 2.0.0          |
 | Daml.Finance.Instrument.Token              | 1.0.0              | 2.0.0          |
 | Daml.Finance.Interface.Account             | 1.0.0              | 2.0.0          |
