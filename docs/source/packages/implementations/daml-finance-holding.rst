@@ -30,4 +30,3 @@ Release Notes
 
    Release Notes <release-notes/daml-finance-holding>
 
-
