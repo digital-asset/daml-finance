@@ -36,17 +36,17 @@ Early Access Packages
 
 | Package                                    | Released version   | Target version |
 |--------------------------------------------|--------------------|----------------|
-| Daml.Finance.Instrument.Bond               | 0.2.0              | 1.0.0          |
-| Daml.Finance.Instrument.Equity             | 0.2.0              | 1.0.0          |
-| Daml.Finance.Instrument.Option             |                    | 1.0.0          |
-| Daml.Finance.Instrument.Swap               | 0.2.0              | 1.0.0          |
-| Daml.Finance.Interface.Instrument.Bond     | 0.2.0              | 1.0.0          |
-| Daml.Finance.Interface.Instrument.Equity   | 0.2.0              | 1.0.0          |
-| Daml.Finance.Interface.Instrument.Option   |                    | 1.0.0          |
-| Daml.Finance.Interface.Instrument.Swap     | 0.2.0              | 1.0.0          |
+| Daml.Finance.Instrument.Bond               | 0.2.0              | 0.3.0          |
+| Daml.Finance.Instrument.Equity             | 0.2.0              | 0.3.0          |
+| Daml.Finance.Instrument.Option             |                    | 0.3.0          |
+| Daml.Finance.Instrument.Swap               | 0.2.0              | 0.3.0          |
+| Daml.Finance.Interface.Instrument.Bond     | 0.2.0              | 0.3.0          |
+| Daml.Finance.Interface.Instrument.Equity   | 0.2.0              | 0.3.0          |
+| Daml.Finance.Interface.Instrument.Option   |                    | 0.3.0          |
+| Daml.Finance.Interface.Instrument.Swap     | 0.2.0              | 0.3.0          |
 
 Experimental
----------------------
+------------
 | Package                                    | Released version   | Target version |
 |--------------------------------------------|--------------------|----------------|
 | ContingentClaims.Valuation                 |                    | 0.2.1          |
