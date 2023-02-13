@@ -23,5 +23,6 @@ This section lists the implementation packages contained within Daml Finance:
    daml-finance-instrument-bond
    daml-finance-instrument-equity
    daml-finance-instrument-generic
+   daml-finance-instrument-option
    daml-finance-instrument-swap
    daml-finance-instrument-token

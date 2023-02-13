@@ -25,5 +25,6 @@ This section lists the interface packages contained within Daml Finance:
    daml-finance-interface-instrument-bond
    daml-finance-interface-instrument-equity
    daml-finance-interface-instrument-generic
+   daml-finance-interface-instrument-option
    daml-finance-interface-instrument-swap
    daml-finance-interface-instrument-token

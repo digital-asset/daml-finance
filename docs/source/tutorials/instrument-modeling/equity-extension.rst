@@ -54,7 +54,7 @@ longer include the dividend):
   :start-after: -- CREATE_EQUITY_INSTRUMENTS_BEGIN
   :end-before: -- CREATE_EQUITY_INSTRUMENTS_END
 
-After the instrument has been created, you can book a holding on it. This is not limited to integer
+Once this is done, you can create a holding on it. This is not limited to integer
 holdings, but fractional holdings are supported as well:
 
 .. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Equity/Test/Dividend.daml

@@ -57,10 +57,10 @@ determines how a coupon date is adjusted if it falls on a non-business day.
 
 We can use these variables to create a :ref:`PeriodicSchedule <constr-daml-finance-interface-types-date-schedule-periodicschedule-99705>`:
 
-.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Bond/Test/Util.daml
+.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Test/Util/Time.daml
   :language: daml
-  :start-after: -- CREATE_BOND_PERIODIC_SCHEDULE_BEGIN
-  :end-before: -- CREATE_BOND_PERIODIC_SCHEDULE_END
+  :start-after: -- CREATE_PERIODIC_SCHEDULE_BEGIN
+  :end-before: -- CREATE_PERIODIC_SCHEDULE_END
 
 This is used to determine the periods that are used to calculate the coupon. There are a few things
 to note here:
@@ -82,7 +82,7 @@ Now that we have defined the terms we can create the bond instrument:
   :start-after: -- CREATE_FIXED_RATE_BOND_INSTRUMENT_BEGIN
   :end-before: -- CREATE_FIXED_RATE_BOND_INSTRUMENT_END
 
-Once the instrument is created, you can book a holding on it using
+Once this is done, you can create a holding on it using
 :ref:`Account.credit <module-daml-finance-interface-account-account-92922>`.
 
 Floating Rate

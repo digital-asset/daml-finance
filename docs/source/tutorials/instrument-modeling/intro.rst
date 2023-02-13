@@ -9,6 +9,7 @@ Instrument Modeling
 
    bond-extension
    equity-extension
+   option-extension
    swap-extension
    generic-extension
    intermediated-lifecycling
@@ -26,6 +27,8 @@ The following tutorials are available:
   lifecycle events like dividends, stock splits and mergers.
 * The :doc:`Swap Extension <swap-extension>` tutorial describes how to use the different types of
   swaps in Daml Finance.
+* The :doc:`Option Extension <option-extension>` tutorial describes the different types of option
+  instruments in Daml Finance.
 * The :doc:`Generic Extension <generic-extension>` tutorial shows you how to define your own generic
   instrument.
 * The :doc:`Intermediated Lifecycling <intermediated-lifecycling>` tutorial demonstrates how to

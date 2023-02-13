@@ -57,10 +57,10 @@ the holding owner receives the floating leg.
 Just as for bonds, we can use these variables to create a
 :ref:`PeriodicSchedule <constr-daml-finance-interface-types-date-schedule-periodicschedule-99705>`:
 
-.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Swap/Test/Util.daml
+.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Test/Util/Time.daml
   :language: daml
-  :start-after: -- CREATE_SWAP_PERIODIC_SCHEDULE_BEGIN
-  :end-before: -- CREATE_SWAP_PERIODIC_SCHEDULE_END
+  :start-after: -- CREATE_PERIODIC_SCHEDULE_BEGIN
+  :end-before: -- CREATE_PERIODIC_SCHEDULE_END
 
 Note that this instrument only has one periodic schedule, which is used for both the fixed and the
 floating leg.
@@ -78,7 +78,7 @@ Now that we have defined the terms we can create the swap instrument:
   :start-after: -- CREATE_INTEREST_RATE_SWAP_INSTRUMENT_BEGIN
   :end-before: -- CREATE_INTEREST_RATE_SWAP_INSTRUMENT_END
 
-Once the instrument is created, you can book a holding on it using
+Once this is done, you can create a holding on it using
 :ref:`Account.credit <module-daml-finance-interface-account-account-92922>`.
 The owner of the holding receives the floating leg (and pays the fix leg).
 
@@ -240,7 +240,7 @@ Finally, we create the asset swap instrument:
   :start-after: -- CREATE_ASSET_SWAP_INSTRUMENT_BEGIN
   :end-before: -- CREATE_ASSET_SWAP_INSTRUMENT_END
 
-Once the instrument is created, you can book a holding on it.
+Once this is done, you can create a holding on it.
 The owner of the holding receives the asset leg (and pays the fix leg).
 
 .. _fpml-swaps-tutorial-section:
@@ -310,7 +310,7 @@ Finally, we create the FpML swap instrument:
   :start-after: -- CREATE_FPML_SWAP_INSTRUMENT_BEGIN
   :end-before: -- CREATE_FPML_SWAP_INSTRUMENT_END
 
-Once the instrument is created, you can book a holding on it. In this particular example trade, the
+Once this is done, you can create a holding on it. In this particular example trade, the
 notional is specified in the FpML instrument. This means that you would only book a unit holding
 (quantity=1.0) on the instrument.
 
