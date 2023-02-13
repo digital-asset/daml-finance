@@ -8,7 +8,7 @@
 -- (user-provided) conversion function.
 module Daml.Finance.Claims.Util.Builders where
 
-import ContingentClaims.Core.Claim (Claim(..), Inequality(..), and, give, one, scale, upTo, when, until)
+import ContingentClaims.Core.Claim (Claim(..), Inequality(..), and, cond, give, one, scale, upTo, when, until, zero)
 import ContingentClaims.Core.Observation (Observation(..))
 import Daml.Finance.Claims.Util (toTime)
 import Daml.Finance.Interface.Claims.Types (Deliverable, Observable, TaggedClaim(..))
@@ -175,3 +175,20 @@ scaleByAssetPerformance startDate endDate asset claim =
       claim
     correctionClaim =
       give $ claim
+
+-- | Create the claim for a cash settled, automatically exercised option.
+createOptionsClaim : (Date -> Time) -> Bool -> Decimal -> Observable -> Deliverable -> Date -> Bool
+  -> TaggedClaim
+createOptionsClaim dateToTime ownerReceives strike spot cashInstrumentCid expiryDate call =
+  let
+    intrinsicValue = if call then Observe spot - Const strike
+                             else Const strike - Observe spot
+    exercised = scale intrinsicValue $ one cashInstrumentCid
+    notExercised = zero
+    autoExerciseCondition = if call then Lte (Const strike, Observe spot)
+                                    else Lte (Observe spot, Const strike)
+    claimAmount = when (TimeGte expiryDate) $
+                  cond autoExerciseCondition exercised notExercised
+    claim = if ownerReceives then claimAmount else give claimAmount
+  in
+    prepareAndTagClaims dateToTime [claim] "Option payment"
