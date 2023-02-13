@@ -2,6 +2,9 @@
 
 This document tracks pending changes to packages. It is facilitating the write-up of release notes.
 
+Stable Packages
+---------------
+
 | Package                                    | Released version   | Target version |
 |--------------------------------------------|--------------------|----------------|
 | ContingentClaims.Core                      | 1.0.0              | 1.0.0          |
@@ -27,6 +30,20 @@ This document tracks pending changes to packages. It is facilitating the write-u
 | Daml.Finance.Lifecycle                     | 1.0.0              | 1.0.1          |
 | Daml.Finance.Settlement                    | 1.0.0              | 1.0.1          |
 | Daml.Finance.Util                          | 1.0.0              | 2.0.0          |
+
+Early Access Packages
+---------------------
+
+| Package                                    | Released version   | Target version |
+|--------------------------------------------|--------------------|----------------|
+| Daml.Finance.Instrument.Bond               | 0.2.0              | 0.2.1          |
+| Daml.Finance.Instrument.Equity             | 0.2.0              | 0.2.1          |
+| Daml.Finance.Instrument.Option             |                    | 0.1.0          |
+| Daml.Finance.Instrument.Swap               | 0.2.0              | 0.2.1          |
+| Daml.Finance.Interface.Instrument.Bond     | 0.2.0              | 0.2.1          |
+| Daml.Finance.Interface.Instrument.Equity   | 0.2.0              | 0.2.0          |
+| Daml.Finance.Interface.Instrument.Option   |                    | 0.1.0          |
+| Daml.Finance.Interface.Instrument.Swap     | 0.2.0              | 0.2.1          |
 
 ## Pending changes
 
