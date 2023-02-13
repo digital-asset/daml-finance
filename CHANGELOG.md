@@ -45,6 +45,12 @@ Early Access Packages
 | Daml.Finance.Interface.Instrument.Option   |                    | 1.0.0          |
 | Daml.Finance.Interface.Instrument.Swap     | 0.2.0              | 1.0.0          |
 
+Experimental
+---------------------
+| Package                                    | Released version   | Target version |
+|--------------------------------------------|--------------------|----------------|
+| ContingentClaims.Valuation                 |                    | 0.2.1          |
+
 ## Pending changes
 
 #### ContingentClaims.Core
