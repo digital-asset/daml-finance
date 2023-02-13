@@ -57,10 +57,10 @@ the holding owner receives the floating leg.
 Just as for bonds, we can use these variables to create a
 :ref:`PeriodicSchedule <constr-daml-finance-interface-types-date-schedule-periodicschedule-99705>`:
 
-.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Instrument/Swap/Test/Util.daml
+.. literalinclude:: ../../../../src/test/daml/Daml/Finance/Test/Util/Time.daml
   :language: daml
-  :start-after: -- CREATE_SWAP_PERIODIC_SCHEDULE_BEGIN
-  :end-before: -- CREATE_SWAP_PERIODIC_SCHEDULE_END
+  :start-after: -- CREATE_PERIODIC_SCHEDULE_BEGIN
+  :end-before: -- CREATE_PERIODIC_SCHEDULE_END
 
 Note that this instrument only has one periodic schedule, which is used for both the fixed and the
 floating leg.
