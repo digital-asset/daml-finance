@@ -44,7 +44,7 @@ Now that we have defined the terms we can create the option instrument:
   :start-after: -- CREATE_EUROPEAN_OPTION_INSTRUMENT_BEGIN
   :end-before: -- CREATE_EUROPEAN_OPTION_INSTRUMENT_END
 
-Once the instrument is created, you can book a holding on it using
+Once this is done, you can create a holding on it using
 :ref:`Account.credit <module-daml-finance-interface-account-account-92922>`.
 
 If the close price of AAPL on the expiry date is above the *strike* price, the option holder would
