@@ -36,6 +36,7 @@ Early Access Packages
 
 | Package                                    | Released version   | Target version |
 |--------------------------------------------|--------------------|----------------|
+| ContingentClaims.Valuation                 |                    | 0.2.0          |
 | Daml.Finance.Instrument.Bond               | 0.2.0              | 0.2.1          |
 | Daml.Finance.Instrument.Equity             | 0.2.0              | 0.2.1          |
 | Daml.Finance.Instrument.Option             |                    | 0.1.0          |
@@ -45,18 +46,13 @@ Early Access Packages
 | Daml.Finance.Interface.Instrument.Option   |                    | 0.1.0          |
 | Daml.Finance.Interface.Instrument.Swap     | 0.2.0              | 0.2.1          |
 
-Experimental Packages
----------------------
-
-| Package                                    | Released version   | Target version |
-|--------------------------------------------|--------------------|----------------|
-| ContingentClaims.Valuation                 |                    | 0.2.0          |
-
 ## Pending changes
 
 #### ContingentClaims.Core
 
 #### ContingentClaims.Lifecycle
+
+#### ContingentClaims.Valuation
 
 #### Daml.Finance.Account
 
