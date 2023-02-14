@@ -12,7 +12,7 @@ Stable Packages
 | Daml.Finance.Account                       | 1.0.0              | 1.0.1          |
 | Daml.Finance.Claims                        | 1.0.0              | 1.0.1          |
 | Daml.Finance.Data                          | 1.0.0              | 1.0.1          |
-| Daml.Finance.Holding                       | 1.0.0              | 1.0.1          |
+| Daml.Finance.Holding                       | 1.0.1              | 1.0.2          |
 | Daml.Finance.Instrument.Generic            | 1.0.0              | 1.0.1          |
 | Daml.Finance.Instrument.Token              | 1.0.0              | 1.0.1          |
 | Daml.Finance.Interface.Account             | 1.0.0              | 1.0.0          |
@@ -28,7 +28,7 @@ Stable Packages
 | Daml.Finance.Interface.Types.Date          | 1.0.0              | 2.0.0          |
 | Daml.Finance.Interface.Util                | 1.0.0              | 1.0.0          |
 | Daml.Finance.Lifecycle                     | 1.0.0              | 1.0.1          |
-| Daml.Finance.Settlement                    | 1.0.0              | 1.0.1          |
+| Daml.Finance.Settlement                    | 1.0.1              | 1.0.2          |
 | Daml.Finance.Util                          | 1.0.0              | 2.0.0          |
 
 Early Access Packages
@@ -36,6 +36,7 @@ Early Access Packages
 
 | Package                                    | Released version   | Target version |
 |--------------------------------------------|--------------------|----------------|
+| ContingentClaims.Valuation                 |                    | 0.2.0          |
 | Daml.Finance.Instrument.Bond               | 0.2.0              | 0.2.1          |
 | Daml.Finance.Instrument.Equity             | 0.2.0              | 0.2.1          |
 | Daml.Finance.Instrument.Option             |                    | 0.1.0          |
@@ -51,6 +52,8 @@ Early Access Packages
 
 #### ContingentClaims.Lifecycle
 
+#### ContingentClaims.Valuation
+
 #### Daml.Finance.Account
 
 - Dependencies update
@@ -64,10 +67,6 @@ Early Access Packages
 - Dependencies update
 
 #### Daml.Finance.Holding
-
-- Fix bug in the implementation of `Fungible.Merge`
-
-- Improve error message when acquiring a lock
 
 - Dependencies update
 
@@ -168,8 +167,6 @@ Early Access Packages
 - Dependencies update
 
 #### Daml.Finance.Settlement
-
-- Additional sanity checks added to `Instruction`
 
 - Dependencies update
 
