@@ -25,11 +25,11 @@ process and explains the relationship between ``Instruction`` and ``Batch``. Als
 :doc:`Settlement tutorial <../../tutorials/getting-started/settlement>` for a description on how to
 implement the settlement workflow in practice.
 
-Release Notes
-*************
+Changelog
+*********
 
 .. toctree::
    :titlesonly:
    :maxdepth: 1
 
-   Release Notes <release-notes/daml-finance-settlement>
+   Changelog <changelogs/daml-finance-settlement>
