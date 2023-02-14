@@ -9,6 +9,7 @@ pkgs.mkShell {
   buildInputs = [
     hls
     packell
+    pkgs.file
     pkgs.binutils
     pkgs.ghc
     pkgs.haskellPackages.cabal-install
