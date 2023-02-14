@@ -12,6 +12,7 @@ in
     name = "packell";
     version = "$version";
     src = tarball;
+    nativeBuildInputs = [ pkgs.autoPatchelfHook ];
     baseInputs = [ pkgs.binutils ];
     installPhase = ''
       mkdir -p $out/bin
