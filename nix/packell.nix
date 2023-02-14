@@ -8,8 +8,8 @@ let
     url = "https://github.com/digital-asset/daml-finance/releases/download/packell/${version}/packell-${platform}.tar.gz";
   };
   nativeBuildInputs = if stdenv.isLinux then [ pkgs.autoPatchelfHook ] else [ ];
-  buildInputs = if stdenv.isLinux then [ pkgs.glibc pkgs.gmp pkgs.libffi] else [ ];
-  # pkgs.lib.makeLibraryPath [ pkgs.libffi pkgs.gmp pkgs.glibc ]
+  # buildInputs = if stdenv.isLinux then [ pkgs.glibc pkgs.gmp pkgs.libffi] else [ ];
+  buildInputs = if stdenv.isLinux then [  pkgs.gmp pkgs.libffi ] else [ ];
 in
   stdenv.mkDerivation {
     name = "packell";
@@ -23,6 +23,3 @@ in
       cp packell $out/bin
     '';
   }
-
-# To run manually, start with this
-# patchelf --set-interpreter "$(cat $NIX_CC/nix-support/dynamic-linker)" packell
