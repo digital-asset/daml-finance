@@ -1,3 +1,12 @@
+# For the Linux version of Packell, the generated executable is 'Dynamically Linked' meaning the
+# interpreter and path of the executable is linked to libraries available on the build system at
+# build time. To fix this, we can use `autoPatchelfHook` from nix to automatically set the
+# interpreter and the 'rpath' of required libraries via 'buildInputs'.
+# Note - the Apple compiled Packell builds with everything necessary to run the executable.
+#
+# See - https://nixos.wiki/wiki/Packaging/Binaries
+#     - https://unix.stackexchange.com/questions/522822/different-methods-to-run-a-non-nixos-executable-on-nixos
+
 { pkgs, stdenv, version }:
 let
   platform =
@@ -7,16 +16,13 @@ let
   tarball = fetchTarball {
     url = "https://github.com/digital-asset/daml-finance/releases/download/packell/${version}/packell-${platform}.tar.gz";
   };
-  nativeBuildInputs = if stdenv.isLinux then [ pkgs.autoPatchelfHook ] else [ ];
-  # buildInputs = if stdenv.isLinux then [ pkgs.glibc pkgs.gmp pkgs.libffi] else [ ];
-  buildInputs = if stdenv.isLinux then [  pkgs.gmp pkgs.libffi ] else [ ];
 in
   stdenv.mkDerivation {
     name = "packell";
     version = "$version";
     src = tarball;
-    nativeBuildInputs = nativeBuildInputs;
-    buildInputs = buildInputs;
+    nativeBuildInputs = if stdenv.isLinux then [ pkgs.autoPatchelfHook ] else [ ];
+    buildInputs = if stdenv.isLinux then [  pkgs.gmp pkgs.libffi ] else [ ];
     baseInputs = [ pkgs.binutils ];
     installPhase = ''
       mkdir -p $out/bin
