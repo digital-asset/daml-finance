@@ -9,7 +9,7 @@ let
   pkgsGhc = import sources.nixpkgs-ghc8107 {};
   daml = import ./nix/daml.nix;
   docs = import ./nix/docs.nix;
-  packell = import ./tools/packell/default.nix;
+  packell = import ./nix/packell.nix;
   damlYaml = builtins.fromJSON (builtins.readFile (pkgs.runCommand "daml.yaml.json" { yamlFile = ./daml.yaml; } ''
                 ${pkgs.yj}/bin/yj < "$yamlFile" > $out
               ''));
@@ -20,6 +20,7 @@ pkgs.mkShell {
     (daml { stdenv = pkgs.stdenv;
             jdk = pkgs.openjdk11_headless;
             version = damlYaml.sdk-version; })
+    (packell { pkgs = pkgs; stdenv = pkgs.stdenv; version = "0.0.1"; })
     pkgs.bash
     pkgs.binutils # cp, grep, etc.
     pkgs.cacert
@@ -32,6 +33,5 @@ pkgs.mkShell {
     pkgs.openssh
     pkgs.yq-go]
     ++ (docs { pkgs = pkgs; })
-    ++ (packell { pkgs = pkgsGhc; })
   ;
 }
