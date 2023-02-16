@@ -24,3 +24,12 @@ The :doc:`Settlement <../../concepts/settlement>` page contains an overview of t
 process and explains the relationship between ``Instruction`` and ``Batch``. Also, check out the
 :doc:`Settlement tutorial <../../tutorials/getting-started/settlement>` for a description on how to
 implement the settlement workflow in practice.
+
+Changelog
+*********
+
+.. toctree::
+   :titlesonly:
+   :maxdepth: 1
+
+   Changelog <changelogs/daml-finance-settlement>
