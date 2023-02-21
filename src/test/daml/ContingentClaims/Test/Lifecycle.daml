@@ -111,15 +111,15 @@ testAcquire = script do
   res === when (TimeGte t0) (when (TimeGte t1) (acquired a))
 
   -- Or
-  res <- g (one a `or` one b) t0 t0
-  res === acquired a `or` acquired b
+  res <- g (("a", one a) `or` ("b", one b)) t0 t0
+  res === ("a", acquired a) `or` ("b", acquired b)
 
   -- Anytime
-  res <- g (anytime true (one a)) t0 t0
-  res === anytime true (acquired a)
+  res <- g (anytime true "a" (one a)) t0 t0
+  res === anytime true "a" (acquired a)
 
-  res <- g (anytime false (one a)) t0 t0
-  res === anytime false (one a)
+  res <- g (anytime false "a" (one a)) t0 t0
+  res === anytime false "a" (one a)
 
   -- Until
   res <- g (until false (one a)) t0 t0
@@ -153,11 +153,11 @@ testExpire = script do
   res === cond (at t1) (one a) zero
 
   -- 3. contract acquired after exercise window has ended is worthless
-  res <- g (anytime (TimeLte t0) (one a)) t1 t1
+  res <- g (anytime (TimeLte t0) "a" (one a)) t1 t1
   res === zero
 
   -- 3. contract lifecycled after exercise window has ended is worthless
-  res <- g (anytime (TimeLte t0) (one a)) t0 t1
+  res <- g (anytime (TimeLte t0) "a" (one a)) t0 t1
   res === zero
 
   -- 4. sub-trees of `Until` where the predicate is `True` are worthless
@@ -229,8 +229,8 @@ testSettle = script do
   remaining === when false zero
   pending === [Lifecycle.Pending t0 1.0 a]
 
-  Lifecycle.Result{pending, remaining} <- f (t0, anytime true (one a))
-  remaining === anytime true (one a)
+  Lifecycle.Result{pending, remaining} <- f (t0, anytime true "a" (one a))
+  remaining === anytime true "a" (one a)
   pending === []
 
   -- There is no need to test what happens with `Cond` nodes, because lifecycle' is always used in
@@ -248,38 +248,45 @@ testExercise = script do
     coalg election t0 = (Lifecycle.exercise' election t0) . process
     f election = apo (coalg election t0) . (True, )
 
-  let rem = f (True, one a) (t0, one a `or` one b)
+  -- Or
+
+  let c1 = ("a", one a) `or` ("b", one b)
+
+  let rem = f (True, "a") (t0, c1)
   rem === (one a : C)
 
-  let rem = f (True, one b) (t0, one a `or` one b)
+  let rem = f (True, "b") (t0, c1)
   rem === one b
 
-  let rem = f (True, one c) (t0, one a `or` one b)
-  rem === one a `or` one b
-
-  let rem = f (True, one a) (t0, anytime true $ one a)
-  rem === When (TimeGte t0) (one a)
-
-  -- n.b. conditions are handled by the `Lifecyle.acquire'` function, so in practice we should never
-  -- hit this case
-  let rem = f (True, one a) (t0, anytime false $ one a)
-  rem === When (TimeGte t0) (one a)
-
-  let rem = f (True, one c) (t0, anytime true $ one a)
-  rem === anytime true (one a)
-
-  -- nested choice: the outer one must be exercised before the inner!
-  let rem = f (True, one a) (t0, anytime true $ anytime true $ one a)
-  rem === (anytime true (anytime true (one a)))
+  let rem = f (True, "c") (t0, c1)
+  rem === c1
 
   -- wrong `Or` election date
-  let rem = apo (coalg (True, one a) t1) . (True, ) . (t0, ) $ one a `or` one b
-  rem === one a `or` one b
+  let rem = apo (coalg (True, "a") t1) . (True, ) . (t0, ) $ c1
+  rem === c1
+
+  -- Anytime
+  let c2 = anytime true "a" $ one a
+
+  let rem = f (True, "a") (t0, c2)
+  rem === When (TimeGte t0) (one a)
+
+  -- below conditions are handled by the `Lifecyle.acquire'` function, so in practice we should never
+  -- hit this case
+  let rem = f (True, "a") (t0, anytime false "a" $ one a)
+  rem === When (TimeGte t0) (one a)
+
+  let rem = f (True, "b") (t0, c2)
+  rem === c2
+
+  -- nested choice: the outer one must be exercised before the inner!
+  let rem = f (True, "a") (t0, anytime true "Outer tag" $ c2)
+  rem === (anytime true "Outer tag" c2)
 
   -- wrong `Anytime` election date
   -- This case should never happen in practice as it is prevented by acquire'
-  let rem = apo (coalg (True, one a) t1) . (True, ) . (t0, ) $ anytime true (one a)
-  rem === anytime true (one a)
+  let rem = apo (coalg (True, "a") t1) . (True, ) . (t0, ) $ c2
+  rem === c2
 
 testgiveExercise : Script ()
 testgiveExercise = script do
@@ -290,17 +297,18 @@ testgiveExercise = script do
         acquired (t,c) = Right . (t, ) <$> project c -- map a claim to an acquired claim
 
   let
-    rem = f (False, one a) (t0, anytime true (one a))
-    expected : C = anytime true (one a)
+    c = anytime true "a" $ one a
+    rem = f (False, "a") (t0, c)
+    expected : C = c
   rem === expected
 
   let
-    rem = f (False, one a) (t0, give (anytime true (one a)))
+    rem = f (False, "a") (t0, give c)
     expected : C = give (When (TimeGte t0) (one a))
   rem === expected
 
   let
-    rem = f (True, one a) (t0, give . give . anytime true $ one a)
+    rem = f (True, "a") (t0, give . give $ c)
     expected : C = give (give (When (TimeGte t0) (one a)))
   rem === expected
 
@@ -351,7 +359,7 @@ testEuropeanCall = script do
   t <- getDate
 
   -- Exercise is a no-op
-  remaining <- Lifecycle.exercise observe25 (bearer, zero) option t0 t
+  remaining <- Lifecycle.exercise observe25 (bearer, "EXERCISE") option t0 t
   remaining === option
 
   -- and so is settlement
@@ -363,7 +371,7 @@ testEuropeanCall = script do
   setDate t1
   t <- getDate
 
-  remaining <- Lifecycle.exercise observe25 (bearer, payoff) option t0 t
+  remaining <- Lifecycle.exercise observe25 (bearer, "EXERCISE") option t0 t
   remaining === when (at t1) payoff
 
   Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t0 t
@@ -388,7 +396,7 @@ testAmericanPut = script do
   remaining === option
   pending === []
 
-  remaining <- Lifecycle.exercise observe25 (bearer, payoff) remaining t0 t
+  remaining <- Lifecycle.exercise observe25 (bearer, "EXERCISE") remaining t0 t
   remaining === option -- not in acquisition range yet
 
   -- Scenario 2) in acquisition range
@@ -401,7 +409,7 @@ testAmericanPut = script do
   pending === []
 
   -- Exercise `anytime`
-  remaining <- Lifecycle.exercise observe25 (bearer, payoff) option t0 t
+  remaining <- Lifecycle.exercise observe25 (bearer, "EXERCISE") option t0 t
   remaining === when (TimeGte t1) (when (TimeGte t1) payoff)
 
   Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t0 t
@@ -418,7 +426,7 @@ testAmericanPut = script do
   pending === []
 
   -- Exercise `anytime`
-  remaining <- Lifecycle.exercise observe25 (bearer, payoff) option t0 t
+  remaining <- Lifecycle.exercise observe25 (bearer, "EXERCISE") option t0 t
   remaining === when (TimeGte t1) (when (TimeGte t2) payoff)
 
   -- Claim payment
@@ -430,7 +438,7 @@ testAmericanPut = script do
   setDate $ succ t2
   t <- getDate
 
-  remaining <- Lifecycle.exercise observe25 (bearer, payoff) option t0 t
+  remaining <- Lifecycle.exercise observe25 (bearer, "EXERCISE") option t0 t
   remaining === option -- past maturity; no exercise possible
 
   Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 option t0 t
