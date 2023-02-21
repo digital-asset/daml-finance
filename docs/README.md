@@ -98,7 +98,7 @@ In order to update it, you need to
 In order to publish to the main documentation website at [docs.daml.com](http://docs.daml.com), we
 need to execute the following steps:
 
-1. Update the `version` in [daml.yaml](daml.yaml). Merge this new version into main.
+1. Update the `version` in [daml.yaml](../daml.yaml). Merge this new version into main.
 2. Create a branch beginning with `assembly` or `Assembly`. This must be an
    empty branch without any commits in it. Otherwise, the assembly tag will be incorrect.
    You can create a remote branch in the
