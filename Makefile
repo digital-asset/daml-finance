@@ -106,12 +106,6 @@ ci-validate:
 		--pure \
 		--run './$(SCRIPTS_DIR)/validate-packages.sh'
 
-.PHONY: ci-docs
-ci-docs: $(DAML_SDK_ROOT)
-	@nix-shell \
-		--pure \
-		--run 'pipenv run make doc-html'
-
 .PHONY: ci-headers-check
 ci-headers-check:
 	@nix-shell \
@@ -137,7 +131,7 @@ ci-data-dependencies:
 		--run 'export LANG=C.UTF-8; packell data-dependencies validate'
 
 .PHONY: ci-local
-ci-local: clean-all ci-headers-check ci-versioning ci-data-dependencies ci-build ci-validate ci-build-java ci-build-js ci-test ci-docs
+ci-local: clean-all ci-headers-check ci-versioning ci-data-dependencies ci-build ci-validate ci-build-java ci-build-js ci-test
 
 #########
 # Cache #
@@ -188,24 +182,3 @@ doc-code: doc-code-json
 		--base-url=https://docs.daml.com/daml/daml-finance \
 		--input-anchor=$(DAML_ROOT)/sdk/$(SDK_VERSION)/damlc/resources/daml-base-anchors.json \
 		docs/build/daml-finance.json
-
-# Build doc theme
-.PHONY: doc-theme
-doc-theme:
-	cd docs/sphinx && ./build-doc-theme.sh
-
-# You can set these variables from the command line, and also
-# from the environment for the first two.
-SPHINXOPTS  ?= -c "$(CONFDIR)" -W
-SPHINXBUILD ?= sphinx-build
-SOURCEDIR   = docs/source
-BUILDDIR    = docs/build
-CONFDIR     = docs/sphinx
-
-.PHONY: doc-html
-doc-html: doc-theme doc-code
-	$(SPHINXBUILD) -M html "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
-
-.PHONY: doc-clean
-doc-clean: Makefile
-	$(SPHINXBUILD) -M clean "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
