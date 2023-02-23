@@ -19,3 +19,12 @@ are defined in the following modules:
   Various functions related to lists and maps, which are commonly used in several packages
 - :ref:`Disclosure <module-daml-finance-util-disclosure-73352>`:
   Utility functions related to disclosure, e.g., to add or remove observers
+
+Changelog
+*********
+
+.. toctree::
+   :titlesonly:
+   :maxdepth: 1
+
+   Changelog <changelogs/daml-finance-util>

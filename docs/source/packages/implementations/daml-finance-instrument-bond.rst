@@ -30,3 +30,12 @@ for a description of how to use the bond extension in practice. There is also th
 :doc:`How to implement a Contingent Claims-based instrument <../../tutorials/instrument-modeling/contingent-claims-instrument>`,
 which describes how the claims are defined and how the lifecycle interface is implemented for
 bonds.
+
+Changelog
+*********
+
+.. toctree::
+   :titlesonly:
+   :maxdepth: 1
+
+   Changelog <changelogs/daml-finance-instrument-bond>
