@@ -11,3 +11,12 @@ This package contains the *implementation* of accounts. It has the following mod
   provides an implementation of a factory from which you can create and remove accounts. Upon
   creation of an account, it allows you to specify controlling parties for incoming / outgoing
   transfers.
+
+Changelog
+*********
+
+.. toctree::
+   :titlesonly:
+   :maxdepth: 1
+
+   Changelog <changelogs/daml-finance-account>

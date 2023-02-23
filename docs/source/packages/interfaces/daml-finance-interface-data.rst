@@ -17,3 +17,12 @@ in the context of lifecycling. It contains the following modules:
   Interface for contracts storing holiday calendar data on the ledger
 - :ref:`Reference.Time <module-daml-finance-interface-data-reference-time-54882>`:
   Interface for contracts that control business time, providing choices to advance or rewind time
+
+Changelog
+*********
+
+.. toctree::
+   :titlesonly:
+   :maxdepth: 1
+
+   Changelog <changelogs/daml-finance-interface-data>

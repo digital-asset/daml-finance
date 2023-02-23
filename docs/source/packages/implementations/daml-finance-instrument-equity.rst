@@ -18,3 +18,12 @@ For a detailed explanation of the equity extension, check out the
 ``src/test/daml/Daml/Finance/Instrument/Equity/Test`` folder. It demonstrates how to originate
 an equity instrument, how to create and lifecycle a cash dividend, and how to handle corporate
 actions like mergers and stock splits.
+
+Changelog
+*********
+
+.. toctree::
+   :titlesonly:
+   :maxdepth: 1
+
+   Changelog <changelogs/daml-finance-instrument-equity>

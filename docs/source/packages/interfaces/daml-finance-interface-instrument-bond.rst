@@ -31,3 +31,12 @@ modules:
   Factory interface to instantiate zero-coupon bond instruments
 - :ref:`ZeroCoupon.Types <module-daml-finance-interface-instrument-bond-zerocoupon-types-74248>`:
   Common types used across zero-coupon bond instruments
+
+Changelog
+*********
+
+.. toctree::
+   :titlesonly:
+   :maxdepth: 1
+
+   Changelog <changelogs/daml-finance-interface-instrument-bond>

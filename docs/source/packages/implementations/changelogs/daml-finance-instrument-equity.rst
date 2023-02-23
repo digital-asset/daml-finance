@@ -1,15 +1,10 @@
 .. Copyright (c) 2023 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-Daml.Finance.Settlement - Changelog
-###################################
+Daml.Finance.Instrument.Equity - Changelog
+##########################################
 
-Version 1.0.2
+Version 0.2.1
 *************
 
 - Dependencies update
-
-Version 1.0.1
-*************
-
-- Additional sanity checks added to `Instruction`

@@ -17,3 +17,12 @@ contingent-claim-based instruments. It includes the following modules:
   Defines different types of events and how to lifecycle them
 - :ref:`Util.Builders <module-daml-finance-claims-util-builders-48637>`:
   Utility functions related to creating Contingent Claims, e.g. for bonds/swaps
+
+Changelog
+*********
+
+.. toctree::
+   :titlesonly:
+   :maxdepth: 1
+
+   Changelog <changelogs/daml-finance-claims>
