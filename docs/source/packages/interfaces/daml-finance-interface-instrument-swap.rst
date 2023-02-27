@@ -45,3 +45,12 @@ following modules:
   Factory interface to instantiate interest rate swaps
 - :ref:`InterestRate.Types <module-daml-finance-interface-instrument-swap-interestrate-types-72064>`:
   Type definitions to support interest rate swaps
+
+Changelog
+*********
+
+.. toctree::
+   :titlesonly:
+   :maxdepth: 1
+
+   Changelog <changelogs/daml-finance-interface-instrument-swap>

@@ -20,3 +20,12 @@ in the following modules:
 The tutorial :doc:`How To Model and Lifecycle Generic Instruments <../../tutorials/instrument-modeling/generic-extension>`
 describes how a :doc:`Contingent Claims <../../concepts/contingent-claims>` payoff is defined and
 lifecycled in practice.
+
+Changelog
+*********
+
+.. toctree::
+   :titlesonly:
+   :maxdepth: 1
+
+   Changelog <changelogs/daml-finance-instrument-generic>

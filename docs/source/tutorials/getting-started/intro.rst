@@ -35,7 +35,7 @@ On Windows-based systems execute:
 
    daml new quickstart-finance --template=quickstart-finance
    cd quickstart-finance
-   ./get-dependencies.bat
+   get-dependencies.bat
    daml studio
 
 Reference App

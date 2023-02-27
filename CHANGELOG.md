@@ -17,7 +17,7 @@ Stable Packages
 | Daml.Finance.Instrument.Token              | 1.0.0              | 1.0.1          |
 | Daml.Finance.Interface.Account             | 1.0.0              | 1.0.0          |
 | Daml.Finance.Interface.Claims              | 1.0.0              | 1.0.0          |
-| Daml.Finance.Interface.Data                | 1.0.0              | 1.0.1          |
+| Daml.Finance.Interface.Data                | 1.0.0              | 2.0.0          |
 | Daml.Finance.Interface.Holding             | 1.0.0              | 1.0.0          |
 | Daml.Finance.Interface.Instrument.Base     | 1.0.0              | 1.0.0          |
 | Daml.Finance.Interface.Instrument.Generic  | 1.0.0              | 1.0.0          |
@@ -36,7 +36,7 @@ Early Access Packages
 
 | Package                                    | Released version   | Target version |
 |--------------------------------------------|--------------------|----------------|
-| ContingentClaims.Valuation                 |                    | 0.2.0          |
+| ContingentClaims.Valuation                 | 0.2.0              | 0.2.0          |
 | Daml.Finance.Instrument.Bond               | 0.2.0              | 0.2.1          |
 | Daml.Finance.Instrument.Equity             | 0.2.0              | 0.2.1          |
 | Daml.Finance.Instrument.Option             |                    | 0.1.0          |
@@ -63,6 +63,8 @@ Early Access Packages
 - Dependencies update
 
 #### Daml.Finance.Data
+
+- Fixed a bug in the `DateClock` implementation to avoid key violations
 
 - Dependencies update
 
@@ -119,6 +121,8 @@ Early Access Packages
 #### Daml.Finance.Interface.Claims
 
 #### Daml.Finance.Interface.Data
+
+- Changed the signature of `advance` and `rewind` in the `Reference.Time` interface
 
 - Dependencies update
 

@@ -14,3 +14,12 @@ any lifecycling logic. It contains the following modules:
 
 Check out the :doc:`Transfer tutorial <../../tutorials/getting-started/transfer>` for an example on
 how to create a simple token instrument and use it for a transfer.
+
+Changelog
+*********
+
+.. toctree::
+   :titlesonly:
+   :maxdepth: 1
+
+   Changelog <changelogs/daml-finance-instrument-token>

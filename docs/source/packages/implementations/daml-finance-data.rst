@@ -23,3 +23,11 @@ This package implements templates containing reference data. It includes the fol
 - :ref:`Time.LedgerTime <module-daml-finance-data-time-ledgertime-84639>`:
   A time observable which uses ledger time
 
+Changelog
+*********
+
+.. toctree::
+   :titlesonly:
+   :maxdepth: 1
+
+   Changelog <changelogs/daml-finance-data>
