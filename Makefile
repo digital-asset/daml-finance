@@ -67,8 +67,8 @@ build-all: build build-packages
 test-all: test test-packages
 
 .PHONY: clean-all
-clean-all: clean clean-packages
-	pipenv run make doc-clean
+clean-all: clean clean-packages clean-docs
+
 
 ##################################
 # CI                             #
@@ -188,3 +188,8 @@ doc-code: doc-code-json
 		--base-url=https://docs.daml.com/daml/daml-finance \
 		--input-anchor=$(DAML_ROOT)/sdk/$(SDK_VERSION)/damlc/resources/daml-base-anchors.json \
 		docs/build/daml-finance.json
+
+.PHONY: clean-docs
+clean-docs:
+	./$(SCRIPTS_DIR)/clean-docs.sh
+
