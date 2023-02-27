@@ -107,8 +107,8 @@ ci-validate:
 		--run './$(SCRIPTS_DIR)/validate-packages.sh'
 
 .PHONY: ci-docs
-ci-docs: $(DAML_SDK_ROOT)
-  @nix-shell \
+ci-docs:
+	@nix-shell \
 		--pure \
 		--run 'make doc-code'
 
