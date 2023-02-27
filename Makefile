@@ -106,6 +106,9 @@ ci-validate:
 		--pure \
 		--run './$(SCRIPTS_DIR)/validate-packages.sh'
 
+.PHONY: ci-docs
+ci-docs: $(DAML_SDK_ROOT) doc-code
+
 .PHONY: ci-headers-check
 ci-headers-check:
 	@nix-shell \
@@ -131,7 +134,7 @@ ci-data-dependencies:
 		--run 'export LANG=C.UTF-8; packell data-dependencies validate'
 
 .PHONY: ci-local
-ci-local: clean-all ci-headers-check ci-versioning ci-data-dependencies ci-build ci-validate ci-build-java ci-build-js ci-test
+ci-local: clean-all ci-headers-check ci-versioning ci-data-dependencies ci-build ci-validate ci-build-java ci-build-js ci-test ci-docs
 
 #########
 # Cache #
