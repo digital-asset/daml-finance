@@ -306,3 +306,5 @@ enforce some points in this style guide:
 - `\b(\w+)\s*=\s*\1\b` finds `a = a` where `a` is some arbitrary word.
 
 - `^.{101,}$` finds rows that contain more than 100 characters.
+
+- `submitMulti \[\w+\] \[\]` finds `submitMulti` which can be replaced by `submit`

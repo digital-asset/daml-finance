@@ -18,8 +18,8 @@ Stable Packages
 | Daml.Finance.Interface.Account             | 1.0.0              | 1.0.0          |
 | Daml.Finance.Interface.Claims              | 1.0.0              | 1.0.1          |
 | Daml.Finance.Interface.Data                | 2.0.0              | 2.0.1          |
-| Daml.Finance.Interface.Holding             | 1.0.0              | 1.0.0          |
-| Daml.Finance.Interface.Instrument.Base     | 1.0.0              | 1.0.0          |
+| Daml.Finance.Interface.Holding             | 1.0.0              | 1.0.1          |
+| Daml.Finance.Interface.Instrument.Base     | 1.0.0              | 1.0.1          |
 | Daml.Finance.Interface.Instrument.Generic  | 1.0.0              | 1.0.1          |
 | Daml.Finance.Interface.Instrument.Token    | 1.0.0              | 1.0.0          |
 | Daml.Finance.Interface.Lifecycle           | 1.0.0              | 1.0.1          |
@@ -132,7 +132,15 @@ Early Access Packages
 
 #### Daml.Finance.Interface.Holding
 
+- Dependencies update
+
+- Style changes
+
 #### Daml.Finance.Interface.Instrument.Base
+
+- Dependencies update
+
+- Style changes
 
 #### Daml.Finance.Interface.Instrument.Bond
 
