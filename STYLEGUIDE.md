@@ -293,7 +293,6 @@ we let the `actor : Party` be the first argument of the choice.
 - Don't use positional constructors as they are harder to read (and might cause bugs in case of code
   changes)
 
-
 ### Some useful regex
 
 In visual studio you can search using regex expressions. Here are some useful regex expressions to
