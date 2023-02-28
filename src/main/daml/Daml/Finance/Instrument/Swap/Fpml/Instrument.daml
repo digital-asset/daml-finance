@@ -59,21 +59,20 @@ template Instrument
     let instrument = InstrumentKey with depository; issuer; id; version
 
     interface instance Claim.I for Instrument where
-      view = Claim.View with acquisitionTime = dateToDateClockTime (daysSinceEpochToDate 0)
+      view = Claim.View with acquisitionTime = dateToDateClockTime $ daysSinceEpochToDate 0
       asBaseInstrument = toInterface @BaseInstrument.I this
-
       getClaims Claim.GetClaims{actor} = do
         -- get the initial claims tree (as of the swap's acquisition time)
         let
           calculateSwapStreamClaims (s, ccy) = do
             let
-              calculationPeriodicSchedule = createCalculationPeriodicSchedule s.calculationPeriodDates
+              calculationPeriodicSchedule =
+                createCalculationPeriodicSchedule s.calculationPeriodDates
               paymentPeriodicSchedule = createPaymentPeriodicSchedule s
               useAdjustedDatesForDcf = True
               issuerPaysLeg = if s.payerPartyReference == s.receiverPartyReference
                               then error "payer and receiver must be different counterparties"
                               else (s.payerPartyReference == issuerPartyRef)
-
             -- Verify the payment schedule
             assertMsg ("The payment schedule must refer to the calculationPeriodDates of the " <>
               "current swapStream") $
@@ -81,20 +80,15 @@ template Instrument
             assertMsg "Only payment schedules relative to CalculationPeriodEndDate supported" $
               s.paymentDates.payRelativeTo == CalculationPeriodEndDate
             let getCalendars = getHolidayCalendars issuer calendarDataProvider
-
-            (calculationSchedule, _) <- rollSchedule
-              getCalendars
-              calculationPeriodicSchedule
+            calculationSchedule <- fst <$> rollSchedule getCalendars calculationPeriodicSchedule
               s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessCenters
-            (paymentScheduleBase, paymentCalendars) <- rollSchedule
-              getCalendars
-              paymentPeriodicSchedule
-              s.paymentDates.paymentDatesAdjustments.businessCenters
-            let paymentSchedule = applyPaymentDaysOffset paymentScheduleBase s.paymentDates
-                  paymentCalendars
-
-            -- If there is an fxLinkedNotionalSchedule, look up which swap leg contains
-            -- the base notional
+            (paymentScheduleBase, paymentCalendars) <- rollSchedule getCalendars
+              paymentPeriodicSchedule s.paymentDates.paymentDatesAdjustments.businessCenters
+            let
+              paymentSchedule = applyPaymentDaysOffset paymentScheduleBase s.paymentDates
+                paymentCalendars
+            -- If there is an fxLinkedNotionalSchedule, look up which swap leg contains the base
+            -- notional
             let
               swapStreamNotionalRef =
                 case s.calculationPeriodAmount.calculation.notionalScheduleValue of
@@ -104,7 +98,6 @@ template Instrument
                       NotionalSchedule_Regular notionalSchedule ->
                         notionalSchedule.id == fxl.constantNotionalScheduleReference) swapStreams
                   NotionalSchedule_Regular n -> None
-
             -- Calculate the claims from the current leg (either fix or float)
             calculateClaimsFromSwapStream
               s
@@ -117,7 +110,6 @@ template Instrument
               ccy
               issuer
               calendarDataProvider
-
         allClaims <- mapA calculateSwapStreamClaims $ zip swapStreams currencies
         pure $ concat allClaims
 

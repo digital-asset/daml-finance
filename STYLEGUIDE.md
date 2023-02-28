@@ -289,5 +289,22 @@ we let the `actor : Party` be the first argument of the choice.
 
 - Don't use `..` as it makes code harder to understand (and might cause bugs in case of code
   changes)
+
 - Don't use positional constructors as they are harder to read (and might cause bugs in case of code
   changes)
+
+### Some useful regex
+
+In VS Code you can search using regex expressions. Here are some useful regex expressions to help
+enforce some of the points in this style guide:
+
+- `\w\s{2}\w` finds 2 whitespaces between words.
+
+- `\b(\w+)\s*=\s*(\w+)\s*(?:,\s*\b(\w+)\s*=\s*(\w+)\s*){1,}` finds comma separated assignments like
+  `Foo with a = b, c = d` (we prefer using `;` like in `Foo with a = b; c = d`).
+
+- `\b(\w+)\s*=\s*\1\b` finds `w = w` where `w` is some arbitrary word.
+
+- `^.{101,}$` finds rows that contain more than 100 characters.
+
+- `submitMulti \[\w+\] \[\]` finds `submitMulti` which can be replaced by `submit`.
