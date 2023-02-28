@@ -11,7 +11,7 @@ the docs via an `assembly` artifact.
 
 2. `make build-all` to build the Daml Finance `dar`s.
 
-3. `make ci-docs` to build the `rst` documentation odf the code.
+3. `make ci-docs` to build the `rst` documentation of the code.
 
 ## Publishing to docs.daml.com
 
