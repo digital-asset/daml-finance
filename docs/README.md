@@ -15,7 +15,7 @@ the docs via an `assembly` artifact.
 
 ## Publishing to docs.daml.com
 
-In order to update the assembly package used in the main documentation website at
+In order to update the assembly package used on the main documentation website at
 [docs.daml.com](http://docs.daml.com), we need to execute the following steps:
 
 1. Update the `version` in [daml.yaml](../daml.yaml). Merge this new version into main.
@@ -31,7 +31,7 @@ In order to update the assembly package used in the main documentation website a
 6. The next step named `assembly` will start processing. This step:
    1. Runs the script `docs/scripts/build-assembly.sh` which:
       1. Takes the build output at `docs/build/daml-finance-rst` and the `src` directory and places
-         them into a folder at `docs/.assembly` with the expected directory structure.
+         it into a folder at `docs/.assembly` with the expected directory structure.
       2. Updates the directory paths.
    2. Creates a tarball file.
    3. Uploads this tarball to Artifactory (Note - if the target Daml SDK version already exists for
