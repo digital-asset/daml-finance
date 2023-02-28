@@ -15,13 +15,13 @@ Stable Packages
 | Daml.Finance.Holding                       | 1.0.2              | 1.0.3          |
 | Daml.Finance.Instrument.Generic            | 1.0.1              | 1.0.2          |
 | Daml.Finance.Instrument.Token              | 1.0.1              | 1.0.2          |
-| Daml.Finance.Interface.Account             | 1.0.0              | 1.0.0          |
+| Daml.Finance.Interface.Account             | 1.0.0              | 1.0.1          |
 | Daml.Finance.Interface.Claims              | 1.0.0              | 1.0.1          |
 | Daml.Finance.Interface.Data                | 2.0.0              | 2.0.1          |
 | Daml.Finance.Interface.Holding             | 1.0.0              | 1.0.1          |
 | Daml.Finance.Interface.Instrument.Base     | 1.0.0              | 1.0.1          |
 | Daml.Finance.Interface.Instrument.Generic  | 1.0.0              | 1.0.1          |
-| Daml.Finance.Interface.Instrument.Token    | 1.0.0              | 1.0.0          |
+| Daml.Finance.Interface.Instrument.Token    | 1.0.0              | 1.0.1          |
 | Daml.Finance.Interface.Lifecycle           | 1.0.0              | 1.0.1          |
 | Daml.Finance.Interface.Settlement          | 1.0.0              | 1.0.1          |
 | Daml.Finance.Interface.Types.Common        | 1.0.0              | 1.0.0          |
@@ -120,6 +120,9 @@ Early Access Packages
 
 #### Daml.Finance.Interface.Account
 
+- Dependencies update
+
+
 #### Daml.Finance.Interface.Claims
 
 - Dependencies update
@@ -132,8 +135,6 @@ Early Access Packages
 
 #### Daml.Finance.Interface.Holding
 
-- Dependencies update
-
 - Style changes
 
 #### Daml.Finance.Interface.Instrument.Base
@@ -143,6 +144,8 @@ Early Access Packages
 - Style changes
 
 #### Daml.Finance.Interface.Instrument.Bond
+
+- Dependencies update
 
 #### Daml.Finance.Interface.Instrument.Equity
 
@@ -154,6 +157,8 @@ Early Access Packages
 
 #### Daml.Finance.Interface.Instrument.Option
 
+- Dependencies update
+
 #### Daml.Finance.Interface.Instrument.Swap
 
 - Dependencies update
@@ -161,6 +166,8 @@ Early Access Packages
 - Style changes
 
 #### Daml.Finance.Interface.Instrument.Token
+
+- Dependencies update
 
 #### Daml.Finance.Interface.Lifecycle
 
