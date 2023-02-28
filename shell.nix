@@ -8,7 +8,6 @@ let
   pkgs = import sources.nixpkgs {};
   pkgsGhc = import sources.nixpkgs-ghc8107 {};
   daml = import ./nix/daml.nix;
-  docs = import ./nix/docs.nix;
   packell = import ./nix/packell.nix;
   damlYaml = builtins.fromJSON (builtins.readFile (pkgs.runCommand "daml.yaml.json" { yamlFile = ./daml.yaml; } ''
                 ${pkgs.yj}/bin/yj < "$yamlFile" > $out
@@ -30,8 +29,8 @@ pkgs.mkShell {
     pkgs.git
     pkgs.gnupg
     pkgs.jq
+    pkgs.python39
     pkgs.openssh
     pkgs.yq-go]
-    ++ (docs { pkgs = pkgs; })
   ;
 }
