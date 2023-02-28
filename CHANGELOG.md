@@ -122,7 +122,6 @@ Early Access Packages
 
 - Dependencies update
 
-
 #### Daml.Finance.Interface.Claims
 
 - Dependencies update
