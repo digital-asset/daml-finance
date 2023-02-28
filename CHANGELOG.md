@@ -50,8 +50,6 @@ Early Access Packages
 
 #### ContingentClaims.Core
 
-- Dependencies update
-
 - Style changes
 
 #### ContingentClaims.Lifecycle
