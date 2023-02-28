@@ -295,7 +295,7 @@ we let the `actor : Party` be the first argument of the choice.
 
 ### Some useful regex
 
-In visual studio you can search using regex expressions. Here are some useful regex expressions to
+In VS Code you can search using regex expressions. Here are some useful regex expressions to
 enforce some points in this style guide:
 
 - `\w\s{2}\w` finds 2 whitspaces between words:
