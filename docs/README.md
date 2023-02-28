@@ -1,6 +1,6 @@
 # Daml Finance Documentation
 
-The Daml Finance documentation is hosted on the
+The Daml Finance documentation is hosted in the
 [docs.daml.com](https://github.com/digital-asset/docs.daml.com) repository. However, the code
 documentation and relevant code snippets are built in this repository and shipped to the rest of
 the docs via an `assembly` artifact.
