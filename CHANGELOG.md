@@ -7,52 +7,62 @@ Stable Packages
 
 | Package                                    | Released version   | Target version |
 |--------------------------------------------|--------------------|----------------|
-| ContingentClaims.Core                      | 1.0.0              | 1.0.0          |
-| ContingentClaims.Lifecycle                 | 1.0.0              | 1.0.0          |
-| Daml.Finance.Account                       | 1.0.0              | 1.0.1          |
-| Daml.Finance.Claims                        | 1.0.0              | 1.0.1          |
-| Daml.Finance.Data                          | 1.0.0              | 1.0.1          |
-| Daml.Finance.Holding                       | 1.0.1              | 1.0.2          |
-| Daml.Finance.Instrument.Generic            | 1.0.0              | 1.0.1          |
-| Daml.Finance.Instrument.Token              | 1.0.0              | 1.0.1          |
-| Daml.Finance.Interface.Account             | 1.0.0              | 1.0.0          |
-| Daml.Finance.Interface.Claims              | 1.0.0              | 1.0.0          |
-| Daml.Finance.Interface.Data                | 1.0.0              | 2.0.0          |
-| Daml.Finance.Interface.Holding             | 1.0.0              | 1.0.0          |
-| Daml.Finance.Interface.Instrument.Base     | 1.0.0              | 1.0.0          |
-| Daml.Finance.Interface.Instrument.Generic  | 1.0.0              | 1.0.0          |
-| Daml.Finance.Interface.Instrument.Token    | 1.0.0              | 1.0.0          |
-| Daml.Finance.Interface.Lifecycle           | 1.0.0              | 1.0.0          |
-| Daml.Finance.Interface.Settlement          | 1.0.0              | 1.0.0          |
+| ContingentClaims.Core                      | 1.0.0              | 1.0.1          |
+| ContingentClaims.Lifecycle                 | 1.0.0              | 1.0.1          |
+| Daml.Finance.Account                       | 1.0.1              | 1.0.2          |
+| Daml.Finance.Claims                        | 1.0.1              | 1.0.2          |
+| Daml.Finance.Data                          | 1.0.1              | 1.0.2          |
+| Daml.Finance.Holding                       | 1.0.2              | 1.0.3          |
+| Daml.Finance.Instrument.Generic            | 1.0.1              | 1.0.2          |
+| Daml.Finance.Instrument.Token              | 1.0.1              | 1.0.2          |
+| Daml.Finance.Interface.Account             | 1.0.0              | 1.0.1          |
+| Daml.Finance.Interface.Claims              | 1.0.0              | 1.0.1          |
+| Daml.Finance.Interface.Data                | 2.0.0              | 2.0.1          |
+| Daml.Finance.Interface.Holding             | 1.0.0              | 1.0.1          |
+| Daml.Finance.Interface.Instrument.Base     | 1.0.0              | 1.0.1          |
+| Daml.Finance.Interface.Instrument.Generic  | 1.0.0              | 1.0.1          |
+| Daml.Finance.Interface.Instrument.Token    | 1.0.0              | 1.0.1          |
+| Daml.Finance.Interface.Lifecycle           | 1.0.0              | 1.0.1          |
+| Daml.Finance.Interface.Settlement          | 1.0.0              | 1.0.1          |
 | Daml.Finance.Interface.Types.Common        | 1.0.0              | 1.0.0          |
-| Daml.Finance.Interface.Types.Date          | 1.0.0              | 2.0.0          |
+| Daml.Finance.Interface.Types.Date          | 2.0.0              | 2.0.0          |
 | Daml.Finance.Interface.Util                | 1.0.0              | 1.0.0          |
-| Daml.Finance.Lifecycle                     | 1.0.0              | 1.0.1          |
-| Daml.Finance.Settlement                    | 1.0.1              | 1.0.2          |
-| Daml.Finance.Util                          | 1.0.0              | 2.0.0          |
+| Daml.Finance.Lifecycle                     | 1.0.1              | 1.0.2          |
+| Daml.Finance.Settlement                    | 1.0.2              | 1.0.3          |
+| Daml.Finance.Util                          | 2.0.0              | 2.0.1          |
 
 Early Access Packages
 ---------------------
 
 | Package                                    | Released version   | Target version |
 |--------------------------------------------|--------------------|----------------|
-| ContingentClaims.Valuation                 | 0.2.0              | 0.2.0          |
-| Daml.Finance.Instrument.Bond               | 0.2.0              | 0.2.1          |
-| Daml.Finance.Instrument.Equity             | 0.2.0              | 0.2.1          |
-| Daml.Finance.Instrument.Option             |                    | 0.1.0          |
-| Daml.Finance.Instrument.Swap               | 0.2.0              | 0.2.1          |
-| Daml.Finance.Interface.Instrument.Bond     | 0.2.0              | 0.2.1          |
-| Daml.Finance.Interface.Instrument.Equity   | 0.2.0              | 0.2.0          |
-| Daml.Finance.Interface.Instrument.Option   |                    | 0.1.0          |
-| Daml.Finance.Interface.Instrument.Swap     | 0.2.0              | 0.2.1          |
+| ContingentClaims.Valuation                 | 0.2.0              | 0.2.1          |
+| Daml.Finance.Instrument.Bond               | 0.2.1              | 0.2.2          |
+| Daml.Finance.Instrument.Equity             | 0.2.1              | 0.2.2          |
+| Daml.Finance.Instrument.Option             | 0.1.0              | 0.1.1          |
+| Daml.Finance.Instrument.Swap               | 0.2.1              | 0.2.2          |
+| Daml.Finance.Interface.Instrument.Bond     | 0.2.1              | 0.2.1          |
+| Daml.Finance.Interface.Instrument.Equity   | 0.2.0              | 0.2.1          |
+| Daml.Finance.Interface.Instrument.Option   | 0.1.0              | 0.1.0          |
+| Daml.Finance.Interface.Instrument.Swap     | 0.2.1              | 0.2.2          |
 
 ## Pending changes
 
 #### ContingentClaims.Core
 
+- Style changes
+
 #### ContingentClaims.Lifecycle
 
+- Dependencies update
+
+- Style changes
+
 #### ContingentClaims.Valuation
+
+- Dependencies update
+
+- Style changes
 
 #### Daml.Finance.Account
 
@@ -62,11 +72,13 @@ Early Access Packages
 
 - Dependencies update
 
+- Style changes
+
 #### Daml.Finance.Data
 
-- Fixed a bug in the `DateClock` implementation to avoid key violations
-
 - Dependencies update
+
+- Style changes
 
 #### Daml.Finance.Holding
 
@@ -76,6 +88,8 @@ Early Access Packages
 
 - Dependencies update
 
+- Style changes
+
 #### Daml.Finance.Instrument.Equity
 
 - Dependencies update
@@ -84,33 +98,19 @@ Early Access Packages
 
 - Dependencies update
 
+- Style changes
+
 #### Daml.Finance.Instrument.Option
 
-- Add package
+- Dependencies update
 
-- Add support for cash-settled, auto-exercising European call and put options
+- Style changes
 
 #### Daml.Finance.Instrument.Swap
 
-- Implement interest rate compounding (several calculation periods per payment period)
+- Dependencies update
 
-- Support a more generic way of specifying notional step schedules
-
-- Support specification of a payment lag
-
-- Efficient calculation of SOFR-like daily compounded reference rates
-
-- Implement arrears reset
-
-- Implement step-up coupon
-
-- Add support for initial stub period that starts before the issue date of the swap
-
-- Improve handling of principal exchange
-
-- Add support for Term period of a swap leg
-
-- Additional improvements required to make the official FpML trades 1..7 work as expected
+- Style changes
 
 #### Daml.Finance.Instrument.Token
 
@@ -118,17 +118,27 @@ Early Access Packages
 
 #### Daml.Finance.Interface.Account
 
+- Dependencies update
+
 #### Daml.Finance.Interface.Claims
-
-#### Daml.Finance.Interface.Data
-
-- Changed the signature of `advance` and `rewind` in the `Reference.Time` interface
 
 - Dependencies update
 
+#### Daml.Finance.Interface.Data
+
+- Dependencies update
+
+- Style changes
+
 #### Daml.Finance.Interface.Holding
 
+- Style changes
+
 #### Daml.Finance.Interface.Instrument.Base
+
+- Dependencies update
+
+- Style changes
 
 #### Daml.Finance.Interface.Instrument.Bond
 
@@ -136,33 +146,39 @@ Early Access Packages
 
 #### Daml.Finance.Interface.Instrument.Equity
 
+- Dependencies update
+
 #### Daml.Finance.Interface.Instrument.Generic
+
+- Dependencies update
 
 #### Daml.Finance.Interface.Instrument.Option
 
-- Add package
+- Dependencies update
 
 #### Daml.Finance.Interface.Instrument.Swap
 
-- Updates to data types related to interest rate compounding and payment lag
+- Dependencies update
 
-- Updates to data types related to Term period
+- Style changes
 
 #### Daml.Finance.Interface.Instrument.Token
 
+- Dependencies update
+
 #### Daml.Finance.Interface.Lifecycle
 
+- Dependencies update
+
+- Style changes
+
 #### Daml.Finance.Interface.Settlement
+
+- Style changes
 
 #### Daml.Finance.Interface.Types.Common
 
 #### Daml.Finance.Interface.Types.Date
-
-- Introduce `ScheduleFrequency` data type
-
-- Added `NoRollConvention` to `RollConventionEnum`. It applies to `D` and `W` periods
-
-- `PeriodicSchedule.frequency` is of type `ScheduleFrequency` instead of `Frequency`
 
 #### Daml.Finance.Interface.Util
 
@@ -170,12 +186,14 @@ Early Access Packages
 
 - Dependencies update
 
+- Style changes
+
 #### Daml.Finance.Settlement
 
 - Dependencies update
 
+- Style changes
+
 #### Daml.Finance.Util
 
-- `calcPeriodDcf` and `calcPeriodDcfActActISMA` take a `ScheduleFrequency` instead of a `Frequency`
-
-- Dependencies update
+- Style changes
