@@ -12,7 +12,7 @@ To develop this application using `VS Code`, install the following `VS Code` ext
 
 The Haskell Language Server (HLS) is defined and installed via [nix](default.nix) (alongside the GHC
 and cabal). By default, the HLS will look to `ghcup` to manage HLS installations. To have nix manage
-it instead, update your perferences either by opening the settings pane and updating "Manage HLS" to
+it instead, update your preferences either by opening the settings pane and updating "Manage HLS" to
 `PATH`, or by running "Preferences: Open User Settings (JSON)" and add/update the following line
 `"haskell.manageHLS": "PATH"`.
 
