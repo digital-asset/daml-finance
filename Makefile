@@ -179,12 +179,14 @@ doc-code-json: $(DAML_SRC)
 doc-code: doc-code-json
 	daml damlc docs \
 		--output=docs/build/daml-finance-rst \
+		--output-hoogle=docs/build/daml-finance-hoogle.txt \
 		--input-format=json \
 		--format=Rst \
 		--exclude-instances=HasField,HasImplementation,HasFromInterface,HasToInterface,HasInterfaceView,HasExercise,HasExerciseGuarded,HasFromAnyChoice,HasToAnyChoice \
 		--drop-orphan-instances \
 		--template=docs/code-documentation-templates/base-rst-template.rst \
 		--index-template=docs/code-documentation-templates/base-rst-index-template.rst \
+		--hoogle-template=docs/code-documentation-templates/base-hoogle-template.txt \
 		--base-url=https://docs.daml.com/daml/daml-finance \
 		--input-anchor=$(DAML_ROOT)/sdk/$(SDK_VERSION)/damlc/resources/daml-base-anchors.json \
 		docs/build/daml-finance.json
