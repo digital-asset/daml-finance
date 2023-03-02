@@ -69,7 +69,6 @@ test-all: test test-packages
 .PHONY: clean-all
 clean-all: clean clean-packages clean-docs
 
-
 ##################################
 # CI                             #
 #  - utilises nix                #
@@ -192,4 +191,3 @@ doc-code: doc-code-json
 .PHONY: clean-docs
 clean-docs:
 	./$(SCRIPTS_DIR)/clean-docs.sh
-

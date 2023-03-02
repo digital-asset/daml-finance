@@ -300,11 +300,13 @@ enforce some of the points in this style guide:
 
 - `\w\s{2}\w` finds 2 whitespaces between words.
 
-- `\b(\w+)\s*=\s*(\w+)\s*(?:,\s*\b(\w+)\s*=\s*(\w+)\s*){1,}` finds comma separated assignments like
-  `Foo with a = b, c = d` (we prefer using `;` like in `Foo with a = b; c = d`).
+- `\n{2,}$` finds two or more empty lines.
+
+- `^.{101,}$` finds rows that contain more than 100 characters.
 
 - `\b(\w+)\s*=\s*\1\b` finds `w = w` where `w` is some arbitrary word.
 
-- `^.{101,}$` finds rows that contain more than 100 characters.
+- `\b(\w+)\s*=\s*(\w+)\s*(?:,\s*\b(\w+)\s*=\s*(\w+)\s*){1,}` finds comma separated assignments like
+  `Foo with a = b, c = d` (we prefer using `;` like in `Foo with a = b; c = d`).
 
 - `submitMulti \[\w+\] \[\]` finds `submitMulti` which can be replaced by `submit`.

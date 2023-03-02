@@ -284,5 +284,3 @@ if failed and check_only:
   print("\nCopyright header check failed.\nPlease update copyright headers by running 'dade-copyright-headers update'")
 
 sys.exit(failed)
-
-
