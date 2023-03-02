@@ -23,7 +23,7 @@ To develop the Packell application, open `VS Code` at the root of the Packell pr
 ## Usage
 
 As part of nix setup, the `Packell` application is built and installed as a derivative into the nix
-store and added to the `PATH`. Running the following command will display all the available options :
+store and added to the `PATH`. Running the following command will display all the available options:
 
 ```
 packell -h
@@ -50,7 +50,7 @@ packell --fish-completion-script packell > ~/.config/fish/completions/packell.fi
 ## Cross compilation
 
 Cross compilation will depend on your host system. For example, with a host using Apple silicon
-(ie., Apple M1), it's only possible to cross compile to Apple with an Intel CPU (ie., `x86_64`).
+(i.e., Apple M1), it's only possible to cross compile to Apple with an Intel CPU (i.e., `x86_64`).
 
 By default, upon entering this directory `nix` will build `Packell` (if necessary) with the default
 instruction set architecture of the host system.
