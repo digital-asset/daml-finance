@@ -5,27 +5,24 @@ module Daml.Finance.Instrument.Option.Lifecycle.Rule
   ( Rule(..)
   ) where
 
-import DA.Foldable (forA_)
 import DA.Optional (fromSome)
 import DA.Set (fromList)
 import DA.Text (sha256)
 import Daml.Finance.Claims.Util (isZero')
-import Daml.Finance.Claims.Util.Lifecycle (electionEvent, lifecycle, splitPending, timeEvent)
+import Daml.Finance.Claims.Util.Lifecycle (electionEvent, lifecycle, splitPending)
 import Daml.Finance.Instrument.Option.EuropeanPhysical.Instrument (Instrument(..))
 import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, GetClaims(..), getClaims)
-import Daml.Finance.Interface.Claims.Types (C)
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (R, createReference, getKey)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (R, getKey)
 import Daml.Finance.Interface.Instrument.Option.Election qualified as Election (ApplyElection(..), Exercisable(..), ExercisableView(..), getElectionTime)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..), View(..))
-import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey, Parties, PartiesMap)
+import Daml.Finance.Interface.Types.Common.Types (Id(..), Parties, PartiesMap)
 import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
-import Daml.Finance.Lifecycle.Effect (Effect(..))
 import Daml.Finance.Lifecycle.ElectionEffect (ElectionEffect(..))
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
 import Prelude hiding (exercise, key)
 
--- | Rule to process a time update event.
+-- | Rule to process an election event for options.
 template Rule
   with
     providers : Parties
@@ -45,43 +42,8 @@ template Rule
     interface instance Lifecycle.I for Rule where
       view = Lifecycle.View with lifecycler; id; description
       evolve Lifecycle.Evolve{eventCid; observableCids; instrument} = do
-
-        -- fetch event
-        eventView <- view <$> fetch eventCid
-        let eventTime = eventView.eventTime
-
-        -- fetch claim tree
-        claimInstrument <- fetchInterfaceByKey @BaseInstrument.R instrument
-        claims <- Claim.getClaims claimInstrument $ Claim.GetClaims with actor = lifecycler
-
-        -- lifecycle as of the time given by the event
-        (remaining, pending) <-
-          lifecycle lifecycler observableCids claimInstrument [timeEvent eventTime]
-
-        -- create new instrument and return effect
-        if remaining == claims && null pending then
-          pure (None, [])
-        else do
-          let
-            instrumentT : Instrument = fromSome $ fromInterface claimInstrument
-            currentKey = BaseInstrument.getKey $ toInterface claimInstrument
-            [claim] = fmap (.claim) remaining
-            newKey = currentKey with version = sha256 $ show remaining
-            producedInstrument = if isZero' remaining then None else Some newKey
-          forA_ producedInstrument $ tryCreateNewInstrument lifecycler claim eventTime instrumentT
-          let (otherConsumed, otherProduced) = splitPending pending
-          effectCid <- toInterfaceContractId <$>
-            create Effect with
-              providers = fromList [instrumentT.issuer, instrumentT.depository]
-              id = eventView.id
-              description = eventView.description
-              targetInstrument = currentKey
-              producedInstrument
-              otherConsumed
-              otherProduced
-              settlementTime = Some eventTime
-              observers = Disclosure.flattenObservers instrumentT.observers
-          pure (producedInstrument, [effectCid])
+        error "Lifecycle.Evolve not implemented as part of this Rule."
+        pure (None, [])
 
     interface instance Election.Exercisable for Rule where
       view = Election.ExercisableView with lifecycler
@@ -106,15 +68,14 @@ template Rule
         if remaining == claims && null pending then
           pure (None, [])
         else do
+          assertMsg "Only single elections currently supported" $ isZero' remaining
           let
             instrumentT : Instrument = fromSome $ fromInterface claimInstrument
             currentKey = BaseInstrument.getKey $ toInterface claimInstrument
             newKey = currentKey with version = sha256 $ show remaining
             [claim] = fmap (.claim) remaining
-            producedInstrument = if isZero' remaining then None else Some newKey
-          forA_ producedInstrument $
-            tryCreateNewInstrument lifecycler claim electionTime instrumentT
-          let (otherConsumed, otherProduced) = splitPending pending
+            producedInstrument = None
+            (otherConsumed, otherProduced) = splitPending pending
           effectCid <- toInterfaceContractId <$>
             create ElectionEffect with
               providers = fromList [instrumentT.issuer, instrumentT.depository]
@@ -136,18 +97,3 @@ template Rule
       setObservers = setObserversImpl @Rule @Disclosure.I this None
       addObservers = addObserversImpl @Rule @Disclosure.I this None
       removeObservers = removeObserversImpl @Rule @Disclosure.I this None
-
--- | HIDE
--- Check if an instrument for the new key already exists, otherwise create it.
-tryCreateNewInstrument : Party -> C -> Time -> Instrument -> InstrumentKey -> Update ()
-tryCreateNewInstrument actor newClaim eventTime oldInstrument newKey = do
-  existingRefCidOpt <- lookupByKey @BaseInstrument.R newKey
-  case existingRefCidOpt of
-    Some existingRefCid -> pure ()
-    None -> do
-      instCid <- create oldInstrument with
-        --claims = newClaim
-        lastEventTimestamp = eventTime
-        version = newKey.version
-      BaseInstrument.createReference actor $ toInterfaceContractId instCid
-      pure ()
