@@ -9,21 +9,22 @@ import DA.Foldable (forA_)
 import DA.Optional (fromSome)
 import DA.Set (fromList)
 import DA.Text (sha256)
+import Daml.Control.Monad.Trans.State (StateT(..))
 import Daml.Finance.Claims.Util (isZero')
 import Daml.Finance.Claims.Util.Lifecycle (electionEvent, lifecycle, splitPending, timeEvent)
 import Daml.Finance.Instrument.Generic.Instrument (Instrument(..))
 import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, GetClaims(..), getClaims)
 import Daml.Finance.Interface.Claims.Types (C)
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (R, createReference, getKey)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, getKey)
 import Daml.Finance.Interface.Instrument.Generic.Election qualified as Election (ApplyElection(..), Exercisable(..), ExercisableView(..), getElectionTime)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..), View(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey, Parties, PartiesMap)
-import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Interface.Util.SyntheticKey (UpdateWithKey, create, fetch, fetchByKey, lookupByKey, withIndexTable)
 import Daml.Finance.Lifecycle.Effect (Effect(..))
 import Daml.Finance.Lifecycle.ElectionEffect (ElectionEffect(..))
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
-import Prelude hiding (exercise, key)
+import Prelude hiding (archive, create, exercise, exerciseByKey, fetch, fetchByKey, fetchFromInterface, lookup, lookupByKey)
 
 -- | Rule to process a time update event.
 template Rule
@@ -44,16 +45,13 @@ template Rule
 
     interface instance Lifecycle.I for Rule where
       view = Lifecycle.View with lifecycler; id; description
-      evolve Lifecycle.Evolve{eventCid; observableCids; instrument} = do
-
+      evolve Lifecycle.Evolve{eventCid; observableCids; instrument; idx} = withIndexTable idx do
         -- fetch event
         eventView <- view <$> fetch eventCid
         let eventTime = eventView.eventTime
-
         -- fetch claim tree
-        claimInstrument <- fetchInterfaceByKey @BaseInstrument.R instrument
-        claims <- Claim.getClaims claimInstrument $ Claim.GetClaims with actor = lifecycler
-
+        claimInstrument <- snd <$> fetchByKey @BaseInstrument.I @Claim.I instrument
+        claims <- StateT $ Claim.getClaims claimInstrument . Claim.GetClaims lifecycler
         -- lifecycle as of the time given by the event
         (remaining, pending) <-
           lifecycle lifecycler observableCids claimInstrument [timeEvent eventTime]
@@ -85,7 +83,7 @@ template Rule
 
     interface instance Election.Exercisable for Rule where
       view = Election.ExercisableView with lifecycler
-      applyElection Election.ApplyElection{electionCid; observableCids} = do
+      applyElection Election.ApplyElection{electionCid; observableCids; idx} = withIndexTable idx do
 
         -- fetch election
         election <- fetch electionCid
@@ -95,9 +93,8 @@ template Rule
           election = electionEvent electionTime v.electorIsOwner v.claim
 
         -- fetch claim tree
-        claimInstrument <- fetchInterfaceByKey @BaseInstrument.R v.instrument
-        claims <- Claim.getClaims (toInterface @Claim.I claimInstrument) $ Claim.GetClaims with
-          actor = lifecycler
+        claimInstrument <- snd <$> fetchByKey @BaseInstrument.I @Claim.I v.instrument
+        claims <- StateT $ Claim.getClaims claimInstrument . Claim.GetClaims lifecycler
 
         -- lifecycle as of the time given by the event, by applying the corresponding election
         (remaining, pending) <- lifecycle lifecycler observableCids claimInstrument [election]
@@ -107,7 +104,7 @@ template Rule
           pure (None, [])
         else do
           let
-            instrumentT : Instrument = fromSome $ fromInterface claimInstrument
+            instrumentT = fromSome $ fromInterface @Instrument claimInstrument
             currentKey = BaseInstrument.getKey $ toInterface claimInstrument
             newKey = currentKey with version = sha256 $ show remaining
             [claim] = fmap (.claim) remaining
@@ -133,21 +130,21 @@ template Rule
 
     interface instance Disclosure.I for Rule where
       view = Disclosure.View with disclosureControllers = providers; observers
-      setObservers = setObserversImpl @Rule @Disclosure.I this None
-      addObservers = addObserversImpl @Rule @Disclosure.I this None
-      removeObservers = removeObserversImpl @Rule @Disclosure.I this None
+      setObservers = setObserversImpl @Rule this
+      addObservers = addObserversImpl @Rule this
+      removeObservers = removeObserversImpl @Rule this
 
 -- | HIDE
 -- Check if an instrument for the new key already exists, otherwise create it.
-tryCreateNewInstrument : Party -> C -> Time -> Instrument -> InstrumentKey -> Update ()
+tryCreateNewInstrument : Party -> C -> Time -> Instrument -> InstrumentKey -> UpdateWithKey ()
 tryCreateNewInstrument actor newClaim eventTime oldInstrument newKey = do
-  existingRefCidOpt <- lookupByKey @BaseInstrument.R newKey
+  existingRefCidOpt <- lookupByKey @BaseInstrument.I actor newKey
   case existingRefCidOpt of
-    Some existingRefCid -> pure ()
+    Some _ ->
+      pure ()
     None -> do
-      instCid <- create oldInstrument with
+      create oldInstrument with
         claims = newClaim
         lastEventTimestamp = eventTime
         version = newKey.version
-      BaseInstrument.createReference actor $ toInterfaceContractId instCid
       pure ()

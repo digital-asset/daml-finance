@@ -5,13 +5,14 @@ module Daml.Finance.Instrument.Bond.FloatingRate.Factory where
 
 import DA.Set (singleton)
 import Daml.Finance.Instrument.Bond.FloatingRate.Instrument qualified as FloatingRate (Instrument(..))
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (GetCid(..), R, createReference)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I)
 import Daml.Finance.Interface.Instrument.Bond.FloatingRate.Factory qualified as FloatingRate (Create(..), Factory, Remove(..), View(..))
 import Daml.Finance.Interface.Instrument.Bond.FloatingRate.Types (FloatingRate(..))
-import Daml.Finance.Interface.Types.Common.Types (PartiesMap)
+import Daml.Finance.Interface.Types.Common.Types (PartiesMap, InstrumentKey)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Interface.Util.SyntheticKey (archiveByKey, create, withIndexTable)
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
-import Prelude hiding (key)
+import Prelude hiding (archive, create, exercise, exerciseByKey, fetch, fetchByKey, fetchFromInterface, lookup, lookupByKey)
 
 -- | Factory template for instrument creation.
 template Factory
@@ -28,8 +29,8 @@ template Factory
       view = FloatingRate.View with provider
       create' FloatingRate.Create{floatingRate = FloatingRate{instrument; description;
         referenceRateId; couponSpread; periodicSchedule; holidayCalendarIds; calendarDataProvider;
-        dayCountConvention; currency; lastEventTimestamp}; observers} = do
-          cid <- toInterfaceContractId <$>
+        dayCountConvention; currency; lastEventTimestamp}; observers} =
+          toInterfaceContractId <$>
             create FloatingRate.Instrument with
               depository = instrument.depository
               issuer = instrument.issuer
@@ -45,16 +46,11 @@ template Factory
               currency
               lastEventTimestamp
               observers
-          BaseInstrument.createReference instrument.depository cid
-          pure cid
-      remove FloatingRate.Remove{instrument} = do
-        (refCid, ref) <- fetchByKey @BaseInstrument.R instrument
-        instrumentCid <- exercise refCid BaseInstrument.GetCid with viewer = instrument.depository
-        archive $ fromInterfaceContractId @FloatingRate.Instrument instrumentCid
-        archive refCid
+      remove FloatingRate.Remove{instrument; idx} = withIndexTable idx do
+        archiveByKey @BaseInstrument.I @InstrumentKey provider instrument
 
     interface instance Disclosure.I for Factory where
       view = Disclosure.View with disclosureControllers = singleton provider; observers
-      setObservers = setObserversImpl @Factory @Disclosure.I this None
-      addObservers = addObserversImpl @Factory @Disclosure.I this None
-      removeObservers = removeObserversImpl @Factory @Disclosure.I this None
+      setObservers = setObserversImpl @Factory this
+      addObservers = addObserversImpl @Factory this
+      removeObservers = removeObserversImpl @Factory this

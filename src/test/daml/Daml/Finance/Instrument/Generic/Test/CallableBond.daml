@@ -10,8 +10,10 @@ import DA.Date as D (Month(..), date)
 import DA.Map qualified as M (empty, fromList)
 import DA.Set (empty, fromList, singleton, toList)
 import DA.Time (time)
+import Daml.Finance.Data.Reference.HolidayCalendar qualified as HolidayCalendar (T)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..), T)
 import Daml.Finance.Instrument.Generic.Election qualified as Election (Factory(..))
+import Daml.Finance.Instrument.Generic.Instrument qualified as Instrument (T)
 import Daml.Finance.Instrument.Generic.Lifecycle.Rule qualified as Lifecycle (Rule(..))
 import Daml.Finance.Instrument.Generic.Test.Election.Workflow (CreateElectionCandidate(..), ValidateElectionCandidate(..), ElectionOffer(..))
 import Daml.Finance.Instrument.Generic.Test.Util (originateGeneric, dateToDateClockTime, mapClaimToUTCTime)
@@ -20,16 +22,15 @@ import Daml.Finance.Interface.Claims.Types (C, Deliverable)
 import Daml.Finance.Interface.Holding.Util (getAmount)
 import Daml.Finance.Interface.Instrument.Generic.Election qualified as Election (Apply(..))
 import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..), I)
-import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
-import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..), Parties)
 import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
 import Daml.Finance.Settlement.RouteProvider.SingleCustodian (SingleCustodian(..))
+import Daml.Finance.Settlement.Test.Util (allocateAny, approveAny, settleAny)
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
-import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
+import Daml.Finance.Test.Util.Instrument qualified as Instrument (buildIndexTable, originate)
 import Daml.Finance.Test.Util.Time (createDateClock)
 import Daml.Script
 import Prelude hiding (and, or)
@@ -154,10 +155,15 @@ run = script do
       id = Id "LifecycleRule"
       description = "Rule to lifecycle a generic instrument"
 
+  -- Build index table
+  idx <- Instrument.buildIndexTable @Instrument.T @HolidayCalendar.T [issuer] genericInstrument
+
+  -- Try to lifecycle instrument
   (_, [effectCid]) <- submit issuer do
-    exerciseCmd electionCid Election.Apply with
+    fst <$> exerciseCmd electionCid Election.Apply with
       observableCids = []
       exercisableCid = lifecycleRuleCid
+      idx
 
   -- Create route provider
   routeProviderCid <- toInterfaceContractId <$> submit bank do
@@ -189,24 +195,20 @@ run = script do
       result.instructionCids
 
   -- Allocate instructions
-  (investorInstrumentInstructionCid, _) <- submit investor do
-    exerciseCmd investorInstrumentInstructionCid Instruction.Allocate with
-      actors = singleton investor; allocation = Pledge investorGenericHoldingCid
-  (bankCashInstructionCouponAndPrincipalCid, _) <- submit bank do
-    exerciseCmd bankCashInstructionCouponAndPrincipalCid Instruction.Allocate with
-      actors = singleton bank; allocation = CreditReceiver
+  (investorInstrumentInstructionCid, _) <- allocateAny [investor] investorInstrumentInstructionCid $
+    Pledge investorGenericHoldingCid
+  (bankCashInstructionCouponAndPrincipalCid, _) <-
+    allocateAny [bank] bankCashInstructionCouponAndPrincipalCid $ CreditReceiver
 
   -- Approve instructions
-  investorInstrumentInstructionCid <- submit bank do
-    exerciseCmd investorInstrumentInstructionCid Instruction.Approve with
-      actors = singleton bank; approval = DebitSender
-  bankCashInstructionCouponAndPrincipalCid <- submit investor do
-    exerciseCmd bankCashInstructionCouponAndPrincipalCid Instruction.Approve with
-      actors = singleton investor; approval = TakeDelivery investorAccount
+  investorInstrumentInstructionCid <- approveAny [bank] investorInstrumentInstructionCid $
+    DebitSender
+  bankCashInstructionCouponAndPrincipalCid <-
+    approveAny [investor] bankCashInstructionCouponAndPrincipalCid $ TakeDelivery investorAccount
 
   -- Settle batch
-  [investorCashHoldingCouponAndPrincipalCid] <- submitMulti (toList settlers) [publicParty] do
-    exerciseCmd result.batchCid Batch.Settle with actors = settlers
+  [investorCashHoldingCouponAndPrincipalCid] <-
+    settleAny (toList settlers) [publicParty] result.batchCid
 
   -- Assert state
   Some investorCouponAndPrincipal <-
