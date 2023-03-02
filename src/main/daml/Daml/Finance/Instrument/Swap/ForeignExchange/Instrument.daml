@@ -7,15 +7,16 @@ import DA.Date (daysSinceEpochToDate)
 import DA.Set (singleton)
 import Daml.Finance.Claims.Util.Builders
 import Daml.Finance.Instrument.Swap.Util
-import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, View(..))
+import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, GetClaims(..), View(..))
 import Daml.Finance.Interface.Claims.Dynamic.Instrument qualified as DynamicInstrument (I, CreateNewVersion(..), View(..))
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, View(..), createReference, disclosureUpdateReference)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, View(..))
 import Daml.Finance.Interface.Instrument.Swap.ForeignExchange.Instrument qualified as ForeignExchange (I, View(..))
 import Daml.Finance.Interface.Instrument.Swap.ForeignExchange.Types (ForeignExchange(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey(..), PartiesMap)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Interface.Util.SyntheticKey (withIndexTable)
+import Daml.Finance.Interface.Util.SyntheticKey qualified as SyntheticKey (I, View(..))
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
-import Prelude hiding (key)
 
 -- | Type synonym for `Instrument`.
 type T = Instrument
@@ -67,9 +68,12 @@ template Instrument
 
     let instrument = InstrumentKey with depository; issuer; id; version
 
+    interface instance SyntheticKey.I for Instrument where
+      view = SyntheticKey.View {}
+
     interface instance Claim.I for Instrument where
       view = Claim.View with acquisitionTime = dateToDateClockTime $ daysSinceEpochToDate 0
-      getClaims _ = do
+      getClaims Claim.GetClaims{actor; idx} = withIndexTable idx do
         -- get the initial claims tree (as of the swap's acquisition time)
         let
           notional = 1.0
@@ -97,16 +101,12 @@ template Instrument
 
     interface instance DynamicInstrument.I for Instrument where
       view = DynamicInstrument.View with lifecycler = issuer; lastEventTimestamp
-      createNewVersion DynamicInstrument.CreateNewVersion{version; lastEventTimestamp} = do
-        cid <- create this with version, lastEventTimestamp
-        BaseInstrument.createReference issuer $ toInterfaceContractId cid
-        pure $ toInterfaceContractId cid
+      createNewVersion DynamicInstrument.CreateNewVersion{version; lastEventTimestamp} =
+        toInterfaceContractId <$> create this with version; lastEventTimestamp
+      getHolidayCalendarKeys = mempty
 
     interface instance Disclosure.I for Instrument where
       view = Disclosure.View with disclosureControllers = singleton issuer; observers
-      setObservers = setObserversImpl this $
-        Some (BaseInstrument.disclosureUpdateReference instrument)
-      addObservers = addObserversImpl @Instrument this $
-        Some (BaseInstrument.disclosureUpdateReference instrument)
-      removeObservers = removeObserversImpl this $
-        Some (BaseInstrument.disclosureUpdateReference instrument)
+      setObservers = setObserversImpl @Instrument this
+      addObservers = addObserversImpl @Instrument this
+      removeObservers = removeObserversImpl @Instrument this

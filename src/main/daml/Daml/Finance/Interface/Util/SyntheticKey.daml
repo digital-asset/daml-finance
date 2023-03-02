@@ -1,0 +1,255 @@
+-- Copyright (c) 2023 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
+module Daml.Finance.Interface.Util.SyntheticKey where
+
+import DA.Assert ((===))
+import DA.Map qualified as M (Map, delete, empty, insert, lookup)
+import DA.Optional (fromSomeNote)
+import DA.Text (sha256)
+import DA.Traversable qualified as T (mapA)
+import Daml.Control.Monad.Trans.Class (lift)
+import Daml.Control.Monad.Trans.State (StateT(..), get, put)
+import Prelude hiding (archive, create, exercise, exerciseByKey, fetch, fetchByKey, fetchFromInterface, lookup, lookupByKey)
+import qualified Prelude
+
+-- | Type synonym for `SyntheticKey`.
+type I = SyntheticKey
+
+-- | Type synonym for `View`.
+type V = View
+
+-- | An interface for synthetically keyed interfaces.
+interface SyntheticKey where
+  viewtype V
+
+-- | View for `SyntheticKey`.
+data View = View {}
+  deriving (Eq, Show)
+
+-- ============= State: Generic Index Table =============
+-- | Index table (used for looking up contract ids for keys).
+newtype IndexTable =
+  IndexTable {getIndexTable : M.Map Text (ContractId SyntheticKey)} deriving (Eq,Show)
+
+-- | Type synonym for state monad transformer (for IndexTable and Update).
+type UpdateWithKey = StateT IndexTable Update
+
+-- | Utility for running the state monad.
+withIndexTable : IndexTable -> UpdateWithKey a -> Update (a, IndexTable)
+withIndexTable = flip runStateT
+
+-- A type class for interfaces having a synthetic key. Each "synthetically" keyed interface should
+-- provide an instance for this class.
+class
+  ( Eq k
+  , Show k
+  , Ord k
+  , HasFetch i
+  , HasInterfaceTypeRep i
+  , HasFromInterface i SyntheticKey
+  , HasToInterface i SyntheticKey
+  ) =>
+  HasSyntheticKey i k where
+    getKey : i -> k
+      -- ^ Gets the key from an interface value.
+    getKeyFromCid : Party -> ContractId i -> Update k
+      -- ^ Gets the key of a contract ID. In order to be able to get the key of a contract, where a
+      -- a party only has `readAs` rights, this is usually done by first exercising a non-consuming
+      -- choice with a flexible controller (first argument), c.f. `GetView` of the `Account`
+      -- interface.
+    serialiseKey : k -> Text
+      -- ^ Serializes the key.
+    serialiseKey = sha256 . show
+    insert : k -> ContractId i -> IndexTable -> IndexTable
+      -- ^ Inserts an entry into an IndexTable.
+    insert k cid idx = IndexTable $
+      M.insert (serialiseKey @i k) (toInterfaceContractId @SyntheticKey cid) $ getIndexTable idx
+    delete : k -> IndexTable -> IndexTable
+      -- ^ Deletes an entry from an IndexTable.
+    delete k idx = IndexTable $ M.delete (serialiseKey @i k) $ getIndexTable idx
+    lookup : k -> IndexTable -> Optional (ContractId SyntheticKey)
+      -- ^ Looks up an entry from an IndexTable.
+    lookup k idx = M.lookup @Text (serialiseKey @i k) $ getIndexTable idx
+
+-- HIDE
+instance Semigroup IndexTable where
+  (<>) a b = IndexTable $ getIndexTable a <> getIndexTable b
+
+-- HIDE
+instance Monoid IndexTable where
+  mempty = IndexTable M.empty
+  mconcat = foldl (<>) mempty
+
+-- | Insert (with state).
+insertWithState : forall i k. HasSyntheticKey i k => k -> ContractId i -> UpdateWithKey ()
+insertWithState k cid = put =<< insert k cid <$> get
+
+-- | Delete (with state).
+deleteWithState : forall i k. HasSyntheticKey i k => k -> UpdateWithKey ()
+deleteWithState k = do put =<< delete @i k <$> get
+
+-- | Lookup (with state).
+lookupWithState : forall i k.
+  HasSyntheticKey i k => k -> UpdateWithKey (Optional (ContractId SyntheticKey))
+lookupWithState k = lookup @i k <$> get
+
+-- ============= Utility Functions =============
+
+-- | Create with key.
+createWithKey :
+  forall i k c v.
+  ( HasSyntheticKey i k
+  , HasCreate c
+  , HasToInterface c i
+  ) => c -> UpdateWithKey (ContractId c)
+createWithKey c = do
+  -- create instance
+  cid <- create c
+  -- add entry to index table
+  put =<< insert (getKey @i @k $ toInterface c) (toInterfaceContractId @i cid) <$> get
+  pure cid
+
+-- | Archive by key.
+archiveByKey :
+  forall i k v.
+  ( HasSyntheticKey i k
+  , HasArchiveM UpdateWithKey i
+  ) => Party -> k -> UpdateWithKey ()
+archiveByKey actor k = do
+  iCid <- fromSomeNote "key must exist" <$> lookupByKey @i @k actor k
+  -- sanity check (verify that `k` is the correct key for the `cid`)
+  (k ===) =<< lift (getKeyFromCid @i @k actor iCid)
+  archive iCid
+  -- delete entry from index table
+  deleteWithState @i k
+
+-- | Lookup by key.
+-- The `lookupByKey` function utilizes a key `k` to obtain a `cid` from the index table. It
+-- verifies whether `k` is the correct key for `cid` with help of the `getKeyFromCid` function.
+lookupByKey :
+  forall i k. HasSyntheticKey i k => Party -> k -> UpdateWithKey (Optional (ContractId i))
+lookupByKey actor k = lookupWithState @i k >>= T.mapA
+  \cid -> do
+    let iCid = coerceInterfaceContractId @i cid
+    -- sanity check (verify that `k` is the correct key for the `cid`)
+    (k ===) =<< lift (getKeyFromCid @i @k actor iCid)
+    pure iCid
+
+-- | Fetch by key.
+-- The `fetchByKey` function utilizes a key `k` to obtain a `cid` from the index table. It verifies
+-- whether `k` is the correct key for `cid` with help of the `getKey` function.
+fetchByKey :
+  forall i1 i2 k v.
+  ( HasSyntheticKey i1 k
+  , HasInterfaceTypeRep i2
+  , HasFetch i2
+  ) => k -> UpdateWithKey (ContractId i2, i2)
+fetchByKey k = do
+  cid <- fromSomeNote ("index table lookup for " <> show k <> " failed") <$> lookupWithState @i1 k
+  i1 <- fetch $ coerceInterfaceContractId @i1 cid
+  let cid2 = coerceInterfaceContractId @i2 cid
+  i2 <- fetch cid2
+  -- sanity check (verify that `k` is the correct key for the `cid`)
+  k === getKey i1
+  pure (cid2, i2)
+
+-- | Exercise by key.
+exerciseByKey :
+  forall i t c r k.
+  ( HasSyntheticKey i k
+  , HasFromInterface t i
+  , HasExerciseM UpdateWithKey t c r
+  ) => Party -> k -> c -> UpdateWithKey r
+exerciseByKey actor k c = do
+  iCid <- fromSomeNote ("index table lookup for " <> show k <> " failed") <$> lookupByKey @i actor k
+  exercise (fromInterfaceContractId @t iCid) c
+
+-- ============= Overlapping instances (for Update and UpdateWithKey) =============
+
+-- | HIDE
+class HasCreateM m t where
+  create : t -> m (ContractId t)
+
+-- | HIDE
+instance HasCreate t => HasCreateM Update t where
+  create = Prelude.create
+
+-- | HIDE
+instance HasCreate t => HasCreateM UpdateWithKey t where
+  create = lift . Prelude.create
+
+-- | HIDE
+class HasArchiveM m t where
+  archive : ContractId t -> m ()
+
+-- | HIDE
+instance HasArchive t => HasArchiveM Update t where
+  archive = Prelude.archive
+
+-- | HIDE
+instance HasArchive t => HasArchiveM UpdateWithKey t where
+  archive = lift . Prelude.archive
+
+-- | HIDE
+class HasFetchM m t where
+  fetch : ContractId t -> m t
+
+-- | HIDE
+instance HasFetch t => HasFetchM Update t where
+  fetch = Prelude.fetch
+
+-- | HIDE
+instance HasFetch t => HasFetchM UpdateWithKey t where
+  fetch = lift . Prelude.fetch
+
+-- | HIDE
+class HasFetchFromInterfaceM t m i where
+  fetchFromInterface : ContractId i -> m (Optional (ContractId t, t))
+
+-- | HIDE
+instance (HasFromInterface t i, HasFetch i) => HasFetchFromInterfaceM t Update i where
+  fetchFromInterface = Prelude.fetchFromInterface @t
+
+-- | HIDE
+instance (HasFromInterface t i, HasFetch i) =>
+  HasFetchFromInterfaceM t UpdateWithKey i where
+    fetchFromInterface = lift . Prelude.fetchFromInterface @t
+
+-- | HIDE
+class HasExerciseM m t c r where
+  exercise : ContractId t -> c -> m r
+
+-- | HIDE
+instance HasExercise t c r => HasExerciseM Update t c r where
+  exercise = Prelude.exercise
+
+-- | HIDE
+instance {-# OVERLAPPING #-} HasExercise t c r => HasExerciseM UpdateWithKey t c r where
+  exercise cid = lift . Prelude.exercise cid
+
+-- | Exercise (with state).
+-- This function allows exercising any choice of type `a -> IndexTable -> Update (b, IndexTable)`,
+-- where `a` and `b` are any serializable types. The state (i.e., the `IndexTable`) is updated with
+-- the state returned by the choice, and thus each choice is responsible for modifying the state as
+-- needed. For example, a consuming choice for a keyed instance (that does not recreate itself) with
+-- key `k` should include a deletion of `k` from the index table. To exercise a choice, such as:
+-- ```
+--  template Bar
+--  ...
+--  choice Foo : (Int, IndexTable)
+--    with
+--      b : Int
+--      idx : IndexTable
+--    controller p
+--    do
+--      a <- get
+--      pure (a + b, idx)
+-- ```
+-- within the `UpdateWithKey` monad, you can use the expression `exercise cid Foo 2`
+-- (where `cid` has type `ContractId Bar`, and the `idx` argument of the choice is left out).
+instance {-# OVERLAPPING #-} HasExercise t c (r, IndexTable) =>
+  HasExerciseM UpdateWithKey t (IndexTable -> c) r where
+    exercise cid f = StateT $ Prelude.exercise cid . f

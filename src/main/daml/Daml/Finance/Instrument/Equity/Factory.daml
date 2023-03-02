@@ -4,12 +4,14 @@
 module Daml.Finance.Instrument.Equity.Factory where
 
 import DA.Set (singleton)
-import Daml.Finance.Instrument.Equity.Instrument (Instrument(..))
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (GetCid(..), R, createReference)
-import Daml.Finance.Interface.Instrument.Equity.Factory qualified as EquityFactory (Create(..), F, Remove(..), View(..))
-import Daml.Finance.Interface.Types.Common.Types (PartiesMap)
+import Daml.Finance.Instrument.Equity.Instrument qualified as Equity (Instrument(..))
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I)
+import Daml.Finance.Interface.Instrument.Equity.Factory qualified as Equity (Create(..), F, Remove(..), View(..))
+import Daml.Finance.Interface.Types.Common.Types (InstrumentKey, PartiesMap)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I,View(..), flattenObservers)
+import Daml.Finance.Interface.Util.SyntheticKey (archiveByKey, create, withIndexTable)
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+import Prelude hiding (archive, create, exercise, exerciseByKey, fetch, fetchByKey, fetchFromInterface, lookup, lookupByKey)
 
 -- | Type synonym for `Factory`.
 type F = Factory
@@ -25,11 +27,11 @@ template Factory
     signatory provider
     observer Disclosure.flattenObservers observers
 
-    interface instance EquityFactory.F for Factory where
-      view = EquityFactory.View with provider
-      create' EquityFactory.Create{instrument; description; validAsOf; observers} = do
-        cid <- toInterfaceContractId <$>
-          create Instrument with
+    interface instance Equity.F for Factory where
+      view = Equity.View with provider
+      create' Equity.Create{instrument; description; validAsOf; observers} =
+        toInterfaceContractId <$>
+          create Equity.Instrument with
             depository = instrument.depository
             issuer = instrument.issuer
             id = instrument.id
@@ -37,16 +39,11 @@ template Factory
             description
             validAsOf
             observers
-        Instrument.createReference instrument.depository cid
-        pure cid
-      remove EquityFactory.Remove{instrument} = do
-        (refCid, ref) <- fetchByKey @Instrument.R instrument
-        instrumentCid <- exercise refCid Instrument.GetCid with viewer = instrument.depository
-        archive $ fromInterfaceContractId @Instrument instrumentCid
-        archive refCid
+      remove Equity.Remove{instrument; idx} = withIndexTable idx do
+        archiveByKey @BaseInstrument.I @InstrumentKey provider instrument
 
     interface instance Disclosure.I for Factory where
       view = Disclosure.View with disclosureControllers = singleton provider; observers
-      setObservers = setObserversImpl @Factory @Disclosure.I this None
-      addObservers = addObserversImpl @Factory @Disclosure.I this None
-      removeObservers = removeObserversImpl @Factory @Disclosure.I this None
+      setObservers = setObserversImpl @Factory this
+      addObservers = addObserversImpl @Factory this
+      removeObservers = removeObserversImpl @Factory this

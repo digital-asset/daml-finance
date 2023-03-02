@@ -7,15 +7,15 @@ import DA.Set (fromList)
 import DA.Text (sha256)
 import Daml.Finance.Claims.Util (isZero')
 import Daml.Finance.Claims.Util.Lifecycle (lifecycle, lifecycleClaims, netOnTag, splitPending, timeEvent)
-import Daml.Finance.Interface.Claims.Claim qualified as Claim (getAcquisitionTime)
-import Daml.Finance.Interface.Claims.Dynamic.Instrument qualified as DynamicInstrument (I, CreateNewVersion(..), GetView(..))
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (R, exerciseInterfaceByKey, getKey)
+import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, getAcquisitionTime)
+import Daml.Finance.Interface.Claims.Dynamic.Instrument qualified as DynamicInstrument (CreateNewVersion(..), GetView(..), I)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, getKey)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..), View(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..), Parties, PartiesMap)
-import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, flattenObservers)
+import Daml.Finance.Interface.Util.SyntheticKey (create, exercise, exerciseByKey, fetch, fetchByKey, withIndexTable)
 import Daml.Finance.Lifecycle.Effect (Effect(..))
-import Prelude hiding (exercise, key)
+import Prelude hiding (archive, create, exercise, exerciseByKey, fetch, fetchByKey, fetchFromInterface, lookup, lookupByKey)
 
 -- | Rule to process a time update event for instruments that are modelled using "on-the-fly" claims
 -- (the tree is not stored on-ledger but generated dynamically).
@@ -38,13 +38,13 @@ template Rule
     interface instance Lifecycle.I for Rule where
       view = Lifecycle.View with lifecycler; id; description
       -- BOND_PROCESS_CLOCK_UPDATE_INITAL_CLAIMS_BEGIN
-      evolve Lifecycle.Evolve{eventCid; observableCids; instrument} = do
-        claimInstrument <- fetchInterfaceByKey @BaseInstrument.R instrument
+      evolve Lifecycle.Evolve{eventCid; observableCids; instrument; idx} = withIndexTable idx do
+        (claimInstrumentCid, claimInstrument) <- fetchByKey @BaseInstrument.I @Claim.I instrument
       -- BOND_PROCESS_CLOCK_UPDATE_INITAL_CLAIMS_END
         -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_FASTFORWARD_BEGIN
         -- Recover claims tree as of the lastEventTimestamp. For a bond, this just requires
         -- lifecycling as of the lastEventTimestamp.
-        nv <- BaseInstrument.exerciseInterfaceByKey @DynamicInstrument.I instrument lifecycler
+        nv <- exercise (coerceInterfaceContractId @DynamicInstrument.I claimInstrumentCid)
           DynamicInstrument.GetView with viewer = lifecycler
         claims <- fst <$>
           lifecycle lifecycler observableCids claimInstrument [timeEvent nv.lastEventTimestamp]
@@ -65,9 +65,10 @@ template Rule
             currentKey = BaseInstrument.getKey $ toInterface claimInstrument
             newKey = currentKey with version = sha256 $ show remaining
             producedInstrument = if isZero' remaining then None else Some newKey
-          newInstrumentCid <- BaseInstrument.exerciseInterfaceByKey @DynamicInstrument.I instrument
-            lifecycler DynamicInstrument.CreateNewVersion with
-              lastEventTimestamp = v.eventTime; version = newKey.version
+          newInstrumentCid <-
+            exerciseByKey @BaseInstrument.I @DynamicInstrument.I lifecycler instrument
+              DynamicInstrument.CreateNewVersion with
+                lastEventTimestamp = v.eventTime; version = newKey.version
           effectCid <- toInterfaceContractId <$> create Effect with
             providers = fromList [currentKey.issuer]
             id = v.id
