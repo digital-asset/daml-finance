@@ -72,13 +72,13 @@ Early Access Packages
 
 - Requires
 
-- Synthetic Key
+- Key Table
 
 #### Daml.Finance.Claims
 
 - Dependencies update
 
-- Synthetic Key
+- Key Table
 
 - Style changes
 
@@ -90,7 +90,7 @@ Early Access Packages
 
 - Requires
 
-- Synthetic Key (for `HolidayCalendar` and `TimeObservable`)
+- Key Table (for `HolidayCalendar` and `TimeObservable`)
 
 - Made use of `TimeObservableKey`
 
@@ -102,7 +102,7 @@ Early Access Packages
 
 - Requires
 
-- Synthetic Key
+- Key Table
 
 #### Daml.Finance.Instrument.Bond
 
@@ -112,7 +112,7 @@ Early Access Packages
 
 - Requires
 
-- Synthetic Key
+- Key Table
 
 #### Daml.Finance.Instrument.Equity
 
@@ -120,7 +120,7 @@ Early Access Packages
 
 - Requires
 
-- Synthetic Key
+- Key Table
 
 #### Daml.Finance.Instrument.Generic
 
@@ -130,7 +130,7 @@ Early Access Packages
 
 - Requires
 
-- Synthetic Key
+- Key Table
 
 #### Daml.Finance.Instrument.Option
 
@@ -140,7 +140,7 @@ Early Access Packages
 
 - Requires
 
-- Synthetic Key
+- Key Table
 
 #### Daml.Finance.Instrument.Swap
 
@@ -150,7 +150,7 @@ Early Access Packages
 
 - Requires
 
-- Synthetic Key
+- Key Table
 
 #### Daml.Finance.Instrument.Token
 
@@ -158,7 +158,7 @@ Early Access Packages
 
 - Requires
 
-- Synthetic Key
+- Key Table
 
 #### Daml.Finance.Interface.Account
 
@@ -166,7 +166,7 @@ Early Access Packages
 
 - Requires
 
-- Synthetic Key (API change for `AccountFactory.Remove`)
+- Key Table (API change for `AccountFactory.Remove`)
 
 - Removed type synonym for `AccountKey`
 
@@ -176,7 +176,7 @@ Early Access Packages
 
 - Requires
 
-- Synthetic Key (API change for `Claim.GetClaim`)
+- Key Table (API change for `Claim.GetClaim`)
 
 - Introduced `getHolidayCalendarKeys` method to `Dynamic.Instrument.I`.
 
@@ -188,7 +188,7 @@ Early Access Packages
 
 - Requires
 
-- Synthetic Key (for `DateClock`, `HolidayCalendar`, and `LedgerTime`)
+- Key Table (for `DateClock`, `HolidayCalendar`, and `LedgerTime`)
 
 - Moved `HolidayCalendarKey` to this package.
 
@@ -200,7 +200,7 @@ Early Access Packages
 
 - Requires
 
-- Synthetic Key (API change for `Transferable.Transfer`)
+- Key Table (API change for `Transferable.Transfer`)
 
 - Moved the `disclose` and `undisclose` utility functions to
   `Daml.Finance.Interface.Util.Disclosure`
@@ -213,7 +213,7 @@ Early Access Packages
 
 - Requires
 
-- Synthetic Key
+- Key Table
 
 - Removed type synonym for `InstrumentKey`
 
@@ -223,7 +223,7 @@ Early Access Packages
 
 - Requires
 
-- Synthetic Key (API change for `Factory.Remove`)
+- Key Table (API change for `Factory.Remove`)
 
 #### Daml.Finance.Interface.Instrument.Equity
 
@@ -231,7 +231,7 @@ Early Access Packages
 
 - Requires
 
-- Synthetic Key (API change for `Factory.Remove`)
+- Key Table (API change for `Factory.Remove`)
 
 #### Daml.Finance.Interface.Instrument.Generic
 
@@ -239,7 +239,7 @@ Early Access Packages
 
 - Requires
 
-- Synthetic Key (API change for `Factory.Remove`, `Election.Apply`, and `Election.ApplyElection`)
+- Key Table (API change for `Factory.Remove`, `Election.Apply`, and `Election.ApplyElection`)
 
 #### Daml.Finance.Interface.Instrument.Option
 
@@ -247,7 +247,7 @@ Early Access Packages
 
 - Requires
 
-- Synthetic Key (API change for `Factory.Remove`)
+- Key Table (API change for `Factory.Remove`)
 
 #### Daml.Finance.Interface.Instrument.Swap
 
@@ -257,7 +257,7 @@ Early Access Packages
 
 - Requires
 
-- Synthetic Key (API change for `Factory.Remove`)
+- Key Table (API change for `Factory.Remove`)
 
 #### Daml.Finance.Interface.Instrument.Token
 
@@ -265,7 +265,7 @@ Early Access Packages
 
 - Requires
 
-- Synthetic Key (API change for `Factory.Remove`)
+- Key Table (API change for `Factory.Remove`)
 
 #### Daml.Finance.Interface.Lifecycle
 
@@ -275,7 +275,7 @@ Early Access Packages
 
 - Requires
 
-- Synthetic Key (added key data type for `TimeObservable` + API change for `Rule.Lifecycle.Evolve`)
+- Key Table (added key data type for `TimeObservable` + API change for `Rule.Lifecycle.Evolve`)
 
 #### Daml.Finance.Interface.Settlement
 
@@ -285,7 +285,7 @@ Early Access Packages
 
 - Requires
 
-- Synthetic Key (API change for `Batch.Settle`, `Batch.Cancel`, `Instruction.Allocate`,
+- Key Table (API change for `Batch.Settle`, `Batch.Cancel`, `Instruction.Allocate`,
   `Instruction.Approve`, `Instruction.Execute`, and `Instruction.Cancel`)
 
 - Added `getKey` interface method to `Instruction` and `Batch` (to be consistent with other
@@ -311,8 +311,9 @@ Early Access Packages
 
 - Requires (but only type constraint for requiring templates to implement `Disclosure`)
 
-- Synthetic Key (added module with custom `archive`, `create`, `exercise`, `exerciseByKey`, `fetch`,
-  `fetchByKey`, `fetchFromInterface`, and `lookupByKey` for working with synthetic keys)
+- Key Table (added module `KeyTable` with custom `archive`, `create`, `exercise`, `exerciseByKey`,
+  `fetch`, `fetchByKey`, `fetchFromInterface`, and `lookupByKey` for working with explicit key
+  tables)
 
 - Utility functions for `disclose` and `undisclose` were moved to this package.
 
@@ -324,7 +325,7 @@ Early Access Packages
 
 - Requires
 
-- Synthetic Key
+- Key Table
 
 #### Daml.Finance.Settlement
 
@@ -334,7 +335,7 @@ Early Access Packages
 
 - Requires
 
-- Synthetic Key
+- Key Table
 
 #### Daml.Finance.Util
 
