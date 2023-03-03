@@ -27,18 +27,18 @@ import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (A
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), InstructionKey(..))
 import Daml.Finance.Interface.Types.Common.Types (AccountKey, Id(..), InstrumentKey, Parties)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, AddObservers(..))
-import Daml.Finance.Interface.Util.SyntheticKey (IndexTable(..))
+import Daml.Finance.Interface.Util.SyntheticKey (KeyTable(..))
 import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
 import Daml.Finance.Settlement.Hierarchy (Hierarchy(..))
 import Daml.Finance.Settlement.Instruction qualified as Instruction (T)
 import Daml.Finance.Settlement.RouteProvider.IntermediatedStatic (IntermediatedStatic(..))
-import Daml.Finance.Settlement.Test.Util (buildIndexTableForAllocation, buildIndexTableForApproval, buildIndexTableForBatchSettlement, allocateAny, approveAny, settleAny)
-import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), buildIndexTable, createAccount, createFactory, credit)
+import Daml.Finance.Settlement.Test.Util (buildKeyTableForAllocation, buildKeyTableForApproval, buildKeyTableForBatchSettlement, allocateAny, approveAny, settleAny)
+import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), buildKeyTable, createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties, queryAnyByKey)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
 import Daml.Finance.Test.Util.Instrument qualified as BaseInstrument (originate)
-import Daml.Finance.Test.Util.Instrument qualified as Instrument (buildIndexTable)
+import Daml.Finance.Test.Util.Instrument qualified as Instrument (buildKeyTable)
 import Daml.Finance.Test.Util.Time (createClockUpdateEvent)
 import Daml.Script
 
@@ -208,8 +208,8 @@ runIntermediatedLifecyclingNonAtomic = script do
       description = "Rule to lifecycle a generic instrument"
   -- LIFECYCLE_BOND_CREATE_RULE_END
 
-  -- Build index table
-  idx <- Instrument.buildIndexTable @Instrument.T @HolidayCalendar.T [issuer] bondInstrument
+  -- Build key table
+  keyTable <- Instrument.buildKeyTable @Instrument.T @HolidayCalendar.T [issuer] bondInstrument
 
   -- LIFECYCLE_BOND_BEGIN
   -- Try to lifecycle instrument
@@ -218,7 +218,7 @@ runIntermediatedLifecyclingNonAtomic = script do
       eventCid = clockEventCid
       observableCids = []
       instrument = bondInstrument
-      idx
+      keyTable
   -- LIFECYCLE_BOND_END
 
   -- Define settlement routes across intermediaries
@@ -244,8 +244,8 @@ runIntermediatedLifecyclingNonAtomic = script do
       csdCashAccount
       settlementRoutes = routes
 
-  -- Build index table
-  idx <- mconcat <$> mapA (uncurry Account.buildIndexTable)
+  -- Build key table
+  keyTable <- mconcat <$> mapA (uncurry Account.buildKeyTable)
     [ (investor, investorSecuritiesAccount)
       , (investor, investorCashAccount)
       , (issuer, issuerCashAccount)
@@ -255,13 +255,13 @@ runIntermediatedLifecyclingNonAtomic = script do
       ]
 
   -- CSD claims and settles effect against issuer
-  (effectCid, newInstrumentHoldingCid, [cashHoldingCid], idx) <-
+  (effectCid, newInstrumentHoldingCid, [cashHoldingCid], keyTable) <-
     submitMulti [issuer] [publicParty] do
       exerciseCmd settle1Cid ClaimAndSettle with
         instrumentHoldingCid = csdBondHoldingCid
         cashHoldingCid = issuerCashHoldingCid
         effectCid
-        idx
+        keyTable
   -- LIFECYCLE_BOND_ISSUER_CSD_END
 
   -- LIFECYCLE_BOND_SETTLEMENT_FACTORY_BEGIN
@@ -299,55 +299,55 @@ runIntermediatedLifecyclingNonAtomic = script do
 
   -- Allocate instructions
   let allocation = Pledge investorBondHoldingCid
-  idx <- buildIndexTableForAllocation [investor] allocation
+  keyTable <- buildKeyTableForAllocation [investor] allocation
   ((investorBondInstructionCid, _), _) <- submit investor do
     exerciseCmd investorBondInstructionCid Instruction.Allocate with
-      actors = singleton investor; allocation; idx
+      actors = singleton investor; allocation; keyTable
   let allocation = CreditReceiver
-  idx <- buildIndexTableForAllocation [csd] allocation
+  keyTable <- buildKeyTableForAllocation [csd] allocation
   ((csdBondInstructionCid, _), _) <- submit csd do
     exerciseCmd csdBondInstructionCid Instruction.Allocate with
-      actors = singleton csd; allocation; idx
+      actors = singleton csd; allocation; keyTable
   let allocation = Pledge cashHoldingCid
-  idx <- buildIndexTableForAllocation [csd] allocation
+  keyTable <- buildKeyTableForAllocation [csd] allocation
   ((csdCashInstructionCid, _), _) <- submit csd do
     exerciseCmd csdCashInstructionCid Instruction.Allocate with
-      actors = singleton csd; allocation; idx
+      actors = singleton csd; allocation; keyTable
   let allocation = CreditReceiver
-  idx <- buildIndexTableForAllocation [bank] allocation
-  ((bankCashInstructionCid, _), idx) <- submit bank do
+  keyTable <- buildKeyTableForAllocation [bank] allocation
+  ((bankCashInstructionCid, _), keyTable) <- submit bank do
     exerciseCmd bankCashInstructionCid Instruction.Allocate with
-      actors = singleton bank; allocation; idx
+      actors = singleton bank; allocation; keyTable
 
   -- Approve instructions
   let approval = DebitSender
-  idx <- buildIndexTableForApproval [csd] approval
-  (investorBondInstructionCid, idx) <- submit csd do
+  keyTable <- buildKeyTableForApproval [csd] approval
+  (investorBondInstructionCid, keyTable) <- submit csd do
     exerciseCmd investorBondInstructionCid Instruction.Approve with
-      actors = singleton csd; approval; idx
+      actors = singleton csd; approval; keyTable
   let approval = TakeDelivery investorSecuritiesAccount
-  idx <- buildIndexTableForApproval [investor] approval
-  (csdBondInstructionCid, idx) <- submit investor do
+  keyTable <- buildKeyTableForApproval [investor] approval
+  (csdBondInstructionCid, keyTable) <- submit investor do
     exerciseCmd csdBondInstructionCid Instruction.Approve with
-      actors = singleton investor; approval; idx
+      actors = singleton investor; approval; keyTable
   let approval = TakeDelivery bankCashAccount
-  idx <- buildIndexTableForApproval [bank] approval
-  (csdCashInstructionCid, idx) <- submit bank do
+  keyTable <- buildKeyTableForApproval [bank] approval
+  (csdCashInstructionCid, keyTable) <- submit bank do
     exerciseCmd csdCashInstructionCid Instruction.Approve with
-      actors = singleton bank; approval; idx
+      actors = singleton bank; approval; keyTable
   let approval = TakeDelivery investorCashAccount
-  idx <- buildIndexTableForApproval [investor] approval
-  (bankCashInstructionCid, idx) <- submit investor do
+  keyTable <- buildKeyTableForApproval [investor] approval
+  (bankCashInstructionCid, keyTable) <- submit investor do
     exerciseCmd bankCashInstructionCid Instruction.Approve with
-      actors = singleton investor; approval; idx
+      actors = singleton investor; approval; keyTable
 
-  -- Build index table
-  idx <- buildIndexTableForBatchSettlement (toList settlers) result.batchCid
+  -- Build key table
+  keyTable <- buildKeyTableForBatchSettlement (toList settlers) result.batchCid
 
   -- Settle batch
   [investorBondHoldingCid, bankCashHoldingCid, investorCashHoldingCid] <-
     submitMulti (toList settlers) [publicParty] do
-      fst <$> exerciseCmd result.batchCid Batch.Settle with actors = settlers; idx
+      fst <$> exerciseCmd result.batchCid Batch.Settle with actors = settlers; keyTable
   -- LIFECYCLE_BOND_ALLOCATE_APPROVE_SETTLE_END
 
   -- Assert state
@@ -401,8 +401,8 @@ runIntermediatedLifecyclingAtomic = script do
       id = Id "LifecycleRule"
       description = "Rule to lifecycle a generic instrument"
 
-  -- Build index table
-  idx <- Instrument.buildIndexTable @Instrument.T @HolidayCalendar.T [issuer] bondInstrument
+  -- Build key table
+  keyTable <- Instrument.buildKeyTable @Instrument.T @HolidayCalendar.T [issuer] bondInstrument
 
   -- Try to lifecycle the instrument
   (_, [effectCid]) <- submit issuer do
@@ -410,7 +410,7 @@ runIntermediatedLifecyclingAtomic = script do
       eventCid = clockEventCid
       observableCids = []
       instrument = bondInstrument
-      idx
+      keyTable
 
   -- Define settlement routes from CSD to Investor and create batch factory
   let routes = M.fromList [cashRoute, bondRoute]
@@ -536,7 +536,7 @@ template EffectSettlementService
       csdCashAccount.owner == csd
 
     nonconsuming choice ClaimAndSettle
-      : (ContractId Effect.I, Optional (ContractId Base.I), [ContractId Base.I], IndexTable)
+      : (ContractId Effect.I, Optional (ContractId Base.I), [ContractId Base.I], KeyTable)
       with
         instrumentHoldingCid : ContractId Base.I
           -- ^ Holding of CSD @ issuer for the old instrument.
@@ -544,8 +544,8 @@ template EffectSettlementService
           -- ^ Cash holding of issuer @ central bank, used to settle the effect's consequences.
         effectCid : ContractId Effect.I
           -- ^ Effect to claim.
-        idx : IndexTable
-          -- ^ The index table needed for the action.
+        keyTable : KeyTable
+          -- ^ The key table needed for the action.
       controller issuer
       do
         effectView <- exercise effectCid Effect.GetView with viewer = issuer
@@ -596,36 +596,36 @@ template EffectSettlementService
             issuerCashInstructionCouponCid ] = result.instructionCids
 
         -- Allocate instructions
-        ((csdInstrumentInstructionCid, _), idx) <- exercise csdInstrumentInstructionCid
+        ((csdInstrumentInstructionCid, _), keyTable) <- exercise csdInstrumentInstructionCid
           Instruction.Allocate with
-            actors = singleton csd; allocation = Pledge instrumentHoldingCid; idx
-        ((issuerCashInstructionCouponCid, _), idx) <- exercise issuerCashInstructionCouponCid
+            actors = singleton csd; allocation = Pledge instrumentHoldingCid; keyTable
+        ((issuerCashInstructionCouponCid, _), keyTable) <- exercise issuerCashInstructionCouponCid
           Instruction.Allocate with
-            actors = singleton issuer; allocation = Pledge cashHoldingCid; idx
-        ((issuerInstrumentInstructionCid, _), idx) <- exercise issuerInstrumentInstructionCid
-          Instruction.Allocate with actors = singleton issuer; allocation = CreditReceiver; idx
+            actors = singleton issuer; allocation = Pledge cashHoldingCid; keyTable
+        ((issuerInstrumentInstructionCid, _), keyTable) <- exercise issuerInstrumentInstructionCid
+          Instruction.Allocate with actors = singleton issuer; allocation = CreditReceiver; keyTable
 
         -- Approve instructions
-        (csdInstrumentInstructionCid, idx) <- exercise csdInstrumentInstructionCid
+        (csdInstrumentInstructionCid, keyTable) <- exercise csdInstrumentInstructionCid
           Instruction.Approve with
-            actors = singleton issuer; approval = DebitSender; idx
+            actors = singleton issuer; approval = DebitSender; keyTable
 
-        (issuerCashInstructionCouponCid, idx) <- exercise issuerCashInstructionCouponCid
+        (issuerCashInstructionCouponCid, keyTable) <- exercise issuerCashInstructionCouponCid
           Instruction.Approve with
-            actors = singleton csd; approval = TakeDelivery csdCashAccount; idx
+            actors = singleton csd; approval = TakeDelivery csdCashAccount; keyTable
 
-        (issuerInstrumentInstructionCid, idx) <- exercise issuerInstrumentInstructionCid
+        (issuerInstrumentInstructionCid, keyTable) <- exercise issuerInstrumentInstructionCid
           Instruction.Approve with
-            actors = singleton csd; approval = TakeDelivery securitiesAccount; idx
+            actors = singleton csd; approval = TakeDelivery securitiesAccount; keyTable
 
         -- Settle batch
         [newInstrumentHoldingCid, investorCashHoldingCouponCid] <-
-          fst <$> exercise result.batchCid Batch.Settle with actors = singleton csd; idx
+          fst <$> exercise result.batchCid Batch.Settle with actors = singleton csd; keyTable
 
         -- 2. create effect to be used by investors
         newEffectCid <- exercise effectCid Effect.SetProviders with newProviders = singleton csd
 
-        pure (newEffectCid, Some newInstrumentHoldingCid, [investorCashHoldingCouponCid], idx)
+        pure (newEffectCid, Some newInstrumentHoldingCid, [investorCashHoldingCouponCid], keyTable)
 
 -- | HIDE
 setupParties : Script TestParties

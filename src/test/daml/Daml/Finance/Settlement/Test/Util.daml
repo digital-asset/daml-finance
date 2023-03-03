@@ -12,7 +12,7 @@ import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Cancel(..), I
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..), I)
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), InstructionKey(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..))
-import Daml.Finance.Interface.Util.SyntheticKey (IndexTable(..), insert)
+import Daml.Finance.Interface.Util.SyntheticKey (KeyTable(..), insert)
 import Daml.Finance.Settlement.Instruction qualified as Instruction (T)
 import Daml.Finance.Test.Util.Common (queryAnyByKey)
 import Daml.Finance.Util.Common (mapWithIndex)
@@ -31,20 +31,20 @@ allocateAnyMustFail = allocateAnyHelper submitMultiMustFail
 -- | HIDE
 allocateAnyHelper :
   ([Party] -> [Party] -> Commands ((ContractId Instruction.I, Optional (ContractId Holding.I)),
-  IndexTable) -> Script a) -> [Party] -> ContractId Instruction.I -> Allocation -> Script a
+  KeyTable) -> Script a) -> [Party] -> ContractId Instruction.I -> Allocation -> Script a
 allocateAnyHelper submit' actors instructionCid allocation = do
   r <- queryInterfaceContractId @Instruction.I actors instructionCid
   idxsOld <- case r of
-    Some instruction -> buildIndexTableForAllocation actors instruction.allocation
+    Some instruction -> buildKeyTableForAllocation actors instruction.allocation
     None -> pure mempty
-  idxsNew <- buildIndexTableForAllocation actors allocation
+  idxsNew <- buildKeyTableForAllocation actors allocation
   submit' actors [] do
     exerciseCmd instructionCid Instruction.Allocate with
-      actors = S.fromList actors; allocation; idx = mconcat [idxsNew, idxsOld]
+      actors = S.fromList actors; allocation; keyTable = mconcat [idxsNew, idxsOld]
 
--- | Build index table for allocating an instruction.
-buildIndexTableForAllocation : [Party] -> Allocation -> Script IndexTable
-buildIndexTableForAllocation actors allocation =
+-- | Build key table for allocating an instruction.
+buildKeyTableForAllocation : [Party] -> Allocation -> Script KeyTable
+buildKeyTableForAllocation actors allocation =
   case allocation of
     Pledge holdingCid -> do
       Some holding <- queryInterfaceContractId @Holding.I actors holdingCid
@@ -68,19 +68,19 @@ approveAnyMustFail = approveAnyHelper submitMultiMustFail
 
 -- | HIDE
 approveAnyHelper :
-  ([Party] -> [Party] -> Commands (ContractId Instruction.I, IndexTable) -> Script a) ->
+  ([Party] -> [Party] -> Commands (ContractId Instruction.I, KeyTable) -> Script a) ->
   [Party] -> ContractId Instruction.I -> Approval -> Script a
 approveAnyHelper submit' actors instructionCid approval = do
   Some instruction <- queryInterfaceContractId @Instruction.I actors instructionCid
-  oldIdxs <- buildIndexTableForApproval actors instruction.approval
-  newIdxs <- buildIndexTableForApproval actors approval
-  let idx = mconcat [newIdxs, oldIdxs]
+  oldIdxs <- buildKeyTableForApproval actors instruction.approval
+  newIdxs <- buildKeyTableForApproval actors approval
+  let keyTable = mconcat [newIdxs, oldIdxs]
   submit' actors [] do
-    exerciseCmd instructionCid Instruction.Approve with actors = S.fromList actors; approval; idx
+    exerciseCmd instructionCid Instruction.Approve with actors = S.fromList actors; approval; keyTable
 
--- | Build index table for approving an instruction.
-buildIndexTableForApproval : [Party] -> Approval -> Script IndexTable
-buildIndexTableForApproval actors approval =
+-- | Build key table for approving an instruction.
+buildKeyTableForApproval : [Party] -> Approval -> Script KeyTable
+buildKeyTableForApproval actors approval =
   case approval of
     TakeDelivery accountKey -> do
       accountCid <- fst <$> queryAnyByKey @Account.T @Account.I actors accountKey
@@ -104,15 +104,15 @@ settleAnyMustFail = settleAnyHelper submitMultiMustFail
 settleAnyHelper : ([Party] -> [Party] -> Commands [ContractId Holding.I] -> Script b) ->
   [Party] -> [Party] -> ContractId Batch.I -> Script b
 settleAnyHelper submitF actors observers batchCid = do
-  -- Build index table
-  idx <- buildIndexTableForBatchSettlement actors batchCid
+  -- Build key table
+  keyTable <- buildKeyTableForBatchSettlement actors batchCid
   -- Settle
   submitF actors observers do
-    fst <$> exerciseCmd batchCid Batch.Settle with actors = S.fromList actors; idx
+    fst <$> exerciseCmd batchCid Batch.Settle with actors = S.fromList actors; keyTable
 
--- | Build index table for settling a batch.
-buildIndexTableForBatchSettlement : [Party] -> ContractId Batch.I -> Script IndexTable
-buildIndexTableForBatchSettlement actors batchCid = do
+-- | Build key table for settling a batch.
+buildKeyTableForBatchSettlement : [Party] -> ContractId Batch.I -> Script KeyTable
+buildKeyTableForBatchSettlement actors batchCid = do
   r <- queryInterfaceContractId actors batchCid
   case r of
     Some batch -> do
@@ -122,14 +122,14 @@ buildIndexTableForBatchSettlement actors batchCid = do
         n = length batch.routedSteps - 1
         instructionKeys = map (buildKey. Id . show) [0..n]
       foldlA
-        (\idx instructionKey -> do
+        (\keyTable instructionKey -> do
           (instructionCid, instruction) <-
             queryAnyByKey @Instruction.T @Instruction.I actors instructionKey
           let
             v = view instruction
-            idxs1 = insert instructionKey instructionCid idx
-          idxs2 <- buildIndexTableForAllocation actors v.allocation
-          idxs3 <- buildIndexTableForApproval actors v.approval
+            idxs1 = insert instructionKey instructionCid keyTable
+          idxs2 <- buildKeyTableForAllocation actors v.allocation
+          idxs3 <- buildKeyTableForApproval actors v.approval
           pure $ mconcat [idxs3, idxs2, idxs1]
         )
        mempty $ instructionKeys
@@ -147,17 +147,17 @@ cancelAnyMustFail = cancelAnyHelper submitMultiMustFail
 cancelAnyHelper : ([Party] -> [Party] -> Commands [ContractId Holding.I] -> Script b) ->
   [Party] -> [Party] -> ContractId Batch.I -> Script b
 cancelAnyHelper submitF actors observers batchCid = do
-  idx <- buildIndexTableForBatchCancelling actors batchCid
+  keyTable <- buildKeyTableForBatchCancelling actors batchCid
   submitF actors observers do
-    fst <$> exerciseCmd batchCid Batch.Cancel with actors = S.fromList actors; idx
+    fst <$> exerciseCmd batchCid Batch.Cancel with actors = S.fromList actors; keyTable
 
--- | Build index table for cancelling a batch.
-buildIndexTableForBatchCancelling : [Party] -> ContractId Batch.I -> Script IndexTable
-buildIndexTableForBatchCancelling actors batchCid = do
+-- | Build key table for cancelling a batch.
+buildKeyTableForBatchCancelling : [Party] -> ContractId Batch.I -> Script KeyTable
+buildKeyTableForBatchCancelling actors batchCid = do
   Some batch <- queryInterfaceContractId @Batch.I actors batchCid
   foldlA
-    (\idx (routedStep, id) -> do
+    (\keyTable (routedStep, id) -> do
       let instructionKey = InstructionKey with requestors = batch.requestors; batchId = batch.id; id
       instructionCid <- fst <$> queryAnyByKey @Instruction.T @Instruction.I actors instructionKey
-      pure $ insert instructionKey instructionCid idx
-    ) mempty $ mapWithIndex (\e idx -> (e, Id (show idx))) batch.routedSteps
+      pure $ insert instructionKey instructionCid keyTable
+    ) mempty $ mapWithIndex (\e keyTable -> (e, Id (show keyTable))) batch.routedSteps
