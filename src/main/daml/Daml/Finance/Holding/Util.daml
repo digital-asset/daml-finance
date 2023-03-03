@@ -10,47 +10,48 @@ import Daml.Finance.Interface.Account.Account qualified as Account (Credit(..), 
 import Daml.Finance.Interface.Holding.Base qualified as Base (Acquire(..), I, Lock(..), LockType(..), Release(..), getLockers)
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
 import Daml.Finance.Interface.Util.Common (qty)
-import Daml.Finance.Interface.Util.SyntheticKey (IndexTable, create, exercise, fetch, fetchByKey, withIndexTable)
+import Daml.Finance.Interface.Util.SyntheticKey (KeyTable, create, exercise, fetch, fetchByKey, withKeyTable)
 import Prelude hiding (archive, create, exercise, exerciseByKey, fetch, fetchByKey, fetchFromInterface, lookup, lookupByKey)
 
 -- | Default implementation of transfer for the Transferable interface.
 transferImpl : Transferable.I -> ContractId Transferable.I -> Transferable.Transfer ->
-  Update (ContractId Transferable.I, IndexTable)
-transferImpl this self Transferable.Transfer{actors; newOwnerAccount; idx} = withIndexTable idx do
-  let
-    baseCid = toInterfaceContractId @Base.I self
-    base = toInterface @Base.I this
-    vBase = view base
-    lockers = Base.getLockers base
-  (accountCid, vAccount) <- fmap view <$> fetchByKey @Account.I @Account.I vBase.account
-  (newAccountCid, vNewAccount) <- fmap view <$> fetchByKey @Account.I @Account.I newOwnerAccount
-  -- Verify
-  assertMsg "actors must contain all transfer outgoing of the sender account" $
-    vAccount.controllers.outgoing `S.isSubsetOf` actors
-  assertMsg "actors must contain all transfer incoming of the receiving account" $
-    vNewAccount.controllers.incoming `S.isSubsetOf` actors
-  assertMsg "actors must contain all lockers" $ lockers `S.isSubsetOf` actors
-  assertMsg "custodians must be the same" $ vBase.account.custodian == vAccount.custodian
-  -- Release all locks
-  let
-    releaseAll cid lock =
-      foldlA (\acc context -> exercise acc Base.Release with context) cid (S.toList lock.context)
-  baseCid <- toInterfaceContractId @Base.I <$>
-    optional (pure baseCid) (releaseAll baseCid) vBase.lock
-  -- Debit
-  exercise accountCid Account.Debit with holdingCid = baseCid
-  -- Credit
-  newBaseCid <- exercise newAccountCid
-    Account.Credit with quantity = qty vBase.amount vBase.instrument
-  -- Consistency check
-  newBase <- fetch newBaseCid
-  assertMsg "credited and debited holding types must match" $
-    interfaceTypeRep newBase == interfaceTypeRep base
-  -- Reapply locks
-  let
-    reapplyLocks cid lock = foldlA (\acc context -> exercise acc Base.Acquire with
-      newLockers = lock.lockers; context; lockType = lock.lockType) cid (S.toList lock.context)
-  coerceInterfaceContractId <$> optional (pure newBaseCid) (reapplyLocks newBaseCid) vBase.lock
+  Update (ContractId Transferable.I, KeyTable)
+transferImpl this self Transferable.Transfer{actors; newOwnerAccount; keyTable} =
+  withKeyTable keyTable do
+    let
+      baseCid = toInterfaceContractId @Base.I self
+      base = toInterface @Base.I this
+      vBase = view base
+      lockers = Base.getLockers base
+    (accountCid, vAccount) <- fmap view <$> fetchByKey @Account.I @Account.I vBase.account
+    (newAccountCid, vNewAccount) <- fmap view <$> fetchByKey @Account.I @Account.I newOwnerAccount
+    -- Verify
+    assertMsg "actors must contain all transfer outgoing of the sender account" $
+      vAccount.controllers.outgoing `S.isSubsetOf` actors
+    assertMsg "actors must contain all transfer incoming of the receiving account" $
+      vNewAccount.controllers.incoming `S.isSubsetOf` actors
+    assertMsg "actors must contain all lockers" $ lockers `S.isSubsetOf` actors
+    assertMsg "custodians must be the same" $ vBase.account.custodian == vAccount.custodian
+    -- Release all locks
+    let
+      releaseAll cid lock =
+        foldlA (\acc context -> exercise acc Base.Release with context) cid (S.toList lock.context)
+    baseCid <- toInterfaceContractId @Base.I <$>
+      optional (pure baseCid) (releaseAll baseCid) vBase.lock
+    -- Debit
+    exercise accountCid Account.Debit with holdingCid = baseCid
+    -- Credit
+    newBaseCid <- exercise newAccountCid
+      Account.Credit with quantity = qty vBase.amount vBase.instrument
+    -- Consistency check
+    newBase <- fetch newBaseCid
+    assertMsg "credited and debited holding types must match" $
+      interfaceTypeRep newBase == interfaceTypeRep base
+    -- Reapply locks
+    let
+      reapplyLocks cid lock = foldlA (\acc context -> exercise acc Base.Acquire with
+        newLockers = lock.lockers; context; lockType = lock.lockType) cid (S.toList lock.context)
+    coerceInterfaceContractId <$> optional (pure newBaseCid) (reapplyLocks newBaseCid) vBase.lock
 
 -- | Default implementation of `acquire` from the Base interface.
 acquireImpl :

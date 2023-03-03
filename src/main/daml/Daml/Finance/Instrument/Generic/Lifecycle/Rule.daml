@@ -20,7 +20,7 @@ import Daml.Finance.Interface.Instrument.Generic.Election qualified as Election 
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..), View(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey, Parties, PartiesMap)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
-import Daml.Finance.Interface.Util.SyntheticKey (UpdateWithKey, create, fetch, fetchByKey, lookupByKey, withIndexTable)
+import Daml.Finance.Interface.Util.SyntheticKey (UpdateWithKey, create, fetch, fetchByKey, lookupByKey, withKeyTable)
 import Daml.Finance.Lifecycle.Effect (Effect(..))
 import Daml.Finance.Lifecycle.ElectionEffect (ElectionEffect(..))
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
@@ -45,88 +45,90 @@ template Rule
 
     interface instance Lifecycle.I for Rule where
       view = Lifecycle.View with lifecycler; id; description
-      evolve Lifecycle.Evolve{eventCid; observableCids; instrument; idx} = withIndexTable idx do
-        -- fetch event
-        eventView <- view <$> fetch eventCid
-        let eventTime = eventView.eventTime
-        -- fetch claim tree
-        claimInstrument <- snd <$> fetchByKey @BaseInstrument.I @Claim.I instrument
-        claims <- StateT $ Claim.getClaims claimInstrument . Claim.GetClaims lifecycler
-        -- lifecycle as of the time given by the event
-        (remaining, pending) <-
-          lifecycle lifecycler observableCids claimInstrument [timeEvent eventTime]
+      evolve Lifecycle.Evolve{eventCid; observableCids; instrument; keyTable} =
+        withKeyTable keyTable do
+          -- fetch event
+          eventView <- view <$> fetch eventCid
+          let eventTime = eventView.eventTime
+          -- fetch claim tree
+          claimInstrument <- snd <$> fetchByKey @BaseInstrument.I @Claim.I instrument
+          claims <- StateT $ Claim.getClaims claimInstrument . Claim.GetClaims lifecycler
+          -- lifecycle as of the time given by the event
+          (remaining, pending) <-
+            lifecycle lifecycler observableCids claimInstrument [timeEvent eventTime]
 
-        -- create new instrument and return effect
-        if remaining == claims && null pending then
-          pure (None, [])
-        else do
-          let
-            instrumentT : Instrument = fromSome $ fromInterface claimInstrument
-            currentKey = BaseInstrument.getKey $ toInterface claimInstrument
-            [claim] = fmap (.claim) remaining
-            newKey = currentKey with version = sha256 $ show remaining
-            producedInstrument = if isZero' remaining then None else Some newKey
-          forA_ producedInstrument $ tryCreateNewInstrument lifecycler claim eventTime instrumentT
-          let (otherConsumed, otherProduced) = splitPending pending
-          effectCid <- toInterfaceContractId <$>
-            create Effect with
-              providers = fromList [instrumentT.issuer, instrumentT.depository]
-              id = eventView.id
-              description = eventView.description
-              targetInstrument = currentKey
-              producedInstrument
-              otherConsumed
-              otherProduced
-              settlementTime = Some eventTime
-              observers = Disclosure.flattenObservers instrumentT.observers
-          pure (producedInstrument, [effectCid])
+          -- create new instrument and return effect
+          if remaining == claims && null pending then
+            pure (None, [])
+          else do
+            let
+              instrumentT : Instrument = fromSome $ fromInterface claimInstrument
+              currentKey = BaseInstrument.getKey $ toInterface claimInstrument
+              [claim] = fmap (.claim) remaining
+              newKey = currentKey with version = sha256 $ show remaining
+              producedInstrument = if isZero' remaining then None else Some newKey
+            forA_ producedInstrument $ tryCreateNewInstrument lifecycler claim eventTime instrumentT
+            let (otherConsumed, otherProduced) = splitPending pending
+            effectCid <- toInterfaceContractId <$>
+              create Effect with
+                providers = fromList [instrumentT.issuer, instrumentT.depository]
+                id = eventView.id
+                description = eventView.description
+                targetInstrument = currentKey
+                producedInstrument
+                otherConsumed
+                otherProduced
+                settlementTime = Some eventTime
+                observers = Disclosure.flattenObservers instrumentT.observers
+            pure (producedInstrument, [effectCid])
 
     interface instance Election.Exercisable for Rule where
       view = Election.ExercisableView with lifecycler
-      applyElection Election.ApplyElection{electionCid; observableCids; idx} = withIndexTable idx do
+      applyElection Election.ApplyElection{electionCid; observableCids; keyTable} =
+        withKeyTable keyTable do
 
-        -- fetch election
-        election <- fetch electionCid
-        let
-          v = view election
-          electionTime = Election.getElectionTime election
-          election = electionEvent electionTime v.electorIsOwner v.claim
-
-        -- fetch claim tree
-        claimInstrument <- snd <$> fetchByKey @BaseInstrument.I @Claim.I v.instrument
-        claims <- StateT $ Claim.getClaims claimInstrument . Claim.GetClaims lifecycler
-
-        -- lifecycle as of the time given by the event, by applying the corresponding election
-        (remaining, pending) <- lifecycle lifecycler observableCids claimInstrument [election]
-
-        -- create new instrument and return effect
-        if remaining == claims && null pending then
-          pure (None, [])
-        else do
+          -- fetch election
+          election <- fetch electionCid
           let
-            instrumentT = fromSome $ fromInterface @Instrument claimInstrument
-            currentKey = BaseInstrument.getKey $ toInterface claimInstrument
-            newKey = currentKey with version = sha256 $ show remaining
-            [claim] = fmap (.claim) remaining
-            producedInstrument = if isZero' remaining then None else Some newKey
-          forA_ producedInstrument $
-            tryCreateNewInstrument lifecycler claim electionTime instrumentT
-          let (otherConsumed, otherProduced) = splitPending pending
-          effectCid <- toInterfaceContractId <$>
-            create ElectionEffect with
-              providers = fromList [instrumentT.issuer, instrumentT.depository]
-              custodian = if v.electorIsOwner then v.counterparty else v.elector
-              owner = if v.electorIsOwner then v.elector else v.counterparty
-              id = v.id
-              description = v.description
-              targetInstrument = currentKey
-              producedInstrument
-              amount = v.amount
-              otherConsumed
-              otherProduced
-              settlementTime = Some electionTime
-              observers = v.observers
-          pure (producedInstrument, [effectCid])
+            v = view election
+            electionTime = Election.getElectionTime election
+            election = electionEvent electionTime v.electorIsOwner v.claim
+
+          -- fetch claim tree
+          claimInstrument <- snd <$> fetchByKey @BaseInstrument.I @Claim.I v.instrument
+          claims <- StateT $ Claim.getClaims claimInstrument . Claim.GetClaims lifecycler
+
+          -- lifecycle as of the time given by the event, by applying the corresponding election
+          (remaining, pending) <- lifecycle lifecycler observableCids claimInstrument [election]
+
+          -- create new instrument and return effect
+          if remaining == claims && null pending then
+            pure (None, [])
+          else do
+            let
+              instrumentT = fromSome $ fromInterface @Instrument claimInstrument
+              currentKey = BaseInstrument.getKey $ toInterface claimInstrument
+              newKey = currentKey with version = sha256 $ show remaining
+              [claim] = fmap (.claim) remaining
+              producedInstrument = if isZero' remaining then None else Some newKey
+            forA_ producedInstrument $
+              tryCreateNewInstrument lifecycler claim electionTime instrumentT
+            let (otherConsumed, otherProduced) = splitPending pending
+            effectCid <- toInterfaceContractId <$>
+              create ElectionEffect with
+                providers = fromList [instrumentT.issuer, instrumentT.depository]
+                custodian = if v.electorIsOwner then v.counterparty else v.elector
+                owner = if v.electorIsOwner then v.elector else v.counterparty
+                id = v.id
+                description = v.description
+                targetInstrument = currentKey
+                producedInstrument
+                amount = v.amount
+                otherConsumed
+                otherProduced
+                settlementTime = Some electionTime
+                observers = v.observers
+            pure (producedInstrument, [effectCid])
 
     interface instance Disclosure.I for Rule where
       view = Disclosure.View with disclosureControllers = providers; observers
