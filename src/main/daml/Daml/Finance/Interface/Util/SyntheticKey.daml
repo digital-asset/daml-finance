@@ -3,6 +3,9 @@
 
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
+-- | This module provides a collection of utilities for managing an explicit index table that is
+-- used for looking up contract IDs associated with key values. The StateT monad transformer is
+-- utilized to simplify the handling of the state, which is represented by the index table.
 module Daml.Finance.Interface.Util.SyntheticKey where
 
 import DA.Assert ((===))
@@ -29,7 +32,6 @@ interface SyntheticKey where
 data View = View {}
   deriving (Eq, Show)
 
--- ============= State: Generic Index Table =============
 -- | Index table (used for looking up contract ids for keys).
 newtype IndexTable =
   IndexTable {getIndexTable : M.Map Text (ContractId SyntheticKey)} deriving (Eq,Show)
@@ -41,8 +43,8 @@ type UpdateWithKey = StateT IndexTable Update
 withIndexTable : IndexTable -> UpdateWithKey a -> Update (a, IndexTable)
 withIndexTable = flip runStateT
 
--- A type class for interfaces having a synthetic key. Each "synthetically" keyed interface should
--- provide an instance for this class.
+-- A type class used for interfaces which has a synthetic key (an instance needs to be declared in
+-- the corresponding interface).
 class
   ( Eq k
   , Show k
@@ -83,28 +85,26 @@ instance Monoid IndexTable where
   mempty = IndexTable M.empty
   mconcat = foldl (<>) mempty
 
--- | Insert (with state).
+-- | Utility function for inserting into the index table within the UpdateWithKey monad.
 insertWithState : forall i k. HasSyntheticKey i k => k -> ContractId i -> UpdateWithKey ()
 insertWithState k cid = put =<< insert k cid <$> get
 
--- | Delete (with state).
+-- | Utility function for deleting from the index table within the UpdateWithKey monad.
 deleteWithState : forall i k. HasSyntheticKey i k => k -> UpdateWithKey ()
 deleteWithState k = do put =<< delete @i k <$> get
 
--- | Lookup (with state).
+-- | Utility function for making index table lookups within the UpdateWithKey monad.
 lookupWithState : forall i k.
   HasSyntheticKey i k => k -> UpdateWithKey (Optional (ContractId SyntheticKey))
 lookupWithState k = lookup @i k <$> get
 
--- ============= Utility Functions =============
-
--- | Create with key.
+-- | Utility function for creating a contract instance with a key within the UpdateWithKey monad.
 createWithKey :
-  forall i k c v.
+  forall i k t v.
   ( HasSyntheticKey i k
-  , HasCreate c
-  , HasToInterface c i
-  ) => c -> UpdateWithKey (ContractId c)
+  , HasCreate t
+  , HasToInterface t i
+  ) => t -> UpdateWithKey (ContractId t)
 createWithKey c = do
   -- create instance
   cid <- create c
@@ -112,7 +112,7 @@ createWithKey c = do
   put =<< insert (getKey @i @k $ toInterface c) (toInterfaceContractId @i cid) <$> get
   pure cid
 
--- | Archive by key.
+-- | Utility function for archiving an instance by key within the UpdateWithKey monad.
 archiveByKey :
   forall i k v.
   ( HasSyntheticKey i k
@@ -126,7 +126,7 @@ archiveByKey actor k = do
   -- delete entry from index table
   deleteWithState @i k
 
--- | Lookup by key.
+-- | Utility function for looking up a contract instance by key within the UpdateWithKey monad.
 -- The `lookupByKey` function utilizes a key `k` to obtain a `cid` from the index table. It
 -- verifies whether `k` is the correct key for `cid` with help of the `getKeyFromCid` function.
 lookupByKey :
@@ -138,7 +138,7 @@ lookupByKey actor k = lookupWithState @i k >>= T.mapA
     (k ===) =<< lift (getKeyFromCid @i @k actor iCid)
     pure iCid
 
--- | Fetch by key.
+-- | Utility function for fetching an instance by key in the UpdateWithKey monad.
 -- The `fetchByKey` function utilizes a key `k` to obtain a `cid` from the index table. It verifies
 -- whether `k` is the correct key for `cid` with help of the `getKey` function.
 fetchByKey :
@@ -156,7 +156,7 @@ fetchByKey k = do
   k === getKey i1
   pure (cid2, i2)
 
--- | Exercise by key.
+-- | Utility function for exercising a choice by key in the UpdateWithKey monad.
 exerciseByKey :
   forall i t c r k.
   ( HasSyntheticKey i k
@@ -167,70 +167,68 @@ exerciseByKey actor k c = do
   iCid <- fromSomeNote ("index table lookup for " <> show k <> " failed") <$> lookupByKey @i actor k
   exercise (fromInterfaceContractId @t iCid) c
 
--- ============= Overlapping instances (for Update and UpdateWithKey) =============
-
--- | HIDE
-class HasCreateM m t where
+-- | Type class for creating a template instance within a monad.
+class Action m => HasCreateM m t where
   create : t -> m (ContractId t)
 
--- | HIDE
+-- | Instance used for creating a template instance within the Update monad.
 instance HasCreate t => HasCreateM Update t where
   create = Prelude.create
 
--- | HIDE
+-- | Instance used for creating a template within the UpdateWithKey monad.
 instance HasCreate t => HasCreateM UpdateWithKey t where
   create = lift . Prelude.create
 
--- | HIDE
-class HasArchiveM m t where
+-- | Type class for archiving a template instance within a monad.
+class Action m => HasArchiveM m t where
   archive : ContractId t -> m ()
 
--- | HIDE
+-- | Instance used for arvhiving a template instance in the Update monad.
 instance HasArchive t => HasArchiveM Update t where
   archive = Prelude.archive
 
--- | HIDE
+-- | Instance used for arvhiving a template instance in the UpdateWithKey monad.
 instance HasArchive t => HasArchiveM UpdateWithKey t where
   archive = lift . Prelude.archive
 
--- | HIDE
-class HasFetchM m t where
+-- | Type class for fetching an instance within a monad.
+class Action m => HasFetchM m t where
   fetch : ContractId t -> m t
 
--- | HIDE
+-- | Instance used for fetching an instance in the Update monad.
 instance HasFetch t => HasFetchM Update t where
   fetch = Prelude.fetch
 
--- | HIDE
+-- | Instance used for fetching an instance in the UpdateWithKey monad.
 instance HasFetch t => HasFetchM UpdateWithKey t where
   fetch = lift . Prelude.fetch
 
--- | HIDE
-class HasFetchFromInterfaceM t m i where
+-- | Type class for fetching from interface within a monad.
+class Action m => HasFetchFromInterfaceM t m i where
   fetchFromInterface : ContractId i -> m (Optional (ContractId t, t))
 
--- | HIDE
+-- | Instance used for fetching from interface within the Update monad.
 instance (HasFromInterface t i, HasFetch i) => HasFetchFromInterfaceM t Update i where
   fetchFromInterface = Prelude.fetchFromInterface @t
 
--- | HIDE
+-- | Instance used for fetching from interface within the UpdateWithKey monad.
 instance (HasFromInterface t i, HasFetch i) =>
   HasFetchFromInterfaceM t UpdateWithKey i where
     fetchFromInterface = lift . Prelude.fetchFromInterface @t
 
--- | HIDE
-class HasExerciseM m t c r where
+-- | Type class for exercising a choice within a monad.
+class Action m => HasExerciseM m t c r where
   exercise : ContractId t -> c -> m r
 
--- | HIDE
+-- | Instance used for exercising a choice in the Update monad.
 instance HasExercise t c r => HasExerciseM Update t c r where
   exercise = Prelude.exercise
 
--- | HIDE
-instance {-# OVERLAPPING #-} HasExercise t c r => HasExerciseM UpdateWithKey t c r where
+-- | Instance used for exercising a choice in the UpdateWithKey monad.
+instance HasExercise t c r => HasExerciseM UpdateWithKey t c r where
   exercise cid = lift . Prelude.exercise cid
 
--- | Exercise (with state).
+-- | Overlapping instance used to exercise (a choice with state) in the UpdateWithKey monad.
 -- This function allows exercising any choice of type `a -> IndexTable -> Update (b, IndexTable)`,
 -- where `a` and `b` are any serializable types. The state (i.e., the `IndexTable`) is updated with
 -- the state returned by the choice, and thus each choice is responsible for modifying the state as
