@@ -37,9 +37,9 @@ run = script do
 
   -- Create and distribute option
   let
-    strikeLow = 150.0
+    strikeLow = 40.0
     -- CREATE_EUROPEAN_OPTION_VARIABLES_BEGIN
-    -- strike = 50.0
+    strike = 50.0
     -- expiryDate = date 2019 May 15
     expiryDate = addDays (toDateUTC now) 1
 
@@ -58,20 +58,17 @@ run = script do
   -- Issue instruments
   itmCallInstrument <- originateEuropeanPhysicalOption custodian issuer "ITM Call" "Option" observers now
     expiryDate Call strikeLow cashInstrumentCid aaplInstrumentCid ownerReceives
-{-   otmCallInstrument <- originateEuropeanPhysicalOption custodian issuer "OTM Call" "Option" observers now
-    expiryDate Call strike cashInstrumentCid referenceAssetId ownerReceives
+  otmCallInstrument <- originateEuropeanPhysicalOption custodian issuer "OTM Call" "Option" observers now
+    expiryDate Call strike cashInstrumentCid aaplInstrumentCid ownerReceives
   itmPutInstrument <- originateEuropeanPhysicalOption custodian issuer "ITM Put" "Option" observers now
-    expiryDate Put strike cashInstrumentCid referenceAssetId ownerReceives
+    expiryDate Put strike cashInstrumentCid aaplInstrumentCid ownerReceives
   otmPutInstrument <- originateEuropeanPhysicalOption custodian issuer "OTM Put" "Option" observers now
-    expiryDate Put strikeLow cashInstrumentCid referenceAssetId ownerReceives
- -}
+    expiryDate Put strikeLow cashInstrumentCid aaplInstrumentCid ownerReceives
+
   -- One day before the expiry date: try to lifecycle and verify that there are no lifecycle
   -- effects.
   verifyNoLifecycleEffects [publicParty] (subtractDays expiryDate 1) itmCallInstrument issuer
     [observableCid]
-
-  -- TODO: Continue here:
-  -- Copy election logic from https://github.com/digital-asset/daml-finance/compare/main...rights-issue
 
   -- Create election offers to allow holders to create elections
   let pp = [("PublicParty", singleton publicParty)]
@@ -80,6 +77,8 @@ run = script do
       provider = issuer
       observers = M.fromList pp
 
+
+  -- TEST CALL OPTION
 
   -- Create the Election directly (to test the workflow without having to use Holdings)
   let
@@ -125,8 +124,68 @@ run = script do
     exerciseCmd effectCid Effect.GetView with viewer = issuer
 
   let
-    expectedConsumedQuantities = [qty 150.0 cashInstrumentCid]
+    expectedConsumedQuantities = [qty 40.0 cashInstrumentCid]
     expectedProducedQuantities = [qty 1.0 aaplInstrumentCid]
+
+  debug effectView.otherConsumed
+  debug effectView.otherProduced
+
+  -- Verify that the consumed/produced quantities match the expected ones
+  assertMsg "The consumed quantities do not match the expected ones" $
+    sort expectedConsumedQuantities == sort effectView.otherConsumed
+  assertMsg "The produced quantities do not match the expected ones" $
+    sort expectedProducedQuantities == sort effectView.otherProduced
+
+
+
+  -- TEST PUT OPTION
+
+  -- Create the Election directly (to test the workflow without having to use Holdings)
+  let
+    electorIsOwner = True
+    --electorIsOwner = False
+    counterparty = issuer
+    description = "election for physically settled option"
+  --electionCid <- submitMulti [custodian] [publicParty]
+  exerciseOptionCid <- submitMulti [custodian] [publicParty]
+    do
+      exerciseCmd electionFactoryCid Election.Create with
+        actors = fromList [custodian]
+        id = Id "election id"
+        description
+        --claim = exercised
+        claim = "EXERCISE"
+        electionTime = dateToDateClockTime expiryDate
+        electorIsOwner
+        elector = custodian
+        counterparty
+        instrument = itmPutInstrument
+        amount = 1.0
+        observers = M.fromList [("Holders", fromList [ custodian, issuer] )]
+        provider = issuer
+  debug exerciseOptionCid
+
+  -- Apply election to generate new instrument version + effects
+  lifecycleRuleCid <- toInterfaceContractId <$> submit custodian do
+    createCmd Lifecycle.Rule with
+      providers = singleton custodian
+      observers = M.empty
+      lifecycler = issuer
+      id = Id "LifecycleRule"
+      description = "Rule to lifecycle a generic instrument"
+
+  (_, [effectCid]) <- submit issuer do
+    exerciseCmd exerciseOptionCid Election.Apply with
+      observableCids = [observableCid]
+      exercisableCid = lifecycleRuleCid
+
+  -- Get the effect
+  effectView <- submit issuer do
+    exerciseCmd effectCid Effect.GetView with viewer = issuer
+
+  let
+    expectedConsumedQuantities = [qty 1.0 aaplInstrumentCid]
+    expectedProducedQuantities = [qty 50.0 cashInstrumentCid]
 
   debug effectView.otherConsumed
   debug effectView.otherProduced
