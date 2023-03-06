@@ -8,9 +8,7 @@ import DA.Map qualified as M (fromList)
 import DA.Set qualified as S (empty, fromList, singleton)
 import DA.Time (time)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
-import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Factory qualified as Settlement (F, Instruct(..))
-import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
 import Daml.Finance.Interface.Settlement.RouteProvider qualified as RouteProvider (I, Discover(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), Step(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..))
@@ -18,6 +16,7 @@ import Daml.Finance.Interface.Util.Common (qty)
 import Daml.Finance.Settlement.Factory (Factory(..))
 import Daml.Finance.Settlement.Hierarchy (Hierarchy(..))
 import Daml.Finance.Settlement.RouteProvider.IntermediatedStatic (IntermediatedStatic(..))
+import Daml.Finance.Settlement.Test.Util (allocateAny, allocateAnyMustFail, approveAny, approveAnyMustFail, settleAny)
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyNoObservers, verifyOwnerOfHolding)
@@ -126,53 +125,33 @@ run settleWithOwnAccount = script do
         settlementTime = Some settlementTime
 
   -- Allocate instructions
-  (equityInstructionCid, _) <- submit seller do
-    exerciseCmd equityInstructionCid
-      Instruction.Allocate with actors = S.singleton seller; allocation = Pledge equityHoldingCid
-  (cashInstruction1Cid, _) <- submit buyer do
-    exerciseCmd cashInstruction1Cid
-      Instruction.Allocate with actors = S.singleton buyer; allocation = Pledge buyerCashHoldingCid
+  (equityInstructionCid, _) <- allocateAny [seller] equityInstructionCid $ Pledge equityHoldingCid
+  (cashInstruction1Cid, _) <- allocateAny [buyer] cashInstruction1Cid $ Pledge buyerCashHoldingCid
   (cashInstruction2Cid, _) <-
     if settleWithOwnAccount then
       do
         ownCashAccount <- Account.createAccount "Own Cash Account" [] accountFactoryCid
           holdingFactoryCid [] Account.Owner bank bank
         ownCashHoldingCid <- Account.credit [] cashInstrument 200_000.0 ownCashAccount
-        submit bank do
-          exerciseCmd cashInstruction2Cid
-            Instruction.Allocate with actors = S.singleton bank; allocation = Pledge ownCashHoldingCid
+        allocateAny [bank] cashInstruction2Cid $ Pledge ownCashHoldingCid
     else
-      submit bank do
-        exerciseCmd cashInstruction2Cid
-          Instruction.Allocate with actors = S.singleton bank; allocation = CreditReceiver
+      allocateAny [bank] cashInstruction2Cid $ CreditReceiver
 
-  submitMustFail buyer do
-    exerciseCmd cashInstruction1Cid
-      Instruction.Allocate with actors = S.singleton buyer; allocation = CreditReceiver
+  allocateAnyMustFail [buyer] cashInstruction1Cid $ CreditReceiver
 
   -- Approve instructions
-  equityInstructionCid <- submit buyer do
-    exerciseCmd equityInstructionCid
-      Instruction.Approve with
-        actors = S.singleton buyer; approval = TakeDelivery buyerSecurityAccount
-  cashInstruction1Cid <- submit bank do
-    exerciseCmd cashInstruction1Cid
-      Instruction.Approve with actors = S.singleton bank; approval = TakeDelivery bankCashAccount
-  cashInstruction2Cid <- submit seller do
-    exerciseCmd cashInstruction2Cid
-      Instruction.Approve with actors = S.singleton seller; approval = TakeDelivery sellerCashAccount
-
-  submitMustFail buyer do
-    exerciseCmd equityInstructionCid
-      Instruction.Approve with actors = S.singleton buyer; approval = DebitSender
+  equityInstructionCid <- approveAny [buyer] equityInstructionCid $
+    TakeDelivery buyerSecurityAccount
+  cashInstruction1Cid <- approveAny [bank] cashInstruction1Cid $ TakeDelivery bankCashAccount
+  cashInstruction2Cid <- approveAny [seller] cashInstruction2Cid $ TakeDelivery sellerCashAccount
+  approveAnyMustFail [buyer] equityInstructionCid $ DebitSender
 
   -- Set time
   setTime settlementTime
 
   -- Settle batch
   [equityHoldingCid, bankCashHoldingCid, sellerCashHoldingCid] <-
-    submitMulti [buyer] [publicParty] do
-      exerciseCmd batchCid Batch.Settle with actors = S.singleton buyer
+    settleAny [buyer] [publicParty] batchCid
 
   -- Assert state
   let ts = [(buyer, equityHoldingCid), (bank, bankCashHoldingCid), (seller, sellerCashHoldingCid)]

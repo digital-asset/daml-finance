@@ -9,14 +9,16 @@ import Daml.Finance.Claims.Util.Builders
 import Daml.Finance.Instrument.Option.Util
 import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, GetClaims(..), View(..))
 import Daml.Finance.Interface.Claims.Dynamic.Instrument qualified as DynamicInstrument (I, CreateNewVersion(..), View(..))
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, View(..), createReference, disclosureUpdateReference)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, View(..))
 import Daml.Finance.Interface.Instrument.Option.EuropeanPhysical.Instrument qualified as EuropeanOption (I, View(..))
 import Daml.Finance.Interface.Instrument.Option.EuropeanPhysical.Types (European(..))
 import Daml.Finance.Interface.Instrument.Option.Types (OptionTypeEnum(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey(..), PartiesMap)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Interface.Util.KeyTable qualified as SyntheticallyKeyed (I, View(..))
+import Daml.Finance.Interface.Util.KeyTable(create, withKeyTable)
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
-import Prelude hiding (key)
+import Prelude hiding (archive, create, exercise, exerciseByKey, fetch, fetchByKey, fetchFromInterface, lookup, lookupByKey)
 
 -- | Type synonym for `Instrument`.
 type T = Instrument
@@ -59,16 +61,18 @@ template Instrument
 
     let instrument = InstrumentKey with depository; issuer; id; version
 
+    interface instance SyntheticallyKeyed.I for Instrument where
+      view = SyntheticallyKeyed.View {}
+
     interface instance Claim.I for Instrument where
       view = Claim.View with acquisitionTime = dateToDateClockTime $ daysSinceEpochToDate 0
-      getClaims Claim.GetClaims{actor} = do
+      getClaims Claim.GetClaims{actor; keyTable} = withKeyTable keyTable do
         -- get the initial claims tree (as of the instrument's acquisition time)
         let
           call = optionType == Call
-          optionsClaim =
-            createEuropeanPhysicalClaim dateToDateClockTime ownerReceives strike referenceAsset
-              currency expiryDate call
-        pure $ [optionsClaim]
+          optionsClaim = createEuropeanPhysicalClaim dateToDateClockTime ownerReceives strike
+            referenceAsset currency expiryDate call
+        pure [optionsClaim]
 
     interface instance BaseInstrument.I for Instrument where
       view = BaseInstrument.View with
@@ -90,16 +94,12 @@ template Instrument
 
     interface instance DynamicInstrument.I for Instrument where
       view = DynamicInstrument.View with lifecycler = issuer; lastEventTimestamp
-      createNewVersion DynamicInstrument.CreateNewVersion{version; lastEventTimestamp} = do
-        cid <- create this with version, lastEventTimestamp
-        BaseInstrument.createReference issuer $ toInterfaceContractId cid
-        pure $ toInterfaceContractId cid
+      createNewVersion DynamicInstrument.CreateNewVersion{version; lastEventTimestamp} =
+        toInterfaceContractId <$> create this with version; lastEventTimestamp
+      getHolidayCalendarKeys = mempty
 
     interface instance Disclosure.I for Instrument where
       view = Disclosure.View with disclosureControllers = singleton issuer; observers
-      setObservers = setObserversImpl @Instrument this $
-        Some (BaseInstrument.disclosureUpdateReference instrument)
-      addObservers = addObserversImpl @Instrument this $
-        Some (BaseInstrument.disclosureUpdateReference instrument)
-      removeObservers = removeObserversImpl this $
-        Some (BaseInstrument.disclosureUpdateReference instrument)
+      setObservers = setObserversImpl @Instrument this
+      addObservers = addObserversImpl @Instrument this
+      removeObservers = removeObserversImpl @Instrument this

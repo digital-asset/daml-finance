@@ -5,13 +5,15 @@ module Daml.Finance.Instrument.Equity.Test.Merger where
 
 import DA.Map qualified as M (fromList)
 import DA.Set qualified as S (fromList, singleton)
+import Daml.Finance.Data.Reference.HolidayCalendar qualified as HolidayCalendar (T)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
+import Daml.Finance.Instrument.Equity.Instrument qualified as Equity (T)
+import Daml.Finance.Instrument.Equity.Instrument qualified as Instrument (T)
 import Daml.Finance.Instrument.Equity.Test.Util (originateEquity)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I)
 import Daml.Finance.Interface.Instrument.Equity.Instrument qualified as Equity (I, DeclareReplacement(..))
 import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..), I)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I)
-import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
-import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..))
 import Daml.Finance.Interface.Util.Common (qty)
@@ -19,10 +21,11 @@ import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
 import Daml.Finance.Lifecycle.Rule.Replacement qualified as Replacement (Rule(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
 import Daml.Finance.Settlement.RouteProvider.SingleCustodian (SingleCustodian(..))
+import Daml.Finance.Settlement.Test.Util (allocateAny, approveAny, settleAny)
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
-import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.Common (createParties, queryAnyByKey)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
-import Daml.Finance.Test.Util.Instrument qualified as Instrument (submitExerciseInterfaceByKeyCmd)
+import Daml.Finance.Test.Util.Instrument qualified as Instrument (buildKeyTable)
 import Daml.Script
 
 -- Merger lifecycling and settlement
@@ -64,12 +67,15 @@ run = script do
   -- Distribute holdings
   investorEquityCid <- Account.credit [] mergingInstrument 2_000.0 investorSecuritiesAccount
 
+  -- Build key table
+  (mergingInstrumentCid, _) <- queryAnyByKey @Equity.T @BaseInstrument.I [merging] mergingInstrument
+
   -- CREATE_EQUITY_REPLACEMENT_EVENT_BEGIN
   -- Create replacement event
   -- perUnitReplacement is an arbitrary list of instruments, so the investor can also receive a
   -- combination of shares and cash.
-  replacementEventCid <-
-    Instrument.submitExerciseInterfaceByKeyCmd @Equity.I [merging] [] mergingInstrument
+  replacementEventCid <- submit merging do
+    exerciseCmd (coerceInterfaceContractId @Equity.I mergingInstrumentCid)
       Equity.DeclareReplacement with
         id = Id $ "ABC merge - " <> show now
         description = "Merge"
@@ -77,13 +83,17 @@ run = script do
         perUnitReplacement = [qty 0.5 mergedInstrument]
   -- CREATE_EQUITY_REPLACEMENT_EVENT_END
 
+  -- Build key table
+  keyTable <- Instrument.buildKeyTable @Instrument.T @HolidayCalendar.T [merging] mergingInstrument
+
   -- LIFECYCLE_MERGER_BEGIN
   -- Lifecycle replacement event
   (_, [effectCid]) <- submit merging do
-    exerciseCmd replacementRuleCid Lifecycle.Evolve with
+    fst <$> exerciseCmd replacementRuleCid Lifecycle.Evolve with
       eventCid = replacementEventCid
       observableCids = []
       instrument = mergingInstrument
+      keyTable
   -- LIFECYCLE_MERGER_END
 
   -- Claim effect
@@ -110,24 +120,17 @@ run = script do
 
   -- Allocate instructions
   let [consumeInstructionCid, produceInstructionCid] = result.instructionCids
-  (consumeInstructionCid, _) <- submit investor do
-    exerciseCmd consumeInstructionCid Instruction.Allocate with
-      actors = S.singleton investor; allocation = Pledge $ coerceInterfaceContractId investorEquityCid
-  (produceInstructionCid, _) <- submit custodian do
-    exerciseCmd produceInstructionCid Instruction.Allocate with
-      actors = S.singleton custodian; allocation = CreditReceiver
+  (consumeInstructionCid, _) <- allocateAny [investor] consumeInstructionCid $
+    Pledge investorEquityCid
+  (produceInstructionCid, _) <- allocateAny [custodian] produceInstructionCid $ CreditReceiver
 
   -- Approve instructions
-  consumeInstructionCid <- submit custodian do
-    exerciseCmd consumeInstructionCid Instruction.Approve with
-      actors = S.singleton custodian; approval = DebitSender
-  produceInstructionCid <- submit investor do
-    exerciseCmd produceInstructionCid Instruction.Approve with
-      actors = S.singleton investor; approval = TakeDelivery investorSecuritiesAccount
+  consumeInstructionCid <- approveAny [custodian] consumeInstructionCid $ DebitSender
+  produceInstructionCid <- approveAny [investor] produceInstructionCid $
+    TakeDelivery investorSecuritiesAccount
 
   -- Settle batch
-  [investorEquityCid] <- submit custodian do
-    exerciseCmd result.batchCid Batch.Settle with actors = S.singleton custodian
+  [investorEquityCid] <- settleAny [custodian] [] result.batchCid
 
   -- Assert state
   Holding.verifyOwnerOfHolding [(investor, investorEquityCid)]

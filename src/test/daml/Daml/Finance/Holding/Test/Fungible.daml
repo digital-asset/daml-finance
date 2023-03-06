@@ -7,6 +7,7 @@ import DA.Assert ((===))
 import DA.Map qualified as M (fromList)
 import DA.Optional (fromSome)
 import DA.Set qualified as S (fromList, singleton)
+import Daml.Finance.Account.Account qualified as Account (T)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..), T)
 import Daml.Finance.Holding.Test.Common (TestInitialState(..), TestParties(..), setupInitialState, setupParties)
 import Daml.Finance.Holding.Util qualified as Fungible (getRestAmount)
@@ -16,10 +17,11 @@ import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (I, Merge(.
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
 import Daml.Finance.Interface.Holding.Util (getAmount)
 import Daml.Finance.Interface.Util.Common (verify)
-import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), submitExerciseInterfaceByKeyCmd, submitMustFailExerciseInterfaceByKeyCmd)
-import Daml.Finance.Test.Util.Common (validateAssertionFailure)
-import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
+import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..))
+import Daml.Finance.Test.Util.Common (validateAssertionFailure, queryAnyByKey)
+import Daml.Finance.Test.Util.Holding qualified as Holding (buildKeyTable, buildKeyTableForTransfer, verifyOwnerOfHolding)
 import Daml.Script
+
 
 run : Script ()
 run = script do
@@ -39,20 +41,27 @@ run = script do
       Base.Acquire with
         newLockers = S.singleton locker; context = "Test Lock"; lockType = Base.Semaphore
 
+  -- Build key table
+  keyTable <- Holding.buildKeyTable [issuer, investor] baseCid
+
   -- Cannot split
   submitMustFail issuer do
     exerciseCmd (coerceInterfaceContractId @Fungible.I baseCid) Fungible.Split with
       amounts = [500.0, 250.0]
 
+  -- Build key table
+  keyTable <- Holding.buildKeyTableForTransfer [issuer, investor] baseCid investorAccount
+
   -- Cannot transfer
   submitMultiMustFail [issuer, investor] [] do
     exerciseCmd (coerceInterfaceContractId @Transferable.I baseCid)
       Transferable.Transfer with
-        actors = S.fromList [issuer, investor]; newOwnerAccount = investorAccount
+        actors = S.fromList [issuer, investor]; newOwnerAccount = investorAccount; keyTable
 
   -- Cannot debit
-  Account.submitMustFailExerciseInterfaceByKeyCmd @Account.I [custodian, issuer] [] issuerAccount $
-    Account.Debit with holdingCid = baseCid
+  (issuerAccountCid, _) <- queryAnyByKey @Account.T @Account.I [custodian, issuer] issuerAccount
+  submitMultiMustFail [custodian, issuer] [] do
+    exerciseCmd issuerAccountCid Account.Debit with holdingCid = toInterfaceContractId baseCid
 
   -- Unlock asset
   fungibleCid <- coerceInterfaceContractId @Fungible.I <$> submit locker do
@@ -157,18 +166,25 @@ run = script do
     queryContractId @Fungible.T issuer $ fromInterfaceContractId fungibleCid
   verifyAmountPreserving [fungible] [fungible']
 
+  -- Build key table
+  keyTable <- Holding.buildKeyTableForTransfer [issuer, investor] (toInterfaceContractId fungibleCid)
+    investorAccount
+
   -- Transfer
   transferableCid <- submitMulti [issuer, investor] [publicParty] do
-    exerciseCmd (toInterfaceContractId @Transferable.I fungibleCid)
+    fst <$> exerciseCmd (toInterfaceContractId @Transferable.I fungibleCid)
       Transferable.Transfer with
-        actors = S.fromList [issuer, investor]; newOwnerAccount = investorAccount
+        actors = S.fromList [issuer, investor]; newOwnerAccount = investorAccount; keyTable
 
   -- Assert state
   Holding.verifyOwnerOfHolding [(investor, transferableCid)]
 
   -- Debit asset
-  Account.submitExerciseInterfaceByKeyCmd @Account.I [custodian, investor] [] investorAccount $
-    Account.Debit with holdingCid = toInterfaceContractId transferableCid
+  (investorAccountCid, _) <- queryAnyByKey @Account.T @Account.I [custodian, investor]
+    investorAccount
+  submitMulti [custodian, investor] [] do
+    exerciseCmd investorAccountCid Account.Debit with
+      holdingCid = toInterfaceContractId transferableCid
 
   pure ()
 

@@ -6,15 +6,17 @@ module Daml.Finance.Instrument.Equity.Test.RightsIssue where
 import DA.Date
 import DA.Map qualified as M (fromList)
 import DA.Set qualified as S (fromList, singleton)
+import Daml.Finance.Data.Reference.HolidayCalendar qualified as HolidayCalendar (T)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
+import Daml.Finance.Instrument.Equity.Instrument qualified as Equity (T)
 import Daml.Finance.Instrument.Equity.Test.Util
+import Daml.Finance.Instrument.Option.EuropeanPhysical.Instrument qualified as EuropeanPhysicalOption (T)
 import Daml.Finance.Instrument.Option.Test.Util (electAndVerifyPaymentEffects, originateEuropeanPhysicalOption)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I)
 import Daml.Finance.Interface.Instrument.Equity.Instrument qualified as Equity (DeclareDividend(..), I)
 import Daml.Finance.Interface.Instrument.Option.Types (OptionTypeEnum(..))
 import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..), I)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I)
-import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
-import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..))
 import Daml.Finance.Interface.Util.Common (qty)
@@ -22,11 +24,11 @@ import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
 import Daml.Finance.Lifecycle.Rule.Distribution qualified as Distribution (Rule(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
 import Daml.Finance.Settlement.RouteProvider.SingleCustodian (SingleCustodian(..))
+import Daml.Finance.Settlement.Test.Util (allocateAny, approveAny, settleAny)
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
-import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.Common (createParties, queryAnyByKey)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerAndAmountOfHolding)
 import Daml.Finance.Test.Util.Instrument (originate)
-import Daml.Finance.Test.Util.Instrument qualified as Instrument (submitExerciseInterfaceByKeyCmd)
 import Daml.Script
 
 -- Rights issue and subscription: lifecycling and settlement
@@ -79,9 +81,11 @@ run = script do
       id = Id "LifecycleRule"
       description = "Rule to lifecycle an instrument following a distribution event"
 
+  (cumEquityInstrumentCid, _) <-
+    queryAnyByKey @Equity.T @BaseInstrument.I [issuer] cumEquityInstrument
   -- Create rights issue event: 0.1 per share (this also works with fractional shares)
-  distributionEventCid <-
-    Instrument.submitExerciseInterfaceByKeyCmd @Equity.I [issuer] [] cumEquityInstrument
+  distributionEventCid <- submit issuer do
+    exerciseCmd (coerceInterfaceContractId @Equity.I cumEquityInstrumentCid)
       Equity.DeclareDividend with
         id = Id $ "ABC - " <> show now
         description = "Rights issue"
@@ -91,10 +95,11 @@ run = script do
 
   -- Lifecycle rights issue
   (_, [effectCid]) <- submit issuer do
-    exerciseCmd distributionRuleCid Lifecycle.Evolve with
+    fst <$> exerciseCmd distributionRuleCid Lifecycle.Evolve with
       observableCids = []
       eventCid = distributionEventCid
       instrument = cumEquityInstrument
+      keyTable = mempty
 
   -- Claim effect
   routeProviderCid <- toInterfaceContractId <$> submit custodian do
@@ -127,33 +132,28 @@ run = script do
       custodianRightsInstructionCid] = result.instructionCids
 
   -- Allocate instructions
-  (investorInstrumentInstructionCid, _) <- submit investor do
-    exerciseCmd investorInstrumentInstructionCid Instruction.Allocate with
-      actors = S.singleton investor; allocation = Pledge $ coerceInterfaceContractId investorEquityCid
-  (custodianInstrumentInstructionCid, _) <- submit custodian do
-    exerciseCmd custodianInstrumentInstructionCid Instruction.Allocate with
-      actors = S.singleton custodian; allocation = CreditReceiver
-  (custodianRightsInstructionCid, _) <- submit custodian do
-    exerciseCmd custodianRightsInstructionCid Instruction.Allocate with
-      actors = S.singleton custodian; allocation = CreditReceiver
+  (investorInstrumentInstructionCid, _) <-
+    allocateAny [investor] investorInstrumentInstructionCid $ Pledge $
+      coerceInterfaceContractId investorEquityCid
+  (custodianInstrumentInstructionCid, _) <-
+    allocateAny [custodian] custodianInstrumentInstructionCid CreditReceiver
+  (custodianRightsInstructionCid, _) <-
+    allocateAny [custodian] custodianRightsInstructionCid CreditReceiver
 
   -- Approve instructions
-  investorInstrumentInstructionCid <- submit custodian do
-    exerciseCmd investorInstrumentInstructionCid Instruction.Approve with
-      actors = S.singleton custodian; approval = DebitSender
-  custodianInstrumentInstructionCid <- submit investor do
-    exerciseCmd custodianInstrumentInstructionCid Instruction.Approve with
-      actors = S.singleton investor; approval = TakeDelivery investorAccount
-  custodianRightsInstructionCid <- submit investor do
-    exerciseCmd custodianRightsInstructionCid Instruction.Approve with
-      actors = S.singleton investor; approval = TakeDelivery investorAccount
+  investorInstrumentInstructionCid <- approveAny [custodian] investorInstrumentInstructionCid $
+    DebitSender
+  custodianInstrumentInstructionCid <- approveAny [investor] custodianInstrumentInstructionCid $
+    TakeDelivery investorAccount
+  custodianRightsInstructionCid <- approveAny [investor] custodianRightsInstructionCid $
+    TakeDelivery investorAccount
 
   -- Settle batch
-  [investorEquityHoldingCid, investorRightsHoldingCid] <- submitMulti [custodian] [publicParty] do
-    exerciseCmd result.batchCid Batch.Settle with actors = S.singleton custodian
+  [investorEquityHoldingCid, investorRightsHoldingCid] <-
+    settleAny [custodian] [publicParty] result.batchCid
 
   -- Assert state
-  Holding.verifyOwnerAndAmountOfHolding [(investor, 1000.00, investorEquityHoldingCid),
+  Holding.verifyOwnerAndAmountOfHolding [(investor, 1000.0, investorEquityHoldingCid),
     (investor, 100.00, investorRightsHoldingCid)]
 
   -------------------------
@@ -178,8 +178,9 @@ run = script do
   let
     expectedConsumed = [qty 40.0 cashInstrument]
     expectedProduced = [qty 1.0 exEquityInstrument]
-  (None, effectLongCallCid) <- electAndVerifyPaymentEffects expiryDate sharesGuaranteed
-    rightsInstrument isLong issuer investor "EXERCISE" expectedConsumed expectedProduced
+  (None, effectLongCallCid) <- electAndVerifyPaymentEffects @EuropeanPhysicalOption.T
+    @HolidayCalendar.T expiryDate sharesGuaranteed rightsInstrument isLong issuer investor
+    "EXERCISE" expectedConsumed expectedProduced
 
   -- Create a claim rule
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit custodian do
@@ -232,8 +233,9 @@ run = script do
   let
     expectedConsumed = [qty 40.0 cashInstrument]
     expectedProduced = [qty 1.0 exEquityInstrument]
-  (None, effectShortPutCid) <- electAndVerifyPaymentEffects expiryDate sharesExcess
-    shortPutInstrument isLong issuer issuer "EXERCISE" expectedConsumed expectedProduced
+  (None, effectShortPutCid) <- electAndVerifyPaymentEffects @EuropeanPhysicalOption.T
+    @HolidayCalendar.T expiryDate sharesExcess shortPutInstrument isLong issuer issuer "EXERCISE"
+    expectedConsumed expectedProduced
 
   issuerPutHoldingCid <- Account.credit [publicParty] shortPutInstrument sharesExcess issuerAccount
 

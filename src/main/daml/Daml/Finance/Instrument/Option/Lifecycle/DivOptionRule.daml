@@ -8,19 +8,20 @@ module Daml.Finance.Instrument.Option.Lifecycle.DivOptionRule
 import DA.Optional (fromSome)
 import DA.Set (fromList)
 import DA.Text (sha256)
+import Daml.Control.Monad.Trans.State (StateT(..))
 import Daml.Finance.Claims.Util (isZero')
 import Daml.Finance.Claims.Util.Lifecycle (electionEvent, lifecycle, splitPending)
 import Daml.Finance.Instrument.Option.Dividend.Instrument (Instrument(..))
 import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, GetClaims(..), getClaims)
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (R, getKey)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, getKey)
 import Daml.Finance.Interface.Lifecycle.Election qualified as Election (ApplyElection(..), Exercisable(..), ExercisableView(..), getElectionTime)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..), View(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..), Parties, PartiesMap)
-import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Interface.Util.KeyTable (create, fetch, fetchByKey, withKeyTable)
 import Daml.Finance.Lifecycle.ElectionEffect (ElectionEffect(..))
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
-import Prelude hiding (exercise, key)
+import Prelude hiding (archive, create, exercise, exerciseByKey, fetch, fetchByKey, fetchFromInterface, lookup, lookupByKey)
 
 -- | Rule to process an election event for options.
 template Rule
@@ -41,59 +42,56 @@ template Rule
 
     interface instance Lifecycle.I for Rule where
       view = Lifecycle.View with lifecycler; id; description
-      evolve Lifecycle.Evolve{eventCid; observableCids; instrument} = do
-        error "Lifecycle.Evolve not implemented as part of this Rule."
-        pure (None, [])
+      evolve Lifecycle.Evolve{eventCid; observableCids; instrument; keyTable} = do
+        withKeyTable keyTable do
+          error "Lifecycle.Evolve not implemented as part of this Rule."
+          pure (None, [])
 
     interface instance Election.Exercisable for Rule where
       view = Election.ExercisableView with lifecycler
-      applyElection Election.ApplyElection{electionCid; observableCids} = do
-
-        -- fetch election
-        election <- fetch electionCid
-        let
-          v = view election
-          electionTime = Election.getElectionTime election
-          election = electionEvent electionTime v.electorIsOwner v.claim
-
-        -- fetch claim tree
-        claimInstrument <- fetchInterfaceByKey @BaseInstrument.R v.instrument
-        claims <- Claim.getClaims (toInterface @Claim.I claimInstrument) $ Claim.GetClaims with
-          actor = lifecycler
-
-        -- lifecycle as of the time given by the event, by applying the corresponding election
-        (remaining, pending) <- lifecycle lifecycler observableCids claimInstrument [election]
-
-        -- create new instrument and return effect
-        if remaining == claims && null pending then
-          pure (None, [])
-        else do
-          assertMsg "Only single elections currently supported" $ isZero' remaining
+      applyElection Election.ApplyElection{electionCid; observableCids; keyTable} =
+        withKeyTable keyTable do
+          -- fetch election
+          election <- fetch electionCid
           let
-            instrumentT = fromSome $ fromInterface @Instrument claimInstrument
-            currentKey = BaseInstrument.getKey $ toInterface claimInstrument
-            newKey = currentKey with version = sha256 $ show remaining
-            [claim] = fmap (.claim) remaining
-            producedInstrument = None
-            (otherConsumed, otherProduced) = splitPending pending
-          effectCid <- toInterfaceContractId <$>
-            create ElectionEffect with
-              providers = fromList [instrumentT.issuer, instrumentT.depository]
-              custodian = if v.electorIsOwner then v.counterparty else v.elector
-              owner = if v.electorIsOwner then v.elector else v.counterparty
-              id = v.id
-              description = v.description
-              targetInstrument = currentKey
-              producedInstrument
-              amount = v.amount
-              otherConsumed
-              otherProduced
-              settlementTime = Some electionTime
-              observers = v.observers
-          pure (producedInstrument, [effectCid])
+            v = view election
+            electionTime = Election.getElectionTime election
+            election = electionEvent electionTime v.electorIsOwner v.claim
+          -- fetch claim tree
+          claimInstrument <- snd <$> fetchByKey @BaseInstrument.I @Claim.I v.instrument
+          claims <- StateT $ Claim.getClaims claimInstrument . Claim.GetClaims lifecycler
+          -- lifecycle as of the time given by the event, by applying the corresponding election
+          (remaining, pending) <- lifecycle lifecycler observableCids claimInstrument [election]
+          -- create new instrument and return effect
+          if remaining == claims && null pending then
+            pure (None, [])
+          else do
+            assertMsg "Only single elections currently supported" $ isZero' remaining
+            let
+              instrumentT = fromSome $ fromInterface @Instrument claimInstrument
+              currentKey = BaseInstrument.getKey $ toInterface claimInstrument
+              newKey = currentKey with version = sha256 $ show remaining
+              [claim] = fmap (.claim) remaining
+              producedInstrument = None
+              (otherConsumed, otherProduced) = splitPending pending
+            effectCid <- toInterfaceContractId <$>
+              create ElectionEffect with
+                providers = fromList [instrumentT.issuer, instrumentT.depository]
+                custodian = if v.electorIsOwner then v.counterparty else v.elector
+                owner = if v.electorIsOwner then v.elector else v.counterparty
+                id = v.id
+                description = v.description
+                targetInstrument = currentKey
+                producedInstrument
+                amount = v.amount
+                otherConsumed
+                otherProduced
+                settlementTime = Some electionTime
+                observers = v.observers
+            pure (producedInstrument, [effectCid])
 
     interface instance Disclosure.I for Rule where
       view = Disclosure.View with disclosureControllers = providers; observers
-      setObservers = setObserversImpl @Rule @Disclosure.I this None
-      addObservers = addObserversImpl @Rule @Disclosure.I this None
-      removeObservers = removeObserversImpl @Rule @Disclosure.I this None
+      setObservers = setObserversImpl @Rule this
+      addObservers = addObserversImpl @Rule this
+      removeObservers = removeObserversImpl @Rule this
