@@ -83,4 +83,3 @@ renderFinal Config{..} =
 emptyMaybe :: [a] -> Maybe [a]
 emptyMaybe [] = Nothing
 emptyMaybe x = Just x
-

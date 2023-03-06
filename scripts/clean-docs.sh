@@ -9,4 +9,3 @@ echo "Removing docs build directory"
 if [[ -d ${root_dir}/docs/build ]]; then
   rm -rf ${root_dir}/docs/build
 fi
-

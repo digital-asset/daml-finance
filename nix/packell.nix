@@ -1,6 +1,6 @@
 # For the Linux version of Packell, the compiled executable is 'Dynamically Linked' meaning the
 # interpreter and the paths (or 'rpaths') of the compiled executable is linked to
-# the interpreter/libraries available on the build system (ie., in its nix store). As the nix paths
+# the interpreter/libraries available on the build system (i.e., in its nix store). As the nix paths
 # will differ between the build and the host system, running Packell on a host system will generate
 # an error due to the differing paths of the interpreter/libraries. To fix this we use
 # `autoPatchelfHook` to automatically set both the interpreter and the 'rpath' of the dependending
