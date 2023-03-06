@@ -4,21 +4,15 @@
 module Daml.Finance.Instrument.Option.Test.EuropeanPhysical where
 
 import DA.Date
-import DA.List (sort)
 import DA.Map qualified as M (empty, fromList)
-import DA.Set (fromList, singleton)
+import DA.Set (singleton)
 import Daml.Finance.Data.Numeric.Observation (Observation(..))
-import Daml.Finance.Instrument.Option.Election qualified as Election (Factory(..))
-import Daml.Finance.Instrument.Option.Lifecycle.Rule qualified as Lifecycle (Rule(..))
 import Daml.Finance.Instrument.Option.Test.Util
-import Daml.Finance.Interface.Instrument.Option.Election qualified as Election (Apply(..))
-import Daml.Finance.Interface.Instrument.Option.Election.Factory qualified as Election (Create(..), F)
 import Daml.Finance.Interface.Instrument.Option.Types (OptionTypeEnum(..))
-import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (GetView(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..))
 import Daml.Finance.Interface.Util.Common (qty)
 import Daml.Finance.Test.Util.Common (createParties)
-import Daml.Finance.Test.Util.Instrument (originate, verifyNoLifecycleEffects)
+import Daml.Finance.Test.Util.Instrument (originate)
 import Daml.Finance.Test.Util.Time (dateToDateClockTime)
 import Daml.Script
 
@@ -40,14 +34,11 @@ run = script do
     strikeLow = 40.0
     -- CREATE_EUROPEAN_OPTION_VARIABLES_BEGIN
     strike = 50.0
-    -- expiryDate = date 2019 May 15
-    expiryDate = addDays (toDateUTC now) 1
-
+    expiryDate = date 2019 May 15
     referenceAssetId = "AAPL-CLOSE"
     -- CREATE_EUROPEAN_OPTION_VARIABLES_END
     ownerReceives = True
     observations = M.fromList
-      --[ (dateToDateClockTime (date 2019 May 15), 48.78)
       [ (dateToDateClockTime expiryDate, 48.78)
       ]
 
@@ -65,166 +56,32 @@ run = script do
   otmPutInstrument <- originateEuropeanPhysicalOption custodian issuer "OTM Put" "Option" observers now
     expiryDate Put strikeLow cashInstrumentCid aaplInstrumentCid ownerReceives
 
-  -- One day before the expiry date: try to lifecycle and verify that there are no lifecycle
-  -- effects.
-  verifyNoLifecycleEffects [publicParty] (subtractDays expiryDate 1) itmCallInstrument issuer
-    [observableCid]
-
-  -- Create election offers to allow holders to create elections
-  let pp = [("PublicParty", singleton publicParty)]
-  electionFactoryCid <- submit issuer do
-    toInterfaceContractId @Election.F <$> createCmd Election.Factory with
-      provider = issuer
-      observers = M.fromList pp
-
-
-  -- TEST CALL OPTION
-
-  -- Create the Election directly (to test the workflow without having to use Holdings)
-  let
-    electorIsOwner = True
-    --electorIsOwner = False
-    counterparty = issuer
-    description = "election for physically settled option"
-  --electionCid <- submitMulti [custodian] [publicParty]
-  exerciseOptionCid <- submitMulti [custodian] [publicParty]
-    do
-      exerciseCmd electionFactoryCid Election.Create with
-        actors = fromList [custodian]
-        id = Id "election id"
-        description
-        --claim = exercised
-        claim = "EXERCISE"
-        electionTime = dateToDateClockTime expiryDate
-        electorIsOwner
-        elector = custodian
-        counterparty
-        instrument = itmCallInstrument
-        amount = 1.0
-        observers = M.fromList [("Holders", fromList [ custodian, issuer] )]
-        provider = issuer
-  debug exerciseOptionCid
-
-  -- Apply election to generate new instrument version + effects
-  lifecycleRuleCid <- toInterfaceContractId <$> submit custodian do
-    createCmd Lifecycle.Rule with
-      providers = singleton custodian
-      observers = M.empty
-      lifecycler = issuer
-      id = Id "LifecycleRule"
-      description = "Rule to lifecycle a generic instrument"
-
-  (_, [effectCid]) <- submit issuer do
-    exerciseCmd exerciseOptionCid Election.Apply with
-      observableCids = [observableCid]
-      exercisableCid = lifecycleRuleCid
-
-  -- Get the effect
-  effectView <- submit issuer do
-    exerciseCmd effectCid Effect.GetView with viewer = issuer
-
-  let
-    expectedConsumedQuantities = [qty 40.0 cashInstrumentCid]
-    expectedProducedQuantities = [qty 1.0 aaplInstrumentCid]
-
-  debug effectView.otherConsumed
-  debug effectView.otherProduced
-
-  -- Verify that the consumed/produced quantities match the expected ones
-  assertMsg "The consumed quantities do not match the expected ones" $
-    sort expectedConsumedQuantities == sort effectView.otherConsumed
-  assertMsg "The produced quantities do not match the expected ones" $
-    sort expectedProducedQuantities == sort effectView.otherProduced
-
-
-
-  -- TEST PUT OPTION
-
-  -- Create the Election directly (to test the workflow without having to use Holdings)
-  let
-    electorIsOwner = True
-    --electorIsOwner = False
-    counterparty = issuer
-    description = "election for physically settled option"
-  --electionCid <- submitMulti [custodian] [publicParty]
-  exerciseOptionCid <- submitMulti [custodian] [publicParty]
-    do
-      exerciseCmd electionFactoryCid Election.Create with
-        actors = fromList [custodian]
-        id = Id "election id"
-        description
-        --claim = exercised
-        claim = "EXERCISE"
-        electionTime = dateToDateClockTime expiryDate
-        electorIsOwner
-        elector = custodian
-        counterparty
-        instrument = itmPutInstrument
-        amount = 1.0
-        observers = M.fromList [("Holders", fromList [ custodian, issuer] )]
-        provider = issuer
-  debug exerciseOptionCid
-
-  -- Apply election to generate new instrument version + effects
-  lifecycleRuleCid <- toInterfaceContractId <$> submit custodian do
-    createCmd Lifecycle.Rule with
-      providers = singleton custodian
-      observers = M.empty
-      lifecycler = issuer
-      id = Id "LifecycleRule"
-      description = "Rule to lifecycle a generic instrument"
-
-  (_, [effectCid]) <- submit issuer do
-    exerciseCmd exerciseOptionCid Election.Apply with
-      observableCids = [observableCid]
-      exercisableCid = lifecycleRuleCid
-
-  -- Get the effect
-  effectView <- submit issuer do
-    exerciseCmd effectCid Effect.GetView with viewer = issuer
-
-  let
-    expectedConsumedQuantities = [qty 1.0 aaplInstrumentCid]
-    expectedProducedQuantities = [qty 50.0 cashInstrumentCid]
-
-  debug effectView.otherConsumed
-  debug effectView.otherProduced
-
-  -- Verify that the consumed/produced quantities match the expected ones
-  assertMsg "The consumed quantities do not match the expected ones" $
-    sort expectedConsumedQuantities == sort effectView.otherConsumed
-  assertMsg "The produced quantities do not match the expected ones" $
-    sort expectedProducedQuantities == sort effectView.otherProduced
-
-{-
   -- Expiry date: Lifecycle and verify the lifecycle effects for an in-the-money call option.
   let
-    expectedConsumedQuantities = []
-    expectedProducedQuantities = [qty 8.78 cashInstrumentCid]
-  optionInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty] expiryDate
-    itmCallInstrument issuer [observableCid] expectedConsumedQuantities expectedProducedQuantities
- -}
+    expectedConsumed = [qty 40.0 cashInstrumentCid]
+    expectedProduced = [qty 1.0 aaplInstrumentCid]
+  optionInstrumentAfterFirstPayment <- electAndVerifyPaymentEffects [publicParty] expiryDate
+    itmCallInstrument issuer custodian "EXERCISE" [observableCid] expectedConsumed expectedProduced
 
-{-   -- Expiry date: Lifecycle and verify the lifecycle effects for an out-of-the-money call option.
+  -- Expiry date: Lifecycle and verify the lifecycle effects for an out-of-the-money call option.
   let
-    expectedConsumedQuantities = []
-    expectedProducedQuantities = []
-  optionInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty] expiryDate
-    otmCallInstrument issuer [observableCid] expectedConsumedQuantities expectedProducedQuantities
+    expectedConsumed = []
+    expectedProduced = []
+  optionInstrumentAfterFirstPayment <- electAndVerifyPaymentEffects [publicParty] expiryDate
+    otmCallInstrument issuer custodian "EXPIRE" [observableCid] expectedConsumed expectedProduced
 
   -- Expiry date: Lifecycle and verify the lifecycle effects for an in-the-money put option.
   let
-    expectedConsumedQuantities = []
-    expectedProducedQuantities = [qty 1.22 cashInstrumentCid]
-  optionInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty] expiryDate
-    itmPutInstrument issuer [observableCid] expectedConsumedQuantities expectedProducedQuantities
+    expectedConsumed = [qty 1.0 aaplInstrumentCid]
+    expectedProduced = [qty 50.0 cashInstrumentCid]
+  optionInstrumentAfterFirstPayment <- electAndVerifyPaymentEffects [publicParty] expiryDate
+    itmPutInstrument issuer custodian "EXERCISE" [observableCid] expectedConsumed expectedProduced
 
   -- Expiry date: Lifecycle and verify the lifecycle effects for an out-of-the-money put option.
   let
-    expectedConsumedQuantities = []
-    expectedProducedQuantities = []
-  optionInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty] expiryDate
-    otmPutInstrument issuer [observableCid] expectedConsumedQuantities expectedProducedQuantities
- -}
+    expectedConsumed = []
+    expectedProduced = []
+  optionInstrumentAfterFirstPayment <- electAndVerifyPaymentEffects [publicParty] expiryDate
+    otmPutInstrument issuer custodian "EXPIRE" [observableCid] expectedConsumed expectedProduced
 
   pure ()
