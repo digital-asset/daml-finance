@@ -1,6 +1,8 @@
 -- Copyright (c) 2023 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
 module Daml.Finance.Instrument.Option.Test.Util where
 
 import DA.List (sort)
@@ -9,13 +11,16 @@ import DA.Set (fromList, singleton)
 import Daml.Finance.Instrument.Option.EuropeanCash.Instrument qualified as EuropeanCashOption (Instrument(..))
 import Daml.Finance.Instrument.Option.EuropeanPhysical.Instrument qualified as EuropeanPhysicalOption (Instrument(..))
 import Daml.Finance.Instrument.Option.Lifecycle.Rule qualified as Lifecycle (Rule(..))
+import Daml.Finance.Interface.Data.Reference.HolidayCalendar qualified as HolidayCalendar (I)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I)
 import Daml.Finance.Interface.Instrument.Option.Types (OptionTypeEnum)
 import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (GetView(..), I)
 import Daml.Finance.Interface.Lifecycle.Election qualified as Election (Apply(..))
 import Daml.Finance.Interface.Lifecycle.Election.Factory qualified as Election (Create(..), F)
 import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey, InstrumentQuantity, Parties)
+import Daml.Finance.Interface.Util.KeyTable (getKey)
 import Daml.Finance.Lifecycle.Election qualified as Election (Factory(..))
-import Daml.Finance.Test.Util.Instrument (createReference)
+import Daml.Finance.Test.Util.Instrument qualified as Instrument (buildKeyTable)
 import Daml.Finance.Test.Util.Time (dateToDateClockTime)
 import Daml.Script
 
@@ -24,15 +29,15 @@ originateEuropeanCashOption : Party -> Party -> Text -> Text -> [(Text, Parties)
   Date -> OptionTypeEnum -> Decimal -> InstrumentKey -> Text -> Bool -> Script InstrumentKey
 originateEuropeanCashOption depository issuer label description observers lastEventTimestamp
   expiryDate optionType strike currency referenceAssetId ownerReceives = do
-  -- CREATE_EUROPEAN_OPTION_INSTRUMENT_BEGIN
-    cid <- toInterfaceContractId <$> submitMulti [depository, issuer] [] do
-      createCmd EuropeanCashOption.Instrument with
+    -- CREATE_EUROPEAN_OPTION_INSTRUMENT_BEGIN
+    let
+      instrument = EuropeanCashOption.Instrument with
         depository; issuer; id = Id label; version = "0"; description
-        observers = M.fromList observers; lastEventTimestamp
-        ownerReceives; optionType; strike; expiryDate
-        referenceAssetId; currency
-  -- CREATE_EUROPEAN_OPTION_INSTRUMENT_END
-    createReference cid depository issuer observers
+        observers = M.fromList observers; lastEventTimestamp; ownerReceives; optionType; strike
+        expiryDate; referenceAssetId; currency
+    submitMulti [depository, issuer] [] do createCmd instrument
+    -- CREATE_EUROPEAN_OPTION_INSTRUMENT_END
+    pure . getKey . toInterface @BaseInstrument.I $ instrument
 
 -- | Originate a physically settled European option.
 originateEuropeanPhysicalOption : Party -> Party -> Text -> Text -> [(Text, Parties)] -> Time ->
@@ -40,28 +45,35 @@ originateEuropeanPhysicalOption : Party -> Party -> Text -> Text -> [(Text, Part
   Script InstrumentKey
 originateEuropeanPhysicalOption depository issuer label description observers lastEventTimestamp
   expiryDate optionType strike currency referenceAsset ownerReceives = do
-  -- CREATE_EUROPEAN_PHYSICAL_OPTION_INSTRUMENT_BEGIN
-    cid <- toInterfaceContractId <$> submitMulti [depository, issuer] [] do
-      createCmd EuropeanPhysicalOption.Instrument with
+    -- CREATE_EUROPEAN_PHYSICAL_OPTION_INSTRUMENT_BEGIN
+    let
+      instrument = EuropeanPhysicalOption.Instrument with
         depository; issuer; id = Id label; version = "0"; description
-        observers = M.fromList observers; lastEventTimestamp
-        ownerReceives; optionType; strike; expiryDate
-        referenceAsset; currency
-  -- CREATE_EUROPEAN_PHYSICAL_OPTION_INSTRUMENT_END
-    createReference cid depository issuer observers
+        observers = M.fromList observers; lastEventTimestamp; ownerReceives; optionType; strike
+        expiryDate; referenceAsset; currency
+    submitMulti [depository, issuer] [] do createCmd instrument
+    -- CREATE_EUROPEAN_PHYSICAL_OPTION_INSTRUMENT_END
+    pure . getKey . toInterface @BaseInstrument.I $ instrument
 
 -- | Verify the payments of an instrument after an election (excluding settlement)
-electAndVerifyPaymentEffects : [Party] -> Date -> Decimal -> InstrumentKey -> Party -> Party -> Text
+electAndVerifyPaymentEffects : forall t1 t2.
+  ( Template t1
+  , HasAgreement t1
+  , HasToInterface t1 BaseInstrument.I
+  , Template t2
+  , HasAgreement t2
+  , HasToInterface t2 HolidayCalendar.I
+  )
+  => [Party] -> Date -> Decimal -> InstrumentKey -> Party -> Party -> Text
   -> [InstrumentQuantity] -> [InstrumentQuantity]
   -> Script (Optional InstrumentKey, ContractId Effect.I)
 electAndVerifyPaymentEffects readAs today amount instrument issuer custodian electedTag
   expectedConsumedQuantities expectedProducedQuantities = do
-
     -- Create election offers to allow holders to create elections
     electionFactoryCid <- submit issuer do
       toInterfaceContractId @Election.F <$> createCmd Election.Factory with
         provider = issuer
-        observers = M.fromList [("Holders", fromList [custodian] )]
+        observers = M.fromList [("Holders", fromList [custodian])]
 
     -- Apply election to generate new instrument version + effects
     lifecycleRuleCid <- toInterfaceContractId <$> submit custodian do
@@ -72,6 +84,7 @@ electAndVerifyPaymentEffects readAs today amount instrument issuer custodian ele
         id = Id "LifecycleRule"
         description = "Rule to lifecycle a generic instrument"
 
+    -- Create election
     let
       electorIsOwner = True
       counterparty = issuer
@@ -89,13 +102,18 @@ electAndVerifyPaymentEffects readAs today amount instrument issuer custodian ele
           counterparty
           instrument
           amount
-          observers = M.fromList [("Holders", fromList [ custodian, issuer] )]
+          observers = M.fromList [("Holders", fromList [custodian, issuer] )]
           provider = issuer
 
+    -- Build key table
+    keyTable <- Instrument.buildKeyTable @t1 @t2 [issuer] instrument
+
+    -- Apply election
     (newInstrumentKey, [effectCid]) <- submit issuer do
-      exerciseCmd exerciseOptionCid Election.Apply with
+      fst <$> exerciseCmd exerciseOptionCid Election.Apply with
         observableCids = []
         exercisableCid = lifecycleRuleCid
+        keyTable
 
     -- Get the effect
     effectView <- submit issuer do

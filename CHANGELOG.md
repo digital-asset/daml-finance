@@ -10,7 +10,7 @@ Stable Packages
 | ContingentClaims.Core                      | 1.0.0              | 1.0.1          |
 | ContingentClaims.Lifecycle                 | 1.0.0              | 1.0.1          |
 | Daml.Finance.Account                       | 1.0.1              | 2.0.0          |
-| Daml.Finance.Claims                        | 1.0.1              | 1.0.2          |
+| Daml.Finance.Claims                        | 1.0.1              | 2.0.0          |
 | Daml.Finance.Data                          | 1.0.1              | 2.0.0          |
 | Daml.Finance.Holding                       | 1.0.2              | 2.0.0          |
 | Daml.Finance.Instrument.Generic            | 1.0.1              | 2.0.0          |
@@ -24,12 +24,12 @@ Stable Packages
 | Daml.Finance.Interface.Instrument.Token    | 1.0.0              | 2.0.0          |
 | Daml.Finance.Interface.Lifecycle           | 1.0.0              | 2.0.0          |
 | Daml.Finance.Interface.Settlement          | 1.0.0              | 2.0.0          |
-| Daml.Finance.Interface.Types.Common        | 1.0.0              | 1.0.1          |
+| Daml.Finance.Interface.Types.Common        | 1.0.0              | 1.1.0          |
 | Daml.Finance.Interface.Types.Date          | 2.0.0              | 2.0.1          |
-| Daml.Finance.Interface.Util                | 1.0.0              | 1.0.1          |
+| Daml.Finance.Interface.Util                | 1.0.0              | 2.0.0          |
 | Daml.Finance.Lifecycle                     | 1.0.1              | 2.0.0          |
 | Daml.Finance.Settlement                    | 1.0.2              | 2.0.0          |
-| Daml.Finance.Util                          | 2.0.0              | 2.0.1          |
+| Daml.Finance.Util                          | 2.0.0              | 2.1.0          |
 
 Early Access Packages
 ---------------------
@@ -72,9 +72,13 @@ Early Access Packages
 
 - Requires
 
+- Key Table
+
 #### Daml.Finance.Claims
 
 - Dependencies update
+
+- Key Table
 
 - Style changes
 
@@ -86,6 +90,12 @@ Early Access Packages
 
 - Requires
 
+- Key Table (for `HolidayCalendar` and `TimeObservable`)
+
+- Made use of `TimeObservableKey`
+
+- Moved `HolidayCalendarKey` to `Daml.Finance.Interface.Data`
+
 #### Daml.Finance.Holding
 
 - Dependencies update
@@ -95,6 +105,8 @@ Early Access Packages
 
 - Requires
 
+- Key Table
+
 #### Daml.Finance.Instrument.Bond
 
 - Dependencies update
@@ -103,11 +115,15 @@ Early Access Packages
 
 - Requires
 
+- Key Table
+
 #### Daml.Finance.Instrument.Equity
 
 - Dependencies update
 
 - Requires
+
+- Key Table
 
 #### Daml.Finance.Instrument.Generic
 
@@ -118,6 +134,8 @@ Early Access Packages
 - Move Election logic from Generic to Lifecycle (to facilitate code reuse)
 
 - Requires
+
+- Key Table
 
 #### Daml.Finance.Instrument.Option
 
@@ -131,6 +149,8 @@ Early Access Packages
 
 - Requires
 
+- Key Table
+
 #### Daml.Finance.Instrument.Swap
 
 - Dependencies update
@@ -139,25 +159,35 @@ Early Access Packages
 
 - Requires
 
+- Key Table
+
 #### Daml.Finance.Instrument.Token
 
 - Dependencies update
 
 - Requires
 
+- Key Table
+
 #### Daml.Finance.Interface.Account
 
 - Dependencies update
 
-- Removed `type K = AccountKey`
-
 - Requires
+
+- Key Table (API change for `AccountFactory.Remove`)
+
+- Removed type synonym for `AccountKey`
 
 #### Daml.Finance.Interface.Claims
 
 - Dependencies update
 
 - Requires
+
+- Key Table (API change for `Claim.GetClaim`)
+
+- Introduced `getHolidayCalendarKeys` method to `Dynamic.Instrument.I`.
 
 #### Daml.Finance.Interface.Data
 
@@ -167,6 +197,10 @@ Early Access Packages
 
 - Requires
 
+- Key Table (for `DateClock`, `HolidayCalendar`, and `LedgerTime`)
+
+- Moved `HolidayCalendarKey` to this package.
+
 #### Daml.Finance.Interface.Holding
 
 - Dependencies update
@@ -175,15 +209,22 @@ Early Access Packages
 
 - Requires
 
+- Key Table (API change for `Transferable.Transfer`)
+
+- Moved the `disclose` and `undisclose` utility functions to
+  `Daml.Finance.Interface.Util.Disclosure`
+
 #### Daml.Finance.Interface.Instrument.Base
 
 - Dependencies update
 
 - Style changes
 
-- Removed `type K = InstrumentKey`
-
 - Requires
+
+- Key Table
+
+- Removed type synonym for `InstrumentKey`
 
 #### Daml.Finance.Interface.Instrument.Bond
 
@@ -191,11 +232,15 @@ Early Access Packages
 
 - Requires
 
+- Key Table (API change for `Factory.Remove`)
+
 #### Daml.Finance.Interface.Instrument.Equity
 
 - Dependencies update
 
 - Requires
+
+- Key Table (API change for `Factory.Remove`)
 
 #### Daml.Finance.Interface.Instrument.Generic
 
@@ -204,6 +249,8 @@ Early Access Packages
 - Move Election logic from Generic to Lifecycle (to facilitate code reuse)
 
 - Requires
+
+- Key Table (API change for `Factory.Remove`, `Election.Apply`, and `Election.ApplyElection`)
 
 #### Daml.Finance.Interface.Instrument.Option
 
@@ -215,6 +262,8 @@ Early Access Packages
 
 - Requires
 
+- Key Table (API change for `Factory.Remove`)
+
 #### Daml.Finance.Interface.Instrument.Swap
 
 - Dependencies update
@@ -223,11 +272,15 @@ Early Access Packages
 
 - Requires
 
+- Key Table (API change for `Factory.Remove`)
+
 #### Daml.Finance.Interface.Instrument.Token
 
 - Dependencies update
 
 - Requires
+
+- Key Table (API change for `Factory.Remove`)
 
 #### Daml.Finance.Interface.Lifecycle
 
@@ -239,6 +292,8 @@ Early Access Packages
 
 - Requires
 
+- Key Table (added key data type for `TimeObservable` + API change for `Rule.Lifecycle.Evolve`)
+
 #### Daml.Finance.Interface.Settlement
 
 - Dependencies update
@@ -247,9 +302,21 @@ Early Access Packages
 
 - Requires
 
+- Key Table (API change for `Batch.Settle`, `Batch.Cancel`, `Instruction.Allocate`,
+  `Instruction.Approve`, `Instruction.Execute`, and `Instruction.Cancel`)
+
+- Added `getKey` interface method to `Instruction` and `Batch` (to be consistent with other
+  keyed interfaces).
+
+- Added data type for `BatchKey`.
+
 #### Daml.Finance.Interface.Types.Common
 
 - Dependencies update
+
+- Introduced `TimeObservableKey` data type
+
+- Moved `HolidayCalendarKey` to this package.
 
 #### Daml.Finance.Interface.Types.Date
 
@@ -261,6 +328,12 @@ Early Access Packages
 
 - Requires (but only type constraint for requiring templates to implement `Disclosure`)
 
+- Key Table (added module `KeyTable` with custom `archive`, `create`, `exercise`, `exerciseByKey`,
+  `fetch`, `fetchByKey`, `fetchFromInterface`, and `lookupByKey` for working with explicit key
+  tables)
+
+- Utility functions for `disclose` and `undisclose` were moved to this package.
+
 #### Daml.Finance.Lifecycle
 
 - Dependencies update
@@ -271,6 +344,8 @@ Early Access Packages
 
 - Requires
 
+- Key Table
+
 #### Daml.Finance.Settlement
 
 - Dependencies update
@@ -279,8 +354,13 @@ Early Access Packages
 
 - Requires
 
+- Key Table
+
 #### Daml.Finance.Util
 
 - Dependencies update
 
 - Style changes
+
+- Type signature for utility functions cahnged `setObserversImpl`, `addObserversImpl`, and
+  `removeObserversImpl`).

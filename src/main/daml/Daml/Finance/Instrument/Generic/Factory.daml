@@ -4,12 +4,14 @@
 module Daml.Finance.Instrument.Generic.Factory where
 
 import DA.Set (singleton)
-import Daml.Finance.Instrument.Generic.Instrument (Instrument(..))
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (GetCid(..), R, createReference)
-import Daml.Finance.Interface.Instrument.Generic.Factory qualified as GenericFactory (Create(..), F, Remove(..), View(..))
-import Daml.Finance.Interface.Types.Common.Types (PartiesMap)
+import Daml.Finance.Instrument.Generic.Instrument qualified as Generic (Instrument(..))
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I)
+import Daml.Finance.Interface.Instrument.Generic.Factory qualified as Generic (Create(..), F, Remove(..), View(..))
+import Daml.Finance.Interface.Types.Common.Types (InstrumentKey, PartiesMap)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Interface.Util.KeyTable (archiveByKey, create, withKeyTable)
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+import Prelude hiding (archive, create, exercise, exerciseByKey, fetch, fetchByKey, fetchFromInterface, lookup, lookupByKey)
 
 -- | Type synonym for `Factory`.
 type F = Factory
@@ -25,25 +27,20 @@ template Factory
     signatory provider
     observer Disclosure.flattenObservers observers
 
-    interface instance GenericFactory.F for Factory where
-      view = GenericFactory.View with provider
-      create' GenericFactory.Create
-        {instrument; description; claims; acquisitionTime; lastEventTimestamp; observers} = do
-          cid <- toInterfaceContractId <$>
-            create Instrument with
+    interface instance Generic.F for Factory where
+      view = Generic.View with provider
+      create' Generic.Create
+        {instrument; description; claims, acquisitionTime, lastEventTimestamp; observers} =
+          toInterfaceContractId <$>
+            create Generic.Instrument with
               depository = instrument.depository; issuer = instrument.issuer; id = instrument.id
               version = instrument.version; description; claims; acquisitionTime; lastEventTimestamp
               observers
-          Instrument.createReference instrument.depository cid
-          pure cid
-      remove GenericFactory.Remove{instrument} = do
-        (refCid, ref) <- fetchByKey @Instrument.R instrument
-        instrumentCid <- exercise refCid Instrument.GetCid with viewer = instrument.depository
-        archive $ fromInterfaceContractId @Instrument instrumentCid
-        archive refCid
+      remove Generic.Remove{instrument; keyTable} = withKeyTable keyTable do
+        archiveByKey @BaseInstrument.I @InstrumentKey provider instrument
 
     interface instance Disclosure.I for Factory where
       view = Disclosure.View with disclosureControllers = singleton provider; observers
-      setObservers = setObserversImpl @Factory @Disclosure.I this None
-      addObservers = addObserversImpl @Factory @Disclosure.I this None
-      removeObservers = removeObserversImpl @Factory @Disclosure.I this None
+      setObservers = setObserversImpl @Factory this
+      addObservers = addObserversImpl @Factory this
+      removeObservers = removeObserversImpl @Factory this
