@@ -67,8 +67,8 @@ build-all: build build-packages
 test-all: test test-packages
 
 .PHONY: clean-all
-clean-all: clean clean-packages
-	pipenv run make doc-clean
+clean-all: clean clean-packages clean-docs
+
 
 ##################################
 # CI                             #
@@ -107,10 +107,10 @@ ci-validate:
 		--run './$(SCRIPTS_DIR)/validate-packages.sh'
 
 .PHONY: ci-docs
-ci-docs: $(DAML_SDK_ROOT)
+ci-docs:
 	@nix-shell \
 		--pure \
-		--run 'pipenv run make doc-html'
+		--run 'make doc-code'
 
 .PHONY: ci-headers-check
 ci-headers-check:
@@ -179,33 +179,19 @@ doc-code-json: $(DAML_SRC)
 doc-code: doc-code-json
 	daml damlc docs \
 		--output=docs/build/daml-finance-rst \
+		--output-hoogle=docs/build/daml-finance-hoogle.txt \
 		--input-format=json \
 		--format=Rst \
 		--exclude-instances=HasField,HasImplementation,HasFromInterface,HasToInterface,HasInterfaceView,HasExercise,HasExerciseGuarded,HasFromAnyChoice,HasToAnyChoice \
 		--drop-orphan-instances \
 		--template=docs/code-documentation-templates/base-rst-template.rst \
 		--index-template=docs/code-documentation-templates/base-rst-index-template.rst \
+		--hoogle-template=docs/code-documentation-templates/base-hoogle-template.txt \
 		--base-url=https://docs.daml.com/daml/daml-finance \
 		--input-anchor=$(DAML_ROOT)/sdk/$(SDK_VERSION)/damlc/resources/daml-base-anchors.json \
 		docs/build/daml-finance.json
 
-# Build doc theme
-.PHONY: doc-theme
-doc-theme:
-	cd docs/sphinx && ./build-doc-theme.sh
+.PHONY: clean-docs
+clean-docs:
+	./$(SCRIPTS_DIR)/clean-docs.sh
 
-# You can set these variables from the command line, and also
-# from the environment for the first two.
-SPHINXOPTS  ?= -c "$(CONFDIR)" -W
-SPHINXBUILD ?= sphinx-build
-SOURCEDIR   = docs/source
-BUILDDIR    = docs/build
-CONFDIR     = docs/sphinx
-
-.PHONY: doc-html
-doc-html: doc-theme doc-code
-	$(SPHINXBUILD) -M html "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
-
-.PHONY: doc-clean
-doc-clean: Makefile
-	$(SPHINXBUILD) -M clean "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
