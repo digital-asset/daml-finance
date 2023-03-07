@@ -12,7 +12,7 @@ Stable Packages
 | Daml.Finance.Account                       | 1.0.1              | 1.0.2          |
 | Daml.Finance.Claims                        | 1.0.1              | 1.0.2          |
 | Daml.Finance.Data                          | 1.0.1              | 1.0.2          |
-| Daml.Finance.Holding                       | 1.0.2              | 1.0.3          |
+| Daml.Finance.Holding                       | 1.0.2              | 1.1.0          |
 | Daml.Finance.Instrument.Generic            | 1.0.1              | 1.0.2          |
 | Daml.Finance.Instrument.Token              | 1.0.1              | 1.0.2          |
 | Daml.Finance.Interface.Account             | 1.0.0              | 1.0.1          |
@@ -83,6 +83,9 @@ Early Access Packages
 #### Daml.Finance.Holding
 
 - Dependencies update
+
+- Added default `splitImpl` and `mergeImpl` for `Fungible` to `Util.daml` (also generalized the
+  `acquireImpl` and `releaseImpl` to not rely on an attribute called "lock").
 
 #### Daml.Finance.Instrument.Bond
 
