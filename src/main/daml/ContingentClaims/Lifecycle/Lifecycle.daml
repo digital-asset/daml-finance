@@ -24,29 +24,31 @@ import Daml.Control.Monad.Trans.Class (lift)
 import Daml.Control.Monad.Trans.Writer (WriterT, runWriterT)
 import Daml.Control.Monad.Writer.Class (MonadWriter(..))
 import Daml.Control.Recursion (project)
-import Prelude hiding (sequence, exercise, compare)
+import Prelude hiding (compare, exercise, sequence)
 
 type F t a o = ClaimF t Decimal a o
 -- CLAIMS_LIFECYCLE_BEGIN
 type C t a o = Claim t Decimal a o
 
 -- | Used to specify pending payments.
-data Pending t a = Pending with
-  t : t
-    -- ^ Payment time.
-  amount : Decimal
-    -- ^ Amount of asset to be paid.
-  asset : a
-    -- ^ Asset in which the payment is denominated.
-    deriving (Eq, Show)
+data Pending t a = Pending
+  with
+    t : t
+      -- ^ Payment time.
+    amount : Decimal
+      -- ^ Amount of asset to be paid.
+    asset : a
+      -- ^ Asset in which the payment is denominated.
+  deriving (Eq, Show)
 
 -- | Returned from a `lifecycle` operation.
-data Result t a o = Result with
-  pending : [Pending t a]
-    -- ^ Payments requiring settlement.
-  remaining : C t a o
-    -- ^ The tree after lifecycled branches have been pruned.
-    deriving (Eq, Show)
+data Result t a o = Result
+  with
+    pending : [Pending t a]
+      -- ^ Payments requiring settlement.
+    remaining : C t a o
+      -- ^ The tree after lifecycled branches have been pruned.
+  deriving (Eq, Show)
 
 -- | Collect claims falling due into a list, and return the tree with those nodes pruned.
 -- `m` will typically be `Update`. It is parametrised so it can be run in a `Script`. The first
@@ -128,13 +130,13 @@ acquire' spot today (s, Cond obs c c') = do
       CondF obs (Right (s,c)) (Left c')
     else
       CondF obs (Left c) (Right (s,c'))
-acquire' spot today (_, Anytime obs tag c) = do
+acquire' spot today (_, Anytime obs e) = do
   predicate <- compare spot obs today
   pure . AnytimeF obs tag $ if predicate then
       -- the acquisition time of an Anytime node is assumed to be the time at which we lifecycle
-      Right (today,c)
+      Right . (today,) <$> e
     else
-      Left c
+      Left <$> e
 acquire' _ _ (s, Until (TimeLte t) c) | s <= t =
   -- if the contract is acquired before t, the predicate is immediately True
   pure $ Left <$> UntilF (TimeLte t) c
@@ -148,7 +150,7 @@ acquire' _ _ (s, other) = pure $ Right . (s, ) <$> project other
 -- Replace sub-trees that will never be acquired with `Zero`.
 expire' : (Ord t, Eq a) => Acquired t a o -> Acquired t a o
 expire' (WhenF (TimeLte t) (Left _)) = ZeroF
-expire' (AnytimeF (TimeLte t) _ (Left _)) = ZeroF
+expire' (AnytimeF (TimeLte t) (_, Left _)) = ZeroF
 expire' (UntilF _ (Left _)) = ZeroF
 expire' (CondF pred (Right c) _) = CondF pred (Right c) (Left Zero)
 expire' (CondF pred _ (Right c)) = CondF pred (Left Zero) (Right c)
@@ -170,10 +172,10 @@ type LifecycleCarrier t a o = (Decimal, (t, C t a o))
 -- factors with their corresponding leaf values. Stop recursion at `Or` and `Anytime` branches,
 -- guaranteeing liveness. Replace any Ones that can be reached with Zeros.
 lifecycle' : (Ord t, CanAbort m)
-        => (o -> t -> m Decimal)
-        -> (Decimal, (t, Acquired t a o))
-        -- ^ the acquired input claim, its acquisition time and the accumulated scaling factor
-        -> WriterT [Pending t a] m (FE t a o (LifecycleCarrier t a o))
+  => (o -> t -> m Decimal)
+  -> (Decimal, (t, Acquired t a o))
+  -- ^ the acquired input claim, its acquisition time and the accumulated scaling factor
+  -> WriterT [Pending t a] m (FE t a o (LifecycleCarrier t a o))
 lifecycle' _ (qty, (s, OneF asset)) = do
   tell [Pending s qty asset]
   pure $ ZeroF
@@ -233,17 +235,19 @@ exercise' : (Eq t, Eq a, Eq o)
   --   the election (`True = bearer`)
   -> FE t a o (ExerciseCarrier t a o)
 exercise' _ _ (isBearer, (_, GiveF c)) = GiveF $ (not isBearer, ) <$> c
-exercise' (elector, election) t (isBearer, (_, ors@OrF {}))
-  | elector /= isBearer = stop ors
-  | otherwise = case snd <$> find (\x -> fst x == election) elections of
-      Some (Right (s,e)) | t == s -> Left <$> project e
-      _ -> stop ors
-  where stop = fmap $ Left . (identity ||| snd)
-        elections = ors.or1 :: ors.or2 :: ors.ors
-exercise' (elector, election) t (isBearer, (_, f@(AnytimeF {})))
-  | elector /= isBearer = stop f
-  | otherwise = case f.claim of
-      Right (s,e) | f.tag == election && s == t -> Left <$> WhenF (TimeGte s) e
-      _ -> stop f
- where stop = fmap $ Left . (identity ||| snd)
+exercise' (elector, election) t (isBearer, (_, ors@OrF {})) =
+  case snd <$> find (\x -> fst x == election) elections of
+    Some (Right (s,e)) | t == s && elector == isBearer
+      -> Left <$> project e
+    _ -> stop ors
+  where
+    stop = fmap $ Left . (identity ||| snd)
+    elections = ors.or1 :: ors.or2 :: ors.ors
+exercise' (elector, election) t (isBearer, (_, f@(AnytimeF {}))) =
+  case snd f.electable of
+    Right (s,e) | fst f.electable == election && s == t && elector == isBearer
+      -> Left <$> WhenF (TimeGte s) e
+    _ -> stop f
+ where
+  stop = fmap $ Left . (identity ||| snd)
 exercise' _ _ (isBearer, (_, other)) = fmap (isBearer, ) <$> other

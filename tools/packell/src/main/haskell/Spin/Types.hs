@@ -22,4 +22,3 @@ data Config = Config
   , configSymbol :: String
   , configSticky :: Bool
   } deriving (Show)
-
