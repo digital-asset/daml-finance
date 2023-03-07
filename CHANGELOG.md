@@ -109,6 +109,10 @@ Early Access Packages
 
 - Style changes
 
+- Add physically settled European options (EuropeanPhysical).
+
+- Renamed cash-settled European options (European -> EuropeanCash).
+
 #### Daml.Finance.Instrument.Swap
 
 - Dependencies update
@@ -158,6 +162,10 @@ Early Access Packages
 #### Daml.Finance.Interface.Instrument.Option
 
 - Dependencies update
+
+- Add physically settled European options (EuropeanPhysical).
+
+- Renamed cash-settled European options (European -> EuropeanCash).
 
 #### Daml.Finance.Interface.Instrument.Swap
 
