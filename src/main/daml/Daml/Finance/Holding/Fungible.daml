@@ -3,18 +3,14 @@
 
 module Daml.Finance.Holding.Fungible where
 
-import DA.Action (foldlA)
-import DA.Foldable qualified as F (all)
 import DA.Set (fromList, singleton)
-import DA.Traversable qualified as T (forA)
-import Daml.Finance.Holding.Util (acquireImpl, releaseImpl, transferImpl)
+import Daml.Finance.Holding.Util (acquireImpl, mergeImpl, releaseImpl, splitImpl, transferImpl)
 import Daml.Finance.Interface.Holding.Base (getLockers)
 import Daml.Finance.Interface.Holding.Base qualified as Base (I, Lock(..), View(..))
 import Daml.Finance.Interface.Holding.Factory qualified as HoldingFactory (Create(..), F, HasImplementation(..), Remove(..), View(..))
-import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (HasImplementation, I, Merge(..), Split(..), SplitResult(..), View(..))
+import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (HasImplementation, I, View(..))
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, View(..))
 import Daml.Finance.Interface.Types.Common.Types (AccountKey(..), InstrumentKey(..), PartiesMap)
-import Daml.Finance.Interface.Util.Common (verify)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
 
@@ -46,47 +42,29 @@ template Fungible
 
     ensure amount > 0.0
 
-    let spawn = \a -> toInterfaceContractId @Fungible.I <$> create this with amount = a
-
     interface instance Disclosure.I for Fungible where
       view = Disclosure.View with
         disclosureControllers = fromList [account.owner, account.custodian]; observers
-      setObservers = setObserversImpl @Fungible @Disclosure.I this None
-      addObservers = addObserversImpl @Fungible @Disclosure.I this None
-      removeObservers = removeObserversImpl @Fungible @Disclosure.I this None
+      setObservers = setObserversImpl @_ @Disclosure.I this None
+      addObservers = addObserversImpl @_ @Disclosure.I this None
+      removeObservers = removeObserversImpl @_ @Disclosure.I this None
 
     interface instance Base.I for Fungible where
-      asDisclosure = toInterface @Disclosure.I this
+      asDisclosure = toInterface this
       view = Base.View with instrument; account; amount; lock
-      acquire = acquireImpl @Fungible this
-      release = releaseImpl @Fungible this
+      acquire = acquireImpl this.lock (\lock -> this with lock)
+      release = releaseImpl this.lock (\lock -> this with lock)
 
     interface instance Transferable.I for Fungible where
-      asBase = toInterface @Base.I this
+      asBase = toInterface this
       view = Transferable.View {}
-      transfer = transferImpl $ toInterface @Transferable.I this
+      transfer = transferImpl $ toInterface this
 
     interface instance Fungible.I for Fungible where
-      asTransferable = toInterface @Transferable.I this
+      asTransferable = toInterface this
       view = Fungible.View with modifiers = singleton account.owner
-      split Fungible.Split{amounts} = do
-        splitCids <- forA amounts spawn
-        restAmount <- getRestAmount amounts amount
-        rest <- T.forA restAmount spawn
-        pure Fungible.SplitResult with splitCids; rest
-      merge Fungible.Merge{fungibleCids} = do
-        assertMsg "list of fungibles must be non-empty" $ not $ null fungibleCids
-        let
-          aggregate a cid = do
-            Some (fungibleCid, fungible) <- fetchFromInterface @Fungible cid
-            assertMsg "instrument must match" $ instrument == fungible.instrument
-            assertMsg "account must match" $ account == fungible.account
-            assertMsg "signatories must match" $
-              fromList (signatory this) == fromList (signatory fungible)
-            archive fungibleCid
-            pure $ a + fungible.amount
-        tot <- foldlA aggregate amount fungibleCids
-        spawn tot
+      split = splitImpl amount (\amount -> this with amount)
+      merge = mergeImpl amount (.amount) (\amount -> this with amount)
 
 instance HoldingFactory.HasImplementation Factory
 -- | Implementation of the corresponding Holding Factory.
@@ -116,16 +94,3 @@ template Factory
       setObservers = setObserversImpl @Factory @Disclosure.I this None
       addObservers = addObserversImpl @Factory @Disclosure.I this None
       removeObservers = removeObserversImpl @Factory @Disclosure.I this None
-
--- | HIDE Gets the rest amount of a split (if any) and verifies that split amounts are strictly
--- positive and don't exceed the current amount.
-getRestAmount : CanAssert m => [Decimal] -> Decimal -> m (Optional Decimal)
-getRestAmount amounts currentAmount = do
-  let splitAmountSum = sum amounts
-  verify (splitAmountSum <= currentAmount && F.all (> 0.0) amounts && amounts /= []) $ "Fungible::"
-    <> "verifySplit - Amounts must be non-empty, strictly positive, and not exceed current amount. "
-    <> "amounts=" <> show amounts
-    <> ", splitAmountSum=" <> show splitAmountSum
-    <> ", currentAmount=" <> show currentAmount
-  let rest = currentAmount - splitAmountSum
-  pure $ if rest == 0.0 then None else Some rest

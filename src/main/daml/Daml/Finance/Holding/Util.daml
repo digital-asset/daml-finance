@@ -4,16 +4,17 @@
 module Daml.Finance.Holding.Util where
 
 import DA.Action (foldlA)
-import DA.Assert ((===))
-import DA.Set qualified as S (delete, fromList, insert, intersection, isSubsetOf, notMember, null, singleton, toList)
+import DA.Foldable qualified as F (all)
+import DA.Set qualified as S (delete, fromList, insert, isSubsetOf, notMember, null, singleton, toList)
+import DA.Traversable qualified as T (forA)
 import Daml.Finance.Interface.Account.Account qualified as Account (Credit(..), Debit(..), I, R, exerciseInterfaceByKey)
 import Daml.Finance.Interface.Account.Util (fetchAccount)
 import Daml.Finance.Interface.Holding.Base qualified as Base (Acquire(..), I, Lock(..), LockType(..), Release(..), getLockers)
+import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (I, Merge(..), Split(..), SplitResult(..))
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
-import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey, qty)
-import Prelude hiding (null)
+import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey, verify, qty)
 
--- | Default implementation of transfer for the Transferable interface.
+-- | Default implementation of `transfer` for the `Transferable` interface.
 transferImpl : Transferable.I -> ContractId Transferable.I -> Transferable.Transfer
   -> Update (ContractId Transferable.I)
 transferImpl this self Transferable.Transfer{actors; newOwnerAccount} = do
@@ -27,12 +28,12 @@ transferImpl this self Transferable.Transfer{actors; newOwnerAccount} = do
     lockers = Base.getLockers base
   vNewAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I newOwnerAccount
   -- Verify
-  assertMsg "actors must contain all transfer outgoing of the sender account" $
-    vAccount.controllers.outgoing `S.isSubsetOf` actors
-  assertMsg "actors must contain all transfer incoming of the receiving account" $
-    vNewAccount.controllers.incoming `S.isSubsetOf` actors
-  assertMsg "actors must contain all lockers" $ lockers `S.isSubsetOf` actors
-  assertMsg "custodians must be the same" $ vBase.account.custodian == vAccount.custodian
+  assertMsg "Actors must contain all transfer outgoing of the sender account"
+    $ vAccount.controllers.outgoing `S.isSubsetOf` actors
+  assertMsg "Actors must contain all transfer incoming of the receiving account"
+    $ vNewAccount.controllers.incoming `S.isSubsetOf` actors
+  assertMsg "Actors must contain all lockers" $ lockers `S.isSubsetOf` actors
+  assertMsg "Custodians must be the same" $ vBase.account.custodian == vAccount.custodian
   -- Release all locks
   let
     releaseAll cid lock =
@@ -55,16 +56,15 @@ transferImpl this self Transferable.Transfer{actors; newOwnerAccount} = do
       newLockers = lock.lockers; context; lockType = lock.lockType) cid (S.toList lock.context)
   coerceInterfaceContractId <$> optional (pure newBaseCid) (reapplyLocks newBaseCid) vBase.lock
 
--- | Default implementation of `acquire` from the Base interface.
+-- | Default implementation of `acquire` from the `Base` interface.
 acquireImpl :
   ( HasCreate t
-  , HasField "lock" t (Optional Base.Lock)
+  , HasSignatory t
   , HasFromInterface t Base.I
   , HasToInterface t Base.I
-  , HasSignatory t
-  ) => t -> Base.Acquire -> Update (ContractId Base.I)
-acquireImpl holding Base.Acquire{newLockers; context; lockType} = do
-  newLock <- case holding.lock of
+  ) => Optional Base.Lock -> (Optional Base.Lock -> t) -> Base.Acquire -> Update (ContractId Base.I)
+acquireImpl currentLock setLock Base.Acquire{newLockers; context; lockType} = do
+  newHolding <- setLock . Some <$> case currentLock of
     None -> pure Base.Lock with lockers = newLockers; context = S.singleton context; lockType
     Some existingLock -> do
       case lockType of
@@ -73,29 +73,84 @@ acquireImpl holding Base.Acquire{newLockers; context; lockType} = do
             $ existingLock.lockers == newLockers
           assertMsg "New lock type must match the existing lock type"
             $ existingLock.lockType == lockType
-          assertMsg "Contract must not be already locked for the provided context."
+          assertMsg "Contract must not be already locked for the provided context"
             $ S.notMember context existingLock.context
           pure existingLock with
             context = context `S.insert` existingLock.context
         Base.Semaphore ->
           abort "A Semaphore lock can not be locked multiple times."
-  let newHolding = holding with lock = Some newLock
-  S.fromList (signatory newHolding) `S.intersection` newLockers === newLockers
+  assertMsg "New lockers must be signatories of the new holding"
+    $ newLockers `S.isSubsetOf` S.fromList (signatory newHolding)
   toInterfaceContractId <$> create newHolding
 
--- | Default implementation of release from the Base interface.
+-- | Default implementation of `release` from the `Base` interface.
 releaseImpl :
   ( HasCreate t
-  , HasField "lock" t (Optional Base.Lock)
   , HasFromInterface t Base.I
   , HasToInterface t Base.I
-  ) => t -> Base.Release -> Update (ContractId Base.I)
-releaseImpl holding Base.Release{context} = do
+  ) => Optional Base.Lock -> (Optional Base.Lock -> t) -> Base.Release -> Update (ContractId Base.I)
+releaseImpl currentLock setLock Base.Release{context} = do
   let
-    f currentLock = do
-      let newContext = context `S.delete` currentLock.context
-      case (currentLock.lockType, S.null newContext) of
-        (Base.Reentrant, False) -> Some currentLock with context = newContext
+    release lock = do
+      let newContext = context `S.delete` lock.context
+      case (lock.lockType, S.null newContext) of
+        (Base.Reentrant, False) -> Some lock with context = newContext
         _ -> None
-    releasedLock = holding.lock >>= f
-  toInterfaceContractId <$> create holding with lock = releasedLock
+    releasedLock = currentLock >>= release
+  fmap toInterfaceContractId . create . setLock $ releasedLock
+
+-- | Default implementation of `split` from the `Fungible` interface.
+splitImpl :
+  ( HasCreate t
+  , HasToInterface t Fungible.I
+  ) => Decimal -> (Decimal -> t) -> Fungible.Split -> Update Fungible.SplitResult
+splitImpl currentAmount setAmount Fungible.Split{amounts} = do
+  let spawn = fmap toInterfaceContractId . create . setAmount
+  splitCids <- forA amounts spawn
+  restAmount <- getRestAmount amounts currentAmount
+  rest <- T.forA restAmount spawn
+  pure Fungible.SplitResult with splitCids; rest
+
+-- | Default implementation of `merge` from the `Fungible` interface.
+mergeImpl :
+  forall t.
+  ( HasCreate t
+  , HasArchive t
+  , HasSignatory t
+  , HasFromInterface t Fungible.I
+  , HasToInterface t Fungible.I
+  )
+  => Decimal
+  -> (t -> Decimal)
+  -> (Decimal -> t)
+  -> Fungible.Merge
+  -> Update (ContractId Fungible.I)
+mergeImpl currentAmount getAmount setAmount Fungible.Merge{fungibleCids} = do
+  assertMsg "List of fungibles must be non-empty" . not . null $ fungibleCids
+  let
+    currentSignatories = S.fromList . signatory . setAmount $ currentAmount
+    current = view . toInterface @Base.I . toInterface @Fungible.I . setAmount $ currentAmount
+    aggregate aggregatedAmount fungibleCid = do
+      Some (otherHoldingCid, otherHolding) <- fetchFromInterface @t fungibleCid
+      let other = view . toInterface @Base.I . toInterface @Fungible.I $ otherHolding
+      assertMsg "Instrument must match" $ other.instrument == current.instrument
+      assertMsg "Account must match" $ other.account == current.account
+      assertMsg "Signatories must match" $ S.fromList (signatory otherHolding) == currentSignatories
+      archive otherHoldingCid
+      pure $ aggregatedAmount + getAmount otherHolding
+  tot <- foldlA aggregate currentAmount fungibleCids
+  fmap toInterfaceContractId . create . setAmount $ tot
+
+-- | HIDE
+-- Gets the rest amount of a split (if any) and verifies that split amounts are strictly positive
+-- and don't exceed the current amount.
+getRestAmount : CanAssert m => [Decimal] -> Decimal -> m (Optional Decimal)
+getRestAmount amounts currentAmount = do
+  let splitAmountSum = sum amounts
+  verify (splitAmountSum <= currentAmount && F.all (> 0.0) amounts && amounts /= []) $ "Fungible::"
+    <> "verifySplit - Amounts must be non-empty, strictly positive, and not exceed current amount. "
+    <> "amounts=" <> show amounts
+    <> ", splitAmountSum=" <> show splitAmountSum
+    <> ", currentAmount=" <> show currentAmount
+  let rest = currentAmount - splitAmountSum
+  pure $ if rest == 0.0 then None else Some rest
