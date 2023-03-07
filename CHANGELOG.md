@@ -103,6 +103,8 @@ Early Access Packages
 
 - Style changes
 
+- Move Election logic from Generic to Lifecycle (to facilitate code reuse)
+
 #### Daml.Finance.Instrument.Option
 
 - Dependencies update
@@ -159,6 +161,8 @@ Early Access Packages
 
 - Dependencies update
 
+- Move Election logic from Generic to Lifecycle (to facilitate code reuse)
+
 #### Daml.Finance.Interface.Instrument.Option
 
 - Dependencies update
@@ -183,6 +187,8 @@ Early Access Packages
 
 - Style changes
 
+- Move Election logic from Generic to Lifecycle (to facilitate code reuse)
+
 #### Daml.Finance.Interface.Settlement
 
 - Style changes
@@ -198,6 +204,8 @@ Early Access Packages
 - Dependencies update
 
 - Style changes
+
+- Move Election logic from Generic to Lifecycle (to facilitate code reuse)
 
 #### Daml.Finance.Settlement
 
