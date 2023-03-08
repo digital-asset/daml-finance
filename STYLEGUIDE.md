@@ -17,7 +17,7 @@ within this repository.
 - Order imports alphabetically with upper-case before lower-case:
 
   ```haskell
-  import DA.Set (empty)
+  import DA.Set (Set, empty)
   import Daml.Script
   ```
 
@@ -129,6 +129,7 @@ within this repository.
   type V = View
   ```
 
+<<<<<<< Updated upstream
 - In consuming code, use qualified imports `I` and `V` to refer to interface and view types,
 - respectively:
 
@@ -136,6 +137,10 @@ within this repository.
   let iCid : ContractId Holding.I = ...
   let iView : Holding.V = ...
   ```
+=======
+- In consuming code, use qualified imports to refer to interfaces and view typs, e.g.,
+  `import Daml.Finance.Interface.Holding qualified as Holding (I, V)`.
+>>>>>>> Stashed changes
 
 - For interface choices with empty implemenations
 
