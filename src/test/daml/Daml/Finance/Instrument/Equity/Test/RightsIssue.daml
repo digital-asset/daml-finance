@@ -7,8 +7,8 @@ import DA.Date
 import DA.Map qualified as M (fromList)
 import DA.Set (fromList, singleton)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
-import Daml.Finance.Instrument.Equity.Test.Util (originateEquity)
-import Daml.Finance.Instrument.Option.Test.Util (originateEuropeanPhysicalOption)
+import Daml.Finance.Instrument.Equity.Test.Util
+import Daml.Finance.Instrument.Option.Test.Util (electAndVerifyPaymentEffects, originateEuropeanPhysicalOption)
 import Daml.Finance.Interface.Instrument.Equity.Instrument qualified as Equity (DeclareDividend(..), I)
 import Daml.Finance.Interface.Instrument.Option.Types (OptionTypeEnum(..))
 import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..), I)
@@ -161,11 +161,32 @@ run = script do
   -- The investor can now subscribe by electing to exercise the call option, either in parts
   -- or in whole.
   -- It is also possible to to apply for excess subscription. For example, an investor would
-  -- like to subscribe to 150 shares but has regular rights for 100 shares.
+  -- like to subscribe for 150 shares but has regular rights for 100 shares.
   -- In that case, the investor would:
-  -- 1. Exercise the call option in whole to subscribe to the guaranteed part (100 shares).
-  -- 2. Write a put option for the excess part (50 shares). The issuer (or custodian) could
-  --    then exercise this in part or in full.
+  -- 1. Exercise the call option in whole to subscribe for the guaranteed part (100 shares).
+  -- 2. Write a put option for the excess part (50 shares). The issuer could then exercise this in
+  --    part or in whole.
 
+  let
+    sharesWanted : Decimal = 150.0
+    sharesGuaranteed : Decimal = 100.0
+    sharesExcess = sharesWanted - sharesGuaranteed
+
+  -- 1. Exercise the call option in whole to subscribe for the guaranteed part (100 shares).
+
+  let
+    expectedConsumed = [qty 40.0 cashInstrument]
+    expectedProduced = [qty 1.0 exEquityInstrument]
+  optionInstrumentAfterFirstPayment <- electAndVerifyPaymentEffects [publicParty] expiryDate
+    sharesGuaranteed rightsInstrument issuer custodian "EXERCISE" expectedConsumed expectedProduced
+
+  -- 2. Write a put option for the excess part (50 shares). The issuer could then exercise this in
+  --    part or in whole.
+
+  let shortPutOwnerReceives = False
+  putInstrument <- originateEuropeanPhysicalOption custodian issuer "Put" "Option" pp now
+    expiryDate Put strikeLow cashInstrument exEquityInstrument shortPutOwnerReceives
+
+  --issuerPutCid <- Account.credit [publicParty] putInstrument sharesExcess investorAccount
 
   pure ()
