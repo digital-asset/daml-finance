@@ -310,3 +310,5 @@ enforce some of the points in this style guide:
   `Foo with a = b, c = d` (we prefer using `;` like in `Foo with a = b; c = d`).
 
 - `submitMulti \[\w+\] \[\]` finds `submitMulti` which can be replaced by `submit`.
+
+- `(\w+),(\w+)` finds comma separated values with no whitespace.
