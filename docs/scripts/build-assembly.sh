@@ -19,8 +19,8 @@ mkdir ${docs_dir}/.assembly
 cp -r ${root_dir}/src ${docs_dir}/.assembly
 
 # Copy doc build output into assembly file structure
-mkdir ${docs_dir}/.assembly/reference
-cp -r ${docs_dir}/build/daml-finance-rst ${docs_dir}/.assembly/reference/code-documentation
+mkdir -p ${docs_dir}/.assembly/reference/code-documentation
+cp -r ${docs_dir}/build/daml-finance-rst ${docs_dir}/.assembly/reference/code-documentation/daml-finance-rst
 cp ${docs_dir}/build/daml-finance-hoogle.txt ${docs_dir}/.assembly/reference/daml-finance-hoogle.txt
 
 # Update the directory paths in the RST files as per the assembly structure
