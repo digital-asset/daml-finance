@@ -5,7 +5,7 @@ module Daml.Finance.Instrument.Equity.Test.RightsIssue where
 
 import DA.Date
 import DA.Map qualified as M (fromList)
-import DA.Set (empty, fromList, singleton)
+import DA.Set (fromList, singleton)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Instrument.Equity.Test.Util
 import Daml.Finance.Instrument.Option.Test.Util (electAndVerifyPaymentEffects, originateEuropeanPhysicalOption)
@@ -32,6 +32,10 @@ import Daml.Script
 -- Rights issue and subscription: lifecycling and settlement
 run : Script ()
 run = script do
+  ------------------
+  -- Rights issue --
+  ------------------
+
   -- Create parties
   [cb, issuer, custodian, investor, publicParty] <-
     createParties ["CentralBank", "Issuer", "Custodian", "Investor", "PublicParty"]
@@ -160,6 +164,10 @@ run = script do
   Holding.verifyOwnerAndAmountOfHolding [(investor, 1000.00, investorEquityHoldingCid),
     (investor, 100.00, investorRightsHoldingCid)]
 
+  -------------------------
+  -- Rights subscription --
+  -------------------------
+
   -- The investor can now subscribe by electing to exercise the call option, either in parts
   -- or in whole.
   -- It is also possible to to apply for excess subscription. For example, an investor would
@@ -179,21 +187,10 @@ run = script do
   let
     expectedConsumed = [qty 40.0 cashInstrument]
     expectedProduced = [qty 1.0 exEquityInstrument]
-  optionInstrumentAfterFirstPayment <- electAndVerifyPaymentEffects [publicParty] expiryDate
+  (optionInstrumentAfterFirstPayment, effectCid) <- electAndVerifyPaymentEffects [publicParty] expiryDate
     sharesGuaranteed rightsInstrument issuer custodian "EXERCISE" expectedConsumed expectedProduced
 
-  -- TODO: show and test that one cannot exercise for more than what was elected, so maybe include the claim step still
-  -- TODO: encapsulate this in a function
-
-  -- Create route provider
-  routeProviderCid <- toInterfaceContractId <$> submit custodian do
-    createCmd SingleCustodian with provider = custodian; observers = empty; custodian = custodian
-
-  -- Create settlement factory
-  settlementFactoryCid <- toInterfaceContractId <$> submit custodian do
-    createCmd Factory with provider = custodian; observers = empty
-
-    -- Claim effect
+  -- Create a claim rule
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit custodian do
     createCmd Claim.Rule with
       providers = singleton custodian
@@ -204,7 +201,26 @@ run = script do
       netInstructions = False
 
   -- Cannot claim effect for a different amount than what was elected
-  --submitMultiMustFail [custodian] [publicParty] do
+  -- In particular, electing for more than the size of the holding does not work:
+  investorRightsSmallHoldingCid <- Account.credit [publicParty] rightsInstrument 3.0 investorAccount
+  submitMultiMustFail [custodian] [publicParty] do
+    exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
+      claimer = custodian
+      holdingCids = [investorRightsSmallHoldingCid]
+      effectCid
+      batchId = Id "OptionExerciseSettlement"
+
+  -- Electing for less than the size of the holding does not work either:
+  -- (you would have to split the holding first)
+  investorRightsBigHoldingCid <- Account.credit [publicParty] rightsInstrument 300.0 investorAccount
+  submitMultiMustFail [custodian] [publicParty] do
+    exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
+      claimer = custodian
+      holdingCids = [investorRightsBigHoldingCid]
+      effectCid
+      batchId = Id "OptionExerciseSettlement"
+
+  -- Electing for the same amount as the size of the holding works:
   submitMulti [custodian] [publicParty] do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
       claimer = custodian
