@@ -67,4 +67,4 @@ To cross compile in the opposite direction, change the system variable in the co
 
 Compilation of the Linux `x86_64` Packell executable is done via the `CI` by the job
 `packell_linux_x86_64` and will be made available as an `artifact` upon successful completion of
-the `CI`. To run this job,simply create a branch beginning with `packell-release`.
+the `CI`. To run this job, simply create a branch beginning with `packell-release`.
