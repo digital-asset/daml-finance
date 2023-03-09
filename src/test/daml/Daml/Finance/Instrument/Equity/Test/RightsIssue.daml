@@ -5,7 +5,7 @@ module Daml.Finance.Instrument.Equity.Test.RightsIssue where
 
 import DA.Date
 import DA.Map qualified as M (fromList)
-import DA.Set (fromList, singleton)
+import DA.Set (empty, fromList, singleton)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Instrument.Equity.Test.Util
 import Daml.Finance.Instrument.Option.Test.Util (electAndVerifyPaymentEffects, originateEuropeanPhysicalOption)
@@ -106,11 +106,13 @@ run = script do
   settlementFactoryCid <- toInterfaceContractId <$> submit custodian do
     createCmd Factory with provider = custodian; observers = singleton publicParty
   -- Enable netting so that there is only one holding with the new correct quantity
+  let
+    settlers = fromList [investor, custodian]
   claimRuleCid <- toInterfaceContractId @Claim.I <$> submit custodian do
     createCmd Claim.Rule with
       providers = singleton custodian
       claimers = fromList [investor, custodian]
-      settlers = fromList [investor, custodian]
+      settlers
       routeProviderCid
       settlementFactoryCid
       netInstructions = True
@@ -181,6 +183,34 @@ run = script do
     sharesGuaranteed rightsInstrument issuer custodian "EXERCISE" expectedConsumed expectedProduced
 
   -- TODO: show and test that one cannot exercise for more than what was elected, so maybe include the claim step still
+  -- TODO: encapsulate this in a function
+
+  -- Create route provider
+  routeProviderCid <- toInterfaceContractId <$> submit custodian do
+    createCmd SingleCustodian with provider = custodian; observers = empty; custodian = custodian
+
+  -- Create settlement factory
+  settlementFactoryCid <- toInterfaceContractId <$> submit custodian do
+    createCmd Factory with provider = custodian; observers = empty
+
+    -- Claim effect
+  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit custodian do
+    createCmd Claim.Rule with
+      providers = singleton custodian
+      claimers = fromList [custodian]
+      settlers
+      routeProviderCid
+      settlementFactoryCid
+      netInstructions = False
+
+  -- Cannot claim effect for a different amount than what was elected
+  --submitMultiMustFail [custodian] [publicParty] do
+  submitMulti [custodian] [publicParty] do
+    exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
+      claimer = custodian
+      holdingCids = [investorRightsHoldingCid]
+      effectCid
+      batchId = Id "OptionExerciseSettlement"
 
   -- 2. Write a put option for the excess part (50 shares). The issuer could then exercise this in
   --    part or in whole.
