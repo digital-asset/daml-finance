@@ -48,13 +48,16 @@ run = script do
 
   -- Create accounts
   investorAccount <-
-    Account.createAccount "Account" [publicParty] accountFactoryCid holdingFactoryCid []
+    Account.createAccount "Investor Account" [publicParty] accountFactoryCid holdingFactoryCid []
     Account.Owner custodian investor
+  issuerAccount <-
+    Account.createAccount "Issuer Account" [publicParty] accountFactoryCid holdingFactoryCid []
+    Account.Owner custodian issuer
 
   let
     expiryDate = date 2019 May 15
     strikeLow = 40.0
-    ownerReceives = True
+    isLong = True
 
   -- Originate instruments
   now <- getTime
@@ -62,8 +65,8 @@ run = script do
   cashInstrument <- originate cb cb "USD" "United States Dollar" pp now
   cumEquityInstrument <- originateEquity issuer issuer "EQUITY-INST-1" "0" "ABC" pp now
   exEquityInstrument <- originateEquity issuer issuer "EQUITY-INST-1" "1" "ABC" [] now
-  rightsInstrument <- originateEuropeanPhysicalOption custodian issuer "ITM Call" "Option" pp now
-    expiryDate Call strikeLow cashInstrument exEquityInstrument ownerReceives
+  rightsInstrument <- originateEuropeanPhysicalOption custodian issuer "Long Call" "Option" pp now
+    expiryDate Call strikeLow cashInstrument exEquityInstrument isLong
   -- CREATE_EQUITY_INSTRUMENTS_END
 
   -- CREATE_EQUITY_HOLDING_BEGIN
@@ -187,7 +190,7 @@ run = script do
   let
     expectedConsumed = [qty 40.0 cashInstrument]
     expectedProduced = [qty 1.0 exEquityInstrument]
-  (None, effectCid) <- electAndVerifyPaymentEffects [publicParty] expiryDate
+  (None, effectLongCallCid) <- electAndVerifyPaymentEffects [publicParty] expiryDate
     sharesGuaranteed rightsInstrument issuer custodian "EXERCISE" expectedConsumed expectedProduced
 
   -- Create a claim rule
@@ -207,7 +210,7 @@ run = script do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
       claimer = custodian
       holdingCids = [investorRightsSmallHoldingCid]
-      effectCid
+      effectCid = effectLongCallCid
       batchId = Id "OptionExerciseSettlement"
 
   -- Electing for less than the size of the holding does not work either:
@@ -217,7 +220,7 @@ run = script do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
       claimer = custodian
       holdingCids = [investorRightsBigHoldingCid]
-      effectCid
+      effectCid = effectLongCallCid
       batchId = Id "OptionExerciseSettlement"
 
   -- Electing for the same amount as the size of the holding works:
@@ -225,8 +228,8 @@ run = script do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
       claimer = custodian
       holdingCids = [investorRightsHoldingCid]
-      effectCid
-      batchId = Id "OptionExerciseSettlement"
+      effectCid = effectLongCallCid
+      batchId = Id "CallOptionExerciseSettlement"
 
   -- 2. Write a put option for the excess part (50 shares). The issuer could then exercise this in
   --    part or in whole.
@@ -235,13 +238,23 @@ run = script do
   shortPutInstrument <- originateEuropeanPhysicalOption custodian issuer "Short Put" "Option" pp now
     expiryDate Put strikeLow cashInstrument exEquityInstrument isLong
 
-  issuerPutHoldingCid <- Account.credit [publicParty] shortPutInstrument sharesExcess
-    investorAccount
-
+  -- Verify that election on the short put results in the same (per unit) as the long call.
+  -- In other words, subscription of guaranteed rights and excess rights have the same output:
+  -- one unit of stock at a constant price, per unit of subscribed and allotted right.
   let
     expectedConsumed = [qty 40.0 cashInstrument]
     expectedProduced = [qty 1.0 exEquityInstrument]
   (None, effectShortPutCid) <- electAndVerifyPaymentEffects [publicParty] expiryDate sharesExcess
     shortPutInstrument issuer custodian "EXERCISE" expectedConsumed expectedProduced
+
+  issuerPutHoldingCid <- Account.credit [publicParty] shortPutInstrument sharesExcess issuerAccount
+
+  -- Electing for the same amount as the size of the holding works:
+  submitMulti [custodian] [publicParty] do
+    exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
+      claimer = custodian
+      holdingCids = [issuerPutHoldingCid]
+      effectCid = effectShortPutCid
+      batchId = Id "PutOptionExerciseSettlement"
 
   pure ()
