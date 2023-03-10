@@ -1,0 +1,159 @@
+-- Copyright (c) 2023 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Util.Test.KeyTable where
+
+import DA.Assert ((===))
+import Daml.Control.Monad.Trans.Class (lift)
+import Daml.Control.Monad.Trans.State (get)
+import Daml.Finance.Interface.Util.KeyTable (HasSyntheticKey, KeyTable, archive, createWithKey, deleteWithState, exercise, fetchByKey, getKey, getKeyFromCid, insertWithState, lookupWithState, withKeyTable)
+import Daml.Finance.Interface.Util.KeyTable qualified as SyntheticallyKeyed (I, View(..))
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.KeyTable (CommandsWithKey, createWithKeyCmd, exerciseCmd, submit)
+import Daml.Script hiding (exerciseCmd, submit)
+import Prelude hiding (archive, create, exercise, exerciseByKey, fetch, fetchByKey, fetchFromInterface, lookup, lookupByKey, submit, submitMulti)
+
+-- This module provides a test for synthetic keys.
+
+-- | View of interface.
+data View = View
+  with
+    provider : Party
+    label : Text
+    amount : Int
+  deriving (Eq, Show)
+
+-- | Key for `Inventory`.
+data InventoryKey =
+  InventoryKey with
+    provider : Party
+    label : Text
+  deriving (Eq, Ord, Show)
+
+-- | Interface for inventory templates.
+interface Inventory requires SyntheticallyKeyed.I where
+  viewtype View
+
+  getKey : InventoryKey
+
+  nonconsuming choice GetView : View
+    -- ^ Retrieves the interface view.
+    with
+      viewer : Party
+        -- ^ The party fetching the view.
+    controller viewer
+    do
+      pure $ view this
+
+-- | Convert the account's 'View' to its key.
+toKey : View -> InventoryKey
+toKey v = InventoryKey with provider = v.provider; label = v.label
+
+-- | HIDE
+instance HasSyntheticKey Inventory InventoryKey where
+  getKey = Daml.Finance.Util.Test.KeyTable.getKey
+  getKeyFromCid viewer cid = toKey <$> exercise cid GetView with viewer
+
+-- | Template which implements `Inventory`.
+template Product
+  with
+    provider : Party
+    label : Text
+    amount : Int
+  where
+    signatory provider
+
+    let inventory = InventoryKey with provider; label
+
+    interface instance SyntheticallyKeyed.I for Product where
+      view = SyntheticallyKeyed.View {}
+
+    interface instance Inventory for Product where
+      view = View with provider; label; amount
+      getKey = inventory
+
+-- | Template which updates the `Product`.
+template Service
+  with
+    provider : Party
+  where
+    signatory provider
+
+    -- Note: this choice is stateful, it takes the current key table and updates it.
+    nonconsuming choice AddProducts : (Int, KeyTable)
+      with
+        label : Text
+        amount : Int
+        keyTable : KeyTable
+      controller provider
+      do -- this do is required in Daml (although the following is an `Update (Int, KeyTable)`).
+        withKeyTable keyTable do
+          -- fetchByKey (by implicitly making use of the key table)
+          (cid, i) <- fetchByKey @Inventory @Inventory $ InventoryKey with provider; label
+          let total = (view i).amount + amount
+          archive cid
+          -- recreate Product (and implicitly update key table)
+          createWithKey @Inventory @InventoryKey $ Product with provider; label; amount = total
+          pure total
+
+-- | Test script for synthetic keys.
+run : Script ()
+run = script do
+  withKeyTable mempty do
+    -- key table is intially empty
+    keyTable <- get
+    keyTable === mempty
+
+    -- allocate parties
+    [provider] <- lift $ createParties ["Provider"]
+
+    -- create reference data (and implicitly update key table)
+    inventoryCid <- toInterfaceContractId @Inventory <$> submit provider do
+      createWithKeyCmd @Inventory @InventoryKey Product with
+        provider; label = "Product xyz"; amount = 0
+
+    -- create service (key table is not being used)
+    cid <- submit provider do createCmd Service with provider
+
+    -- view (key table is not being used)
+    v1 <- submit @Commands provider do
+      exerciseCmd inventoryCid GetView with viewer = provider
+    debug v1
+
+    -- add products (by implicitly making use of key table)
+    submit @CommandsWithKey provider do
+      exerciseCmd cid $ AddProducts "Product xyz" 3
+
+    -- can't view as inventoryCid is no longer active
+    lift $ submitMustFail provider do
+      exerciseCmd inventoryCid GetView with viewer = provider
+
+    -- can still add products (by implicitly making use of key table)
+    submit @CommandsWithKey provider do
+      exerciseCmd cid $ AddProducts "Product xyz" 5
+
+    -- display current key table
+    keyTable <- get
+    debug keyTable
+
+    -- additional tests for key table
+    -- can look up
+    Some inventoryCid <- lookupWithState @Script @Inventory $
+      InventoryKey with provider; label = "Product xyz"
+    -- can delete
+    deleteWithState @Script @Inventory $
+      InventoryKey with provider; label = "Product xyz"
+    -- can't lookup
+    None <- lookupWithState @Script @Inventory $
+      InventoryKey with provider; label = "Product xyz"
+    -- can create
+    insertWithState @Script @Inventory
+      (InventoryKey with provider; label = "Product xyz") inventoryCid
+    -- can lookup
+    Some inventoryCid <- lookupWithState @Script @Inventory
+      $ InventoryKey with provider; label = "Product xyz"
+    v2 <- submit @CommandsWithKey provider do
+      exerciseCmd inventoryCid GetView with viewer = provider
+    v2 === v1 with amount = 3 + 5
+
+  pure ()
