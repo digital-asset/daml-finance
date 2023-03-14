@@ -13,6 +13,7 @@ import ContingentClaims.Core.Claim (Claim(..), Inequality(..), and, at, cond, gi
 import ContingentClaims.Core.Observation (Observation(..))
 import Daml.Finance.Claims.Util (toTime)
 import Daml.Finance.Interface.Claims.Types (Deliverable, Observable, TaggedClaim(..))
+import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey(..), InstrumentQuantity, PartiesMap)
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
 import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..), Schedule)
 import Daml.Finance.Util.Date.DayCount (calcPeriodDcf)
@@ -211,10 +212,10 @@ createEuropeanPhysicalClaim dateToTime isLong strike underlying ccy
     prepareAndTagClaims dateToTime [claim] "Option payment"
 
 -- | Create the claim for a physically settled Dividend option.
-createDividendOptionClaim : (Date -> Time) -> Bool -> Decimal -> Deliverable -> Deliverable ->
-  Date -> Decimal -> Decimal -> TaggedClaim
-createDividendOptionClaim dateToTime isLong strike underlying ccy
-  expiryDate divRateCash divRateShares =
+createDividendOptionClaim2 : (Date -> Time) -> Bool -> Decimal -> Deliverable -> Deliverable ->
+  Date -> Decimal -> Decimal -> Decimal -> Deliverable -> TaggedClaim
+createDividendOptionClaim2 dateToTime isLong strike underlying ccy
+  expiryDate divRateCash divRateShares divRateCashFx fxCcy =
   let
     sharesClaimAmount = scale (Const divRateShares) (one underlying)
     sharesClaim = if isLong then sharesClaimAmount else give sharesClaimAmount
@@ -222,10 +223,60 @@ createDividendOptionClaim dateToTime isLong strike underlying ccy
     cashClaimAmount = scale (Const divRateCash) (one ccy)
     cashClaim = if isLong then cashClaimAmount else give cashClaimAmount
 
-    cashFxClaimAmount = scale (Const divRateCash) (one ccy)
+    cashFxClaimAmount = scale (Const divRateCashFx) (one fxCcy)
     cashFxClaim = if isLong then cashFxClaimAmount else give cashFxClaimAmount
 
     sharesCashOrFx = orList [("SHARES", sharesClaim), ("CASH", cashClaim), ("CASHFX", cashFxClaim)]
+    claim = when (at expiryDate) sharesCashOrFx
+  in
+    prepareAndTagClaims dateToTime [claim] "Option payment"
+
+-- | Create the claim for a physically settled Dividend option.
+createDividendOptionClaim3 : (Date -> Time) -> Bool -> Decimal -> Deliverable -> Deliverable ->
+  Date -> Decimal -> Decimal -> InstrumentQuantity -> TaggedClaim
+createDividendOptionClaim3 dateToTime isLong strike underlying ccy
+  expiryDate divRateCash divRateShares fxDivQuantity =
+  let
+
+    sharesClaimAmount = scale (Const divRateShares) (one underlying)
+    sharesClaim = if isLong then sharesClaimAmount else give sharesClaimAmount
+
+    cashClaimAmount = scale (Const divRateCash) (one ccy)
+    cashClaim = if isLong then cashClaimAmount else give cashClaimAmount
+
+    cashFxClaimAmount = scale (Const fxDivQuantity.amount) (one fxDivQuantity.unit)
+    cashFxClaim = if isLong then cashFxClaimAmount else give cashFxClaimAmount
+
+    sharesCashOrFx = orList [("SHARES", sharesClaim), ("CASH", cashClaim), ("CASHFX", cashFxClaim)]
+    claim = when (at expiryDate) sharesCashOrFx
+  in
+    prepareAndTagClaims dateToTime [claim] "Option payment"
+
+-- | Create the claim for a physically settled Dividend option.
+createDividendOptionClaim : (Date -> Time) -> Bool -> Decimal -> Deliverable -> Deliverable ->
+  Date -> Decimal -> Decimal -> Optional InstrumentQuantity -> TaggedClaim
+createDividendOptionClaim dateToTime isLong strike underlying ccy
+  expiryDate divRateCash divRateShares fxDivQuantity =
+  let
+
+    sharesClaimAmount = scale (Const divRateShares) (one underlying)
+    sharesClaim = if isLong then sharesClaimAmount else give sharesClaimAmount
+
+    cashClaimAmount = scale (Const divRateCash) (one ccy)
+    cashClaim = if isLong then cashClaimAmount else give cashClaimAmount
+
+    taggedSharesCashClaims = [("SHARES", sharesClaim), ("CASH", cashClaim)]
+
+    taggedFxClaims = case fxDivQuantity of
+      None -> []
+      Some fx -> [("CASHFX", cashFxClaim)]
+        where
+          cashFxClaimAmount = scale (Const fx.amount) (one fx.unit)
+          cashFxClaim = if isLong then cashFxClaimAmount else give cashFxClaimAmount
+
+    taggedClaims = taggedSharesCashClaims ++ taggedFxClaims
+
+    sharesCashOrFx = orList taggedClaims
     claim = when (at expiryDate) sharesCashOrFx
   in
     prepareAndTagClaims dateToTime [claim] "Option payment"
