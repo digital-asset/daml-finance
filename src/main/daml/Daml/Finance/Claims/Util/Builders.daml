@@ -9,20 +9,21 @@
 module Daml.Finance.Claims.Util.Builders where
 
 import ContingentClaims.Core.Builders (european)
-import ContingentClaims.Core.Claim (Claim(..), Inequality(..), and, cond, give, one, scale, upTo, when, until, zero)
+import ContingentClaims.Core.Claim (Claim(..), Inequality(..), and, at, cond, give, one, orList, scale, upTo, when, until, zero)
 import ContingentClaims.Core.Observation (Observation(..))
 import Daml.Finance.Claims.Util (toTime)
 import Daml.Finance.Interface.Claims.Types (Deliverable, Observable, TaggedClaim(..))
+import Daml.Finance.Interface.Types.Common.Types (InstrumentQuantity)
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
 import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..), Schedule)
 import Daml.Finance.Util.Date.DayCount (calcPeriodDcf)
-import Prelude hiding (and, key)
+import Prelude hiding (and, key, or)
 
 type O = Observation Date Decimal Observable
 type C = Claim Date Decimal Deliverable Observable
 
 -- | Convert the claims to UTCTime and tag them.
-prepareAndTagClaims : (Date -> Time) -> [Claim Date Decimal Deliverable Observable] ->
+prepareAndTagClaims : (Date -> Time) -> [C] ->
   Text -> TaggedClaim
 prepareAndTagClaims dateToTime cs tag =
   let claim = toTime dateToTime $ mconcat cs
@@ -30,7 +31,7 @@ prepareAndTagClaims dateToTime cs tag =
 
 -- FIXED_RATE_BOND_COUPON_CLAIMS_BEGIN
 createFixRatePaymentClaimsList : Schedule -> PeriodicSchedule -> Bool -> Decimal -> Bool ->
-  DayCountConventionEnum -> Decimal -> Deliverable -> [Claim Date Decimal Deliverable Observable]
+  DayCountConventionEnum -> Decimal -> Deliverable -> [C]
 createFixRatePaymentClaimsList schedule periodicSchedule useAdjustedDatesForDcf couponRate
   ownerReceives dayCountConvention notional cashInstrumentCid =
     let
@@ -207,5 +208,34 @@ createEuropeanPhysicalClaim dateToTime isLong strike underlying ccy
       else
         give (one underlying) `and` scale (Const strike) (one ccy)
     claim = european expiryDate exerciseClaim
+  in
+    prepareAndTagClaims dateToTime [claim] "Option payment"
+
+-- | Create the claim for a physically settled Dividend option.
+createDividendOptionClaim : (Date -> Time) -> Bool -> Date -> InstrumentQuantity ->
+  Optional InstrumentQuantity -> Optional InstrumentQuantity -> TaggedClaim
+createDividendOptionClaim dateToTime isLong expiryDate cashQuantity
+  sharesQuantity fxQuantity =
+  let
+    cashClaimAmount = scale (Const cashQuantity.amount) (one cashQuantity.unit)
+    cashClaim = if isLong then cashClaimAmount else give cashClaimAmount
+    taggedCashClaims = [("CASH", cashClaim)]
+
+    taggedSharesClaims = case sharesQuantity of
+      None -> []
+      Some shares -> [("SHARES", sharesClaim)]
+        where
+          sharesClaimAmount = scale (Const shares.amount) (one shares.unit)
+          sharesClaim = if isLong then sharesClaimAmount else give sharesClaimAmount
+
+    taggedFxClaims = case fxQuantity of
+      None -> []
+      Some fx -> [("CASHFX", cashFxClaim)]
+        where
+          cashFxClaimAmount = scale (Const fx.amount) $ one fx.unit
+          cashFxClaim = if isLong then cashFxClaimAmount else give cashFxClaimAmount
+
+    cashOrSharesOrFx = orList $ taggedCashClaims ++ taggedSharesClaims ++ taggedFxClaims
+    claim = when (at expiryDate) cashOrSharesOrFx
   in
     prepareAndTagClaims dateToTime [claim] "Option payment"

@@ -1,0 +1,101 @@
+-- Copyright (c) 2023 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Option.Test.Dividend where
+
+import DA.Date
+import DA.Set (singleton)
+import Daml.Finance.Instrument.Option.Test.Util
+import Daml.Finance.Interface.Instrument.Option.Dividend.Types (ElectionTypeEnum(..))
+import Daml.Finance.Interface.Types.Common.Types (Quantity(..))
+import Daml.Finance.Interface.Util.Common (qty)
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.Instrument (originate)
+import Daml.Script
+
+-- Define and lifecycle dividend options, which are manually exercised and physically settled.
+run : Script ()
+run = script do
+  [custodian, issuer, calendarDataProvider, publicParty] <-
+    createParties ["Custodian", "Issuer", "Calendar Data Provider", "PublicParty"]
+
+  -- Distribute commercial-bank cash
+  now <- getTime
+  let observers = [("PublicParty", singleton publicParty)]
+  cashInstrumentCid <- originate custodian issuer "USD" "US Dollars" observers now
+  eurInstrumentCid <- originate custodian issuer "EUR" "Euro" observers now
+  aaplInstrumentCid <- originate custodian issuer "AAPL" "AAPL stock" observers now
+
+  -- Create and distribute option
+  let
+    -- CREATE_DIVIDEND_OPTION_VARIABLES_BEGIN
+    expiryDate = date 2019 May 15
+    divAmountCash = 0.02
+    divAmountFxCash = 0.025
+    divAmountShares = 0.03
+    cashQuantity = Quantity cashInstrumentCid divAmountCash
+    sharesQuantity = Some $ Quantity aaplInstrumentCid divAmountShares
+    fxQuantity = Some $ Quantity eurInstrumentCid divAmountFxCash
+    -- CREATE_DIVIDEND_OPTION_VARIABLES_END
+    longOption = True
+    shortOption = False
+
+  -- Issue instrument with only cash dividend or shares
+  longCashOrSharesDivOptionInstrument <- originateDividendOption custodian issuer "cash or shares"
+    "Option" observers now expiryDate cashQuantity sharesQuantity None longOption
+
+  -- issue instrument with only cash dividend or fx cash
+  longCashOrFxDivOptionInstrument <- originateDividendOption custodian issuer "cash or fx cash"
+    "Option" observers now expiryDate cashQuantity None fxQuantity longOption
+
+  -- Issue dividend instruments with 3 choices: cash, shares or fx cash
+  longDivOptionInstrument <- originateDividendOption custodian issuer "long div option"
+    "Option" observers now expiryDate cashQuantity sharesQuantity fxQuantity longOption
+  shortDivOptionInstrument <- originateDividendOption custodian issuer "short div option"
+    "Option" observers now expiryDate cashQuantity sharesQuantity fxQuantity shortOption
+
+  let amount = 1.0
+
+  -- Elect shares, long dividend option: Lifecycle and verify the lifecycle effects.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.03 aaplInstrumentCid]
+  electAndVerifyDivOptionPaymentEffects [publicParty] expiryDate amount
+    longDivOptionInstrument issuer custodian Shares expectedConsumed expectedProduced
+
+  -- Elect shares, short dividend option: Lifecycle and verify the lifecycle effects.
+  let
+    expectedConsumed = [qty 0.03 aaplInstrumentCid]
+    expectedProduced = []
+  electAndVerifyDivOptionPaymentEffects [publicParty] expiryDate amount
+    shortDivOptionInstrument issuer custodian Shares expectedConsumed expectedProduced
+
+  -- Elect cash, long dividend option: Lifecycle and verify the lifecycle effects.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.02 cashInstrumentCid]
+  electAndVerifyDivOptionPaymentEffects [publicParty] expiryDate amount
+    longDivOptionInstrument issuer custodian Cash expectedConsumed expectedProduced
+
+  -- Elect cash, short dividend option: Lifecycle and verify the lifecycle effects.
+  let
+    expectedConsumed = [qty 0.02 cashInstrumentCid]
+    expectedProduced = []
+  electAndVerifyDivOptionPaymentEffects [publicParty] expiryDate amount
+    shortDivOptionInstrument issuer custodian Cash expectedConsumed expectedProduced
+
+  -- Elect FX cash, long dividend option: Lifecycle and verify the lifecycle effects.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.025 eurInstrumentCid]
+  electAndVerifyDivOptionPaymentEffects [publicParty] expiryDate amount
+    longDivOptionInstrument issuer custodian CashFx expectedConsumed expectedProduced
+
+  -- Elect FX cash, short dividend option: Lifecycle and verify the lifecycle effects.
+  let
+    expectedConsumed = [qty 0.025 eurInstrumentCid]
+    expectedProduced = []
+  electAndVerifyDivOptionPaymentEffects [publicParty] expiryDate amount
+    shortDivOptionInstrument issuer custodian CashFx expectedConsumed expectedProduced
+
+  pure ()
