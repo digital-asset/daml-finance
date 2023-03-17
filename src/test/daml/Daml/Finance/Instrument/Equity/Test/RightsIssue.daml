@@ -64,7 +64,7 @@ run = script do
   cashInstrument <- originate cb cb "USD" "United States Dollar" pp now
   cumEquityInstrument <- originateEquity issuer issuer "EQUITY-INST-1" "0" "ABC" pp now
   exEquityInstrument <- originateEquity issuer issuer "EQUITY-INST-1" "1" "ABC" [] now
-  rightsInstrument <- originateEuropeanPhysicalOption custodian issuer "Long Call" "Option" pp now
+  rightsInstrument <- originateEuropeanPhysicalOption issuer issuer "Long Call" "Option" pp now
     expiryDate Call strikeLow cashInstrument exEquityInstrument isLong
 
   -- Distribute holdings: fractional holdings are also supported.
@@ -149,7 +149,7 @@ run = script do
       actors = singleton investor; approval = TakeDelivery investorAccount
 
   -- Settle batch
-  [investorRightsHoldingCid, investorEquityHoldingCid] <- submitMulti [custodian] [publicParty] do
+  [investorEquityHoldingCid, investorRightsHoldingCid] <- submitMulti [custodian] [publicParty] do
     exerciseCmd result.batchCid Batch.Settle with actors = singleton custodian
 
   -- Assert state
@@ -175,18 +175,17 @@ run = script do
     sharesExcess = sharesWanted - sharesGuaranteed
 
   -- 1. Exercise the call option in whole to subscribe for the guaranteed part (100 shares).
-
   let
     expectedConsumed = [qty 40.0 cashInstrument]
     expectedProduced = [qty 1.0 exEquityInstrument]
-  (None, effectLongCallCid) <- electAndVerifyPaymentEffects [publicParty] expiryDate
-    sharesGuaranteed rightsInstrument issuer custodian "EXERCISE" expectedConsumed expectedProduced
+  (None, effectLongCallCid) <- electAndVerifyPaymentEffects expiryDate sharesGuaranteed
+    rightsInstrument isLong issuer investor "EXERCISE" expectedConsumed expectedProduced
 
   -- Create a claim rule
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit custodian do
     createCmd Claim.Rule with
       providers = singleton custodian
-      claimers = fromList [custodian]
+      claimers = fromList [investor, issuer]
       settlers
       routeProviderCid
       settlementFactoryCid
@@ -195,9 +194,9 @@ run = script do
   -- Cannot claim effect for a different amount than what was elected
   -- In particular, electing for more than the size of the holding does not work:
   investorRightsSmallHoldingCid <- Account.credit [publicParty] rightsInstrument 3.0 investorAccount
-  submitMultiMustFail [custodian] [publicParty] do
+  submitMultiMustFail [investor] [publicParty] do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
-      claimer = custodian
+      claimer = investor
       holdingCids = [investorRightsSmallHoldingCid]
       effectCid = effectLongCallCid
       batchId = Id "OptionExerciseSettlement"
@@ -205,17 +204,17 @@ run = script do
   -- Electing for less than the size of the holding does not work either:
   -- (you would have to split the holding first)
   investorRightsBigHoldingCid <- Account.credit [publicParty] rightsInstrument 300.0 investorAccount
-  submitMultiMustFail [custodian] [publicParty] do
+  submitMultiMustFail [investor] [publicParty] do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
-      claimer = custodian
+      claimer = investor
       holdingCids = [investorRightsBigHoldingCid]
       effectCid = effectLongCallCid
       batchId = Id "OptionExerciseSettlement"
 
   -- Electing for the same amount as the size of the holding works:
-  submitMulti [custodian] [publicParty] do
+  submitMulti [investor] [publicParty] do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
-      claimer = custodian
+      claimer = investor
       holdingCids = [investorRightsHoldingCid]
       effectCid = effectLongCallCid
       batchId = Id "CallOptionExerciseSettlement"
@@ -224,7 +223,7 @@ run = script do
   --    part or in whole.
 
   let isLong = False
-  shortPutInstrument <- originateEuropeanPhysicalOption custodian issuer "Short Put" "Option" pp now
+  shortPutInstrument <- originateEuropeanPhysicalOption issuer issuer "Short Put" "Option" pp now
     expiryDate Put strikeLow cashInstrument exEquityInstrument isLong
 
   -- Verify that election on the short put results in the same (per unit) as the long call.
@@ -233,15 +232,15 @@ run = script do
   let
     expectedConsumed = [qty 40.0 cashInstrument]
     expectedProduced = [qty 1.0 exEquityInstrument]
-  (None, effectShortPutCid) <- electAndVerifyPaymentEffects [publicParty] expiryDate sharesExcess
-    shortPutInstrument issuer custodian "EXERCISE" expectedConsumed expectedProduced
+  (None, effectShortPutCid) <- electAndVerifyPaymentEffects expiryDate sharesExcess
+    shortPutInstrument isLong issuer issuer "EXERCISE" expectedConsumed expectedProduced
 
   issuerPutHoldingCid <- Account.credit [publicParty] shortPutInstrument sharesExcess issuerAccount
 
   -- Electing for the same amount as the size of the holding works:
-  submitMulti [custodian] [publicParty] do
+  submitMulti [issuer] [publicParty] do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
-      claimer = custodian
+      claimer = issuer
       holdingCids = [issuerPutHoldingCid]
       effectCid = effectShortPutCid
       batchId = Id "PutOptionExerciseSettlement"

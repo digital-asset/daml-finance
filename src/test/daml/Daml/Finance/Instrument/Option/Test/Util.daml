@@ -57,59 +57,59 @@ originateEuropeanPhysicalOption depository issuer label description observers la
 
 -- | Originate a physically settled Dividend option.
 originateDividendOption : Party -> Party -> Text -> Text -> [(Text, Parties)] -> Time ->
-  Date -> InstrumentQuantity -> Optional InstrumentQuantity -> Optional InstrumentQuantity -> Bool
+  Date -> InstrumentQuantity -> Optional InstrumentQuantity -> Optional InstrumentQuantity
   -> Script InstrumentKey
 originateDividendOption depository issuer label description observers lastEventTimestamp
-  expiryDate cashQuantity sharesQuantity fxQuantity ownerReceives = do
+  expiryDate cashQuantity sharesQuantity fxQuantity = do
   -- CREATE_DIVIDEND_OPTION_INSTRUMENT_BEGIN
     cid <- toInterfaceContractId <$> submitMulti [depository, issuer] [] do
       createCmd DividendOption.Instrument with
         depository; issuer; id = Id label; version = "0"; description
         observers = M.fromList observers; lastEventTimestamp
-        ownerReceives; expiryDate; cashQuantity; sharesQuantity; fxQuantity
+        expiryDate; cashQuantity; sharesQuantity; fxQuantity
   -- CREATE_DIVIDEND_OPTION_INSTRUMENT_BEGIN
     createReference cid depository issuer observers
 
 -- | Verify the payments of an instrument after an election (excluding settlement)
-electAndVerifyPaymentEffects : [Party] -> Date -> Decimal -> InstrumentKey -> Party -> Party -> Text
-  -> [InstrumentQuantity] -> [InstrumentQuantity]
+electAndVerifyPaymentEffects : Date -> Decimal -> InstrumentKey -> Bool -> Party -> Party
+  -> Text -> [InstrumentQuantity] -> [InstrumentQuantity]
   -> Script (Optional InstrumentKey, ContractId Effect.I)
-electAndVerifyPaymentEffects readAs today amount instrument issuer custodian electedTag
-  expectedConsumedQuantities expectedProducedQuantities = do
+electAndVerifyPaymentEffects today amount instrument electorIsOwner issuer elector
+  electedTag expectedConsumedQuantities expectedProducedQuantities = do
 
-    -- Create election offers to allow holders to create elections
+    -- Create election factory to allow holders to create elections
     electionFactoryCid <- submit issuer do
       toInterfaceContractId @Election.F <$> createCmd Election.Factory with
         provider = issuer
-        observers = M.fromList [("Holders", fromList [custodian] )]
+        observers = M.fromList [("Observers", fromList [elector, issuer] )]
 
-    -- Apply election to generate new instrument version + effects
-    lifecycleRuleCid <- toInterfaceContractId <$> submit custodian do
+    -- Create a lifecycle rule
+    lifecycleRuleCid <- toInterfaceContractId <$> submit issuer do
       createCmd Lifecycle.Rule with
-        providers = singleton custodian
+        providers = singleton issuer
         observers = M.empty
         lifecycler = issuer
         id = Id "LifecycleRule"
-        description = "Rule to lifecycle a generic instrument"
+        description = "Rule to lifecycle an Election based instrument"
 
+    -- Apply election to generate new instrument version + effects
     let
-      electorIsOwner = True
       counterparty = issuer
       description = "election for physically settled option"
-    exerciseOptionCid <- submitMulti [custodian] readAs
+    exerciseOptionCid <- submit elector
       do
         exerciseCmd electionFactoryCid Election.Create with
-          actors = fromList [custodian]
+          actors = fromList [elector]
           id = Id "election id"
           description
           claim = electedTag
           electionTime = dateToDateClockTime today
           electorIsOwner
-          elector = custodian
+          elector
           counterparty
           instrument
           amount
-          observers = M.fromList [("Holders", fromList [ custodian, issuer] )]
+          observers = M.fromList [("Holders", fromList [ issuer, elector, counterparty] )]
           provider = issuer
 
     (newInstrumentKey, [effectCid]) <- submit issuer do
