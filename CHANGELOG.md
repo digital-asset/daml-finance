@@ -153,6 +153,8 @@ Early Access Packages
 
 - Dependencies update
 
+- Added `GetView` to all instruments
+
 #### Daml.Finance.Interface.Instrument.Equity
 
 - Dependencies update
@@ -171,11 +173,15 @@ Early Access Packages
 
 - Renamed cash-settled European options (European -> EuropeanCash).
 
+- Added `GetView` to all instruments
+
 #### Daml.Finance.Interface.Instrument.Swap
 
 - Dependencies update
 
 - Style changes
+
+- Added `GetView` to all instruments
 
 #### Daml.Finance.Interface.Instrument.Token
 
