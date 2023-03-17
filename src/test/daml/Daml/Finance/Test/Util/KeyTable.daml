@@ -1,0 +1,110 @@
+-- Copyright (c) 2023 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
+module Daml.Finance.Test.Util.KeyTable where
+
+import Daml.Control.Monad.Trans.Class (lift)
+import Daml.Control.Monad.Trans.State (StateT(..))
+import Daml.Finance.Interface.Util.KeyTable (HasSyntheticKey, KeyTable, getKey, insert)
+import Daml.Script (Commands, Script)
+import Daml.Script qualified as Script (createCmd, exerciseCmd, submit)
+import Prelude hiding (archive, create, exercise, exerciseByKey, fetch, fetchByKey, fetchFromInterface, lookup, lookupByKey, submit, submitMulti)
+
+-- | Type synonym for state monad transformer (for KeyTable and Commands).
+type CommandsWithKey = StateT KeyTable Commands
+
+-- | Type synonym for state monad transformer (for KeyTable and Script).
+type ScriptWithKey = StateT KeyTable Script
+
+-- | Type class for submit within a monad.
+class Action m => HasSubmitM f m a where
+  submit : Party -> f a -> m a
+
+-- | Instance used to submit commands (without keys) within the Script monad.
+instance HasSubmitM Commands Script a where
+  submit = Script.submit
+
+-- | Instance used to submit commands (without keys) within the ScriptWithKey monad.
+instance HasSubmitM Commands ScriptWithKey a where
+  submit p = lift . Script.submit p
+
+-- | Instance used to submit commands with keys within the ScriptWithKey monad.
+instance HasSubmitM CommandsWithKey ScriptWithKey a where
+  submit p c = StateT $ Script.submit p . runStateT c
+
+-- | Utility function for creating a contract instance with a key within CommandsWithKey.
+createWithKeyCmd :
+  forall i k t v.
+  ( HasSyntheticKey i k
+  , HasCreate t
+  , HasToInterface t i
+  , HasTemplateTypeRep t
+  , HasToAnyTemplate t
+  , HasFromAnyTemplate t
+  , HasAgreement t
+  ) => t -> CommandsWithKey (ContractId t)
+createWithKeyCmd t =
+  StateT $ \keyTable ->
+    ((\cid -> (cid, insert (getKey @i @k $ toInterface t) (toInterfaceContractId @i cid) keyTable))
+      <$> Script.createCmd t)
+
+-- | Type class for has create command.
+class HasCreateCmd m t where
+  createCmd : t -> m (ContractId t)
+
+-- | Instance used to create within Commands.
+instance
+  ( HasAgreement t
+  , HasTemplateTypeRep t
+  , HasToAnyTemplate t
+  , HasFromAnyTemplate t
+  ) => HasCreateCmd Commands t where
+  createCmd = Script.createCmd
+
+-- | Instance used to create within CommandsWithKey.
+instance
+  ( HasAgreement t
+  , HasTemplateTypeRep t
+  , HasToAnyTemplate t
+  , HasFromAnyTemplate t
+  ) => HasCreateCmd CommandsWithKey t where
+  createCmd t = StateT $ \keyTable -> (, keyTable) <$> Script.createCmd t
+
+-- | Type class for has exercise command.
+class HasExerciseCmd m t c r where
+  exerciseCmd : ContractId t -> c -> m r
+
+-- | Instance used to exercise a choice (without keys) within Commands.
+instance
+  ( HasExercise t c r
+  , HasTemplateTypeRep t
+  , HasToAnyTemplate t
+  , HasFromAnyTemplate t
+  , HasToAnyChoice t c r
+  , HasFromAnyChoice t c r
+  ) => HasExerciseCmd Commands t c r where
+  exerciseCmd = Script.exerciseCmd
+
+-- | Instance used to exercise a choice (without keys) within CommandsWithKey.
+instance
+  ( HasExercise t c r
+  , HasTemplateTypeRep t
+  , HasToAnyTemplate t
+  , HasFromAnyTemplate t
+  , HasToAnyChoice t c r
+  , HasFromAnyChoice t c r
+  ) => HasExerciseCmd CommandsWithKey t c r where
+  exerciseCmd cid c = StateT $ \keyTable -> (, keyTable) <$> Script.exerciseCmd cid c
+
+-- | Instance used to exercise a choice with keys within CommandsWithKey.
+instance {-# OVERLAPPING #-}
+  ( HasExercise t c (r, KeyTable)
+  , HasTemplateTypeRep t
+  , HasToAnyTemplate t
+  , HasFromAnyTemplate t
+  , HasToAnyChoice t c (r, KeyTable)
+  , HasFromAnyChoice t c (r, KeyTable)
+  ) => HasExerciseCmd CommandsWithKey t (KeyTable -> c) r where
+  exerciseCmd cid f = StateT $ Script.exerciseCmd cid . f
