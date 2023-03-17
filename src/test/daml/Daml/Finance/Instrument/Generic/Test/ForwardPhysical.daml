@@ -7,7 +7,7 @@ import ContingentClaims.Core.Claim (Inequality(..), and, give, one, scale, when)
 import ContingentClaims.Core.Observation (Observation(..))
 import DA.Date (addDays, toDateUTC)
 import DA.Map qualified as M (empty, fromList)
-import DA.Set (empty, fromList, singleton, toList)
+import DA.Set qualified as S (empty, fromList, singleton, toList)
 import DA.Time (time)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Instrument.Generic.Lifecycle.Rule qualified as Lifecycle (Rule(..))
@@ -56,7 +56,7 @@ run = script do
   TestParties{..} <- setupParties
 
   -- Account and holding factory
-  let pp = [("PublicParty", singleton publicParty)]
+  let pp = [("PublicParty", S.singleton publicParty)]
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank pp
   holdingFactoryCid <- toInterfaceContractId <$> submit bank do
     createCmd Fungible.Factory with provider = bank; observers = M.fromList pp
@@ -81,18 +81,18 @@ run = script do
              $ scale (Const 200.0)
              $ give cashInstrumentDeliverable
   genericInstrument <- originateGeneric bank broker "FWD-AAPL" "Forward Contract" now claims
-    [("PublicParty", singleton publicParty)] now
+    [("PublicParty", S.singleton publicParty)] now
   investorGenericHoldingCid <- Account.credit [publicParty] genericInstrument 1_000.0
     investorAccount
 
   -- create clock update event
-  clockEventCid <- createClockUpdateEvent (singleton broker) maturity empty
+  clockEventCid <- createClockUpdateEvent (S.singleton broker) maturity S.empty
 
   -- Lifecycle a generic derivative
   lifecycleRuleCid <- toInterfaceContractId @Lifecycle.I <$>
     submit bank do
       createCmd Lifecycle.Rule with
-        providers = singleton bank
+        providers = S.singleton bank
         observers= M.empty
         lifecycler = broker
         id = Id "LifecycleRule"
@@ -108,18 +108,18 @@ run = script do
   routeProviderCid <- toInterfaceContractId <$>
     submit investor do
       createCmd SingleCustodian with
-        provider = investor; observers = empty; custodian = bank
+        provider = investor; observers = S.empty; custodian = bank
 
   -- Create settlement factory
   settlementFactoryCid <- toInterfaceContractId <$>
-    submit investor do createCmd Factory with provider = investor; observers = empty
+    submit investor do createCmd Factory with provider = investor; observers = S.empty
 
   -- Claim effect
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$>
     submitMulti [bank, investor] [] do
       createCmd Rule with
-        providers = fromList [bank, investor]
-        claimers = singleton investor
+        providers = S.fromList [bank, investor]
+        claimers = S.singleton investor
         settlers
         routeProviderCid
         settlementFactoryCid
@@ -139,31 +139,31 @@ run = script do
   -- Allocate instructions
   (investorInstrumentInstructionCid, _) <- submit investor do
     exerciseCmd investorInstrumentInstructionCid Instruction.Allocate with
-      actors = singleton investor; allocation = Pledge investorGenericHoldingCid
+      actors = S.singleton investor; allocation = Pledge investorGenericHoldingCid
   (bankEquityInstructionCid, _) <- submit bank do
     exerciseCmd bankEquityInstructionCid Instruction.Allocate with
-      actors = singleton bank; allocation = CreditReceiver
+      actors = S.singleton bank; allocation = CreditReceiver
   (investorCashInstructionCid, _) <- submit investor do
     exerciseCmd investorCashInstructionCid Instruction.Allocate with
-      actors = singleton investor; allocation = Pledge investorCashHoldingCid
+      actors = S.singleton investor; allocation = Pledge investorCashHoldingCid
 
   -- Approve instructions
   investorInstrumentInstructionCid <- submit bank do
     exerciseCmd investorInstrumentInstructionCid Instruction.Approve with
-      actors = singleton bank; approval = DebitSender
+      actors = S.singleton bank; approval = DebitSender
   investorCashInstructionCid <- submit bank do
     exerciseCmd investorCashInstructionCid Instruction.Approve with
-      actors = singleton bank; approval = DebitSender
+      actors = S.singleton bank; approval = DebitSender
   bankEquityInstructionCid <- submit investor do
     exerciseCmd bankEquityInstructionCid Instruction.Approve with
-      actors = singleton investor; approval = TakeDelivery investorAccount
+      actors = S.singleton investor; approval = TakeDelivery investorAccount
 
   -- Set time
   setTime $ time maturity 0 0 0
 
   -- Settle batch
   [investorEquityHoldingCid] <-
-    submitMulti (toList settlers) [publicParty] do
+    submitMulti (S.toList settlers) [publicParty] do
       exerciseCmd result.batchCid Batch.Settle with actors = settlers
 
   -- Assert state
@@ -176,4 +176,4 @@ setupParties = do
   [bank, broker, centralBank, equityIssuer, investor, settler, publicParty] <- createParties
     ["Bank", "Broker", "Central Bank", "Equity Issuer", "Investor", "Settler", "PublicParty"]
   pure TestParties with
-    bank; broker; centralBank; equityIssuer; investor; settlers = singleton settler; publicParty
+    bank; broker; centralBank; equityIssuer; investor; settlers = S.singleton settler; publicParty
