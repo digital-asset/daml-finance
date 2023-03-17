@@ -4,7 +4,7 @@
 module Daml.Finance.Settlement.Test.Batch where
 
 import DA.Map qualified as M (fromList)
-import DA.Set (fromList, singleton, toList)
+import DA.Set qualified as S (fromList, singleton, toList)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Cancel(..), Settle(..))
 import Daml.Finance.Interface.Settlement.Factory qualified as Settlement (F, Instruct(..))
@@ -60,7 +60,7 @@ run settleCashOnledger bankIsRequesting = script do
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank []
   holdingFactoryCid <- toInterfaceContractId <$> submit bank do
     createCmd Fungible.Factory with
-      provider = bank; observers = M.fromList [("PublicParty", singleton publicParty)]
+      provider = bank; observers = M.fromList [("PublicParty", S.singleton publicParty)]
 
   -- Originate instruments
   now <- getTime
@@ -89,21 +89,21 @@ run settleCashOnledger bankIsRequesting = script do
   -- Discover settlement routes
   routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit bank do
     createCmd SingleCustodian with
-      provider = bank; custodian = bank; observers = singleton publicParty
+      provider = bank; custodian = bank; observers = S.singleton publicParty
   routedSteps <- submit bank do
     exerciseCmd routeProviderCid RouteProvider.Discover with
-      discoverors = singleton bank; contextId = None; steps
+      discoverors = S.singleton bank; contextId = None; steps
 
   -- Setup settlement factory
   settlementFactoryCid <- toInterfaceContractId @Settlement.F <$>
     submit bank do
-      createCmd Factory with provider = bank; observers = singleton publicParty
+      createCmd Factory with provider = bank; observers = S.singleton publicParty
 
   -- Instruct settlement
   let
-    requestors = fromList $ if bankIsRequesting then [bank] else [buyer, seller]
-    settlers = fromList [buyer, seller]
-    instructCmd = submitMulti (toList requestors) [publicParty] do
+    requestors = S.fromList $ if bankIsRequesting then [bank] else [buyer, seller]
+    settlers = S.fromList [buyer, seller]
+    instructCmd = submitMulti (S.toList requestors) [publicParty] do
       exerciseCmd settlementFactoryCid Settlement.Instruct with
         instructors = requestors; settlers; id = Id "APPL 1000@200.0USD"; description = "DVP"
         contextId = None; routedSteps; settlementTime = None
@@ -111,9 +111,9 @@ run settleCashOnledger bankIsRequesting = script do
   -- Create batch and instructions, and then cancel
   (batchCid, _) <- instructCmd
   -- seller can't cancel batch
-  submitMustFail seller do exerciseCmd batchCid Batch.Cancel with actors = singleton seller
+  submitMustFail seller do exerciseCmd batchCid Batch.Cancel with actors = S.singleton seller
   -- requestors can cancel batch
-  submitMulti (toList requestors) [] do
+  submitMulti (S.toList requestors) [] do
     exerciseCmd batchCid Batch.Cancel with actors = requestors
 
   -- Create batch and instructions
@@ -122,10 +122,10 @@ run settleCashOnledger bankIsRequesting = script do
   -- Allocate and approve equity instruction
   (equityInstructionCid, _) <- submit seller do
     exerciseCmd equityInstructionCid Instruction.Allocate with
-      actors = singleton seller; allocation = Pledge equityHoldingCid
+      actors = S.singleton seller; allocation = Pledge equityHoldingCid
   equityInstructionCid <- submit buyer do
     exerciseCmd equityInstructionCid Instruction.Approve with
-      actors = singleton buyer; approval = TakeDelivery buyerCustodyAccount
+      actors = S.singleton buyer; approval = TakeDelivery buyerCustodyAccount
 
   -- Allocate and approve cash instruction
   cashInstructionCid <- if settleCashOnledger
@@ -135,37 +135,37 @@ run settleCashOnledger bankIsRequesting = script do
         cashHoldingCid <- Account.credit [] cashInstrument 200_000.0 buyerCashAccount
         (cashInstructionCid, _) <- submit buyer do
           exerciseCmd cashInstructionCid Instruction.Allocate with
-            actors = singleton buyer; allocation = Pledge cashHoldingCid
+            actors = S.singleton buyer; allocation = Pledge cashHoldingCid
         submit seller do
           exerciseCmd cashInstructionCid Instruction.Approve with
-            actors = singleton seller; approval = TakeDelivery sellerCashAccount
+            actors = S.singleton seller; approval = TakeDelivery sellerCashAccount
     else
       do
         -- Settle by off ledger transfer
         (cashInstructionCid, _) <- submitMulti [buyer, bank] [] do
           exerciseCmd cashInstructionCid Instruction.Allocate with
-            actors = fromList [buyer, bank]; allocation = SettleOffledger
+            actors = S.fromList [buyer, bank]; allocation = SettleOffledger
         submitMulti [seller, bank] [] do
           exerciseCmd cashInstructionCid Instruction.Approve with
-            actors = fromList [seller, bank]; approval = SettleOffledgerAcknowledge
+            actors = S.fromList [seller, bank]; approval = SettleOffledgerAcknowledge
 
   -- Settle batch
   -- neither the bank, nor seller, nor buyer can execute an instruction
   submitMustFail bank do
-    exerciseCmd cashInstructionCid Instruction.Execute with actors = singleton bank
+    exerciseCmd cashInstructionCid Instruction.Execute with actors = S.singleton bank
   submitMustFail seller do
-    exerciseCmd cashInstructionCid Instruction.Execute with actors = singleton seller
+    exerciseCmd cashInstructionCid Instruction.Execute with actors = S.singleton seller
   submitMustFail buyer do
-    exerciseCmd cashInstructionCid Instruction.Execute with actors = singleton buyer
+    exerciseCmd cashInstructionCid Instruction.Execute with actors = S.singleton buyer
   -- the bank can't settle the batch
   if bankIsRequesting then
     submitMultiMustFail [bank] [] do
-      exerciseCmd batchCid Batch.Settle with actors = singleton bank
+      exerciseCmd batchCid Batch.Settle with actors = S.singleton bank
   else
     pure ()
   -- any of the settlers can settle the batch (i.e., buyer or seller)
   cids <- submitMulti [buyer] [publicParty] do
-    exerciseCmd batchCid Batch.Settle with actors = singleton buyer
+    exerciseCmd batchCid Batch.Settle with actors = S.singleton buyer
 
   -- Assert state
   let ts = zip [buyer, seller] cids
