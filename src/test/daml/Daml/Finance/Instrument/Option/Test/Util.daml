@@ -71,45 +71,45 @@ originateDividendOption depository issuer label description observers lastEventT
     createReference cid depository issuer observers
 
 -- | Verify the payments of an instrument after an election (excluding settlement)
-electAndVerifyPaymentEffects : [Party] -> Date -> Decimal -> InstrumentKey -> Bool -> Party -> Party
+electAndVerifyPaymentEffects : Date -> Decimal -> InstrumentKey -> Bool -> Party -> Party
   -> Text -> [InstrumentQuantity] -> [InstrumentQuantity]
   -> Script (Optional InstrumentKey, ContractId Effect.I)
-electAndVerifyPaymentEffects readAs today amount instrument isLong issuer custodian
+electAndVerifyPaymentEffects today amount instrument electorIsOwner issuer elector
   electedTag expectedConsumedQuantities expectedProducedQuantities = do
 
-    -- Create election offers to allow holders to create elections
+    -- Create election factory to allow holders to create elections
     electionFactoryCid <- submit issuer do
       toInterfaceContractId @Election.F <$> createCmd Election.Factory with
         provider = issuer
-        observers = M.fromList [("Holders", fromList [custodian] )]
+        observers = M.fromList [("Observers", fromList [elector, issuer] )]
 
-    -- Apply election to generate new instrument version + effects
-    lifecycleRuleCid <- toInterfaceContractId <$> submit custodian do
+    -- Create a lifecycle rule
+    lifecycleRuleCid <- toInterfaceContractId <$> submit issuer do
       createCmd Lifecycle.Rule with
-        providers = singleton custodian
+        providers = singleton issuer
         observers = M.empty
         lifecycler = issuer
         id = Id "LifecycleRule"
-        description = "Rule to lifecycle a generic instrument"
+        description = "Rule to lifecycle an Election based instrument"
 
+    -- Apply election to generate new instrument version + effects
     let
-      electorIsOwner = isLong
       counterparty = issuer
       description = "election for physically settled option"
-    exerciseOptionCid <- submitMulti [custodian] readAs
+    exerciseOptionCid <- submit elector
       do
         exerciseCmd electionFactoryCid Election.Create with
-          actors = fromList [custodian]
+          actors = fromList [elector]
           id = Id "election id"
           description
           claim = electedTag
           electionTime = dateToDateClockTime today
           electorIsOwner
-          elector = custodian
+          elector
           counterparty
           instrument
           amount
-          observers = M.fromList [("Holders", fromList [ custodian, issuer] )]
+          observers = M.fromList [("Holders", fromList [ issuer, elector, counterparty] )]
           provider = issuer
 
     (newInstrumentKey, [effectCid]) <- submit issuer do
