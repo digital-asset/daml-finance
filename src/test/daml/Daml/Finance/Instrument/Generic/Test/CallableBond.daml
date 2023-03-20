@@ -57,15 +57,17 @@ data TestParties = TestParties
     publicParty : Party
       -- ^ The public party. Every party can readAs the public party.
 
--- | Creates the claim for a callable bond and the corresponding elections
-bootstrapBond : Date -> Date -> Decimal -> Decimal -> Deliverable -> C
-bootstrapBond intermediateDate maturity couponAmount principalAmount ccy =
+-- | Creates the claim for a callable bond (with 2 coupons) and the corresponding elections
+bootstrapBond : Date -> Date -> Date -> Decimal -> Decimal -> Decimal -> Deliverable -> C
+bootstrapBond cpn1Date cpn2Date maturity couponAmount principalAmount callPrincipalAmount ccy =
   let
     coupon = scale (Const couponAmount) $ one ccy
     principal = scale (Const principalAmount) $ one ccy
-    called = ("CALLED",) $ give principal
-    notCalled = ("NOT CALLED",) $ when (at maturity) $ give principal
-    callableBond = when (at intermediateDate) $ and coupon $ give $ or called notCalled
+    callPrincipal = scale (Const callPrincipalAmount) $ one ccy
+    called = ("CALLED",) $ give callPrincipal
+    notCalledFinal = ("NOT CALLED",) $ when (at maturity) $ give principal
+    notCalled = ("NOT CALLED",) $ when (at cpn2Date) $ and coupon $ give $ or called notCalledFinal
+    callableBond = when (at cpn1Date) $ and coupon $ give $ or called notCalled
   in mapClaimToUTCTime callableBond
 
 run : Script ()
@@ -93,12 +95,14 @@ run = script do
   -- Create and distribute a generic derivative
   let
     acquisitionTime = time (D.date 2022 Jul 01) 0 0 0
-    intermediateDate = D.date 2022 Jul 07
-    maturityDate = D.date 2023 Jul 07
+    coupon1Date = D.date 2022 Jul 07
+    coupon2Date = D.date 2023 Jul 07
+    maturityDate = D.date 2024 Jul 07
     couponAmount = 1_000.0
     principalAmount = 100_000.0
-    bond = bootstrapBond intermediateDate maturityDate couponAmount principalAmount
-      cashInstrument
+    callPrincipalAmount = 101_000.0
+    bond = bootstrapBond coupon1Date coupon2Date maturityDate couponAmount principalAmount
+      callPrincipalAmount cashInstrument
   genericInstrument <- originateGeneric bank issuer "ABC.DE 1% 07/07/23 Corp" "Callable Bond"
     acquisitionTime bond pp now
   investorGenericHoldingCid <- Account.credit [publicParty] genericInstrument 1.0 investorAccount
@@ -127,7 +131,7 @@ run = script do
   submitMultiMustFail [bank] [publicParty] do
     exerciseCmd callElectionFactoryCid CreateElectionCandidate with
       elector = bank
-      electionTime = dateToDateClockTime intermediateDate
+      electionTime = dateToDateClockTime coupon1Date
       holdingCid = investorGenericHoldingCid
       amount = 5000.0
 
@@ -135,11 +139,11 @@ run = script do
   electionProposalCid <- submitMulti [bank] [publicParty] do
     exerciseCmd callElectionFactoryCid CreateElectionCandidate with
       elector = bank
-      electionTime = dateToDateClockTime intermediateDate
+      electionTime = dateToDateClockTime coupon1Date
       holdingCid = fromInterfaceContractId investorGenericHoldingCid
       amount = 1.0
 
-  currentTimeCid <- createDateClock (S.singleton issuer) intermediateDate S.empty
+  currentTimeCid <- createDateClock (S.singleton issuer) coupon1Date S.empty
 
   electionCid <- submit issuer do
     exerciseCmd electionProposalCid ValidateElectionCandidate with
@@ -212,7 +216,7 @@ run = script do
   Some investorCouponAndPrincipal <-
     queryContractId investor $ fromInterfaceContractId @Fungible.T
       investorCashHoldingCouponAndPrincipalCid
-  getAmount investorCouponAndPrincipal === couponAmount + principalAmount
+  getAmount investorCouponAndPrincipal === couponAmount + callPrincipalAmount
   getOwner investorCouponAndPrincipal === investor
 
   pure ()
