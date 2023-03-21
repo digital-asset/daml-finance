@@ -28,7 +28,7 @@ Stable Packages
 | Daml.Finance.Interface.Types.Date          | 2.0.0              | 2.0.0          |
 | Daml.Finance.Interface.Util                | 1.0.0              | 1.0.0          |
 | Daml.Finance.Lifecycle                     | 1.0.1              | 1.0.2          |
-| Daml.Finance.Settlement                    | 1.0.2              | 1.1.0          |
+| Daml.Finance.Settlement                    | 1.0.2              | 2.0.0          |
 | Daml.Finance.Util                          | 2.0.0              | 2.0.1          |
 
 Early Access Packages
