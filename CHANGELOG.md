@@ -223,7 +223,8 @@ Early Access Packages
 
 - Style changes
 
-- Added locking to the `Instruction`
+- Added locking to the `Instruction` (pledge is locked to requestors and the outgoing controllers of
+  the sending account)
 
 #### Daml.Finance.Util
 
