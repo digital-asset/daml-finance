@@ -18,6 +18,7 @@ import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
 import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..), Schedule)
 import Daml.Finance.Util.Date.DayCount (calcPeriodDcf)
 import Prelude hiding (and, key, or)
+import DA.List ((!!))
 
 type O = Observation Date Decimal Observable
 type C = Claim Date Decimal Deliverable Observable
@@ -59,6 +60,58 @@ createFixRatePaymentClaims dateToTime schedule periodicSchedule useAdjustedDates
       couponClaims = createFixRatePaymentClaimsList schedule periodicSchedule useAdjustedDatesForDcf
         couponRate ownerReceives dayCountConvention notional cashInstrumentCid
     in prepareAndTagClaims dateToTime couponClaims "Fix rate payment"
+
+-- | Calculate the claims for callable bond: fix rate amount for each payment date and a redemption
+-- amount at the end (unless called by the issuer).
+createCallableFixRateBondClaims : (Date -> Time) -> Schedule -> PeriodicSchedule -> Bool -> Decimal
+  -> Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> TaggedClaim
+createCallableFixRateBondClaims dateToTime schedule periodicSchedule useAdjustedDatesForDcf
+  couponRate ownerReceives dayCountConvention notional cashInstrumentCid =
+    let
+      couponDatesAdjusted = map (.adjustedEndDate) schedule
+      couponAmounts = map (\p ->
+          couponRate *
+          (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf
+            periodicSchedule.terminationDate periodicSchedule.frequency)
+        ) schedule
+      couponClaimAmounts = mconcat $
+        zipWith
+          (\d a ->
+            when (TimeGte d) $ scale (Const a) $ scale (Const notional) $ one cashInstrumentCid
+          ) couponDatesAdjusted couponAmounts
+      couponClaims = [if ownerReceives then couponClaimAmounts else give couponClaimAmounts]
+      fxLegClaimAmount = when (TimeGte periodicSchedule.terminationDate)
+                        $ scale (Const notional)
+                        $ one cashInstrumentCid
+      fxLegClaim = if ownerReceives then fxLegClaimAmount else give fxLegClaimAmount
+      allClaims = mconcat [couponClaims, [fxLegClaim]]
+
+      p1 = schedule !! 0
+      p2 = schedule !! 1
+
+      cpn1Date = couponDatesAdjusted !! 0
+      cpn2Date = couponDatesAdjusted !! 1
+
+      coupon1 = give $ scale (Const $ couponAmounts !! 0) $ one cashInstrumentCid
+      coupon2 = give $ scale (Const $ couponAmounts !! 1) $ one cashInstrumentCid
+      principal = give $ scale (Const notional) $ one cashInstrumentCid
+
+      --allClaims2 = when (at cpn1Date) $ give $ and coupon1 $ or called notCalled
+      --notCalled = ("NOT CALLED",) $ when (at cpn2Date) $ and coupon2 $ or called notCalledFinal
+      notCalledFinal = when (at cpn2Date) $ principal
+      notCalled = when (at cpn2Date) $ and coupon2 $ notCalledFinal
+      allClaims2 = when (at cpn1Date) $ give $ and coupon1 $ notCalled
+
+      -- TODO
+      -- x 1. replace function calls by actual claim construction
+      -- x 2. simplify: similar to callable claims form, but without or-nodes (still Evolve based lifecycling)
+      -- x  2a. hard-coded for 2 coupon dates
+      -- >  3. replace by callable claim construction (from generic bootstrap function)
+      -- >  3a. hard-coded for 2 coupon dates
+      --    b. dynamic: map over coupon dates
+      -- 4. replace Evolve-based lifecycling by Election based (copy from EuropeanPhysical src/test)
+    --in prepareAndTagClaims dateToTime allClaims "Fix rate payment"
+    in prepareAndTagClaims dateToTime [allClaims2] "Fix rate payment"
 
 -- | Calculate a fix rate amount (if a credit event has not yet happened) for each payment date and
 -- create claims.
