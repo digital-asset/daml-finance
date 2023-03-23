@@ -6,17 +6,21 @@ module Daml.Finance.Settlement.Test.Transfer where
 import DA.Assert ((===))
 import DA.List (head)
 import DA.Map qualified as M (fromList)
+import DA.Optional (isNone, isSome)
 import DA.Set qualified as S (empty, fromList, singleton)
 import Daml.Finance.Account.Account qualified as Account (T)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
+import Daml.Finance.Interface.Account.Account qualified as Account (I, getKey)
+import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (I, Split(..))
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Factory qualified as Settlement (F, Instruct(..))
-import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..), I)
 import Daml.Finance.Interface.Settlement.RouteProvider qualified as RouteProvider (I, Discover(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), InstructionKey(..), Step(..))
-import Daml.Finance.Interface.Types.Common.Types (Id(..))
+import Daml.Finance.Interface.Types.Common.Types (AccountKey(..), Id(..))
 import Daml.Finance.Interface.Util.Common (qty)
 import Daml.Finance.Settlement.Factory (Factory(..))
+import Daml.Finance.Settlement.Instruction qualified as Instruction (T)
 import Daml.Finance.Settlement.RouteProvider.SingleCustodian (SingleCustodian(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), credit, createAccount, createFactory)
 import Daml.Finance.Test.Util.Common (createParties)
@@ -91,6 +95,31 @@ run = script do
       instructors = S.singleton bank; settlers = S.singleton bank; id = Id "transfer 1"
       description = "transfer of USD 200000.0 payment"; contextId = None; routedSteps
       settlementTime = None
+
+  -- Allocate instruction
+  (cashInstructionCid, _) <- submit sender do
+    exerciseCmd cashInstructionCid Instruction.Allocate with
+      actors = S.singleton sender; allocation = Pledge holdingCid
+
+  -- Holding is locked
+  Some cashInstruction <- queryInterfaceContractId sender cashInstructionCid
+  let Pledge holdingCid = cashInstruction.allocation
+  Some holding <- queryInterfaceContractId sender holdingCid
+  assertMsg "holding is locked" $ isSome holding.lock
+
+  -- Can't split the holding (as it is locked)
+  submitMustFail sender do
+    exerciseCmd (coerceInterfaceContractId @Fungible.I holdingCid) Fungible.Split with
+      amounts = [1.0, 2.0]
+
+  -- Cancel allocation
+  (cashInstructionCid, Some holdingCid) <- submit sender do
+    exerciseCmd cashInstructionCid Instruction.Allocate with
+      actors = S.singleton sender; allocation = Unallocated
+
+  -- Holding is not locked
+  Some holding <- queryInterfaceContractId sender holdingCid
+  assertMsg "holding is not locked" $ isNone holding.lock
 
   -- Allocate instruction
   (cashInstructionCid, _) <- submit sender do
@@ -201,73 +230,81 @@ run2 = script do
       contextId = None; routedSteps = routedSteps3; settlementTime = None
 
   let
-    verifyAccountDisclosureContexts owner ids = do
-      o <- (.observers) . snd . head <$> query @Account.T owner
-      let o' = M.fromList $ (\id -> (show id <> "(0)", S.singleton bank)) <$> ids
-      o === o'
+    verifyAccountDisclosureContexts :  AccountKey -> [ContractId Instruction.I] -> Script ()
+    verifyAccountDisclosureContexts account instructionCids = do
+      current <- (.observers) . snd . head <$> queryFilter @Account.T account.owner
+        (\a -> Account.getKey (toInterface @Account.I a) == account)
+      expected <- M.fromList <$> mapA
+        (\instructionCid -> do
+          Some instruction <- queryContractId account.owner
+            (fromInterfaceContractId @Instruction.T instructionCid)
+          pure (show $ key instruction, S.singleton bank)
+        )
+        instructionCids
+      current === expected
 
   -- check account observers
-  verifyAccountDisclosureContexts sender []
-  verifyAccountDisclosureContexts receiver []
+  verifyAccountDisclosureContexts senderAccount []
+  verifyAccountDisclosureContexts receiverAccount []
 
   -- Allocate instruction (in any order)
   -- first
   (cashInstructionCid1, _) <- submit sender do
     exerciseCmd cashInstructionCid1 Instruction.Allocate with
       actors = S.singleton sender; allocation = Pledge holdingCid1
-  verifyAccountDisclosureContexts sender [id1]
+  verifyAccountDisclosureContexts senderAccount [cashInstructionCid1]
   (cashInstructionCid1, Some holdingCid1) <- submit sender do
     exerciseCmd cashInstructionCid1 Instruction.Allocate with
       actors = S.singleton sender; allocation = Unallocated
-  verifyAccountDisclosureContexts sender []
+  verifyAccountDisclosureContexts senderAccount []
   (cashInstructionCid1, _) <- submit sender do
     exerciseCmd cashInstructionCid1 Instruction.Allocate with
       actors = S.singleton sender; allocation = Pledge holdingCid1
-  verifyAccountDisclosureContexts sender [id1]
+  verifyAccountDisclosureContexts senderAccount [cashInstructionCid1]
   -- second
   (cashInstructionCid2, _) <- submit sender do
     exerciseCmd cashInstructionCid2 Instruction.Allocate with
       actors = S.singleton sender; allocation = Pledge holdingCid2
-  verifyAccountDisclosureContexts sender [id1, id2]
+  verifyAccountDisclosureContexts senderAccount [cashInstructionCid1, cashInstructionCid2]
   -- third
   (cashInstructionCid3, _) <- submit sender do
     exerciseCmd cashInstructionCid3 Instruction.Allocate with
       actors = S.singleton sender; allocation = Pledge holdingCid3
-  verifyAccountDisclosureContexts sender [id1, id2, id3]
+  verifyAccountDisclosureContexts senderAccount [cashInstructionCid1, cashInstructionCid2, cashInstructionCid3]
 
   -- Approve instruction (in any order)
   -- third
   cashInstructionCid3 <- submit receiver do
     exerciseCmd cashInstructionCid3 Instruction.Approve with
       actors = S.singleton receiver; approval = TakeDelivery receiverAccount
-  verifyAccountDisclosureContexts receiver [id3]
+  verifyAccountDisclosureContexts receiverAccount [cashInstructionCid3]
   -- first
   cashInstructionCid1 <- submit receiver do
     exerciseCmd cashInstructionCid1 Instruction.Approve with
       actors = S.singleton receiver; approval = TakeDelivery receiverAccount
-  verifyAccountDisclosureContexts receiver [id1, id3]
+  verifyAccountDisclosureContexts receiverAccount [cashInstructionCid1, cashInstructionCid3]
   -- second
   cashInstructionCid2 <- submit receiver do
     exerciseCmd cashInstructionCid2 Instruction.Approve with
       actors = S.singleton receiver; approval = TakeDelivery receiverAccount
-  verifyAccountDisclosureContexts receiver [id1, id2, id3]
+  verifyAccountDisclosureContexts receiverAccount [cashInstructionCid1, cashInstructionCid2, cashInstructionCid3]
 
   -- Settle transfers (in any order)
   -- second
   [cashHoldingCid2] <- submitMulti [bank] [publicParty] do
     exerciseCmd batchCid2 Batch.Settle with actors = S.singleton bank
-  verifyAccountDisclosureContexts sender [id1, id3]
-  verifyAccountDisclosureContexts receiver [id1, id3]
+  verifyAccountDisclosureContexts receiverAccount [cashInstructionCid1, cashInstructionCid3]
+  verifyAccountDisclosureContexts receiverAccount [cashInstructionCid1, cashInstructionCid3]
   -- first
   [cashHoldingCid1] <- submitMulti [bank] [publicParty] do
     exerciseCmd batchCid1 Batch.Settle with actors = S.singleton bank
-  verifyAccountDisclosureContexts sender [id3]
-  verifyAccountDisclosureContexts receiver [id3]
+  verifyAccountDisclosureContexts senderAccount [cashInstructionCid3]
+  verifyAccountDisclosureContexts receiverAccount [cashInstructionCid3]
   -- third
   [cashHoldingCid3] <- submitMulti [bank] [publicParty] do
     exerciseCmd batchCid3 Batch.Settle with actors = S.singleton bank
-  verifyAccountDisclosureContexts sender []
-  verifyAccountDisclosureContexts receiver []
+  verifyAccountDisclosureContexts senderAccount []
+  verifyAccountDisclosureContexts receiverAccount []
 
   -- Assert state
   let ts = [(receiver, cashHoldingCid1), (receiver, cashHoldingCid2), (receiver, cashHoldingCid3)]

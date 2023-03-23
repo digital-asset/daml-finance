@@ -10,9 +10,8 @@ import DA.Optional (catOptionals, fromOptional)
 import DA.Set (Set)
 import DA.Set qualified as S (empty, member, fromList, insert, intersection, null, size, union)
 import DA.Traversable qualified as T
-import Daml.Finance.Interface.Holding.Base qualified as Holding (I)
 import Daml.Finance.Interface.Holding.Util (undisclose)
-import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Cancel(..), HasImplementation, I, Settle(..), View(..))
+import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Cancel(..), I, Settle(..), View(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Cancel(..), Execute(..), I)
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), InstructionKey(..), RoutedStep(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..), Parties)
@@ -20,8 +19,6 @@ import Daml.Finance.Settlement.Instruction (Instruction(..), mustAuthorizeHelper
 
 -- | Type synonym for `Batch`.
 type T = Batch
-
-instance Batch.HasImplementation T
 
 -- | Type for batch key.
 data BatchKey = BatchKey
@@ -56,7 +53,6 @@ template Batch
 
     let
       (routedSteps, instructionIds) = unzip routedStepsWithInstructionId
-      undiscloseT actors = undisclose @Holding.I (show id, settlers) actors
       buildKey instructionId = InstructionKey with requestors; batchId = id; id = instructionId
 
     interface instance Batch.I for Batch where
@@ -73,34 +69,39 @@ template Batch
         -- settle
         let
           settleInstruction instruction = do
-            instructionCid <- fst <$> (fetchByKey @Instruction $ key instruction)
-            oAllocatedHolding <- case instruction.allocation of
+            let
+              instructionKey = key instruction
+              context = show instructionKey
+            instructionCid <- fst <$> fetchByKey @Instruction instructionKey
+            pledged <- case instruction.allocation of
               Pledge cid -> Some <$> fetch cid
               _ -> pure None
-            oSettledHoldingCid <- exercise (toInterfaceContractId @Instruction.I instructionCid)
+            settledCid <- exercise (toInterfaceContractId @Instruction.I instructionCid)
               Instruction.Execute with actors = actors `S.union` requestors
-            oSettledHolding <- T.mapA fetch oSettledHoldingCid
+            settled <- T.mapA fetch settledCid
             let
-              usedTypeRepOpts = fmap
-                (\t -> (instruction.routedStep.quantity.unit, interfaceTypeRep t)) <$>
-                [oAllocatedHolding, oSettledHolding]
-            oHoldingCid <-
-              T.mapA (\tCid -> fromOptional tCid <$> undiscloseT actors tCid) oSettledHoldingCid
-            pure (oHoldingCid, usedTypeRepOpts)
+              usedInterfaceTypeReps =
+                fmap ((instruction.routedStep.quantity.unit, ) . interfaceTypeRep) <$>
+                [pledged, settled]
+            settledCid <-
+              T.mapA
+                (\cid -> fromOptional cid <$> undisclose (context, settlers) actors cid)
+                settledCid
+            pure (settledCid, usedInterfaceTypeReps)
         -- execute instructions
-        (oHoldingCids, oUsedTypeReps) <- unzip <$> mapA settleInstruction orderedInstructions
+        (settledCids, usedInterfaceTypeReps) <- unzip <$> mapA settleInstruction orderedInstructions
         -- consistency check
-        forA_ (groupOn fst . catOptionals . concat $ oUsedTypeReps) \ts ->
+        forA_ (groupOn fst . catOptionals . concat $ usedInterfaceTypeReps) \ts ->
           assertMsg "Allocated holdings of the same instrument must have the same template type rep"
             $ S.size (S.fromList ts) == 1
-        pure $ catOptionals oHoldingCids
+        pure $ catOptionals settledCids
       cancel Batch.Cancel{actors} = do
         let
           mustAuthorize = mustAuthorizeHelper actors
           cancelInstruction instruction = do
             instructionCid <- fst <$> fetchByKey @Instruction instruction
-            exercise (toInterfaceContractId @Instruction.I instructionCid) Instruction.Cancel with
-              actors
+            exercise (toInterfaceContractId @Instruction.I instructionCid)
+              Instruction.Cancel with actors
         mustAuthorize requestors
         -- cancel instructions
         catOptionals <$> mapA (cancelInstruction . buildKey . snd) routedStepsWithInstructionId

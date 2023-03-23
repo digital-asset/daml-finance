@@ -9,26 +9,26 @@ Stable Packages
 |--------------------------------------------|--------------------|----------------|
 | ContingentClaims.Core                      | 1.0.0              | 1.0.1          |
 | ContingentClaims.Lifecycle                 | 1.0.0              | 1.0.1          |
-| Daml.Finance.Account                       | 1.0.1              | 1.0.2          |
+| Daml.Finance.Account                       | 1.0.1              | 2.0.0          |
 | Daml.Finance.Claims                        | 1.0.1              | 1.0.2          |
-| Daml.Finance.Data                          | 1.0.1              | 1.0.2          |
-| Daml.Finance.Holding                       | 1.0.2              | 1.1.0          |
-| Daml.Finance.Instrument.Generic            | 1.0.1              | 1.0.2          |
-| Daml.Finance.Instrument.Token              | 1.0.1              | 1.0.2          |
-| Daml.Finance.Interface.Account             | 1.0.0              | 1.0.1          |
-| Daml.Finance.Interface.Claims              | 1.0.0              | 1.0.1          |
-| Daml.Finance.Interface.Data                | 2.0.0              | 2.0.1          |
-| Daml.Finance.Interface.Holding             | 1.0.0              | 1.0.1          |
-| Daml.Finance.Interface.Instrument.Base     | 1.0.0              | 1.0.1          |
-| Daml.Finance.Interface.Instrument.Generic  | 1.0.0              | 1.0.1          |
-| Daml.Finance.Interface.Instrument.Token    | 1.0.0              | 1.0.1          |
-| Daml.Finance.Interface.Lifecycle           | 1.0.0              | 1.0.1          |
-| Daml.Finance.Interface.Settlement          | 1.0.0              | 1.0.1          |
-| Daml.Finance.Interface.Types.Common        | 1.0.0              | 1.0.0          |
-| Daml.Finance.Interface.Types.Date          | 2.0.0              | 2.0.0          |
-| Daml.Finance.Interface.Util                | 1.0.0              | 1.0.0          |
-| Daml.Finance.Lifecycle                     | 1.0.1              | 1.0.2          |
-| Daml.Finance.Settlement                    | 1.0.2              | 1.0.3          |
+| Daml.Finance.Data                          | 1.0.1              | 2.0.0          |
+| Daml.Finance.Holding                       | 1.0.2              | 2.0.0          |
+| Daml.Finance.Instrument.Generic            | 1.0.1              | 2.0.0          |
+| Daml.Finance.Instrument.Token              | 1.0.1              | 2.0.0          |
+| Daml.Finance.Interface.Account             | 1.0.0              | 2.0.0          |
+| Daml.Finance.Interface.Claims              | 1.0.0              | 2.0.0          |
+| Daml.Finance.Interface.Data                | 2.0.0              | 3.0.0          |
+| Daml.Finance.Interface.Holding             | 1.0.0              | 2.0.0          |
+| Daml.Finance.Interface.Instrument.Base     | 1.0.0              | 2.0.0          |
+| Daml.Finance.Interface.Instrument.Generic  | 1.0.0              | 2.0.0          |
+| Daml.Finance.Interface.Instrument.Token    | 1.0.0              | 2.0.0          |
+| Daml.Finance.Interface.Lifecycle           | 1.0.0              | 2.0.0          |
+| Daml.Finance.Interface.Settlement          | 1.0.0              | 2.0.0          |
+| Daml.Finance.Interface.Types.Common        | 1.0.0              | 1.0.1          |
+| Daml.Finance.Interface.Types.Date          | 2.0.0              | 2.0.1          |
+| Daml.Finance.Interface.Util                | 1.0.0              | 1.0.1          |
+| Daml.Finance.Lifecycle                     | 1.0.1              | 2.0.0          |
+| Daml.Finance.Settlement                    | 1.0.2              | 2.0.0          |
 | Daml.Finance.Util                          | 2.0.0              | 2.0.1          |
 
 Early Access Packages
@@ -37,18 +37,20 @@ Early Access Packages
 | Package                                    | Released version   | Target version |
 |--------------------------------------------|--------------------|----------------|
 | ContingentClaims.Valuation                 | 0.2.0              | 0.2.1          |
-| Daml.Finance.Instrument.Bond               | 0.2.1              | 0.2.2          |
-| Daml.Finance.Instrument.Equity             | 0.2.1              | 0.2.2          |
-| Daml.Finance.Instrument.Option             | 0.1.0              | 0.1.1          |
-| Daml.Finance.Instrument.Swap               | 0.2.1              | 0.2.2          |
-| Daml.Finance.Interface.Instrument.Bond     | 0.2.1              | 0.2.1          |
-| Daml.Finance.Interface.Instrument.Equity   | 0.2.0              | 0.2.1          |
-| Daml.Finance.Interface.Instrument.Option   | 0.1.0              | 0.1.0          |
-| Daml.Finance.Interface.Instrument.Swap     | 0.2.1              | 0.2.2          |
+| Daml.Finance.Instrument.Bond               | 0.2.1              | 0.3.0          |
+| Daml.Finance.Instrument.Equity             | 0.2.1              | 0.3.0          |
+| Daml.Finance.Instrument.Option             | 0.1.0              | 0.2.0          |
+| Daml.Finance.Instrument.Swap               | 0.2.1              | 0.3.0          |
+| Daml.Finance.Interface.Instrument.Bond     | 0.2.1              | 0.3.0          |
+| Daml.Finance.Interface.Instrument.Equity   | 0.2.0              | 0.3.0          |
+| Daml.Finance.Interface.Instrument.Option   | 0.1.0              | 0.2.0          |
+| Daml.Finance.Interface.Instrument.Swap     | 0.2.1              | 0.3.0          |
 
 ## Pending changes
 
 #### ContingentClaims.Core
+
+- Dependencies update
 
 - Style changes
 
@@ -68,6 +70,9 @@ Early Access Packages
 
 - Dependencies update
 
+- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`
+  implementation was removed as well as redundant `HasImplementation` instances)
+
 #### Daml.Finance.Claims
 
 - Dependencies update
@@ -80,12 +85,20 @@ Early Access Packages
 
 - Style changes
 
+- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`,
+  `asNumericObservable`, `asTimeObservable`, and `asEvent` implementations were removed as well as
+  redundant `HasImplementation` instances)
+
 #### Daml.Finance.Holding
 
 - Dependencies update
 
 - Added default `splitImpl` and `mergeImpl` for `Fungible` to `Util.daml` (also generalized the
-  `acquireImpl` and `releaseImpl` to not rely on an attribute called "lock").
+  `acquireImpl` and `releaseImpl` to not rely on an attribute called "lock")
+
+- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`,
+  `asBase`, and `asTransferable` implementations were removed as well as redundant
+  `HasImplementation` instances)
 
 #### Daml.Finance.Instrument.Bond
 
@@ -93,9 +106,17 @@ Early Access Packages
 
 - Style changes
 
+- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
+  `asBaseInstrument` implementations were removed as well as redundant `HasImplementation`
+  instances)
+
 #### Daml.Finance.Instrument.Equity
 
 - Dependencies update
+
+- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
+  `asBaseInstrument` implementations were removed as well as redundant `HasImplementation`
+  instances)
 
 #### Daml.Finance.Instrument.Generic
 
@@ -105,17 +126,25 @@ Early Access Packages
 
 - Move Election logic from Generic to Lifecycle (to facilitate code reuse)
 
+- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`,
+  `asBaseInstrument`, and `asClaim` implementations were removed as well as redundant
+  `HasImplementation` instances)
+
 #### Daml.Finance.Instrument.Option
 
 - Dependencies update
 
 - Style changes
 
-- Add physically settled European options (EuropeanPhysical).
+- Add physically settled European options (EuropeanPhysical)
 
-- Renamed cash-settled European options (European -> EuropeanCash).
+- Renamed cash-settled European options (European -> EuropeanCash)
 
 - Add dividend options
+
+- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
+  `asBaseInstrument` implementations were removed as well as redundant `HasImplementation`
+  instances)
 
 #### Daml.Finance.Instrument.Swap
 
@@ -123,17 +152,33 @@ Early Access Packages
 
 - Style changes
 
+- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
+  `asBaseInstrument` implementations were removed as well as redundant `HasImplementation`
+  instances)
+
 #### Daml.Finance.Instrument.Token
 
 - Dependencies update
+
+- Makes use of `requires` to enforce the interface hierarchy (in the particular `asDisclosure` and
+  `asBaseInstrument` implementations were removed as well as redundant `HasImplementation`
+  instances)
 
 #### Daml.Finance.Interface.Account
 
 - Dependencies update
 
+- Removed `type K = AccountKey`
+
+- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`
+  method was removed as well as the redundant `HasImplementation` type class)
+
 #### Daml.Finance.Interface.Claims
 
 - Dependencies update
+
+- Makes use of `requires` to enforce the interface hierarchy (in particular the `asBaseInstrument`
+  method was removed as well as the redundant `HasImplementation` type class)
 
 #### Daml.Finance.Interface.Data
 
@@ -141,9 +186,19 @@ Early Access Packages
 
 - Style changes
 
+- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`,
+  `asNumericObservable`, and `asTimeObservable` methods were removed as well as the redundant
+  `HasImplementation` type class)
+
 #### Daml.Finance.Interface.Holding
 
+- Dependencies update
+
 - Style changes
+
+- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`,
+  `asBase`, and `asTransferable` methods were removed as well as the redundant `HasImplementation`
+  type class)
 
 #### Daml.Finance.Interface.Instrument.Base
 
@@ -151,15 +206,27 @@ Early Access Packages
 
 - Style changes
 
+- Removed `type K = InstrumentKey`
+
+- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`
+  method was removed as well as the redundant `HasImplementation` type class)
+
 #### Daml.Finance.Interface.Instrument.Bond
 
 - Dependencies update
 
 - Added `GetView` to all instruments
 
+- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
+  `asBaseInstrument` methods were removed as well as the redundant `HasImplementation` type
+  classes)
+
 #### Daml.Finance.Interface.Instrument.Equity
 
 - Dependencies update
+
+- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
+  `asBaseInstrument` methods were removed as well as the redundant `HasImplementation` type class)
 
 #### Daml.Finance.Interface.Instrument.Generic
 
@@ -167,17 +234,25 @@ Early Access Packages
 
 - Move Election logic from Generic to Lifecycle (to facilitate code reuse)
 
+- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`,
+  `asBaseInstrument`, and `asClaim` methods were removed as well as the redundant
+  `HasImplementation` type class)
+
 #### Daml.Finance.Interface.Instrument.Option
 
 - Dependencies update
 
-- Add physically settled European options (EuropeanPhysical).
+- Add physically settled European options (EuropeanPhysical)
 
-- Renamed cash-settled European options (European -> EuropeanCash).
+- Renamed cash-settled European options (European -> EuropeanCash)
 
 - Added `GetView` to all instruments
 
 - Add dividend options
+
+- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`,
+  `asBaseInstrument`, and `asEvent` methods were removed as well as the redundant
+  `HasImplementation` type class)
 
 #### Daml.Finance.Interface.Instrument.Swap
 
@@ -187,9 +262,15 @@ Early Access Packages
 
 - Added `GetView` to all instruments
 
+- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
+  `asBaseInstrument` methods were removed as well as the redundant `HasImplementation` type class)
+
 #### Daml.Finance.Interface.Instrument.Token
 
 - Dependencies update
+
+- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
+  `asBaseInstrument` methods were removed as well as the redundant `HasImplementation` type class)
 
 #### Daml.Finance.Interface.Lifecycle
 
@@ -199,15 +280,32 @@ Early Access Packages
 
 - Move Election logic from Generic to Lifecycle (to facilitate code reuse)
 
+- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
+  `asEvent` methods were removed as well as the redundant `HasImplementation` type class)
+
 #### Daml.Finance.Interface.Settlement
+
+- Dependencies update
 
 - Style changes
 
+- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` was
+  removed as well as the redundant `HasImplementation` type class)
+
 #### Daml.Finance.Interface.Types.Common
+
+- Dependencies update
 
 #### Daml.Finance.Interface.Types.Date
 
+- Dependencies update
+
 #### Daml.Finance.Interface.Util
+
+- Dependencies update
+
+- Makes use of `requires` to enforce the interface hierarchy (in particular the redundant
+  `HasImplementation` type class was removed)
 
 #### Daml.Finance.Lifecycle
 
@@ -217,12 +315,23 @@ Early Access Packages
 
 - Move Election logic from Generic to Lifecycle (to facilitate code reuse)
 
+- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
+  `asEvent` implementations were removed as well as redundant `HasImplementation` instances)
+
 #### Daml.Finance.Settlement
 
 - Dependencies update
 
 - Style changes
 
+- Added locking to the `Instruction` (pledge is locked to requestors and the outgoing controllers of
+  the sending account)
+
+- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`
+  implementation was removed as well as redundant `HasImplementation` instances)
+
 #### Daml.Finance.Util
+
+- Dependencies update
 
 - Style changes
