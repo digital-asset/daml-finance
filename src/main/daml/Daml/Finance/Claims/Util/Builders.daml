@@ -11,6 +11,7 @@ module Daml.Finance.Claims.Util.Builders where
 import ContingentClaims.Core.Builders (european)
 import ContingentClaims.Core.Claim (Claim(..), Inequality(..), and, at, cond, give, one, or, orList, scale, upTo, when, until, zero)
 import ContingentClaims.Core.Observation (Observation(..))
+import DA.List (head, last, tail)
 import Daml.Finance.Claims.Util (toTime)
 import Daml.Finance.Interface.Claims.Types (Deliverable, Observable, TaggedClaim(..))
 import Daml.Finance.Interface.Types.Common.Types (InstrumentQuantity)
@@ -18,7 +19,6 @@ import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
 import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..), Schedule)
 import Daml.Finance.Util.Date.DayCount (calcPeriodDcf)
 import Prelude hiding (and, key, or)
-import DA.List ((!!))
 
 type O = Observation Date Decimal Observable
 type C = Claim Date Decimal Deliverable Observable
@@ -63,10 +63,10 @@ createFixRatePaymentClaims dateToTime schedule periodicSchedule useAdjustedDates
 
 -- | Calculate the claims for callable bond: fix rate amount for each payment date and a redemption
 -- amount at the end (unless called by the issuer).
-createCallableFixRateBondClaims : (Date -> Time) -> Schedule -> PeriodicSchedule -> Bool -> Decimal
-  -> Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> TaggedClaim
+createCallableFixRateBondClaims : (Date -> Time) -> Schedule -> PeriodicSchedule -> Bool
+  -> Decimal -> DayCountConventionEnum -> Decimal -> Deliverable -> TaggedClaim
 createCallableFixRateBondClaims dateToTime schedule periodicSchedule useAdjustedDatesForDcf
-  couponRate ownerReceives dayCountConvention notional cashInstrumentCid =
+  couponRate dayCountConvention notional cashInstrumentCid =
     let
       couponDatesAdjusted = map (.adjustedEndDate) schedule
       couponAmounts = map (\p ->
@@ -74,82 +74,25 @@ createCallableFixRateBondClaims dateToTime schedule periodicSchedule useAdjusted
           (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf
             periodicSchedule.terminationDate periodicSchedule.frequency)
         ) schedule
-      couponClaimAmounts = mconcat $
-        zipWith
-          (\d a ->
-            when (TimeGte d) $ scale (Const a) $ scale (Const notional) $ one cashInstrumentCid
-          ) couponDatesAdjusted couponAmounts
-      couponClaims = [if ownerReceives then couponClaimAmounts else give couponClaimAmounts]
-      fxLegClaimAmount = when (TimeGte periodicSchedule.terminationDate)
-                        $ scale (Const notional)
-                        $ one cashInstrumentCid
-      fxLegClaim = if ownerReceives then fxLegClaimAmount else give fxLegClaimAmount
-      allClaims = mconcat [couponClaims, [fxLegClaim]]
-
-      p1 = schedule !! 0
-      p2 = schedule !! 1
-      p3 = schedule !! 2
-
-      cpn1Date = couponDatesAdjusted !! 0
-      cpn2Date = couponDatesAdjusted !! 1
-      cpn3Date = couponDatesAdjusted !! 2
-
-      coupon1 = give $ scale (Const $ couponAmounts !! 0) $ one cashInstrumentCid
-      coupon2 = give $ scale (Const $ couponAmounts !! 1) $ one cashInstrumentCid
-      coupon3 = give $ scale (Const $ couponAmounts !! 2) $ one cashInstrumentCid
+      coupons = map (\c -> give $ scale (Const c) $ one cashInstrumentCid) couponAmounts
       principal = give $ scale (Const notional) $ one cashInstrumentCid
+      firstCouponDate = head couponDatesAdjusted
+      finalCouponDate = last couponDatesAdjusted
+      firstCoupon = head coupons
 
-      notCalledFinal = when (at cpn2Date) $ principal
-      notCalled = when (at cpn2Date) $ and coupon2 $ notCalledFinal
-      allClaims2 = when (at cpn1Date) $ give $ and coupon1 $ notCalled
-
-      notCalledFinal = ("NOT CALLED",) $ when (at cpn2Date) $ principal
-      called = ("CALLED",) principal -- TODO: enable separate callPrincipal
-      notCalled = ("NOT CALLED",) $ when (at cpn2Date) $ and coupon2 $ or called notCalledFinal
-      notCalledInclFinal = ("NOT CALLED",) $ when (at cpn2Date) $ and coupon2 $ principal
-      --notCalled = when (at cpn2Date) $ and coupon2 $ or called notCalledFinal
-      --allClaims2 = when (at cpn1Date) $ give $ and coupon1 $ or called notCalled
-      allClaims2 = when (at cpn1Date) $ give $ and coupon1 $ or called notCalledInclFinal
-      --allClaims2 = when (at cpn1Date) $ give $ and coupon1 notCalled
-
+      called = ("CALLED",) principal
       tagNotCalled = "NOT CALLED"
+      notCalledFinal = (tagNotCalled,) $ when (at finalCouponDate) $ principal
 
       combineTagClaim tag cpnDate coupon notCalledClaim =
         (tag,) $ when (at cpnDate) $ and coupon $ or called notCalledClaim
 
-      --TODO: write claims for 3 coupons
-      notCalledFinal = (tagNotCalled,) $ when (at cpn3Date) $ principal
+      tailClaims = foldl (\acc (date, cpn) -> combineTagClaim tagNotCalled date cpn acc)
+        notCalledFinal $ reverse $ tail $ zip couponDatesAdjusted coupons
 
-      notCalled3 = ("NOT CALLED",) $ when (at cpn3Date) $ and coupon3 $ or called notCalledFinal
-      notCalled3 = combineTagClaim tagNotCalled cpn3Date coupon3 notCalledFinal
+      allClaims = when (at firstCouponDate) $ give $ and firstCoupon $ or called tailClaims
 
-      notCalled2 = ("NOT CALLED",) $ when (at cpn2Date) $ and coupon2 $ or called notCalled3
-      notCalled2 = combineTagClaim tagNotCalled cpn2Date coupon2 notCalled3
-
-      allClaims1 = when (at cpn1Date) $ give $ and coupon1 $ or called notCalled2
-
-      cpnDates = [cpn2Date, cpn3Date]
-      coupons = [coupon2, coupon3]
-
-      --claims2ToN = foldl (\acc (d,c) ("NOT CALLED",) $ when (at cpn2Date) $ and coupon2 $ or called acc ) (when (at cpn3Date) $ principal) $ zip cpnDates coupons
-      claims2ToN = foldl (\acc (d,c) -> combineTagClaim tagNotCalled d c acc ) notCalledFinal $ reverse $ zip cpnDates coupons
-      allClaims1 = when (at cpn1Date) $ give $ and coupon1 $ or called claims2ToN
-
-
-      -- TODO
-      -- x 1. replace function calls by actual claim construction
-      -- x 2. simplify: similar to callable claims form, but without or-nodes (still Evolve based lifecycling)
-      -- x  2a. hard-coded for 2 coupon dates
-      -- >  3. replace by callable claim construction (from generic bootstrap function)
-      --    and replace Evolve-based lifecycling by Election based (copy from EuropeanPhysical src/test)
-      -- x  3b. hard-coded: coupon date 1 regular, coupon date 2 callable (expect Evolve to work)
-      -- x  3b. hard-coded for 2 callable coupon dates
-      -- >   4. add a 3rd coupon date
-      -- >   a. hardcoded
-      --    b. dynamic: map over coupon dates
-
-    --in prepareAndTagClaims dateToTime allClaims "Fix rate payment"
-    in prepareAndTagClaims dateToTime [allClaims1] "Callable bond payment"
+    in prepareAndTagClaims dateToTime [allClaims] "Callable bond payment"
 
 -- | Calculate a fix rate amount (if a credit event has not yet happened) for each payment date and
 -- create claims.

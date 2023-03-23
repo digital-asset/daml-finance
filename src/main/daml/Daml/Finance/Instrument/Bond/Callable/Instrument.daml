@@ -25,9 +25,9 @@ type T = Instrument
 
 instance Callable.HasImplementation T
 
--- FIXED_RATE_BOND_TEMPLATE_BEGIN
--- | This template models a fixed rate bond.
--- It pays a fixed coupon rate at the end of every coupon period.
+-- CALLABLE_BOND_TEMPLATE_BEGIN
+-- | This template models a callable bond.
+-- It pays a fixed coupon rate at the end of every coupon period (unless the bond has been called).
 template Instrument
   with
     depository : Party
@@ -60,14 +60,15 @@ template Instrument
       -- ^ (Market) time of the last recorded lifecycle event. If no event has occurred yet, the
       --   time of creation should be used.
     prevElections : [ElectionData]
--- FIXED_RATE_BOND_TEMPLATE_END
+      -- ^ A list of previous elections that have been lifecycled on this instrument so far.
+  -- CALLABLE_BOND_TEMPLATE_END
   where
     signatory depository, issuer
     observer Disclosure.flattenObservers observers
 
     let instrument = InstrumentKey with depository; issuer; id; version
 
-    -- FIXED_RATE_BOND_CLAIMS_BEGIN
+    -- CALLABLE_BOND_CLAIMS_BEGIN
     interface instance Claim.I for Instrument where
       view = Claim.View with acquisitionTime = dateToDateClockTime $ daysSinceEpochToDate 0
       asBaseInstrument = toInterface @BaseInstrument.I this
@@ -78,17 +79,10 @@ template Instrument
         let
           useAdjustedDatesForDcf = True
           notional = 1.0
-          ownerReceives = True
-          --fxAdjustment = 1.0
-          couponClaims = createCallableFixRateBondClaims dateToDateClockTime schedule periodicSchedule
-            useAdjustedDatesForDcf couponRate ownerReceives dayCountConvention notional currency
-     {-      redemptionClaim = createFxAdjustedPrincipalClaim dateToDateClockTime ownerReceives
-            fxAdjustment notional currency periodicSchedule.terminationDate  -}
-        debug couponClaims
-        debug schedule
-        debug $ length schedule
+          couponClaims = createCallableFixRateBondClaims dateToDateClockTime schedule
+            periodicSchedule useAdjustedDatesForDcf couponRate dayCountConvention notional currency
         pure [couponClaims]
-    -- FIXED_RATE_BOND_CLAIMS_END
+    -- CALLABLE_BOND_CLAIMS_END
 
     interface instance BaseInstrument.I for Instrument where
       asDisclosure = toInterface @Disclosure.I this
@@ -99,7 +93,7 @@ template Instrument
     interface instance Callable.I for Instrument where
       asBaseInstrument = toInterface @BaseInstrument.I this
       view = Callable.View with
-        fixedRate = Callable with
+        callable = Callable with
           instrument
           description
           couponRate
@@ -114,8 +108,7 @@ template Instrument
     interface instance DynamicInstrument.I for Instrument where
       view = DynamicInstrument.View with lifecycler = issuer; lastEventTimestamp; prevElections
       createNewVersion DynamicInstrument.CreateNewVersion{version; lastEventTimestamp} = do
-        cid <- create this with version; lastEventTimestamp -- TODO: Add lastEventTimestamps
-        -- TODO: for non-election instruments, set lastEventTimestamps=[] when creating view
+        cid <- create this with version; lastEventTimestamp
         BaseInstrument.createReference issuer $ toInterfaceContractId cid
         pure $ toInterfaceContractId cid
 

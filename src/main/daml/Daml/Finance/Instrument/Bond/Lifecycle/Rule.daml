@@ -58,112 +58,34 @@ template Rule
           electionTime = Election.getElectionTime election
           election = electionEvent electionTime v.electorIsOwner v.claim
 
-        debug "election"
-        debug electionTime
-        debug v.electorIsOwner
-        debug v.claim
-        debug v
-
-
+        -- retrieve election data for previous elections and re-create election events
         nv <- BaseInstrument.exerciseInterfaceByKey @DynamicInstrument.I v.instrument lifecycler
           DynamicInstrument.GetView with viewer = lifecycler
-        debug "nv"
-        debug nv
-        debug nv.prevElections
-
-{-
-        let
-          firstCouponDate = date 2019 May 15
-          prevElectionTime = toUTCTime . Unit $ firstCouponDate
-          prevElectionTime = nv.lastEventTimestamp
-          prevElectorIsOwner = True
-          prevElectionTag = "NOT CALLED"
-          prevElection = electionEvent prevElectionTime prevElectorIsOwner prevElectionTag
-        debug "prevElection"
-        debug prevElectionTime
-        debug prevElectorIsOwner
-        debug prevElectionTag
- -}
-
         let
           prevElections = map (\e -> electionEvent e.time e.electorIsOwner e.tag) nv.prevElections
 
-        -- fetch claim tree
+        -- fetch claim tree as of instrument inception
         claimInstrument <- fetchInterfaceByKey @BaseInstrument.R v.instrument
 
-{-
-        claims <- Claim.getClaims (toInterface @Claim.I claimInstrument) $ Claim.GetClaims with
-          actor = lifecycler
-        debug "claims before fastforward"
-        debug claims
- -}
-
-
+        -- fast-forward the claims tree to the current version by replaying the previous elections
         claims <- fst <$>
-          --lifecycle lifecycler observableCids claimInstrument [prevElection]
           lifecycle lifecycler observableCids claimInstrument prevElections
-        debug "claims after fastforward"
-        debug claims
 
-{-
-        let acquisitionTime = Claim.getAcquisitionTime claimInstrument
-        debug acquisitionTime
-        --v <- view <$> fetch eventCid
- -}
-
-        debug "observableCids"
-        debug observableCids
-
-        --(remaining, pending) <- lifecycleClaims observableCids acquisitionTime claims [election]
-        (remaining, pending) <- lifecycleClaims observableCids electionTime claims [election]
-        debug "remaining"
-        debug remaining
-        debug "pending"
-        debug pending
-        debug v
-
-{-
         -- lifecycle as of the time given by the event, by applying the corresponding election
-        (remaining, pending) <- lifecycle lifecycler observableCids claimInstrument [election]
-        debug "remaining"
-        debug remaining
-        debug "pending"
-        debug pending
- -}
+        (remaining, pending) <- lifecycleClaims observableCids electionTime claims [election]
 
         -- create new instrument and return effect
         if remaining == claims && null pending then
           pure (None, [])
         else do
-          -- TODO: Add support for >1 election level (i.e. there are claims remaining)
-          --assertMsg "Only single elections are currently supported" $ isZero' remaining
           let
             instrumentT : Instrument = fromSome $ fromInterface claimInstrument
             currentKey = BaseInstrument.getKey $ toInterface claimInstrument
             newKey = currentKey with version = sha256 $ show remaining
             producedInstrument = if isZero' remaining then None else Some newKey
             (otherConsumed, otherProduced) = splitPending pending
-
-          -- TODO: instead of lastEventTimestamp, store the list of elections made so far
-          --       what is needed to fastforward is the [election] list
-          --       but an election is not serializable
-          --       so instead, store the inputs: electionTime v.electorIsOwner v.claim
-          --       and then re-create each: election = electionEvent electionTime v.electorIsOwner v.claim
-          --       1. try storing only the last date (replay an event with that date + hardcoded True, "NOT CALLED")
-          --       currently, there is a duplicate key, because I create an instrument
-          --       with the same version (same remaining)
-          --       ensure that this is not done
-          --       possible next step: fastforward based on dynamic election from lasteventtimestamp
-          --       CONTINUE HERE.
-
-{-
-          newInstrumentCid <- BaseInstrument.exerciseInterfaceByKey @DynamicInstrument.I v.instrument
-            lifecycler DynamicInstrument.CreateNewVersion with
-              lastEventTimestamp = electionTime; version = newKey.version -}
           forA_ producedInstrument $
-            --tryCreateNewInstrument lifecycler claim electionTime instrumentT
             tryCreateNewInstrument lifecycler nv.prevElections electionTime v.electorIsOwner v.claim instrumentT
-
           effectCid <- toInterfaceContractId <$>
             create ElectionEffect with
               providers = fromList [instrumentT.issuer, instrumentT.depository]
@@ -188,26 +110,22 @@ template Rule
 
 -- | HIDE
 -- Check if an instrument for the new key already exists, otherwise create it.
-{- tryCreateNewInstrument : Party -> C -> Time -> Instrument -> InstrumentKey -> Update ()
-tryCreateNewInstrument actor newClaim eventTime oldInstrument newKey = do -}
-tryCreateNewInstrument : Party -> [ElectionData] -> Time -> Bool -> Text -> Instrument -> InstrumentKey -> Update ()
-tryCreateNewInstrument actor prevElections eventTime electorIsOwner claimTag oldInstrument newKey = do
-  existingRefCidOpt <- lookupByKey @BaseInstrument.R newKey
-  case existingRefCidOpt of
-    Some existingRefCid -> pure ()
-    None -> do
-      let
-        newElection = ElectionData with
-          time = eventTime
-          electorIsOwner = electorIsOwner
-          tag = claimTag
-      instCid <- create oldInstrument with
-        --claims = newClaim
-        lastEventTimestamp = eventTime
-        -- TODO: add eventTime to the previous lastEventTimestamps
-        --lastEventTimestamps = lastEventTimestamps ++ [eventTime]
-        --prevElections = [eventTime]
-        prevElections = prevElections ++ [newElection]
-        version = newKey.version
-      BaseInstrument.createReference actor $ toInterfaceContractId instCid
-      pure ()
+tryCreateNewInstrument : Party -> [ElectionData] -> Time -> Bool -> Text -> Instrument
+  -> InstrumentKey -> Update ()
+tryCreateNewInstrument actor prevElections eventTime electorIsOwner claimTag oldInstrument
+  newKey = do
+    existingRefCidOpt <- lookupByKey @BaseInstrument.R newKey
+    case existingRefCidOpt of
+      Some existingRefCid -> pure ()
+      None -> do
+        let
+          newElection = ElectionData with
+            time = eventTime
+            electorIsOwner = electorIsOwner
+            tag = claimTag
+        instCid <- create oldInstrument with
+          lastEventTimestamp = eventTime
+          prevElections = prevElections ++ [newElection]
+          version = newKey.version
+        BaseInstrument.createReference actor $ toInterfaceContractId instCid
+        pure ()
