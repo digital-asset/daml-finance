@@ -5,17 +5,22 @@ module Daml.Finance.Instrument.Bond.Lifecycle.Rule
   ( Rule(..)
   ) where
 
+import DA.Date
+import DA.Foldable (forA_)
 import DA.Optional (fromSome)
 import DA.Set (fromList)
 import DA.Text (sha256)
 import Daml.Finance.Claims.Util (isZero')
-import Daml.Finance.Claims.Util.Lifecycle (electionEvent, lifecycle, splitPending)
+import Daml.Finance.Claims.Util.Lifecycle (electionEvent, lifecycle, lifecycleClaims, splitPending)
+import Daml.Finance.Data.Time.DateClock.Types (Unit(..))
 import Daml.Finance.Instrument.Bond.Callable.Instrument (Instrument(..))
-import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, GetClaims(..), getClaims)
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (R, getKey)
+import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, GetClaims(..), getAcquisitionTime, getClaims)
+import Daml.Finance.Interface.Claims.Dynamic.Instrument qualified as DynamicInstrument (I, GetView(..))
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (R, createReference, exerciseInterfaceByKey, getKey)
 import Daml.Finance.Interface.Lifecycle.Election qualified as Election (ApplyElection(..), Exercisable(..), ExercisableView(..), getElectionTime)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..), View(..))
-import Daml.Finance.Interface.Types.Common.Types (Id(..), Parties, PartiesMap)
+import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey, Parties, PartiesMap)
+import Daml.Finance.Interface.Types.Date.Classes (toUTCTime)
 import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
 import Daml.Finance.Lifecycle.ElectionEffect (ElectionEffect(..))
@@ -56,13 +61,70 @@ template Rule
           electionTime = Election.getElectionTime election
           election = electionEvent electionTime v.electorIsOwner v.claim
 
+        debug "election"
+        debug electionTime
+        debug v.electorIsOwner
+        debug v.claim
+        debug v
+
+
+        nv <- BaseInstrument.exerciseInterfaceByKey @DynamicInstrument.I v.instrument lifecycler
+          DynamicInstrument.GetView with viewer = lifecycler
+        debug "nv"
+        debug nv
+
+        let
+          firstCouponDate = date 2019 May 15
+          prevElectionTime = toUTCTime . Unit $ firstCouponDate
+          prevElectionTime = nv.lastEventTimestamp
+          prevElectorIsOwner = True
+          prevElectionTag = "NOT CALLED"
+          prevElection = electionEvent prevElectionTime prevElectorIsOwner prevElectionTag
+        debug "prevElection"
+        debug prevElectionTime
+        debug prevElectorIsOwner
+        debug prevElectionTag
+
+
         -- fetch claim tree
         claimInstrument <- fetchInterfaceByKey @BaseInstrument.R v.instrument
+
         claims <- Claim.getClaims (toInterface @Claim.I claimInstrument) $ Claim.GetClaims with
           actor = lifecycler
+        debug "claims before fastforward"
+        debug claims
 
+
+
+        claims <- fst <$>
+          lifecycle lifecycler observableCids claimInstrument [prevElection]
+        debug "claims after fastforward"
+        debug claims
+
+        let acquisitionTime = Claim.getAcquisitionTime claimInstrument
+        debug acquisitionTime
+        --v <- view <$> fetch eventCid
+
+        debug "observableCids"
+        debug observableCids
+
+        --(remaining, pending) <- lifecycleClaims observableCids acquisitionTime claims [election]
+        (remaining, pending) <- lifecycleClaims observableCids electionTime claims [election]
+        debug "remaining"
+        debug remaining
+        debug "pending"
+        debug pending
+        debug v
+
+
+{-
         -- lifecycle as of the time given by the event, by applying the corresponding election
         (remaining, pending) <- lifecycle lifecycler observableCids claimInstrument [election]
+        debug "remaining"
+        debug remaining
+        debug "pending"
+        debug pending
+ -}
 
         -- create new instrument and return effect
         if remaining == claims && null pending then
@@ -74,9 +136,29 @@ template Rule
             instrumentT : Instrument = fromSome $ fromInterface claimInstrument
             currentKey = BaseInstrument.getKey $ toInterface claimInstrument
             newKey = currentKey with version = sha256 $ show remaining
-            [claim] = fmap (.claim) remaining
-            producedInstrument = None
+            producedInstrument = if isZero' remaining then None else Some newKey
             (otherConsumed, otherProduced) = splitPending pending
+
+          -- TODO: instead of lastEventTimestamp, store the list of elections made so far
+          --       what is needed to fastforward is the [election] list
+          --       but an election is not serializable
+          --       so instead, store the inputs: electionTime v.electorIsOwner v.claim
+          --       and then re-create each: election = electionEvent electionTime v.electorIsOwner v.claim
+          --       1. try storing only the last date (replay an event with that date + hardcoded True, "NOT CALLED")
+          --       currently, there is a duplicate key, because I create an instrument
+          --       with the same version (same remaining)
+          --       ensure that this is not done
+          --       possible next step: fastforward based on dynamic election from lasteventtimestamp
+          --       CONTINUE HERE.
+
+{-
+          newInstrumentCid <- BaseInstrument.exerciseInterfaceByKey @DynamicInstrument.I v.instrument
+            lifecycler DynamicInstrument.CreateNewVersion with
+              lastEventTimestamp = electionTime; version = newKey.version -}
+          forA_ producedInstrument $
+            --tryCreateNewInstrument lifecycler claim electionTime instrumentT
+            tryCreateNewInstrument lifecycler electionTime instrumentT
+
           effectCid <- toInterfaceContractId <$>
             create ElectionEffect with
               providers = fromList [instrumentT.issuer, instrumentT.depository]
@@ -98,3 +180,20 @@ template Rule
       setObservers = setObserversImpl @Rule @Disclosure.I this None
       addObservers = addObserversImpl @Rule @Disclosure.I this None
       removeObservers = removeObserversImpl @Rule @Disclosure.I this None
+
+-- | HIDE
+-- Check if an instrument for the new key already exists, otherwise create it.
+{- tryCreateNewInstrument : Party -> C -> Time -> Instrument -> InstrumentKey -> Update ()
+tryCreateNewInstrument actor newClaim eventTime oldInstrument newKey = do -}
+tryCreateNewInstrument : Party -> Time -> Instrument -> InstrumentKey -> Update ()
+tryCreateNewInstrument actor eventTime oldInstrument newKey = do
+  existingRefCidOpt <- lookupByKey @BaseInstrument.R newKey
+  case existingRefCidOpt of
+    Some existingRefCid -> pure ()
+    None -> do
+      instCid <- create oldInstrument with
+        --claims = newClaim
+        lastEventTimestamp = eventTime
+        version = newKey.version
+      BaseInstrument.createReference actor $ toInterfaceContractId instCid
+      pure ()
