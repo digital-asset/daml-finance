@@ -13,7 +13,7 @@ import Daml.Finance.Claims.Util (isZero')
 import Daml.Finance.Claims.Util.Lifecycle (electionEvent, lifecycle, lifecycleClaims, splitPending)
 import Daml.Finance.Instrument.Bond.Callable.Instrument (Instrument(..))
 import Daml.Finance.Interface.Claims.Dynamic.Instrument qualified as DynamicInstrument (I, GetView(..))
-import Daml.Finance.Interface.Claims.Types (ElectionData(..))
+import Daml.Finance.Interface.Claims.Types (EventData(..))
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (R, createReference, exerciseInterfaceByKey, getKey)
 import Daml.Finance.Interface.Lifecycle.Election qualified as Election (ApplyElection(..), Exercisable(..), ExercisableView(..), getElectionTime)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I, Evolve(..), View(..))
@@ -62,7 +62,11 @@ template Rule
         nv <- BaseInstrument.exerciseInterfaceByKey @DynamicInstrument.I v.instrument lifecycler
           DynamicInstrument.GetView with viewer = lifecycler
         let
-          prevElections = map (\e -> electionEvent e.time e.electorIsOwner e.tag) nv.prevElections
+          prevElections = map (\e ->
+            case e.election of
+              None -> error "election missing"
+              Some (electorIsOwner, tag) -> electionEvent e.t electorIsOwner tag)
+            nv.prevElections
 
         -- fetch claim tree as of instrument inception
         claimInstrument <- fetchInterfaceByKey @BaseInstrument.R v.instrument
@@ -110,7 +114,7 @@ template Rule
 
 -- | HIDE
 -- Check if an instrument for the new key already exists, otherwise create it.
-tryCreateNewInstrument : Party -> [ElectionData] -> Time -> Bool -> Text -> Instrument
+tryCreateNewInstrument : Party -> [EventData] -> Time -> Bool -> Text -> Instrument
   -> InstrumentKey -> Update ()
 tryCreateNewInstrument actor prevElections eventTime electorIsOwner claimTag oldInstrument
   newKey = do
@@ -119,10 +123,9 @@ tryCreateNewInstrument actor prevElections eventTime electorIsOwner claimTag old
       Some existingRefCid -> pure ()
       None -> do
         let
-          newElection = ElectionData with
-            time = eventTime
-            electorIsOwner = electorIsOwner
-            tag = claimTag
+          newElection = EventData with
+            t = eventTime
+            election = Some (electorIsOwner, claimTag)
         instCid <- create oldInstrument with
           lastEventTimestamp = eventTime
           prevElections = prevElections ++ [newElection]

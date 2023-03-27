@@ -16,39 +16,25 @@ import DA.Either (partitionEithers)
 import DA.List (head, sort)
 import DA.Map as M (fromList, lookup)
 import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, GetClaims(..), getAcquisitionTime, getClaims)
-import Daml.Finance.Interface.Claims.Types (Observable, Pending(..), TaggedClaim(..))
+import Daml.Finance.Interface.Claims.Types (EventData(..), Observable, Pending(..), TaggedClaim(..))
 import Daml.Finance.Interface.Lifecycle.Observable.NumericObservable qualified as NumericObservable (I, observe)
 import Daml.Finance.Interface.Types.Common.Types (InstrumentQuantity)
 import Daml.Finance.Interface.Util.Common (qty)
 import Daml.Finance.Util.Common (sortAndGroupOn)
 import Prelude hiding (exercise)
 
--- | HIDE
--- A lifecycle event in the context of a claim. This is either a time-based event or an election.
-data Event = Event
-  with
-    t : Time
-      -- ^ Time of the event.
-    election : Optional (Bool, Text)
-      -- ^ When this is an election, a flag indicating which party makes the election (`True` if
-      --   bearer, `False` if counterparty) and the tag corresponding to the elected sub-tree.
-  deriving (Eq)
-
-instance Ord Event where
-  x <= y = x.t <= y.t
-
 -- | Constructor for a time event.
-timeEvent : Time -> Event
-timeEvent t = Event with t; election = None
+timeEvent : Time -> EventData
+timeEvent t = EventData with t; election = None
 
 -- | Constructor for an election event.
-electionEvent : Time -> Bool -> Text -> Event
-electionEvent t isBearer tag = Event with t; election = Some (isBearer, tag)
+electionEvent : Time -> Bool -> Text -> EventData
+electionEvent t isBearer tag = EventData with t; election = Some (isBearer, tag)
 
 -- | HIDE
 -- Process a single lifecycle event (time or election) for a single claim. An election is always an
 -- `exercise` followed by a `lifecycle`.
-applyEvent : (Observable -> Time -> Update Decimal) -> Time -> Event -> TaggedClaim -> Update
+applyEvent : (Observable -> Time -> Update Decimal) -> Time -> EventData -> TaggedClaim -> Update
   (TaggedClaim, [Pending])
 applyEvent observe acquisitionTime e (TaggedClaim with claim; tag) = do
   -- Exercise
@@ -66,7 +52,7 @@ applyEvent observe acquisitionTime e (TaggedClaim with claim; tag) = do
 -- | HIDE
 -- Process events for a single claim. The events are processed in order (from the earliest to the
 -- latest).
-applyEvents : (Observable -> Time -> Update Decimal) -> Time -> [Event] -> TaggedClaim -> Update
+applyEvents : (Observable -> Time -> Update Decimal) -> Time -> [EventData] -> TaggedClaim -> Update
   (TaggedClaim, [Pending])
 applyEvents observe acquisitionTime es claim =
   let
@@ -78,7 +64,7 @@ applyEvents observe acquisitionTime es claim =
 lifecycleClaims : [ContractId NumericObservable.I]   -- ^ The set of observables.
                -> Time                               -- ^ The input claims' acquisition time.
                -> [TaggedClaim]                      -- ^ The input claims.
-               -> [Event]                            -- ^ Lifecycle events.
+               -> [EventData]                            -- ^ Lifecycle events.
                -> Update ([TaggedClaim], [Pending])  -- ^ The remaining claims and pending payments.
 lifecycleClaims observableCids acquisitionTime claims events = do
   observe <- collectObservables observableCids
@@ -106,7 +92,7 @@ netOnTag pending =
 lifecycle : Party                              -- ^ The party lifecycling the claim.
          -> [ContractId NumericObservable.I]   -- ^ The set of observables.
          -> Claim.I                            -- ^ The input instrument.
-         -> [Event]                            -- ^ Lifecycle events.
+         -> [EventData]                            -- ^ Lifecycle events.
          -> Update ([TaggedClaim], [Pending])  -- ^ The remaining claims and pending payments.
 lifecycle actor observableCids instrument events = do
   let acquisitionTime = Claim.getAcquisitionTime instrument
