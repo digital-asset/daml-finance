@@ -3,18 +3,26 @@
 
 module Daml.Finance.Instrument.Bond.Test.Util where
 
-import DA.Map qualified as M (fromList)
+import DA.List (sort)
+import DA.Map qualified as M (empty, fromList)
+import DA.Set qualified as S (fromList, singleton)
+import Daml.Finance.Instrument.Bond.Callable.Instrument qualified as Callable (Instrument(..))
 import Daml.Finance.Instrument.Bond.FixedRate.Instrument qualified as FixedRate (Instrument(..))
 import Daml.Finance.Instrument.Bond.FloatingRate.Instrument qualified as FloatingRate (Instrument(..))
 import Daml.Finance.Instrument.Bond.InflationLinked.Instrument qualified as InflationLinked (Instrument(..))
+import Daml.Finance.Instrument.Bond.Lifecycle.Rule qualified as Lifecycle (Rule(..))
 import Daml.Finance.Instrument.Bond.ZeroCoupon.Instrument qualified as ZeroCoupon (Instrument(..))
 import Daml.Finance.Interface.Claims.Types (Deliverable)
-import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey, Parties)
+import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (GetView(..), I)
+import Daml.Finance.Interface.Lifecycle.Election qualified as Election (Apply(..))
+import Daml.Finance.Interface.Lifecycle.Election.Factory qualified as Election (Create(..), F)
+import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey, InstrumentQuantity, Parties)
 import Daml.Finance.Interface.Types.Date.Calendar (BusinessDayConventionEnum)
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
 import Daml.Finance.Interface.Types.Date.RollConvention (PeriodEnum)
+import Daml.Finance.Lifecycle.Election qualified as Election (Factory(..))
 import Daml.Finance.Test.Util.Instrument (createReference)
-import Daml.Finance.Test.Util.Time (createPaymentPeriodicSchedule)
+import Daml.Finance.Test.Util.Time (createPaymentPeriodicSchedule, dateToDateClockTime)
 import Daml.Script
 
 originateFixedRateBond : Party -> Party -> Text -> Text -> [(Text, Parties)] -> Time -> Date ->
@@ -33,6 +41,25 @@ originateFixedRateBond depository issuer label description observers lastEventTi
         observers = M.fromList observers; lastEventTimestamp; periodicSchedule; holidayCalendarIds
         calendarDataProvider; dayCountConvention; couponRate; currency
     -- CREATE_FIXED_RATE_BOND_INSTRUMENT_END
+    createReference cid depository issuer observers
+
+originateCallableBond : Party -> Party -> Text -> Text -> [(Text, Parties)] -> Time -> Date ->
+  [Text] -> Party -> Date-> Date -> DayCountConventionEnum ->
+  BusinessDayConventionEnum -> Decimal -> PeriodEnum -> Int -> InstrumentKey -> Script InstrumentKey
+originateCallableBond depository issuer label description observers lastEventTimestamp issueDate
+  holidayCalendarIds calendarDataProvider firstCouponDate maturityDate dayCountConvention
+  businessDayConvention couponRate couponPeriod couponPeriodMultiplier currency = do
+    let
+      periodicSchedule = createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds
+        businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate
+      prevElections = []
+    -- CREATE_CALLABLE_BOND_INSTRUMENT_BEGIN
+    cid <- toInterfaceContractId <$> submitMulti [depository, issuer] [] do
+      createCmd Callable.Instrument with
+        depository; issuer; id = Id label; version = "0"; description
+        observers = M.fromList observers; lastEventTimestamp; prevElections; periodicSchedule
+        holidayCalendarIds; calendarDataProvider; dayCountConvention; couponRate; currency
+    -- CREATE_CALLABLE_BOND_INSTRUMENT_BEGIN
     createReference cid depository issuer observers
 
 originateZeroCouponBond : Party -> Party -> Text -> Text -> [(Text, Parties)] -> Time -> Date ->
@@ -87,3 +114,62 @@ originateInflationLinkedBond depository issuer label description observers lastE
         inflationIndexBaseValue
     -- CREATE_INFLATION_LINKED_BOND_INSTRUMENT_END
     createReference cid depository issuer observers
+
+-- | Verify the payments of an instrument after an election (excluding settlement)
+electAndVerifyPaymentEffects : Date -> Decimal -> InstrumentKey -> Bool -> Party -> Party -> [Party]
+  -> Text -> [InstrumentQuantity] -> [InstrumentQuantity]
+  -> Script (Optional InstrumentKey, ContractId Effect.I)
+electAndVerifyPaymentEffects today amount instrument electorIsOwner issuer elector readAs
+  electedTag expectedConsumedQuantities expectedProducedQuantities = do
+
+    -- Create election factory to allow holders to create elections
+    electionFactoryCid <- submit issuer do
+      toInterfaceContractId @Election.F <$> createCmd Election.Factory with
+        provider = issuer
+        observers = M.fromList [("Observers", S.fromList [elector, issuer])]
+
+    -- Create a lifecycle rule
+    lifecycleRuleCid <- toInterfaceContractId <$> submit issuer do
+      createCmd Lifecycle.Rule with
+        providers = S.singleton issuer
+        observers = M.empty
+        lifecycler = issuer
+        id = Id "LifecycleRule"
+        description = "Rule to lifecycle an Election based instrument"
+
+    -- Apply election to generate new instrument version + effects
+    let
+      counterparty = issuer
+      description = "election for a callable bond"
+    exerciseOptionCid <- submit elector
+      do
+        exerciseCmd electionFactoryCid Election.Create with
+          actors = S.singleton elector
+          id = Id "election id"
+          description
+          claim = electedTag
+          electionTime = dateToDateClockTime today
+          electorIsOwner
+          elector
+          counterparty
+          instrument
+          amount
+          observers = M.fromList [("Holders", S.fromList [issuer, elector, counterparty])]
+          provider = issuer
+
+    (newInstrumentKey, [effectCid]) <- submitMulti [issuer] readAs do
+      exerciseCmd exerciseOptionCid Election.Apply with
+        observableCids = []
+        exercisableCid = lifecycleRuleCid
+
+    -- Get the effect
+    effectView <- submit issuer do
+      exerciseCmd effectCid Effect.GetView with viewer = issuer
+
+    -- Verify that the consumed/produced quantities match the expected ones
+    assertMsg "The consumed quantities do not match the expected ones" $
+      sort expectedConsumedQuantities == sort effectView.otherConsumed
+    assertMsg "The produced quantities do not match the expected ones" $
+      sort expectedProducedQuantities == sort effectView.otherProduced
+
+    pure (newInstrumentKey, effectCid)

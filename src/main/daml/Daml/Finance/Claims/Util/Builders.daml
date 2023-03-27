@@ -9,8 +9,9 @@
 module Daml.Finance.Claims.Util.Builders where
 
 import ContingentClaims.Core.Builders (european)
-import ContingentClaims.Core.Claim (Claim(..), Inequality(..), and, at, cond, give, one, orList, scale, upTo, when, until, zero)
+import ContingentClaims.Core.Claim (Claim(..), Inequality(..), and, at, cond, give, one, or, orList, scale, upTo, when, until, zero)
 import ContingentClaims.Core.Observation (Observation(..))
+import DA.List (last)
 import Daml.Finance.Claims.Util (toTime)
 import Daml.Finance.Interface.Claims.Types (Deliverable, Observable, TaggedClaim(..))
 import Daml.Finance.Interface.Types.Common.Types (InstrumentQuantity)
@@ -59,6 +60,43 @@ createFixRatePaymentClaims dateToTime schedule periodicSchedule useAdjustedDates
       couponClaims = createFixRatePaymentClaimsList schedule periodicSchedule useAdjustedDatesForDcf
         couponRate ownerReceives dayCountConvention notional cashInstrumentCid
     in prepareAndTagClaims dateToTime couponClaims "Fix rate payment"
+
+-- | Calculate the claims for a callable bond with a fixed rate amount for each payment date and a redemption.
+-- amount at the end (unless called by the issuer).
+createCallableFixRateBondClaims : (Date -> Time) -> Schedule -> PeriodicSchedule -> Bool
+  -> Decimal -> DayCountConventionEnum -> Decimal -> Deliverable -> TaggedClaim
+createCallableFixRateBondClaims dateToTime schedule periodicSchedule useAdjustedDatesForDcf
+  couponRate dayCountConvention notional cashInstrumentCid =
+    let
+      couponDatesAdjusted = map (.adjustedEndDate) schedule
+      couponAmounts = map (\p ->
+          couponRate *
+          (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf
+            periodicSchedule.terminationDate periodicSchedule.frequency)
+        ) schedule
+
+      -- Coupons and principal have a give node in front, to undo the give required in the main
+      -- claim (in front of the or node, see explanation below).
+      coupons = map (\c -> give $ scale (Const c) $ one cashInstrumentCid) couponAmounts
+      principal = give $ scale (Const notional) $ one cashInstrumentCid
+
+      called = ("CALLED", principal)
+      finalCouponDate = last couponDatesAdjusted
+      notCalledFinal = when (at finalCouponDate) principal
+
+      combineTagClaim cpnDate coupon notCalledClaim =
+        when (at cpnDate) $ and coupon $ or called $ ("NOT CALLED", notCalledClaim)
+
+      claimAmount = foldr (\(date, cpn) acc -> combineTagClaim date cpn acc)
+        notCalledFinal $ zip couponDatesAdjusted coupons
+
+      -- For a callable bond, it is the issuer that has the right to call. This is indicated
+      -- by a give node, which applies to all sub-nodes of the claims branch. However, the
+      -- coupons and the principal belong to the invester, which is why another give node is
+      -- required to undo the first give.
+      claims = give claimAmount
+
+    in prepareAndTagClaims dateToTime [claims] "Callable bond payment"
 
 -- | Calculate a fix rate amount (if a credit event has not yet happened) for each payment date and
 -- create claims.
