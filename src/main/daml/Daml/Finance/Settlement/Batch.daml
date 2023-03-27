@@ -9,23 +9,19 @@ import DA.List (groupOn)
 import DA.Optional (catOptionals, fromOptional)
 import DA.Set (Set)
 import DA.Set qualified as S (empty, member, fromList, insert, intersection, null, size, union)
-import DA.Traversable qualified as T
-import Daml.Finance.Interface.Holding.Util (undisclose)
+import DA.Traversable qualified as T (mapA)
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Cancel(..), I, Settle(..), View(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Cancel(..), Execute(..), I)
-import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), InstructionKey(..), RoutedStep(..))
+import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), BatchKey(..), InstructionKey(..), RoutedStep(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..), Parties)
-import Daml.Finance.Settlement.Instruction (Instruction(..), mustAuthorizeHelper)
+import Daml.Finance.Interface.Util.Disclosure (undisclose)
+import Daml.Finance.Interface.Util.KeyTable (UpdateWithKey, fetch, exercise, fetchByKey, withKeyTable)
+import Daml.Finance.Interface.Util.KeyTable qualified as SyntheticallyKeyed (I, View(..))
+import Daml.Finance.Settlement.Instruction (mustAuthorizeHelper)
+import Prelude hiding (archive, create, exercise, exerciseByKey, fetch, fetchByKey, fetchFromInterface, lookup, lookupByKey)
 
 -- | Type synonym for `Batch`.
 type T = Batch
-
--- | Type for batch key.
-data BatchKey = BatchKey
-  with
-    requestors : Parties
-    id : Id
-  deriving (Eq, Show, Ord)
 
 -- | Allows you to atomically settle a set of settlement `Step`.
 template Batch
@@ -48,17 +44,19 @@ template Batch
     signatory requestors
     observer settlers
 
-    key BatchKey with requestors; id : BatchKey
-    maintainer key.requestors
-
     let
+      batchKey = BatchKey with requestors; id
       (routedSteps, instructionIds) = unzip routedStepsWithInstructionId
       buildKey instructionId = InstructionKey with requestors; batchId = id; id = instructionId
+
+    interface instance SyntheticallyKeyed.I for Batch where
+      view = SyntheticallyKeyed.View {}
 
     interface instance Batch.I for Batch where
       view = Batch.View with
         requestors; settlers; id; description; contextId; routedSteps; settlementTime
-      settle Batch.Settle{actors} = do
+      getKey = batchKey
+      settle Batch.Settle{actors; keyTable} = withKeyTable keyTable do
         assertMsg "actors must intersect with settlers" $
           not $ S.null $ actors `S.intersection` settlers
         -- order instructions (such that they can be executed with passthroughs)
@@ -70,12 +68,13 @@ template Batch
         let
           settleInstruction instructionKey = do
             let context = show instructionKey
-            (instructionCid, instruction) <- fetchByKey @Instruction instructionKey
+            (instructionCid, instruction) <- fmap view <$> fetchByKey @Instruction.I @Instruction.I
+              instructionKey
             pledged <- case instruction.allocation of
               Pledge cid -> Some <$> fetch cid
               _ -> pure None
-            settledCid <- exercise (toInterfaceContractId @Instruction.I instructionCid)
-              Instruction.Execute with actors = actors `S.union` requestors
+            settledCid <- exercise instructionCid $
+              Instruction.Execute (actors `S.union` requestors)
             settled <- T.mapA fetch settledCid
             let
               usedInterfaceTypeReps =
@@ -87,26 +86,26 @@ template Batch
                 settledCid
             pure (settledCid, usedInterfaceTypeReps)
         -- execute instructions
-        (settledCids, usedInterfaceTypeReps) <- unzip <$> mapA settleInstruction orderedInstructions
+        (settledCids, usedInterfaceTypeReps) <- unzip <$> T.mapA settleInstruction
+          orderedInstructions
         -- consistency check
         forA_ (groupOn fst . catOptionals . concat $ usedInterfaceTypeReps) \ts ->
           assertMsg "Allocated holdings of the same instrument must have the same template type rep"
             $ S.size (S.fromList ts) == 1
         pure $ catOptionals settledCids
-      cancel Batch.Cancel{actors} = do
+      cancel Batch.Cancel{actors; keyTable} = withKeyTable keyTable do
         let
           mustAuthorize = mustAuthorizeHelper actors
           cancelInstruction instruction = do
-            instructionCid <- fst <$> fetchByKey @Instruction instruction
-            exercise (toInterfaceContractId @Instruction.I instructionCid)
-              Instruction.Cancel with actors
+            instructionCid <- fst <$> fetchByKey @Instruction.I @Instruction.I instruction
+            exercise instructionCid $ Instruction.Cancel actors
         mustAuthorize requestors
         -- cancel instructions
         catOptionals <$> mapA (cancelInstruction . buildKey . snd) routedStepsWithInstructionId
 
 -- | HIDE
 -- Partially order instructions, so that pass-through chains can be executed in order.
-orderPassThroughChains : [(RoutedStep, InstructionKey)] -> Update [InstructionKey]
+orderPassThroughChains : [(RoutedStep, InstructionKey)] -> UpdateWithKey [InstructionKey]
 orderPassThroughChains routedStepsWithInstructions =
   reverse . fst <$> foldlA
     (\(ordered, used) (routedStep, current) ->
@@ -115,12 +114,13 @@ orderPassThroughChains routedStepsWithInstructions =
         -- instruction has already been visited, do not re-insert in list
         pure (ordered, used)
       else do
-        currentInstruction <- snd <$> fetchByKey @Instruction current
-        assertMsg "routed step must match" $ routedStep == currentInstruction.routedStep
+        currentInstruction <- snd <$> fetchByKey @Instruction.I @Instruction.I current
+        let vCurrentInstruction = view currentInstruction
+        assertMsg "routed step must match" $ routedStep == vCurrentInstruction.routedStep
         let
           ordered' = current :: ordered
           used' = S.insert current used
-        case currentInstruction.allocation of
+        case vCurrentInstruction.allocation of
           -- a Pledge might be the start of a pass-through chain, try to follow the chain
           Pledge _ -> collectPassThroughChain ordered' used' currentInstruction
           -- A PassThroughFrom will be visited as part of a chain, do not insert in list
@@ -130,15 +130,15 @@ orderPassThroughChains routedStepsWithInstructions =
 
 -- | HIDE
 -- Follows the pass-through chain and collects the corresponding instructions in an ordered list.
-collectPassThroughChain : [InstructionKey] -> Set InstructionKey -> Instruction ->
-    Update ([InstructionKey], Set InstructionKey)
+collectPassThroughChain : [InstructionKey] -> Set InstructionKey -> Instruction.I ->
+    UpdateWithKey ([InstructionKey], Set InstructionKey)
 collectPassThroughChain
   ordered              -- i.e., previously-ordered instructions
   used                 -- i.e., instructions that have already been visited
   currentInstruction = -- i.e., first instruction of the chain
-    case currentInstruction.approval of
+    case (view currentInstruction).approval of
       PassThroughTo (_, next) -> do
-        nextInstruction <- snd <$> fetchByKey @Instruction next
+        nextInstruction <- snd <$> fetchByKey @Instruction.I @Instruction.I next
         assertMsg "next instruction must not have been used before" . not $ S.member next used
         collectPassThroughChain (next :: ordered) (S.insert next used) nextInstruction
       _ -> pure (ordered, used)

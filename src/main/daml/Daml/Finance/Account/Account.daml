@@ -5,12 +5,15 @@ module Daml.Finance.Account.Account where
 
 import DA.Map qualified as M (empty)
 import DA.Set qualified as S (fromList, singleton)
-import Daml.Finance.Interface.Account.Account qualified as Account (Credit(..), Debit(..), GetCid(..), I, R, Controllers(..), View(..), createReference, disclosureUpdateReference)
+import Daml.Finance.Interface.Account.Account qualified as Account (Credit(..), Debit(..), Controllers(..), I, View(..))
 import Daml.Finance.Interface.Account.Factory qualified as AccountFactory (Create(..), F, Remove(..), View(..))
 import Daml.Finance.Interface.Holding.Factory qualified as HoldingFactory (Create(..), F, Remove(..))
 import Daml.Finance.Interface.Types.Common.Types (Id, AccountKey(..), PartiesMap)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Interface.Util.KeyTable (archiveByKey, create, exercise, fetch, withKeyTable)
+import Daml.Finance.Interface.Util.KeyTable qualified as SyntheticallyKeyed (I, View(..))
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+import Prelude hiding (archive, create, exercise, exerciseByKey, fetch, fetchByKey, fetchFromInterface, lookup, lookupByKey)
 
 -- | Type synonym for `Account`.
 type T = Account
@@ -38,6 +41,9 @@ template Account
 
     let account = AccountKey with custodian; owner; id
 
+    interface instance SyntheticallyKeyed.I for Account where
+      view = SyntheticallyKeyed.View {}
+
     interface instance Account.I for Account where
       view = Account.View with custodian; id; owner; holdingFactoryCid; description; controllers
       getKey = account
@@ -55,9 +61,9 @@ template Account
 
     interface instance Disclosure.I for Account where
       view = Disclosure.View with disclosureControllers = S.fromList [custodian, owner]; observers
-      setObservers = setObserversImpl this $ Some (Account.disclosureUpdateReference account)
-      addObservers = addObserversImpl this $ Some (Account.disclosureUpdateReference account)
-      removeObservers = removeObserversImpl this $ Some (Account.disclosureUpdateReference account)
+      setObservers = setObserversImpl @Account this
+      addObservers = addObserversImpl @Account this
+      removeObservers = removeObserversImpl @Account this
 
 -- | Template used to create accounts.
 template Factory
@@ -73,20 +79,15 @@ template Factory
     interface instance AccountFactory.F for Factory where
       view = AccountFactory.View with provider
       create' AccountFactory.Create {account; holdingFactoryCid; controllers; observers;
-        description} = do
-          cid <- toInterfaceContractId <$> create Account with
+        description} =
+          toInterfaceContractId <$> create Account with
             custodian = account.custodian; owner = account.owner; controllers; id = account.id
             holdingFactoryCid; observers; description
-          Account.createReference account.custodian cid
-          pure cid
-      remove AccountFactory.Remove{account} = do
-        (refCid, ref) <- fetchByKey @Account.R account
-        accountCid <- exercise refCid Account.GetCid with viewer = account.custodian
-        archive $ fromInterfaceContractId @Account accountCid
-        archive refCid
+      remove AccountFactory.Remove{account; keyTable} = withKeyTable keyTable do
+        archiveByKey @Account.I @AccountKey provider account
 
     interface instance Disclosure.I for Factory where
       view = Disclosure.View with disclosureControllers = S.singleton provider; observers
-      setObservers = setObserversImpl @Factory @Disclosure.I this None
-      addObservers = addObserversImpl @Factory @Disclosure.I this None
-      removeObservers = removeObserversImpl @Factory @Disclosure.I this None
+      setObservers = setObserversImpl @Factory this
+      addObservers = addObserversImpl @Factory this
+      removeObservers = removeObserversImpl @Factory this

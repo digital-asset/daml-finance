@@ -5,14 +5,16 @@ module Daml.Finance.Holding.Test.NonFungible where
 
 import DA.Map qualified as M (fromList)
 import DA.Set qualified as S (fromList, singleton)
+import Daml.Finance.Account.Account qualified as Account (T)
 import Daml.Finance.Holding.NonFungible qualified as NonFungible (Factory(..))
 import Daml.Finance.Holding.Test.Common (TestInitialState(..), TestParties(..), setupInitialState, setupParties)
 import Daml.Finance.Interface.Account.Account qualified as Account (Debit(..), I)
 import Daml.Finance.Interface.Holding.Base qualified as Base (Acquire(..), I, LockType(..), Release(..))
 import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (I, Split(..))
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
-import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), submitExerciseInterfaceByKeyCmd, submitMustFailExerciseInterfaceByKeyCmd)
-import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
+import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..))
+import Daml.Finance.Test.Util.Common (queryAnyByKey)
+import Daml.Finance.Test.Util.Holding qualified as Holding (buildKeyTable, buildKeyTableForTransfer, verifyOwnerOfHolding)
 import Daml.Script
 
 run : Script ()
@@ -29,6 +31,9 @@ run = script do
       []
       Account.Owner
 
+  -- Build key table
+  keyTable <- Holding.buildKeyTable [issuer, investor] issuerHoldingCid
+
   -- Cannot split
   submitMultiMustFail [issuer, investor] [] do
     exerciseCmd (coerceInterfaceContractId @Fungible.I issuerHoldingCid)
@@ -40,29 +45,37 @@ run = script do
       Base.Acquire with
         newLockers = S.singleton locker; context = "Test Lock"; lockType = Base.Semaphore
 
+  -- Build key table
+  keyTable <- Holding.buildKeyTableForTransfer [issuer, investor] baseCid investorAccount
+
   -- Cannot transfer
   submitMultiMustFail [issuer, investor] [] do
     exerciseCmd (coerceInterfaceContractId @Transferable.I baseCid)
-      Transferable.Transfer with actors = S.singleton investor; newOwnerAccount = investorAccount
+      Transferable.Transfer with
+        actors = S.singleton investor; newOwnerAccount = investorAccount; keyTable
 
   -- Cannot debit
-  Account.submitMustFailExerciseInterfaceByKeyCmd @Account.I [custodian, issuer] [] issuerAccount $
-    Account.Debit with holdingCid = toInterfaceContractId baseCid
+  (issuerAccountCid, _) <- queryAnyByKey @Account.T @Account.I [custodian, issuer] issuerAccount
+  submitMultiMustFail [custodian, issuer] [] do
+    exerciseCmd issuerAccountCid Account.Debit with holdingCid = toInterfaceContractId baseCid
 
   -- Unlock asset
   baseCid <- submit locker do exerciseCmd baseCid Base.Release with context = "Test Lock"
 
   -- Transfer
-  transferableCid <- submitMulti [issuer, investor] [publicParty] do
+  transferableCid <- fst <$> submitMulti [issuer, investor] [publicParty] do
     exerciseCmd (coerceInterfaceContractId @Transferable.I baseCid)
       Transferable.Transfer with
-        actors = S.fromList [issuer, investor]; newOwnerAccount = investorAccount
+        actors = S.fromList [issuer, investor]; newOwnerAccount = investorAccount; keyTable
 
   -- Assert state
   Holding.verifyOwnerOfHolding [(investor, transferableCid)]
 
   -- Debit asset
-  Account.submitExerciseInterfaceByKeyCmd @Account.I [custodian, investor] [] investorAccount $
-    Account.Debit with holdingCid = toInterfaceContractId transferableCid
+  (investorAccountCid, _) <- queryAnyByKey @Account.T @Account.I [custodian, investor]
+    investorAccount
+  submitMulti [custodian, investor] [] do
+    exerciseCmd investorAccountCid Account.Debit with
+      holdingCid = toInterfaceContractId transferableCid
 
   pure ()

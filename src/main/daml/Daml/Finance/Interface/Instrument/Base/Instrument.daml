@@ -1,25 +1,18 @@
 -- Copyright (c) 2023 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
-{-# LANGUAGE AllowAmbiguousTypes #-}
-
 module Daml.Finance.Interface.Instrument.Base.Instrument where
 
-import Daml.Finance.Interface.Holding.Base qualified as Base (I)
-import Daml.Finance.Interface.Holding.Util (getInstrument)
-import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey(..), PartiesMap, Quantity(..))
-import Daml.Finance.Interface.Util.Common (exerciseInterfaceByKeyHelper, fetchInterfaceByKey)
-import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (GetView(..), I, flattenObservers)
+import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey(..), Quantity(..))
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I)
+import Daml.Finance.Interface.Util.KeyTable (HasSyntheticKey(..))
+import Daml.Finance.Interface.Util.KeyTable qualified as SyntheticallyKeyed (I)
 
 -- | Type synonym for `Instrument`.
 type I = Instrument
 
 -- | Instrument quantity.
 type Q = Quantity InstrumentKey Decimal
-
--- | Type synonym for `Reference`. This type is currently used as a work-around given the lack of
--- interface keys.
-type R = Reference
 
 -- | Type synonym for `View`.
 type V = View
@@ -43,11 +36,11 @@ data View = View
   deriving (Eq, Show)
 
 -- | Base interface for all instruments. This interface does not define any lifecycling logic.
-interface Instrument requires Disclosure.I where
+interface Instrument requires Disclosure.I, SyntheticallyKeyed.I where
   viewtype V
 
   getKey : InstrumentKey
-    -- ^ Get the unique key for the `Instrument`.
+    -- ^ Get the key for the `Instrument`.
 
   nonconsuming choice GetView : V
     -- ^ Retrieves the interface view.
@@ -58,72 +51,10 @@ interface Instrument requires Disclosure.I where
     do
       pure $ view this
 
--- | HIDE
--- This template is used to key an Instrument contract. It allows for looking up this contract by
--- key then acquiring the Instrument contract by fetching its contract id on this contract. As
--- updates are made to an Instrument, this Reference contract is required to be kept in sync.
-template Reference
-  with
-    instrumentView : V
-      -- ^ The default view.
-    cid : ContractId I
-      -- ^ The contract id of the instrument.
-    observers : PartiesMap
-      -- ^ Observers.
-  where
-    signatory instrumentView.depository, instrumentView.issuer
-    observer Disclosure.flattenObservers observers
-
-    key toKey instrumentView : InstrumentKey
-    maintainer key.depository, key.issuer
-
-    nonconsuming choice GetCid : ContractId I
-      -- ^ Get the `Instrument`'s contract id.
-      with
-        viewer : Party
-      controller viewer
-      do
-        pure cid
-
-    choice SetCid : ContractId R
-      -- ^ Set the instrument cid. This choice should be called only from `Instrument`
-      --   implementations.
-      with
-        newCid : ContractId I
-          -- The instrument cid.
-      controller instrumentView.depository, instrumentView.issuer
-      do
-        create this with cid = newCid
-
-    choice SetObservers : ContractId R
-      -- ^ Set observers. This choice should be called only from `Instrument` implementations.
-      with
-        newObservers : PartiesMap
-          -- ^ The new observers.
-      controller instrumentView.depository, instrumentView.issuer
-      do
-        create this with observers = newObservers
-
--- | Exercise interface by key.
--- This method can be used to exercise a choice on an `Instrument` given its `InstrumentKey`.
--- Requires as input the `InstrumentKey`, the actor fetching the instrument and the choice
--- arguments. For example:
-exerciseInterfaceByKey : forall i d r. (HasInterfaceTypeRep i, HasExercise i d r)
-  => InstrumentKey  -- ^ The instrument key.
-  -> Party          -- ^ The actor fetching the instrument.
-  -> d              -- ^ The choice arguments.
-  -> Update r
-exerciseInterfaceByKey k viewer arg =
-  exerciseInterfaceByKeyHelper @R @I @i k (GetCid with viewer) arg
-
 -- | Convert the instrument's View to its key.
 toKey : V -> InstrumentKey
 toKey v = InstrumentKey with
   depository = v.depository; issuer = v.issuer; id = v.id; version = v.version
-
--- | Fetch instrument from holding.
-fetchInstrument : (HasToInterface t Base.I) => t -> Update I
-fetchInstrument holding = fetchInterfaceByKey @R $ getInstrument (toInterface @Base.I holding)
 
 -- | Wraps an amount and an instrument key into an instrument quantity.
 qty : Decimal -> InstrumentKey -> Q
@@ -134,19 +65,6 @@ scale : Decimal -> Q -> Q
 scale factor quantity = quantity with amount = quantity.amount * factor
 
 -- | HIDE
--- Create Reference for instrument.
-createReference : Party -> ContractId I -> Update (ContractId R)
-createReference actor cid = do
-  instrumentView <- exercise cid GetView with viewer = actor
-  disclosureView <- exercise (toInterfaceContractId @Disclosure.I cid) Disclosure.GetView with
-    viewer = actor
-  create Reference with instrumentView; cid; observers = disclosureView.observers
-
--- | HIDE
--- Helper function to update the instrument reference once observers are added to the instrument.
-disclosureUpdateReference : InstrumentKey -> PartiesMap -> ContractId Instrument ->
-  Update (ContractId Disclosure.I)
-disclosureUpdateReference k newObservers iCid = do
-  exerciseByKey @Reference k SetCid with newCid = iCid
-  exerciseByKey @Reference k SetObservers with newObservers
-  pure $ toInterfaceContractId iCid
+instance HasSyntheticKey I InstrumentKey where
+  getKey = Daml.Finance.Interface.Instrument.Base.Instrument.getKey
+  getKeyFromCid viewer cid = toKey <$> exercise cid GetView with viewer

@@ -6,22 +6,22 @@ module Daml.Finance.Settlement.Test.Transfer where
 import DA.Assert ((===))
 import DA.List (head)
 import DA.Map qualified as M (fromList)
-import DA.Optional (isNone, isSome)
+import DA.Optional (fromSome, isNone, isSome)
 import DA.Set qualified as S (empty, fromList, singleton)
 import Daml.Finance.Account.Account qualified as Account (T)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Interface.Account.Account qualified as Account (I, getKey)
 import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (I, Split(..))
-import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Factory qualified as Settlement (F, Instruct(..))
-import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..), I)
+import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (I, getKey, toKey)
 import Daml.Finance.Interface.Settlement.RouteProvider qualified as RouteProvider (Discover(..), I)
-import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), InstructionKey(..), Step(..))
+import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), Step(..))
 import Daml.Finance.Interface.Types.Common.Types (AccountKey(..), Id(..))
 import Daml.Finance.Interface.Util.Common (qty)
 import Daml.Finance.Settlement.Factory (Factory(..))
 import Daml.Finance.Settlement.Instruction qualified as Instruction (T)
 import Daml.Finance.Settlement.RouteProvider.SingleCustodian (SingleCustodian(..))
+import Daml.Finance.Settlement.Test.Util (allocateAny, approveAny, settleAny)
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), credit, createAccount, createFactory)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyNoObservers, verifyOwnerOfHolding)
@@ -90,19 +90,17 @@ run = script do
       discoverors = S.singleton bank; contextId = None; steps = [step]
 
   -- Instruct transfer
-  (batchCid, [cashInstructionCid]) <- submit bank do
+  (batchCid, [instructionCid]) <- submit bank do
     exerciseCmd settlementFactoryCid Settlement.Instruct with
       instructors = S.singleton bank; settlers = S.singleton bank; id = Id "transfer 1"
       description = "transfer of USD 200000.0 payment"; contextId = None; routedSteps
       settlementTime = None
 
   -- Allocate instruction
-  (cashInstructionCid, _) <- submit sender do
-    exerciseCmd cashInstructionCid Instruction.Allocate with
-      actors = S.singleton sender; allocation = Pledge holdingCid
+  (instructionCid, _) <- allocateAny [sender] instructionCid $ Pledge holdingCid
 
   -- Holding is locked
-  Some cashInstruction <- queryInterfaceContractId sender cashInstructionCid
+  Some cashInstruction <- queryInterfaceContractId sender instructionCid
   let Pledge holdingCid = cashInstruction.allocation
   Some holding <- queryInterfaceContractId sender holdingCid
   assertMsg "holding is locked" $ isSome holding.lock
@@ -113,27 +111,20 @@ run = script do
       amounts = [1.0, 2.0]
 
   -- Cancel allocation
-  (cashInstructionCid, Some holdingCid) <- submit sender do
-    exerciseCmd cashInstructionCid Instruction.Allocate with
-      actors = S.singleton sender; allocation = Unallocated
+  (instructionCid, Some holdingCid) <- allocateAny [sender] instructionCid $ Unallocated
 
   -- Holding is not locked
   Some holding <- queryInterfaceContractId sender holdingCid
   assertMsg "holding is not locked" $ isNone holding.lock
 
   -- Allocate instruction
-  (cashInstructionCid, _) <- submit sender do
-    exerciseCmd cashInstructionCid Instruction.Allocate with
-      actors = S.singleton sender; allocation = Pledge holdingCid
+  (instructionCid, _) <- allocateAny [sender] instructionCid $ Pledge holdingCid
 
   -- Approve instruction
-  cashInstructionCid <- submit receiver do
-    exerciseCmd cashInstructionCid Instruction.Approve with
-      actors = S.singleton receiver; approval = TakeDelivery receiverAccount
+  instructionCid <- approveAny [receiver] instructionCid $ TakeDelivery receiverAccount
 
   -- Settle batch
-  [cashHoldingCid] <- submitMulti [bank] [publicParty] do
-    exerciseCmd batchCid Batch.Settle with actors = S.singleton bank
+  [cashHoldingCid] <- settleAny [bank] [publicParty] batchCid
 
   -- Assert state
   let ts = [(receiver, cashHoldingCid)]
@@ -203,27 +194,21 @@ run2 = script do
       discoverors = S.singleton bank; contextId = None; steps = [third]
 
   -- Instruct settlement for transfer 1
-  (batchCid1, [cashInstructionCid1]) <- submit bank do
+  (batchCid1, [instructionCid1]) <- submit bank do
     exerciseCmd settlementFactoryCid Settlement.Instruct with
       instructors = S.singleton bank; settlers = S.singleton bank; id = id1
       description = "transfer of USD 100000.0 payment"; contextId = None; routedSteps = routedSteps1
       settlementTime = None
-  -- the id of the batch must be unique
-  submitMustFail bank do
-    exerciseCmd settlementFactoryCid Settlement.Instruct with
-      instructors = S.singleton bank; settlers = S.singleton bank; id = id1
-      description = "transfer of USD 200000.0 payment"; contextId = None; routedSteps = routedSteps1
-      settlementTime = None
 
   -- Instruct settlement for transfer 2
-  (batchCid2, [cashInstructionCid2]) <- submit bank do
+  (batchCid2, [instructionCid2]) <- submit bank do
     exerciseCmd settlementFactoryCid Settlement.Instruct with
       instructors = S.singleton bank; settlers = S.singleton bank; id = id2
       description = "transfer of USD 200000.0 payment"; contextId = None; routedSteps = routedSteps2
       settlementTime = None
 
   -- Instruct settlement for transfer 3
-  (batchCid3, [cashInstructionCid3]) <- submit bank do
+  (batchCid3, [instructionCid3]) <- submit bank do
     exerciseCmd settlementFactoryCid Settlement.Instruct with
       instructors = S.singleton bank
       settlers = S.singleton bank; id = id3; description = "transfer of USD 300000.0 payment"
@@ -238,7 +223,9 @@ run2 = script do
         (\instructionCid -> do
           Some instruction <- queryContractId account.owner
             (fromInterfaceContractId @Instruction.T instructionCid)
-          pure (show $ key instruction, S.singleton bank)
+          pure ( show $ Instruction.getKey $ toInterface @Instruction.I instruction
+               , S.singleton bank
+               )
         )
         instructionCids
       current === expected
@@ -249,62 +236,43 @@ run2 = script do
 
   -- Allocate instruction (in any order)
   -- first
-  (cashInstructionCid1, _) <- submit sender do
-    exerciseCmd cashInstructionCid1 Instruction.Allocate with
-      actors = S.singleton sender; allocation = Pledge holdingCid1
-  verifyAccountDisclosureContexts senderAccount [cashInstructionCid1]
-  (cashInstructionCid1, Some holdingCid1) <- submit sender do
-    exerciseCmd cashInstructionCid1 Instruction.Allocate with
-      actors = S.singleton sender; allocation = Unallocated
+  (instructionCid1, _) <- allocateAny [sender] instructionCid1 $ Pledge holdingCid1
+  verifyAccountDisclosureContexts senderAccount [instructionCid1]
+  (instructionCid1, Some holdingCid1) <- allocateAny [sender] instructionCid1 $ Unallocated
   verifyAccountDisclosureContexts senderAccount []
-  (cashInstructionCid1, _) <- submit sender do
-    exerciseCmd cashInstructionCid1 Instruction.Allocate with
-      actors = S.singleton sender; allocation = Pledge holdingCid1
-  verifyAccountDisclosureContexts senderAccount [cashInstructionCid1]
+  (instructionCid1, _) <- allocateAny [sender] instructionCid1 $ Pledge holdingCid1
+  verifyAccountDisclosureContexts senderAccount [instructionCid1]
   -- second
-  (cashInstructionCid2, _) <- submit sender do
-    exerciseCmd cashInstructionCid2 Instruction.Allocate with
-      actors = S.singleton sender; allocation = Pledge holdingCid2
-  verifyAccountDisclosureContexts senderAccount [cashInstructionCid1, cashInstructionCid2]
+  (instructionCid2, _) <- allocateAny [sender] instructionCid2 $ Pledge holdingCid2
+  verifyAccountDisclosureContexts senderAccount [instructionCid1, instructionCid2]
   -- third
-  (cashInstructionCid3, _) <- submit sender do
-    exerciseCmd cashInstructionCid3 Instruction.Allocate with
-      actors = S.singleton sender; allocation = Pledge holdingCid3
-  verifyAccountDisclosureContexts senderAccount [cashInstructionCid1, cashInstructionCid2,
-    cashInstructionCid3]
+  (instructionCid3, _) <- allocateAny [sender] instructionCid3 $ Pledge holdingCid3
+  verifyAccountDisclosureContexts senderAccount [instructionCid1, instructionCid2, instructionCid3]
 
   -- Approve instruction (in any order)
   -- third
-  cashInstructionCid3 <- submit receiver do
-    exerciseCmd cashInstructionCid3 Instruction.Approve with
-      actors = S.singleton receiver; approval = TakeDelivery receiverAccount
-  verifyAccountDisclosureContexts receiverAccount [cashInstructionCid3]
+  instructionCid3 <- approveAny [receiver] instructionCid3 $ TakeDelivery receiverAccount
+  verifyAccountDisclosureContexts receiverAccount [instructionCid3]
   -- first
-  cashInstructionCid1 <- submit receiver do
-    exerciseCmd cashInstructionCid1 Instruction.Approve with
-      actors = S.singleton receiver; approval = TakeDelivery receiverAccount
-  verifyAccountDisclosureContexts receiverAccount [cashInstructionCid1, cashInstructionCid3]
+  instructionCid1 <- approveAny [receiver] instructionCid1 $ TakeDelivery receiverAccount
+  verifyAccountDisclosureContexts receiverAccount [instructionCid1, instructionCid3]
   -- second
-  cashInstructionCid2 <- submit receiver do
-    exerciseCmd cashInstructionCid2 Instruction.Approve with
-      actors = S.singleton receiver; approval = TakeDelivery receiverAccount
-  verifyAccountDisclosureContexts receiverAccount [cashInstructionCid1, cashInstructionCid2,
-    cashInstructionCid3]
+  instructionCid2 <- approveAny [receiver] instructionCid2 $ TakeDelivery receiverAccount
+  verifyAccountDisclosureContexts receiverAccount
+    [instructionCid1, instructionCid2, instructionCid3]
 
   -- Settle transfers (in any order)
   -- second
-  [cashHoldingCid2] <- submitMulti [bank] [publicParty] do
-    exerciseCmd batchCid2 Batch.Settle with actors = S.singleton bank
-  verifyAccountDisclosureContexts receiverAccount [cashInstructionCid1, cashInstructionCid3]
-  verifyAccountDisclosureContexts receiverAccount [cashInstructionCid1, cashInstructionCid3]
+  [cashHoldingCid2] <- settleAny [bank] [publicParty] batchCid2
+  verifyAccountDisclosureContexts senderAccount [instructionCid1, instructionCid3]
+  verifyAccountDisclosureContexts receiverAccount [instructionCid1, instructionCid3]
   -- first
-  [cashHoldingCid1] <- submitMulti [bank] [publicParty] do
-    exerciseCmd batchCid1 Batch.Settle with actors = S.singleton bank
-  verifyAccountDisclosureContexts senderAccount [cashInstructionCid3]
-  verifyAccountDisclosureContexts receiverAccount [cashInstructionCid3]
+  [cashHoldingCid1] <- settleAny [bank] [publicParty] batchCid1
+  verifyAccountDisclosureContexts senderAccount [instructionCid3]
+  verifyAccountDisclosureContexts receiverAccount [instructionCid3]
   -- third
-  [cashHoldingCid3] <- submitMulti [bank] [publicParty] do
-    exerciseCmd batchCid3 Batch.Settle with actors = S.singleton bank
+  [cashHoldingCid3] <- settleAny [bank] [publicParty] batchCid3
+
   verifyAccountDisclosureContexts senderAccount []
   verifyAccountDisclosureContexts receiverAccount []
 
@@ -357,7 +325,7 @@ run3 = script do
       discoverors = S.singleton bank; contextId = None; steps = [step]
 
   -- Instruct transfer
-  (batchCid, [cashInstructionCid]) <- submit bank do
+  (batchCid, [instructionCid]) <- submit bank do
     exerciseCmd settlementFactoryCid Settlement.Instruct with
       instructors = S.singleton bank
       settlers = S.fromList [sender, receiver]
@@ -368,19 +336,14 @@ run3 = script do
       settlementTime = None
 
   -- Allocate instruction
-  (cashInstructionCid, _) <- submit sender do
-    exerciseCmd cashInstructionCid Instruction.Allocate with
-      actors = S.singleton sender; allocation = Pledge holdingCid
+  (instructionCid, _) <- allocateAny [sender] instructionCid $ Pledge holdingCid
 
   -- Approve instruction
-  cashInstructionCid <- submit receiver do
-    exerciseCmd cashInstructionCid Instruction.Approve with
-      actors = S.singleton receiver; approval = TakeDelivery receiverAccount
+  instructionCid <- approveAny [receiver] instructionCid $ TakeDelivery receiverAccount
 
   -- Settle batch
   -- either sender, receiver or both can settle
-  [cashHoldingCid] <- submitMulti [sender] [publicParty] do
-    exerciseCmd batchCid Batch.Settle with actors = S.singleton sender
+  [cashHoldingCid] <- settleAny [sender] [publicParty] batchCid
 
   -- Assert state
   let ts = [(receiver, cashHoldingCid)]
@@ -436,36 +399,28 @@ run4 = script do
       discoverors = S.singleton bank; contextId = None; steps = [step1, step2]
 
   -- Instruct transfer
-  (batchCid, [cashInstructionCid1, cashInstructionCid2]) <- submit bank do
-    exerciseCmd settlementFactoryCid Settlement.Instruct with
-      instructors = S.singleton bank
-      settlers = S.fromList [sender, receiver]
-      id = Id "transfer 1"
-      description = "transfer of USD 200000.0 and CHF 100000.0 payment"
-      contextId = None
-      routedSteps
-      settlementTime = None
+  (batchCid, [instructionCid1, instructionCid2]) <-
+    submit bank do
+      exerciseCmd settlementFactoryCid Settlement.Instruct with
+        instructors = S.singleton bank
+        settlers = S.fromList [sender, receiver]
+        id = Id "transfer 1"
+        description = "transfer of USD 200000.0 and CHF 100000.0 payment"
+        contextId = None
+        routedSteps
+        settlementTime = None
 
   -- Allocate instruction
-  (cashInstructionCid1, _) <- submit sender do
-    exerciseCmd cashInstructionCid1 Instruction.Allocate with
-      actors = S.singleton sender; allocation = Pledge holdingCid1
-  (cashInstructionCid2, _) <- submit sender do
-    exerciseCmd cashInstructionCid2 Instruction.Allocate with
-      actors = S.singleton sender; allocation = Pledge holdingCid2
+  (instructionCid1, _) <- allocateAny [sender] instructionCid1 $ Pledge holdingCid1
+  (instructionCid2, _) <- allocateAny [sender] instructionCid2 $ Pledge holdingCid2
 
   -- Approve instruction
-  cashInstructionCid1 <- submit receiver do
-    exerciseCmd cashInstructionCid1 Instruction.Approve with
-      actors = S.singleton receiver; approval = TakeDelivery receiverAccount
-  cashInstructionCid2 <- submit receiver do
-    exerciseCmd cashInstructionCid2 Instruction.Approve with
-      actors = S.singleton receiver; approval = TakeDelivery receiverAccount
+  instructionCid1 <- approveAny [receiver] instructionCid1 $ TakeDelivery receiverAccount
+  instructionCid2 <- approveAny [receiver] instructionCid2 $ TakeDelivery receiverAccount
 
   -- Settle batch
   -- either sender, receiver or both can settle
-  [cashHoldingCid1, cashHoldingCid2] <- submitMulti [sender] [publicParty] do
-    exerciseCmd batchCid Batch.Settle with actors = S.singleton sender
+  [cashHoldingCid1, cashHoldingCid2] <- settleAny [sender] [publicParty] batchCid
 
   -- Assert state
   let ts = [(receiver, cashHoldingCid1), (receiver, cashHoldingCid2)]
@@ -522,44 +477,36 @@ run5 = script do
       steps = [step2, step1] -- order does not matter
 
   -- Instruct transfer
-  (batchCid, [instructionCid2, instructionCid1]) <- submit bank do
-    exerciseCmd settlementFactoryCid Settlement.Instruct with
-      instructors = S.singleton bank
-      settlers = S.singleton settler
-      id = Id "transfer 1"
-      description = "transfer of USD 200000.0 payment"
-      contextId = None
-      routedSteps
-      settlementTime = None
+  (batchCid, [instructionCid1, instructionCid2]) <-
+    submit bank do
+      exerciseCmd settlementFactoryCid Settlement.Instruct with
+        instructors = S.singleton bank
+        settlers = S.singleton settler
+        id = Id "transfer 1"
+        description = "transfer of USD 200000.0 payment"
+        contextId = None
+        routedSteps
+        settlementTime = None
+
+  --
+  [instruction1, instruction2] <- fmap (Instruction.toKey . fromSome) <$>
+    mapA (queryInterfaceContractId @Instruction.I ccp) [instructionCid1, instructionCid2]
 
   -- Approve instruction
-  instructionCid2 <- submit receiver do
-    exerciseCmd instructionCid2 Instruction.Approve with
-      actors = S.singleton receiver
-      approval = TakeDelivery receiverAccount
+  instructionCid1 <- approveAny [receiver] instructionCid1 $ TakeDelivery receiverAccount
 
   -- Approve with passthrough
-  instructionCid1 <- submit ccp do
-    exerciseCmd instructionCid1 Instruction.Approve with
-      actors = S.singleton ccp
-      approval = PassThroughTo (ccpAccount,
-        InstructionKey with requestors = S.singleton bank; batchId = Id "transfer 1"; id = Id "1")
+  instructionCid2 <- approveAny [ccp] instructionCid2 $ PassThroughTo (ccpAccount, instruction1)
+
   -- Allocate with passthrough
-  instructionCid2 <- submit ccp do
-    exerciseCmd instructionCid2 Instruction.Allocate with
-      actors = S.singleton ccp
-      allocation = PassThroughFrom (ccpAccount,
-        InstructionKey with requestors = S.singleton bank; batchId = Id "transfer 1"; id = Id "0")
+  (instructionCid1, _) <- allocateAny [ccp] instructionCid1 $
+    PassThroughFrom (ccpAccount, instruction2)
 
   -- Allocate instruction
-  (instructionCid1, _) <- submit sender do
-    exerciseCmd instructionCid1 Instruction.Allocate with
-      actors = S.singleton sender
-      allocation = Pledge holdingCid
+  (instructionCid2, _) <- allocateAny [sender] instructionCid2 $ Pledge holdingCid
 
   -- Settle batch
-  [cashHoldingCid] <- submitMulti [settler] [publicParty] do
-    exerciseCmd batchCid Batch.Settle with actors = S.singleton settler
+  [cashHoldingCid] <- settleAny [settler] [publicParty] batchCid
 
   -- Assert state
   let ts = [(receiver, cashHoldingCid)]
