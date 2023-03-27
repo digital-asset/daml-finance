@@ -64,20 +64,24 @@ createFixRatePaymentClaims dateToTime schedule periodicSchedule useAdjustedDates
 -- | Calculate the claims for a callable bond with a fixed rate amount for each payment date and a redemption.
 -- amount at the end (unless called by the issuer).
 createCallableFixRateBondClaims : (Date -> Time) -> Schedule -> PeriodicSchedule -> Bool
-  -> Decimal -> DayCountConventionEnum -> Decimal -> Deliverable -> TaggedClaim
+  -> Decimal -> DayCountConventionEnum -> Decimal -> Deliverable -> Optional Observable
+  -> TaggedClaim
 createCallableFixRateBondClaims dateToTime schedule periodicSchedule useAdjustedDatesForDcf
-  couponRate dayCountConvention notional cashInstrumentCid =
+  couponRate dayCountConvention notional cashInstrumentCid referenceRateId =
     let
       couponDatesAdjusted = map (.adjustedEndDate) schedule
-      couponAmounts = map (\p ->
-          couponRate *
+      dcfs = map (\p ->
           (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf
             periodicSchedule.terminationDate periodicSchedule.frequency)
         ) schedule
 
+      cpn = case referenceRateId of
+        None -> Const couponRate
+        Some id -> Observe id + Const couponRate
+
       -- Coupons and principal have a give node in front, to undo the give required in the main
       -- claim (in front of the or node, see explanation below).
-      coupons = map (\c -> give $ scale (Const c) $ one cashInstrumentCid) couponAmounts
+      coupons = map (\dcf -> give $ scale (cpn * (Const dcf)) $ one cashInstrumentCid) dcfs
       principal = give $ scale (Const notional) $ one cashInstrumentCid
 
       called = ("CALLED", principal)
