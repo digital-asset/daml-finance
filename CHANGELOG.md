@@ -110,6 +110,10 @@ Early Access Packages
   `asBaseInstrument` implementations were removed as well as redundant `HasImplementation`
   instances)
 
+- Add callable bond instrument
+
+- Make notional configurable on the instrument
+
 #### Daml.Finance.Instrument.Equity
 
 - Dependencies update
@@ -220,6 +224,10 @@ Early Access Packages
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
   `asBaseInstrument` methods were removed as well as the redundant `HasImplementation` type
   classes)
+
+- Add callable bond instrument
+
+- Make notional configurable on the instrument
 
 #### Daml.Finance.Interface.Instrument.Equity
 
