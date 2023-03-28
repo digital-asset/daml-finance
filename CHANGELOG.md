@@ -196,12 +196,12 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Dependencies update
 
+- Removed `type K = AccountKey`
+
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`
   method was removed as well as the redundant `HasImplementation` type class)
 
 - Key Table (API change for `AccountFactory.Remove`)
-
-- Removed type synonym for `AccountKey`
 
 ### Daml.Finance.Interface.Claims
 
@@ -249,12 +249,12 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Style changes
 
+- Removed `type K = InstrumentKey`
+
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`
   method was removed as well as the redundant `HasImplementation` type class)
 
 - Key Table
-
-- Removed type synonym for `InstrumentKey`
 
 ### Daml.Finance.Interface.Instrument.Bond
 
@@ -387,6 +387,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   tables)
 
 - Utility functions for `disclose` and `undisclose` were moved to this package.
+
+- Added check that passthrough instruction is part of the batch
 
 ### Daml.Finance.Lifecycle
 
