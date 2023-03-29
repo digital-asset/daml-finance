@@ -132,6 +132,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `asBaseInstrument`, and `asClaim` implementations were removed as well as redundant
   `HasImplementation` instances)
 
+- During lifeycling: create a new instrument also in case of a Zero claim (breaking change).
+
 ### Daml.Finance.Instrument.Option
 
 - Dependencies update

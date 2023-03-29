@@ -11,7 +11,7 @@ import Daml.Finance.Interface.Claims.Claim qualified as Claim (getAcquisitionTim
 import Daml.Finance.Interface.Claims.Dynamic.Instrument qualified as DynamicInstrument (CreateNewVersion(..), GetView(..), I)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (R, exerciseInterfaceByKey, getKey)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I, View(..))
-import Daml.Finance.Interface.Types.Common.Types (Id(..), Parties, PartiesMap)
+import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey, Parties, PartiesMap)
 import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, flattenObservers)
 import Daml.Finance.Lifecycle.Effect (Effect(..))
@@ -65,9 +65,7 @@ template Rule
             currentKey = BaseInstrument.getKey $ toInterface claimInstrument
             newKey = currentKey with version = sha256 $ show remaining
             producedInstrument = if isZero' remaining then None else Some newKey
-          newInstrumentCid <- BaseInstrument.exerciseInterfaceByKey @DynamicInstrument.I instrument
-            lifecycler DynamicInstrument.CreateNewVersion with
-              lastEventTimestamp = v.eventTime; version = newKey.version
+          tryCreateNewInstrument lifecycler v.eventTime instrument newKey
           effectCid <- toInterfaceContractId <$> create Effect with
             providers = singleton currentKey.issuer
             id = v.id
@@ -79,5 +77,19 @@ template Rule
             settlementTime = Some v.eventTime
             observers = Disclosure.flattenObservers . (.observers) . view $
               toInterface @Disclosure.I claimInstrument
-          pure (producedInstrument, [effectCid])
+          pure (Some newKey, [effectCid])
         -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_END
+
+-- | HIDE
+-- Check if an instrument for the new key already exists, otherwise create it.
+tryCreateNewInstrument : Party -> Time -> InstrumentKey -> InstrumentKey -> Update ()
+tryCreateNewInstrument actor eventTime oldKey newKey =
+  do
+    existingRefCidOpt <- lookupByKey @BaseInstrument.R newKey
+    case existingRefCidOpt of
+      Some existingRefCid -> pure ()
+      None -> do
+        newInstrumentCid <- BaseInstrument.exerciseInterfaceByKey @DynamicInstrument.I oldKey
+          actor DynamicInstrument.CreateNewVersion with
+            lastEventTimestamp = eventTime; version = newKey.version
+        pure ()
