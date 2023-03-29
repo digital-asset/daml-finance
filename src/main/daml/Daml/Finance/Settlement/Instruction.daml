@@ -120,7 +120,7 @@ template Instruction
         -- release previous allocation
         releasedCid <- releasePreviousAllocation
         -- allocate
-        allocationDisclosed <- case allocation of
+        newAllocation <- case allocation of
           Pledge baseCid -> do
             base <- fetch baseCid
             let senderAccount = getAccount base
@@ -143,23 +143,24 @@ template Instruction
             mustAuthorize vSenderAccount.controllers.outgoing
             mustBe Custodian passthroughAccount.custodian
             mustBe Sender passthroughAccount.owner
-            (_, fromInstruction) <- fetchByKey @Instruction fromInstructionKey
+            fromInstruction <- snd <$> fetchByKey @Instruction fromInstructionKey
+            assertMsg "must be part of the batch" $
+              fromInstruction.batchId == batchId && fromInstruction.requestors == requestors
             mustBe Custodian fromInstruction.routedStep.custodian
             mustBe Sender fromInstruction.routedStep.receiver
             pure $ PassThroughFrom (passthroughAccount, fromInstructionKey)
           CreditReceiver -> do
             mustAuthorize $ S.singleton routedStep.custodian
-            pure CreditReceiver
+            pure allocation
           SettleOffledger -> do
-            mustAuthorize $ S.singleton routedStep.custodian
-            mustAuthorize $ S.singleton routedStep.sender
-            pure SettleOffledger
+            mustAuthorize $ S.fromList [routedStep.custodian, routedStep.sender]
+            pure allocation
           Unallocated -> do
             mustAuthorize signedSenders
-            pure Unallocated
+            pure allocation
         newInstructionCid <- toInterfaceContractId <$> create this with
-          allocation = allocationDisclosed
-          signedSenders = if allocationDisclosed == Unallocated then S.empty else actors
+          allocation = newAllocation
+          signedSenders = if newAllocation == Unallocated then S.empty else actors
         pure (newInstructionCid, releasedCid)
       approve Instruction.Approve{actors; approval} = do
         let mustAuthorize = mustAuthorizeHelper actors
@@ -182,15 +183,16 @@ template Instruction
             mustAuthorize vReceiverAccount.controllers.outgoing
             mustBe Custodian passthroughAccount.custodian
             mustBe Receiver passthroughAccount.owner
-            (_, toInstruction) <- fetchByKey @Instruction toInstructionKey
+            toInstruction <- snd <$> fetchByKey @Instruction toInstructionKey
+            assertMsg "must be part of the batch" $
+              toInstruction.batchId == batchId && toInstruction.requestors == requestors
             mustBe Custodian toInstruction.routedStep.custodian
             mustBe Receiver toInstruction.routedStep.sender
           DebitSender -> do
             mustAuthorize $ S.singleton routedStep.custodian
             mustBe Custodian routedStep.receiver
-          SettleOffledgerAcknowledge -> do
-            mustAuthorize $ S.singleton routedStep.custodian
-            mustAuthorize $ S.singleton routedStep.receiver
+          SettleOffledgerAcknowledge ->
+            mustAuthorize $ S.fromList [routedStep.custodian, routedStep.receiver]
           Unapproved ->
             mustAuthorize signedReceivers
         toInterfaceContractId <$> create this with

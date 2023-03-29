@@ -68,11 +68,9 @@ template Batch
           length orderedInstructions == length routedStepsWithInstructionId
         -- settle
         let
-          settleInstruction instruction = do
-            let
-              instructionKey = key instruction
-              context = show instructionKey
-            instructionCid <- fst <$> fetchByKey @Instruction instructionKey
+          settleInstruction instructionKey = do
+            let context = show instructionKey
+            (instructionCid, instruction) <- fetchByKey @Instruction instructionKey
             pledged <- case instruction.allocation of
               Pledge cid -> Some <$> fetch cid
               _ -> pure None
@@ -108,45 +106,46 @@ template Batch
 
 -- | HIDE
 -- Partially order instructions, so that pass-through chains can be executed in order.
-orderPassThroughChains : [(RoutedStep, InstructionKey)] -> Update [Instruction]
-orderPassThroughChains routedStepsWithInstructionKeys =
+orderPassThroughChains : [(RoutedStep, InstructionKey)] -> Update [InstructionKey]
+orderPassThroughChains routedStepsWithInstructions =
   reverse . fst <$> foldlA
-    (\(orderedInstructions, usedInstructionIds) (routedStep, instructionKey) ->
-      if S.member instructionKey.id usedInstructionIds
+    (\(orderedInstructions, usedInstructions) (routedStep, instructionKey) ->
+      if S.member instructionKey usedInstructions
       then
         -- instruction has already been visited, do not re-insert in list
-        pure (orderedInstructions, usedInstructionIds)
+        pure (orderedInstructions, usedInstructions)
       else do
         (instructionCid, instruction) <- fetchByKey @Instruction instructionKey
         assertMsg "routed step must match" $ routedStep == instruction.routedStep
         let
-          orderedInstructions' = instruction :: orderedInstructions
-          usedInstructionIds' = S.insert instruction.id usedInstructionIds
+          orderedInstructions' = instructionKey :: orderedInstructions
+          usedInstructions' = S.insert instructionKey usedInstructions
         case instruction.allocation of
           Pledge _ ->
             -- a Pledge might be the start of a pass-through chain, try to follow the chain
-            collectPassThroughChain orderedInstructions' usedInstructionIds' instruction
+            collectPassThroughChain orderedInstructions' usedInstructions' instruction
           PassThroughFrom _ ->
             -- A PassThrough will be visited as part of a chain, do not insert in list
-            pure (orderedInstructions, usedInstructionIds)
+            pure (orderedInstructions, usedInstructions)
           _ ->
-            pure (orderedInstructions', usedInstructionIds')
-    ) ([], S.empty) routedStepsWithInstructionKeys
+            pure (orderedInstructions', usedInstructions')
+    ) ([], S.empty) routedStepsWithInstructions
 
 -- | HIDE
 -- Follows the pass-through chain and collects the corresponding instructions in an ordered list.
-collectPassThroughChain : [Instruction] -> Set Id -> Instruction -> Update ([Instruction], Set Id)
+collectPassThroughChain : [InstructionKey] -> Set InstructionKey -> Instruction ->
+    Update ([InstructionKey], Set InstructionKey)
 collectPassThroughChain
   orderedInstructions -- i.e., previously-ordered instructions
-  usedInstructionIds  -- i.e., instructions that have already been visited
+  usedInstructions    -- i.e., instructions that have already been visited
   instruction =       -- i.e., first instruction of the chain
     case instruction.approval of
       PassThroughTo (passthroughAccount, toInstructionKey) -> do
         toInstruction <- snd <$> fetchByKey @Instruction toInstructionKey
         assertMsg "toInstruction must not have been used before" $
-          not $ S.member toInstruction.id usedInstructionIds
+          not $ S.member toInstructionKey usedInstructions
         collectPassThroughChain
-          (toInstruction :: orderedInstructions)
-          (S.insert toInstruction.id usedInstructionIds)
+          (toInstructionKey :: orderedInstructions)
+          (S.insert toInstructionKey usedInstructions)
           toInstruction
-      _ -> pure (orderedInstructions, usedInstructionIds)
+      _ -> pure (orderedInstructions, usedInstructions)
