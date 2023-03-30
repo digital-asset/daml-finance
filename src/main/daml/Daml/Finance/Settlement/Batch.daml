@@ -109,26 +109,23 @@ template Batch
 orderPassThroughChains : [(RoutedStep, InstructionKey)] -> Update [InstructionKey]
 orderPassThroughChains routedStepsWithInstructions =
   reverse . fst <$> foldlA
-    (\(orderedInstructions, usedInstructions) (routedStep, instructionKey) ->
-      if S.member instructionKey usedInstructions
+    (\(ordered, used) (routedStep, current) ->
+      if S.member current used
       then
         -- instruction has already been visited, do not re-insert in list
-        pure (orderedInstructions, usedInstructions)
+        pure (ordered, used)
       else do
-        (instructionCid, instruction) <- fetchByKey @Instruction instructionKey
-        assertMsg "routed step must match" $ routedStep == instruction.routedStep
+        currentInstruction <- snd <$> fetchByKey @Instruction current
+        assertMsg "routed step must match" $ routedStep == currentInstruction.routedStep
         let
-          orderedInstructions' = instructionKey :: orderedInstructions
-          usedInstructions' = S.insert instructionKey usedInstructions
-        case instruction.allocation of
-          Pledge _ ->
-            -- a Pledge might be the start of a pass-through chain, try to follow the chain
-            collectPassThroughChain orderedInstructions' usedInstructions' instruction
-          PassThroughFrom _ ->
-            -- A PassThrough will be visited as part of a chain, do not insert in list
-            pure (orderedInstructions, usedInstructions)
-          _ ->
-            pure (orderedInstructions', usedInstructions')
+          ordered' = current :: ordered
+          used' = S.insert current used
+        case currentInstruction.allocation of
+          -- a Pledge might be the start of a pass-through chain, try to follow the chain
+          Pledge _ -> collectPassThroughChain ordered' used' currentInstruction
+          -- A PassThroughFrom will be visited as part of a chain, do not insert in list
+          PassThroughFrom _ -> pure (ordered, used)
+          _ -> pure (ordered', used')
     ) ([], S.empty) routedStepsWithInstructions
 
 -- | HIDE
@@ -136,16 +133,12 @@ orderPassThroughChains routedStepsWithInstructions =
 collectPassThroughChain : [InstructionKey] -> Set InstructionKey -> Instruction ->
     Update ([InstructionKey], Set InstructionKey)
 collectPassThroughChain
-  orderedInstructions -- i.e., previously-ordered instructions
-  usedInstructions    -- i.e., instructions that have already been visited
-  instruction =       -- i.e., first instruction of the chain
-    case instruction.approval of
-      PassThroughTo (passthroughAccount, toInstructionKey) -> do
-        toInstruction <- snd <$> fetchByKey @Instruction toInstructionKey
-        assertMsg "toInstruction must not have been used before" $
-          not $ S.member toInstructionKey usedInstructions
-        collectPassThroughChain
-          (toInstructionKey :: orderedInstructions)
-          (S.insert toInstructionKey usedInstructions)
-          toInstruction
-      _ -> pure (orderedInstructions, usedInstructions)
+  ordered              -- i.e., previously-ordered instructions
+  used                 -- i.e., instructions that have already been visited
+  currentInstruction = -- i.e., first instruction of the chain
+    case currentInstruction.approval of
+      PassThroughTo (_, next) -> do
+        nextInstruction <- snd <$> fetchByKey @Instruction next
+        assertMsg "next instruction must not have been used before" . not $ S.member next used
+        collectPassThroughChain (next :: ordered) (S.insert next used) nextInstruction
+      _ -> pure (ordered, used)

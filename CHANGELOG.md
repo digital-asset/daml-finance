@@ -338,7 +338,10 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`
   implementation was removed as well as redundant `HasImplementation` instances)
 
-- Added check that passthrough instruction is part of the batch
+- We have enhanced the pass-through allocation/approval process by incorporating additional checks.
+  These checks help to identify settlement failures at the time of allocation/approval itself,
+  rather than waiting until settlement occurs. In particular, a check was added that verifies that
+  the specified pass-through instruction is part of the batch.
 
 ### Daml.Finance.Util
 
