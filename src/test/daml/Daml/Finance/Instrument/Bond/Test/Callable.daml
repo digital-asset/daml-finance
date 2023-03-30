@@ -231,7 +231,6 @@ runFloating = script do
     floatingRate = Some FloatingRate with
       referenceRateId
       resetRelativeTo = CalculationPeriodStartDate
-      --resetRelativeTo = CalculationPeriodEndDate
       fixingDates = FixingDates with
         periodMultiplier = -2
         period = D
@@ -248,7 +247,7 @@ runFloating = script do
       , (dateToDateClockTime $ date 2023 Apr 17, 0.010)
       , (dateToDateClockTime $ date 2023 Jul 17, 0.010)
       , (dateToDateClockTime $ date 2023 Oct 16, 0.010)
-      --, (dateToDateClockTime $ date 2024 Jan 15, 0.010)
+      , (dateToDateClockTime $ date 2024 Jan 15, 0.010)
       ]
     holidayCalendarIds = ["USD"]
     cal =
@@ -345,5 +344,91 @@ runFloating = script do
   (Some _, effectCid) <- electAndVerifyPaymentEffects (date 2024 Jan 15)
     amount bondInstrumentAfterCoupon7 electorIsOwner issuer investor [publicParty] "NOT CALLED"
     [observableCid] expectedConsumed expectedProduced
+
+  pure ()
+
+
+-- Create and lifecycle a floating coupon callable bond.
+-- 2Y, 3M Libor + 0.1% p.a.
+-- Issuer does not call the bond before maturity.
+runFinalCoupon : Script ()
+runFinalCoupon = script do
+  [custodian, issuer, investor, calendarDataProvider, publicParty] <-
+    createParties ["Custodian", "Issuer", "Investor", "Calendar Data Provider", "PublicParty"]
+
+  -- Account and holding factory
+  let pp = [("FactoryProvider", S.singleton publicParty)]
+
+  -- Originate commercial-bank cash
+  now <- getTime
+  cashInstrumentCid <- originate custodian issuer "USD" "US Dollar" pp now
+
+  -- Create and distribute bond
+  -- Libor + 0.1% coupon every 3M
+  -- CREATE_3M_FLOATING_CALLABLE_BOND_VARIABLES_BEGIN
+  let
+    issueDate = date 2022 Jan 15
+    firstCouponDate = date 2022 Apr 15
+    maturityDate = date 2022 Apr 15
+    notional = 1.0
+    couponRate = 0.001
+    couponPeriod = M
+    couponPeriodMultiplier = 3
+    dayCountConvention = Act360
+    businessDayConvention = Following
+    referenceRateId = "USD/LIBOR/3M"
+    floatingRate = Some FloatingRate with
+      referenceRateId
+      resetRelativeTo = CalculationPeriodStartDate
+      fixingDates = FixingDates with
+        periodMultiplier = -2
+        period = D
+        dayType = Some Business
+        businessDayConvention = NoAdjustment
+        businessCenters = ["USD"]
+    -- CREATE_3M_FLOATING_CALLABLE_BOND_VARIABLES_END
+    observations = M.fromList
+      --[ (dateToDateClockTime $ date 2022 Jan 17, 0.010), (dateToDateClockTime $ date 2022 Apr 15, 0.010)]
+      [ (dateToDateClockTime $ date 2022 Jan 17, 0.010)]
+      --[ (dateToDateClockTime $ date 2022 Apr 15, 0.010)]
+    holidayCalendarIds = ["USD"]
+    cal =
+      HolidayCalendarData with
+        id = "USD"
+        weekend = [Saturday, Sunday]
+        holidays = []
+
+  -- A reference data provider publishes the holiday calendar on the ledger
+  calendarCid <- submit calendarDataProvider do
+    createCmd HolidayCalendar with
+      provider = calendarDataProvider
+      calendar = cal
+      observers = M.fromList pp
+
+  observableCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Observation with
+      provider = issuer; id = Id $ referenceRateId; observations; observers = M.empty
+
+  bondInstrument <- originateCallableBond issuer issuer "BONDTEST1" "Callable Bond" pp now
+    issueDate holidayCalendarIds calendarDataProvider firstCouponDate maturityDate
+    dayCountConvention businessDayConvention floatingRate couponRate couponPeriod
+    couponPeriodMultiplier cashInstrumentCid notional
+
+  -- One day before the first coupon date: try to lifecycle and verify that there are no lifecycle
+  -- effects.
+  verifyNoLifecycleEffects [publicParty] (subtractDays firstCouponDate 1) bondInstrument issuer
+    [observableCid]
+
+  let
+    amount = 1.0
+    electorIsOwner = False
+
+  -- Coupon date 1: Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0026888889 cashInstrumentCid, qty 1.0 cashInstrumentCid]
+  (Some bondInstrumentAfterCoupon1, effectCid) <- electAndVerifyPaymentEffects (date 2022 Apr 15)
+    amount bondInstrument electorIsOwner issuer investor [publicParty] "NOT CALLED" [observableCid]
+    expectedConsumed expectedProduced
 
   pure ()
