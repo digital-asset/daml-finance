@@ -3,12 +3,21 @@
 
 module Daml.Finance.Instrument.Bond.Util where
 
+import ContingentClaims.Core.Claim (and, at, give, one, or, scale, when)
+import ContingentClaims.Core.Observation (Observation(..))
+import DA.List (last)
+import Daml.Finance.Claims.Util.Builders (prepareAndTagClaims)
 import Daml.Finance.Data.Reference.HolidayCalendar (GetCalendar(..), HolidayCalendar, HolidayCalendarKey(..))
 import Daml.Finance.Data.Time.DateClock.Types (Unit(..))
+import Daml.Finance.Interface.Claims.Types (Deliverable, TaggedClaim(..))
+import Daml.Finance.Interface.Instrument.Bond.Callable.BondTypes
 import Daml.Finance.Interface.Types.Date.Calendar
 import Daml.Finance.Interface.Types.Date.Classes (toUTCTime)
+import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
 import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..), Schedule)
+import Daml.Finance.Util.Date.DayCount (calcPeriodDcf)
 import Daml.Finance.Util.Date.Schedule (createSchedule)
+import Prelude hiding (and, key, or)
 
 -- | Maps a `Date` to `Time` using the rule in the `DateClock`.
 dateToDateClockTime : Date -> Time
@@ -31,3 +40,44 @@ rollSchedule : ([Text] -> Update [HolidayCalendarData]) -> PeriodicSchedule -> [
 rollSchedule getHolidayCalendars periodicSchedule holidayCalendarIds = do
   cals <- getHolidayCalendars holidayCalendarIds
   pure $ createSchedule cals periodicSchedule
+
+-- | Calculate the claims for a callable bond with a fixed and/or floating coupon on each payment
+--   date and a redemption amount at the end (unless called by the issuer).
+createCallableBondClaims : (Date -> Time) -> Schedule -> PeriodicSchedule -> Bool
+  -> Decimal -> DayCountConventionEnum -> Decimal -> Deliverable -> Optional FloatingRate
+  -> TaggedClaim
+createCallableBondClaims dateToTime schedule periodicSchedule useAdjustedDatesForDcf
+  couponRate dayCountConvention notional cashInstrumentCid floatingRate =
+    let
+      couponDatesAdjusted = map (.adjustedEndDate) schedule
+      dcfs = map (\p ->
+          calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf
+            periodicSchedule.terminationDate periodicSchedule.frequency
+        ) schedule
+
+      cpn = case floatingRate of
+        None -> Const couponRate
+        Some fr -> Observe fr.referenceRateId + Const couponRate
+
+      -- Coupons and principal have a give node in front, to undo the give required in the main
+      -- claim (in front of the or node, see explanation below).
+      coupons = map (\dcf -> give $ scale (cpn * (Const dcf)) $ one cashInstrumentCid) dcfs
+      principal = give $ scale (Const notional) $ one cashInstrumentCid
+
+      called = ("CALLED", principal)
+      finalCouponDate = last couponDatesAdjusted
+      notCalledFinal = when (at finalCouponDate) principal
+
+      combineTagClaim cpnDate coupon notCalledClaim =
+        when (at cpnDate) $ and coupon $ or called $ ("NOT CALLED", notCalledClaim)
+
+      claimAmount = foldr (\(date, cpn) acc -> combineTagClaim date cpn acc)
+        notCalledFinal $ zip couponDatesAdjusted coupons
+
+      -- For a callable bond, it is the issuer that has the right to call. This is indicated
+      -- by a give node, which applies to all sub-nodes of the claims branch. However, the
+      -- coupons and the principal belong to the invester, which is why another give node is
+      -- required to undo the first give.
+      claims = give claimAmount
+
+    in prepareAndTagClaims dateToTime [claims] "Callable bond payment"
