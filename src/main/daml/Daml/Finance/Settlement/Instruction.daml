@@ -66,14 +66,13 @@ template Instruction
         assertMsg @Update
           (show party <> " must match " <> show roleParty <> "(" <> show role <> ")") $
           party == roleParty
-      discloseAccount = discloseAccountHelper Account.disclose (context, settlers)
-      undiscloseAccount = discloseAccountHelper Account.undisclose (context, settlers)
-      getAuthorizedDisclosers actors base =
-        ((.disclosureControllers) . view . toInterface @Disclosure.I $ base)
-        `S.intersection` (S.fromList (signatory this) `S.union` actors)
+      discloseAccount accountKey actors = discloseAccountHelper Account.disclose (signatory this)
+        (context, settlers) accountKey actors
+      undiscloseAccount accountKey actors = discloseAccountHelper Account.undisclose
+        (signatory this) (context, settlers) accountKey actors
       disclosePledge actors baseCid = do
         base <- fetch baseCid
-        let authorizedDisclosers = getAuthorizedDisclosers actors base
+        let authorizedDisclosers = getAuthorizedDisclosers (signatory this) actors base
         disclose @Base.I (context, settlers) (L.head . S.toList $ authorizedDisclosers)
           authorizedDisclosers baseCid
       releasePreviousAllocation actors =
@@ -82,16 +81,17 @@ template Instruction
             baseCid <- exercise lockedCid Base.Release with context
             base <- fetch baseCid
             let senderAccountKey = getAccount base
-            undiscloseAccount senderAccountKey True
-            undisclose @Base.I (context, settlers) (getAuthorizedDisclosers actors base) baseCid
+            undiscloseAccount senderAccountKey actors
+            undisclose @Base.I (context, settlers) (getAuthorizedDisclosers (signatory this) actors
+              base) baseCid
           PassThroughFrom (passThroughAccountKey, _) -> do
-            undiscloseAccount passThroughAccountKey True
+            undiscloseAccount passThroughAccountKey actors
             pure None
           _ -> pure None
-      releasePreviousApproval =
+      releasePreviousApproval actors =
         case approval of
-          TakeDelivery receiverAccountKey -> undiscloseAccount receiverAccountKey False
-          PassThroughTo (passThroughAccountKey, _) -> undiscloseAccount passThroughAccountKey False
+          TakeDelivery receiverAccountKey -> undiscloseAccount receiverAccountKey actors
+          PassThroughTo (passThroughAccountKey, _) -> undiscloseAccount passThroughAccountKey actors
           _ -> pure None
 
     interface instance Disclosure.I for Instruction where
@@ -116,7 +116,7 @@ template Instruction
             base <- fetch baseCid
             let senderAccountKey = getAccount base
             senderAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I senderAccountKey
-            discloseAccount senderAccountKey True
+            discloseAccount senderAccountKey actors
             mustAuthorize senderAccount.controllers.outgoing
             mustBe Custodian senderAccount.custodian
             mustBe Sender senderAccount.owner
@@ -129,7 +129,7 @@ template Instruction
               lockType = Base.Semaphore
             pure $ Pledge lockedCid
           PassThroughFrom (passThroughAccountKey, fromInstructionKey) -> do
-            discloseAccount passThroughAccountKey True
+            discloseAccount passThroughAccountKey actors
             passThroughAccount <- view <$>
               fetchInterfaceByKey @Account.R @Account.I passThroughAccountKey
             mustAuthorize passThroughAccount.controllers.incoming
@@ -158,17 +158,17 @@ template Instruction
       approve Instruction.Approve{actors; approval} = do
         let mustAuthorize = mustAuthorizeHelper actors
         assertMsg ("approval must be new " <> context) $ approval /= this.approval
-        releasePreviousApproval
+        releasePreviousApproval actors
         -- approve
         case approval of
           TakeDelivery receiverAccountKey -> do
-            discloseAccount receiverAccountKey False
+            discloseAccount receiverAccountKey actors
             receiverAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I receiverAccountKey
             mustAuthorize receiverAccount.controllers.incoming
             mustBe Custodian receiverAccount.custodian
             mustBe Receiver receiverAccount.owner
           PassThroughTo (passThroughAccountKey, toInstructionKey) -> do
-            discloseAccount passThroughAccountKey False
+            discloseAccount passThroughAccountKey actors
             passThroughAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I
               passThroughAccountKey
             mustAuthorize passThroughAccount.controllers.incoming
@@ -218,14 +218,14 @@ template Instruction
                   exercise transferableCid Transferable.Transfer with
                     actors = signedSenders <> signedReceivers; newOwnerAccount = receiverAccountKey
                 -- undisclose accounts
-                undiscloseAccount senderAccountKey True
-                undiscloseAccount receiverAccountKey False
+                undiscloseAccount senderAccountKey actors
+                undiscloseAccount receiverAccountKey actors
                 -- disclose to settlers (such that they can get the TemplateTypeRep in the Batch)
                 Some <$> disclosePledge actors newBaseCid
               DebitSender -> do
                 Account.exerciseInterfaceByKey @Account.I senderAccountKey routedStep.custodian
                   Account.Debit with holdingCid = baseCid
-                undiscloseAccount senderAccountKey True
+                undiscloseAccount senderAccountKey actors
                 pure None
               PassThroughTo (passthroughAccountKey, toInstructionKey) -> do
                 let transferableCid = coerceInterfaceContractId @Transferable.I baseCid
@@ -241,8 +241,8 @@ template Instruction
                 exercise (toInterfaceContractId @Instruction.I toInstructionCid)
                   Instruction.Allocate with
                     actors = signedSenders <> signedReceivers; allocation = Pledge baseCid
-                undiscloseAccount senderAccountKey True
-                undiscloseAccount passthroughAccountKey False
+                undiscloseAccount senderAccountKey actors
+                undiscloseAccount passthroughAccountKey actors
                 pure None
               SettleOffledgerAcknowledge -> abortOnOffledgerMix
               Unapproved -> abortUnapproved
@@ -252,7 +252,7 @@ template Instruction
                 mustBe Custodian routedStep.sender
                 baseCid <- Account.exerciseInterfaceByKey @Account.I receiverAccountKey
                   routedStep.custodian Account.Credit with quantity = routedStep.quantity
-                undiscloseAccount receiverAccountKey False
+                undiscloseAccount receiverAccountKey actors
                 -- disclose to actors (such that they can get the TemplateTypeRep in the Batch)
                 Some <$> disclosePledge actors baseCid
               DebitSender -> do
@@ -269,7 +269,7 @@ template Instruction
       cancel Instruction.Cancel{actors} = do
         let mustAuthorize = mustAuthorizeHelper actors
         mustAuthorize requestors
-        releasePreviousApproval
+        releasePreviousApproval actors
         releasePreviousAllocation actors
 
 -- | HIDE
@@ -286,13 +286,15 @@ mustAuthorizeHelper authorizers parties =
     parties `S.isSubsetOf` authorizers
 
 -- | HIDE
-discloseAccountHelper : ((Text, Parties) -> Party -> Parties -> AccountKey -> Update a) ->
-  (Text, Parties) -> AccountKey -> Bool -> Update a
-discloseAccountHelper f (context, settlers) accountKey isInstructor = do
-  account <- view <$> fetchInterfaceByKey @Account.R @Account.I accountKey
-  let
-    disclosers = if isInstructor
-                 then account.controllers.outgoing
-                 else account.controllers.incoming
-    viewer = L.head $ S.toList disclosers
-  f (context, settlers) viewer disclosers accountKey
+discloseAccountHelper : ((Text, Parties) -> Party -> Parties -> AccountKey -> Update a) -> [Party]
+  -> (Text, Parties) -> AccountKey  -> Parties -> Update a
+discloseAccountHelper f signatories (context, settlers) accountKey actors = do
+  account <- fetchInterfaceByKey @Account.R @Account.I accountKey
+  let authorizedDisclosers = getAuthorizedDisclosers signatories actors account
+  f (context, settlers) (L.head . S.toList $ authorizedDisclosers) authorizedDisclosers accountKey
+
+-- | HIDE
+getAuthorizedDisclosers: HasToInterface i Disclosure.I  => [Party] -> Parties -> i -> Parties
+getAuthorizedDisclosers signatories actors i = S.intersection
+  ((.disclosureControllers) . view . toInterface @Disclosure.I $ i)
+  (S.fromList signatories `S.union` actors)
