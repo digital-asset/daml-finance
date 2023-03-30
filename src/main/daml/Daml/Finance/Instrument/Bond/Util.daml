@@ -50,29 +50,35 @@ createCallableBondClaims dateToTime schedule periodicSchedule useAdjustedDatesFo
   couponRate dayCountConvention notional cashInstrumentCid floatingRate =
     let
       couponDatesAdjusted = map (.adjustedEndDate) schedule
-      dcfs = map (\p ->
-          calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf
-            periodicSchedule.terminationDate periodicSchedule.frequency
-        ) schedule
 
-      cpn = case floatingRate of
-        None -> Const couponRate
-        Some fr -> Observe fr.referenceRateId + Const couponRate
+      notionalAmount = scale (Const notional) $ one cashInstrumentCid
+      principal = give $ notionalAmount
 
-      -- Coupons and principal have a give node in front, to undo the give required in the main
-      -- claim (in front of the or node, see explanation below).
-      coupons = map (\dcf -> give $ scale (cpn * (Const dcf)) $ one cashInstrumentCid) dcfs
-      principal = give $ scale (Const notional) $ one cashInstrumentCid
-
-      called = ("CALLED", principal)
       finalCouponDate = last couponDatesAdjusted
       notCalledFinal = when (at finalCouponDate) principal
 
-      combineTagClaim cpnDate coupon notCalledClaim =
-        when (at cpnDate) $ and coupon $ or called $ ("NOT CALLED", notCalledClaim)
+      -- Coupons and principal have a give node in front, to undo the give required in the main
+      -- claim (in front of the or node, see explanation below).
+      combineTagClaim p notCalledClaim =
+        let
+          dcf = Const $ calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf
+            periodicSchedule.terminationDate periodicSchedule.frequency
+          notionalAtPeriodEnd = when (at p.adjustedEndDate) $ notionalAmount
+          cpn = case floatingRate of
+            None -> scale ((Const couponRate) * dcf) $ notionalAtPeriodEnd
+            Some fr -> when (at resetDate) $
+              scale ((Observe fr.referenceRateId + Const couponRate) * dcf) $ notionalAtPeriodEnd
+              where
+                resetDate = if fr.resetRelativeTo == CalculationPeriodStartDate
+                  then p.adjustedStartDate
+                  else p.adjustedEndDate
+          coupon = give $ cpn
+          called = ("CALLED", principal)
+          notCalled = ("NOT CALLED", notCalledClaim)
+        in
+          and coupon $ when (at p.adjustedEndDate) $ or called notCalled
 
-      claimAmount = foldr (\(date, cpn) acc -> combineTagClaim date cpn acc)
-        notCalledFinal $ zip couponDatesAdjusted coupons
+      claimAmount = foldr (\p acc -> combineTagClaim p acc) notCalledFinal schedule
 
       -- For a callable bond, it is the issuer that has the right to call. This is indicated
       -- by a give node, which applies to all sub-nodes of the claims branch. However, the
