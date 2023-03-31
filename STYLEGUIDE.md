@@ -82,15 +82,17 @@ within this repository.
       signatory party1
       observer party2
 
-      key party1 : Party
-      maintainer party1
+      let
+        a = 1
+        b = 2
 
-    choice Delete : ()
-      with
-        party : Party
-      controller party
-      do
-        pure ()
+      choice Delete : ()
+        with
+          party : Party
+        controller party
+        do
+          pure ()
+
   ```
 
 ### Interface structure

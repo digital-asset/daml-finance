@@ -5,56 +5,50 @@
 
 module Daml.Finance.Test.Util.Instrument where
 
-import DA.List (head, sort)
+import DA.Action (foldlA)
+import DA.List (sort)
 import DA.Map qualified as M (empty, fromList)
-import DA.Set qualified as S (empty, singleton)
+import DA.Set qualified as S (empty, singleton, toList)
 import Daml.Finance.Claims.Lifecycle.Rule (Rule(..))
 import Daml.Finance.Instrument.Token.Instrument (Instrument(..))
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (GetCid(..), GetView(..), I, R, Reference(..))
+import Daml.Finance.Interface.Claims.Dynamic.Instrument qualified as DynamicInstrument (I, getHolidayCalendarKeys)
+import Daml.Finance.Interface.Data.Reference.HolidayCalendar qualified as HolidayCalendar (I)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (I)
 import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (GetView(..), I)
 import Daml.Finance.Interface.Lifecycle.Observable.NumericObservable qualified as NumericObservable (I)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I)
 import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey, InstrumentQuantity, Parties)
-import Daml.Finance.Test.Util.Common (submitExerciseInterfaceByKeyCmdHelper)
+import Daml.Finance.Interface.Util.KeyTable (KeyTable(..), getKey, insert)
+import Daml.Finance.Test.Util.Common (queryAnyByKey)
 import Daml.Finance.Test.Util.Time (createClockUpdateEvent)
 import Daml.Script
-
--- | Create a `Reference` for an instrument.
--- Note: This should only be called together with an instrument creation
-createReference : ContractId Instrument.I -> Party -> Party -> [(Text, Parties)] ->
-  Script InstrumentKey
-createReference cid depository issuer observers = do
-  instrumentView <- submitMulti [depository, issuer] [] do
-    exerciseCmd cid Instrument.GetView with viewer = issuer
-  let ref = Instrument.Reference with instrumentView; cid; observers = M.fromList observers
-  submitMulti [depository, issuer] [] do createCmd ref
-  pure $ key ref
 
 -- | Originate an `Instrument`.
 originate : Party -> Party -> Text -> Text-> [(Text, Parties)] -> Time -> Script InstrumentKey
 originate depository issuer label description observers timestamp = do
-  cid <- toInterfaceContractId <$> submitMulti [depository, issuer] [] do
-    createCmd Instrument with
+  let
+    instrument = Instrument with
       depository; issuer; id = Id label; version = "0"; description
       observers = M.fromList observers; validAsOf = timestamp
-  createReference cid depository issuer observers
-
--- | Utility for exercising an interface by key.
-submitExerciseInterfaceByKeyCmd : forall t2 c2 b.
-  ( HasInterfaceTypeRep t2, HasTemplateTypeRep t2, HasToAnyTemplate t2, HasFromAnyTemplate t2,
-    HasFromAnyChoice t2 c2 b, HasToAnyChoice t2 c2 b, HasExercise t2 c2 b)
-    => [Party] -> [Party] -> InstrumentKey -> c2 -> Script b
-submitExerciseInterfaceByKeyCmd actAs readAs k arg = submitExerciseInterfaceByKeyCmdHelper
-  @Instrument.R @t2 actAs readAs k (Instrument.GetCid with viewer = head actAs) arg
+  cid <- toInterfaceContractId @Instrument.I <$> submitMulti [depository, issuer] [] do
+    createCmd instrument
+  pure $ getKey @Instrument.I $ toInterface @Instrument.I instrument
 
 -- | Lifecycle the instrument as of this date. This is a general function that can be used for
 -- different kinds of instruments.
-lifecycleInstrument : [Party] -> Date -> InstrumentKey -> Party ->
-  [ContractId NumericObservable.I] -> Script (Optional InstrumentKey, [ContractId Effect.I])
+lifecycleInstrument :
+  forall t1 t2.
+  ( Template t1
+  , HasAgreement t1
+  , HasToInterface t1 Instrument.I
+  , Template t2
+  , HasAgreement t2
+  , HasToInterface t2 HolidayCalendar.I
+  ) => [Party] -> Date -> InstrumentKey -> Party -> [ContractId NumericObservable.I] ->
+  Script (Optional InstrumentKey, [ContractId Effect.I])
 lifecycleInstrument readAs today instrument issuer observableCids = do
   -- Create a clock update event
   clockEventCid <- createClockUpdateEvent (S.singleton issuer) today S.empty
-
   -- Create a lifecycle rule
   lifecycleRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit issuer do
     createCmd Rule with
@@ -63,40 +57,77 @@ lifecycleInstrument readAs today instrument issuer observableCids = do
       lifecycler = issuer
       id = Id "LifecycleRule"
       description = "Rule to lifecycle an instrument"
-
+  -- Build key table
+  keyTable <- buildKeyTable @t1 @t2 [issuer] instrument
   -- Try to lifecycle the instrument
   (lifecycleCid, effectCids) <- submitMulti [issuer] readAs do
-    exerciseCmd lifecycleRuleCid Lifecycle.Evolve with
+    fst <$> exerciseCmd lifecycleRuleCid Lifecycle.Evolve with
       eventCid = clockEventCid
       observableCids
       instrument
-
+      keyTable
   pure (lifecycleCid, effectCids)
 
--- | Verify a that there are no lifecycle effects of the instrument on this date.
-verifyNoLifecycleEffects : [Party] -> Date -> InstrumentKey -> Party ->
-  [ContractId NumericObservable.I] -> Script ()
+-- | Verify that there are no lifecycle effects of the instrument on this date.
+verifyNoLifecycleEffects :
+  forall t1 t2.
+  ( Template t1
+  , HasAgreement t1
+  , HasToInterface t1 Instrument.I
+  , Template t2
+  , HasAgreement t2
+  , HasToInterface t2 HolidayCalendar.I
+  ) => [Party] -> Date -> InstrumentKey -> Party -> [ContractId NumericObservable.I] -> Script ()
 verifyNoLifecycleEffects readAs today instrument issuer observableCids = do
-  (_, effectCids) <- lifecycleInstrument readAs today instrument issuer observableCids
+  (_, effectCids) <- lifecycleInstrument @t1 @t2 readAs today instrument issuer observableCids
   assertMsg ("There should be no lifecycle effects on " <> show today) (null effectCids)
 
--- | Verify the payments from a payment date of an instrument (excluding settlement)
-lifecycleAndVerifyPaymentEffects : [Party] -> Date -> InstrumentKey -> Party ->
-  [ContractId NumericObservable.I] -> [InstrumentQuantity] -> [InstrumentQuantity] ->
-  Script (Optional InstrumentKey)
+-- | Verify the payments from a payment date of the instrument (excluding settlement).
+lifecycleAndVerifyPaymentEffects :
+  forall t1 t2.
+  ( Template t1
+  , HasAgreement t1
+  , HasToInterface t1 Instrument.I
+  , Template t2
+  , HasAgreement t2
+  , HasToInterface t2 HolidayCalendar.I
+  ) => [Party]  -> Date -> InstrumentKey -> Party -> [ContractId NumericObservable.I] ->
+  [InstrumentQuantity] -> [InstrumentQuantity] -> Script (Optional InstrumentKey)
 lifecycleAndVerifyPaymentEffects readAs today instrument issuer
   observableCids expectedConsumedQuantities expectedProducedQuantities = do
     (newInstrumentKey, [effectCid]) <-
-      lifecycleInstrument readAs today instrument issuer observableCids
-
+      lifecycleInstrument @t1 @t2 readAs today instrument issuer observableCids
     -- Get the effect
     effectView <- submit issuer do
       exerciseCmd effectCid Effect.GetView with viewer = issuer
-
     -- Verify that the consumed/produced quantities match the expected ones
     assertMsg "The consumed quantities do not match the expected ones" $
       sort expectedConsumedQuantities == sort effectView.otherConsumed
     assertMsg "The produced quantities do not match the expected ones" $
       sort expectedProducedQuantities == sort effectView.otherProduced
-
     pure newInstrumentKey
+
+-- | Build key table (from an instrument).
+buildKeyTable :
+  forall t1 t2 p.
+  ( Template t1
+  , HasAgreement t1
+  , HasToInterface t1 Instrument.I
+  , Template t2
+  , HasAgreement t2
+  , HasToInterface t2 HolidayCalendar.I
+  , IsParties p
+  ) => p -> InstrumentKey -> Script KeyTable
+buildKeyTable actors instrument = do
+  (iCid, i) <- queryAnyByKey @t1 @Instrument.I actors instrument
+  let keyTable = insert instrument iCid mempty
+  -- adding key table for holiday calendars
+  case fromInterface @DynamicInstrument.I i of
+    None -> pure keyTable
+    Some dynamicInstrument -> foldlA
+      (\keyTable h -> do
+        iCid <- fst <$> queryAnyByKey @t2 @HolidayCalendar.I h.provider h
+        pure $ insert h iCid keyTable
+      )
+      keyTable
+      (S.toList $ DynamicInstrument.getHolidayCalendarKeys dynamicInstrument)

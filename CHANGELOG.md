@@ -9,7 +9,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 | ContingentClaims.Core                      | 1.0.0              | 1.0.1          |
 | ContingentClaims.Lifecycle                 | 1.0.0              | 1.0.1          |
 | Daml.Finance.Account                       | 1.0.1              | 2.0.0          |
-| Daml.Finance.Claims                        | 1.0.1              | 1.0.2          |
+| Daml.Finance.Claims                        | 1.0.1              | 2.0.0          |
 | Daml.Finance.Data                          | 1.0.1              | 2.0.0          |
 | Daml.Finance.Holding                       | 1.0.2              | 2.0.0          |
 | Daml.Finance.Instrument.Generic            | 1.0.1              | 2.0.0          |
@@ -23,12 +23,12 @@ This document tracks pending changes to packages. It is facilitating the write-u
 | Daml.Finance.Interface.Instrument.Token    | 1.0.0              | 2.0.0          |
 | Daml.Finance.Interface.Lifecycle           | 1.0.0              | 2.0.0          |
 | Daml.Finance.Interface.Settlement          | 1.0.0              | 2.0.0          |
-| Daml.Finance.Interface.Types.Common        | 1.0.0              | 1.0.1          |
+| Daml.Finance.Interface.Types.Common        | 1.0.0              | 1.1.0          |
 | Daml.Finance.Interface.Types.Date          | 2.0.0              | 2.0.1          |
-| Daml.Finance.Interface.Util                | 1.0.0              | 1.0.1          |
+| Daml.Finance.Interface.Util                | 1.0.0              | 2.0.0          |
 | Daml.Finance.Lifecycle                     | 1.0.1              | 2.0.0          |
 | Daml.Finance.Settlement                    | 1.0.2              | 2.0.0          |
-| Daml.Finance.Util                          | 2.0.0              | 2.0.1          |
+| Daml.Finance.Util                          | 2.0.0              | 2.1.0          |
 
 ## Early Access Packages
 
@@ -71,9 +71,13 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`
   implementation was removed as well as redundant `HasImplementation` instances)
 
+- Key Table
+
 ### Daml.Finance.Claims
 
 - Dependencies update
+
+- Key Table
 
 - Style changes
 
@@ -87,6 +91,12 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `asNumericObservable`, `asTimeObservable`, and `asEvent` implementations were removed as well as
   redundant `HasImplementation` instances)
 
+- Key Table (for `HolidayCalendar` and `TimeObservable`)
+
+- Made use of `TimeObservableKey`
+
+- Moved `HolidayCalendarKey` to `Daml.Finance.Interface.Data`
+
 ### Daml.Finance.Holding
 
 - Dependencies update
@@ -98,6 +108,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `asBase`, and `asTransferable` implementations were removed as well as redundant
   `HasImplementation` instances)
 
+- Key Table
+
 ### Daml.Finance.Instrument.Bond
 
 - Dependencies update
@@ -107,6 +119,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
   `asBaseInstrument` implementations were removed as well as redundant `HasImplementation`
   instances)
+
+- Key Table
 
 - Add callable bond instrument
 
@@ -119,6 +133,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
   `asBaseInstrument` implementations were removed as well as redundant `HasImplementation`
   instances)
+
+- Key Table
 
 ### Daml.Finance.Instrument.Generic
 
@@ -133,6 +149,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `HasImplementation` instances)
 
 - During lifeycling: create a new instrument also in case of a Zero claim (breaking change).
+
+- Key Table
 
 ### Daml.Finance.Instrument.Option
 
@@ -150,6 +168,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `asBaseInstrument` implementations were removed as well as redundant `HasImplementation`
   instances)
 
+- Key Table
+
 ### Daml.Finance.Instrument.Swap
 
 - Dependencies update
@@ -160,6 +180,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `asBaseInstrument` implementations were removed as well as redundant `HasImplementation`
   instances)
 
+- Key Table
+
 ### Daml.Finance.Instrument.Token
 
 - Dependencies update
@@ -167,6 +189,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Makes use of `requires` to enforce the interface hierarchy (in the particular `asDisclosure` and
   `asBaseInstrument` implementations were removed as well as redundant `HasImplementation`
   instances)
+
+- Key Table
 
 ### Daml.Finance.Interface.Account
 
@@ -177,12 +201,18 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`
   method was removed as well as the redundant `HasImplementation` type class)
 
+- Key Table (API change for `AccountFactory.Remove`)
+
 ### Daml.Finance.Interface.Claims
 
 - Dependencies update
 
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asBaseInstrument`
   method was removed as well as the redundant `HasImplementation` type class)
+
+- Key Table (API change for `Claim.GetClaim`)
+
+- Introduced `getHolidayCalendarKeys` method to `Dynamic.Instrument.I`.
 
 ### Daml.Finance.Interface.Data
 
@@ -194,6 +224,10 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `asNumericObservable`, and `asTimeObservable` methods were removed as well as the redundant
   `HasImplementation` type class)
 
+- Key Table (for `DateClock`, `HolidayCalendar`, and `LedgerTime`)
+
+- Moved `HolidayCalendarKey` to this package.
+
 ### Daml.Finance.Interface.Holding
 
 - Dependencies update
@@ -203,6 +237,11 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`,
   `asBase`, and `asTransferable` methods were removed as well as the redundant `HasImplementation`
   type class)
+
+- Key Table (API change for `Transferable.Transfer`)
+
+- Moved the `disclose` and `undisclose` utility functions to
+  `Daml.Finance.Interface.Util.Disclosure`
 
 ### Daml.Finance.Interface.Instrument.Base
 
@@ -215,6 +254,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`
   method was removed as well as the redundant `HasImplementation` type class)
 
+- Key Table
+
 ### Daml.Finance.Interface.Instrument.Bond
 
 - Dependencies update
@@ -224,6 +265,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
   `asBaseInstrument` methods were removed as well as the redundant `HasImplementation` type
   classes)
+
+- Key Table (API change for `Factory.Remove`)
 
 - Add callable bond instrument
 
@@ -236,6 +279,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
   `asBaseInstrument` methods were removed as well as the redundant `HasImplementation` type class)
 
+- Key Table (API change for `Factory.Remove`)
+
 ### Daml.Finance.Interface.Instrument.Generic
 
 - Dependencies update
@@ -245,6 +290,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`,
   `asBaseInstrument`, and `asClaim` methods were removed as well as the redundant
   `HasImplementation` type class)
+
+- Key Table (API change for `Factory.Remove`, `Election.Apply`, and `Election.ApplyElection`)
 
 ### Daml.Finance.Interface.Instrument.Option
 
@@ -262,6 +309,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `asBaseInstrument`, and `asEvent` methods were removed as well as the redundant
   `HasImplementation` type class)
 
+- Key Table (API change for `Factory.Remove`)
+
 ### Daml.Finance.Interface.Instrument.Swap
 
 - Dependencies update
@@ -273,12 +322,16 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
   `asBaseInstrument` methods were removed as well as the redundant `HasImplementation` type class)
 
+- Key Table (API change for `Factory.Remove`)
+
 ### Daml.Finance.Interface.Instrument.Token
 
 - Dependencies update
 
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
   `asBaseInstrument` methods were removed as well as the redundant `HasImplementation` type class)
+
+- Key Table (API change for `Factory.Remove`)
 
 ### Daml.Finance.Interface.Lifecycle
 
@@ -291,6 +344,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
   `asEvent` methods were removed as well as the redundant `HasImplementation` type class)
 
+- Key Table (added key data type for `TimeObservable` + API change for `Rule.Lifecycle.Evolve`)
+
 ### Daml.Finance.Interface.Settlement
 
 - Dependencies update
@@ -300,9 +355,21 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` was
   removed as well as the redundant `HasImplementation` type class)
 
+- Key Table (API change for `Batch.Settle`, `Batch.Cancel`, `Instruction.Allocate`,
+  `Instruction.Approve`, `Instruction.Execute`, and `Instruction.Cancel`)
+
+- Added `getKey` interface method to `Instruction` and `Batch` (to be consistent with other
+  keyed interfaces).
+
+- Added data type for `BatchKey`.
+
 ### Daml.Finance.Interface.Types.Common
 
 - Dependencies update
+
+- Introduced `TimeObservableKey` data type
+
+- Moved `HolidayCalendarKey` to this package.
 
 ### Daml.Finance.Interface.Types.Date
 
@@ -315,6 +382,14 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Makes use of `requires` to enforce the interface hierarchy (in particular the redundant
   `HasImplementation` type class was removed)
 
+- Key Table (added module `KeyTable` with custom `archive`, `create`, `exercise`, `exerciseByKey`,
+  `fetch`, `fetchByKey`, `fetchFromInterface`, and `lookupByKey` for working with explicit key
+  tables)
+
+- Utility functions for `disclose` and `undisclose` were moved to this package.
+
+- Added check that passthrough instruction is part of the batch
+
 ### Daml.Finance.Lifecycle
 
 - Dependencies update
@@ -325,6 +400,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
   `asEvent` implementations were removed as well as redundant `HasImplementation` instances)
+
+- Key Table
 
 ### Daml.Finance.Settlement
 
@@ -343,8 +420,13 @@ This document tracks pending changes to packages. It is facilitating the write-u
   rather than waiting until settlement occurs. In particular, a check was added that verifies that
   the specified pass-through instruction is part of the batch.
 
+- Key Table
+
 ### Daml.Finance.Util
 
 - Dependencies update
 
 - Style changes
+
+- Type signature for utility functions cahnged `setObserversImpl`, `addObserversImpl`, and
+  `removeObserversImpl`).

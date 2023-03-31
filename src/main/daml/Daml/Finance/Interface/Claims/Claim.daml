@@ -3,9 +3,12 @@
 
 module Daml.Finance.Interface.Claims.Claim where
 
+import Daml.Control.Monad.Trans.State (StateT(..))
 import Daml.Finance.Interface.Claims.Types (C, TaggedClaim)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I)
+import Daml.Finance.Interface.Util.KeyTable (KeyTable, UpdateWithKey)
+import Daml.Finance.Interface.Util.KeyTable qualified as SyntheticallyKeyed (I)
 
 -- | Type synonym for `Claim`.
 type I = Claim
@@ -21,10 +24,10 @@ data View = View
   deriving (Eq, Show)
 
 -- | Interface implemented by templates that can be represented as Contingent Claims.
-interface Claim requires BaseInstrument.I, Disclosure.I where
+interface Claim requires BaseInstrument.I, Disclosure.I, SyntheticallyKeyed.I where
   viewtype V
 
-  getClaims : GetClaims -> Update [TaggedClaim]
+  getClaims : GetClaims -> Update ([TaggedClaim], KeyTable)
     -- ^ The list of claims representing the instrument.
 
   nonconsuming choice GetView : View
@@ -36,21 +39,23 @@ interface Claim requires BaseInstrument.I, Disclosure.I where
     do
       pure $ view this
 
-  nonconsuming choice GetClaims : [TaggedClaim]
+  nonconsuming choice GetClaims : ([TaggedClaim], KeyTable)
     -- ^ Retrieves the list of claims representing the instrument. This might involve fetching
     --   reference data, such as calendars, on which the actor must have visibility.
     with
       actor : Party
         -- ^ The party retrieving the claims.
+      keyTable : KeyTable
+        -- ^ The key table needed for the action.
     controller actor
     do
       getClaims this arg
 
 -- | Retrieves the single claim representing the template. An error is thrown if there are zero or
 -- more than one claims.
-getClaim : Party -> Claim -> Update C
+getClaim : Party -> Claim -> UpdateWithKey C
 getClaim actor instrument = do
-  x <- getClaims instrument GetClaims with actor
+  x <- StateT $ getClaims instrument . GetClaims actor
   case x of
     [tc] -> pure tc.claim
     other -> abort "Expecting exactly one claim"

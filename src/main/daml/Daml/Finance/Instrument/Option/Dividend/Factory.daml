@@ -5,12 +5,14 @@ module Daml.Finance.Instrument.Option.Dividend.Factory where
 
 import DA.Set (singleton)
 import Daml.Finance.Instrument.Option.Dividend.Instrument qualified as Dividend (Instrument(..))
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (GetCid(..), R, createReference)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I)
 import Daml.Finance.Interface.Instrument.Option.Dividend.Factory qualified as DividendOption (Create(..), Factory, Remove(..), View(..))
 import Daml.Finance.Interface.Instrument.Option.Dividend.Types (Dividend(..))
-import Daml.Finance.Interface.Types.Common.Types (PartiesMap)
+import Daml.Finance.Interface.Types.Common.Types (InstrumentKey, PartiesMap)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Interface.Util.KeyTable (archiveByKey, create, withKeyTable)
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+import Prelude hiding (archive, create, exercise, exerciseByKey, fetch, fetchByKey, fetchFromInterface, lookup, lookupByKey)
 
 -- | Type synonym for `Factory`.
 type F = Factory
@@ -28,9 +30,11 @@ template Factory
 
     interface instance DividendOption.Factory for Factory where
       view = DividendOption.View with provider
-      create' DividendOption.Create{dividend = Dividend{instrument; description; expiryDate;
-        cashQuantity; sharesQuantity; fxQuantity; lastEventTimestamp}; observers} = do
-          cid <- toInterfaceContractId <$>
+      create' DividendOption.Create{
+        dividend = Dividend{instrument; description; expiryDate; cashQuantity; sharesQuantity;
+          fxQuantity; lastEventTimestamp};
+        observers} =
+          toInterfaceContractId <$>
             create Dividend.Instrument with
               depository = instrument.depository
               issuer = instrument.issuer
@@ -43,16 +47,12 @@ template Factory
               fxQuantity
               lastEventTimestamp
               observers
-          BaseInstrument.createReference instrument.depository cid
-          pure cid
-      remove DividendOption.Remove{instrument} = do
-        (refCid, ref) <- fetchByKey @BaseInstrument.R instrument
-        instrumentCid <- exercise refCid BaseInstrument.GetCid with viewer = instrument.depository
-        archive $ fromInterfaceContractId @Dividend.Instrument instrumentCid
-        archive refCid
+      remove DividendOption.Remove{instrument; keyTable} = withKeyTable keyTable do
+        archiveByKey @BaseInstrument.I @InstrumentKey provider instrument
 
     interface instance Disclosure.I for Factory where
       view = Disclosure.View with disclosureControllers = singleton provider; observers
-      setObservers = setObserversImpl @Factory @Disclosure.I this None
-      addObservers = addObserversImpl @Factory @Disclosure.I this None
-      removeObservers = removeObserversImpl @Factory @Disclosure.I this None
+      setObservers = setObserversImpl @Factory this
+      addObservers = addObserversImpl @Factory this
+      removeObservers = removeObserversImpl @Factory this
+
