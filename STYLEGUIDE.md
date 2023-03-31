@@ -85,12 +85,16 @@ within this repository.
       key party1 : Party
       maintainer party1
 
-    choice Delete : ()
-      with
-        party : Party
-      controller party
-      do
-        pure ()
+      let
+        a = 1
+        b = 2
+
+      choice Delete : ()
+        with
+          party : Party
+        controller party
+        do
+          pure ()
   ```
 
 ### Interface structure
