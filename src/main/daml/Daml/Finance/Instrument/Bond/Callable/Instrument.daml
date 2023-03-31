@@ -17,6 +17,7 @@ import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey(..), Par
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
 import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..))
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Util.Date.Calendar (merge)
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
 import Prelude hiding (key)
 
@@ -77,18 +78,20 @@ template Instrument
       view = Claim.View with acquisitionTime = dateToDateClockTime $ daysSinceEpochToDate 0
       getClaims Claim.GetClaims{actor} = do
         -- get the initial claims tree (as of the bond's acquisition time)
+        let getCalendars = getHolidayCalendars actor calendarDataProvider
         let
-          getCalendars = getHolidayCalendars actor calendarDataProvider
-          fixingCals = case floatingRate of
-            None -> None
-            Some fr -> Some $ getCalendars fr.fixingDates.businessCenters
+          fixingBusinessCenters = case floatingRate of
+            None -> []
+            Some fr -> fr.fixingDates.businessCenters
+        --fixingCals <- merge $ getHolidayCalendars issuer calendarDataProvider fixingBusinessCenters
+        fixingCals <- getHolidayCalendars issuer calendarDataProvider fixingBusinessCenters
         schedule <- rollSchedule getCalendars periodicSchedule holidayCalendarIds
         let
           useAdjustedDatesForDcf = True
-        couponClaims <- createCallableBondClaims dateToDateClockTime schedule
-          periodicSchedule useAdjustedDatesForDcf couponRate dayCountConvention notional currency
-          floatingRate
-        pure [couponClaims]
+        callableClaims <- createCallableBondClaims dateToDateClockTime schedule periodicSchedule
+          useAdjustedDatesForDcf couponRate dayCountConvention notional currency floatingRate
+          $ merge fixingCals
+        pure [callableClaims]
     -- CALLABLE_BOND_CLAIMS_END
 
     interface instance BaseInstrument.I for Instrument where
