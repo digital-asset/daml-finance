@@ -204,6 +204,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `asBase`, and `asTransferable` methods were removed as well as the redundant `HasImplementation`
   type class)
 
+- Fix to signature of `disclose` (removed the `actor` argument).
+
 ### Daml.Finance.Interface.Instrument.Base
 
 - Dependencies update
