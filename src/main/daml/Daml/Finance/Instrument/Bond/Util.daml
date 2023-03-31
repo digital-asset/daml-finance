@@ -3,12 +3,24 @@
 
 module Daml.Finance.Instrument.Bond.Util where
 
+import ContingentClaims.Core.Claim (and, at, give, one, or, scale, when)
+import ContingentClaims.Core.Observation (Observation(..))
+import DA.Date (addDays)
+import DA.List (init, last)
+import Daml.Finance.Claims.Util.Builders (prepareAndTagClaims)
 import Daml.Finance.Data.Reference.HolidayCalendar (GetCalendar(..), HolidayCalendar, HolidayCalendarKey(..))
 import Daml.Finance.Data.Time.DateClock.Types (Unit(..))
+import Daml.Finance.Interface.Claims.Types (Deliverable, TaggedClaim(..))
+import Daml.Finance.Interface.Instrument.Bond.Callable.BondTypes
 import Daml.Finance.Interface.Types.Date.Calendar
 import Daml.Finance.Interface.Types.Date.Classes (toUTCTime)
+import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
+import Daml.Finance.Interface.Types.Date.RollConvention
 import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..), Schedule)
+import Daml.Finance.Util.Date.Calendar (addBusinessDays, adjustDate)
+import Daml.Finance.Util.Date.DayCount (calcPeriodDcf)
 import Daml.Finance.Util.Date.Schedule (createSchedule)
+import Prelude hiding (and, key, or)
 
 -- | Maps a `Date` to `Time` using the rule in the `DateClock`.
 dateToDateClockTime : Date -> Time
@@ -31,3 +43,71 @@ rollSchedule : ([Text] -> Update [HolidayCalendarData]) -> PeriodicSchedule -> [
 rollSchedule getHolidayCalendars periodicSchedule holidayCalendarIds = do
   cals <- getHolidayCalendars holidayCalendarIds
   pure $ createSchedule cals periodicSchedule
+
+-- | Calculate the claims for a callable bond with a fixed and/or floating coupon on each payment
+--   date and a redemption amount at the end (unless called by the issuer).
+createCallableBondClaims : (Date -> Time) -> Schedule -> PeriodicSchedule -> Bool
+  -> Decimal -> DayCountConventionEnum -> Decimal -> Deliverable -> Optional FloatingRate
+  -> HolidayCalendarData -> TaggedClaim
+createCallableBondClaims dateToTime schedule periodicSchedule useAdjustedDatesForDcf
+  couponRate dayCountConvention notional cashInstrumentCid floatingRate
+  fixingCalendars =
+  let
+    notionalAmount = scale (Const notional) $ one cashInstrumentCid
+
+    -- Coupons and principal have a give node in front, to undo the give required in the main
+    -- claim (in front of the or node, see explanation below).
+    principal = give notionalAmount
+
+    -- Currently, it is possible to call on every coupon date
+    callPossibleInit = replicate (length schedule) True
+
+    -- Except on the last one, because that does not make sense (principal repaid in any case)
+    callPossible = init callPossibleInit ++ [False]
+
+    combineTagClaim (p, callingIsPossible) notCalledClaim =
+      let
+        dcf = Const $ calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf
+          periodicSchedule.terminationDate periodicSchedule.frequency
+        notionalAtPeriodEnd = when (at p.adjustedEndDate) $ notionalAmount
+        cpn = case floatingRate of
+          None -> scale ((Const couponRate) * dcf) notionalAtPeriodEnd
+          Some fr -> when (at resetDate) $
+            scale ((Observe fr.referenceRateId + Const couponRate) * dcf) notionalAtPeriodEnd
+            where
+              baseDate = if fr.resetRelativeTo == CalculationPeriodStartDate
+                then p.adjustedStartDate
+                else p.adjustedEndDate
+              dayShiftBase = if fr.fixingDates.period == D
+                then fr.fixingDates.periodMultiplier
+                else error "Only daily periods supported"
+              dayShift = if dayShiftBase < 0
+                then error "negative offsets not yet supported, but will be later using ObserveAt"
+                else dayShiftBase
+              resetDateUnadj = case fr.fixingDates.dayType of
+                None -> baseDate
+                Some Business -> addBusinessDays fixingCalendars dayShift baseDate
+                Some Calendar -> addDays baseDate dayShift
+              resetDate = adjustDate fixingCalendars fr.fixingDates.businessDayConvention
+                resetDateUnadj
+        coupon = give cpn
+        called = ("CALLED", principal)
+        notCalled = ("NOT CALLED", notCalledClaim)
+        tailClaim = if callingIsPossible then when (at p.adjustedEndDate) $ or called notCalled
+          else notCalledClaim
+      in
+        and coupon tailClaim
+
+    finalCouponDate = (.adjustedEndDate) $ last schedule
+    notCalledFinal = when (at finalCouponDate) principal
+    claimAmount = foldr (\p acc -> combineTagClaim p acc) notCalledFinal $
+      zip schedule callPossible
+
+    -- For a callable bond, it is the holding custodian that has the right to call. This is indicated
+    -- by a give node, which applies to all sub-nodes of the claims branch. However, the
+    -- coupons and the principal belong to the holding owner, which is why another give node is
+    -- required to undo the first give.
+    claims = give claimAmount
+
+  in
+    prepareAndTagClaims dateToTime [claims] "Callable bond payment"
