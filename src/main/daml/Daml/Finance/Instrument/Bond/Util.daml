@@ -3,7 +3,7 @@
 
 module Daml.Finance.Instrument.Bond.Util where
 
-import ContingentClaims.Core.Claim (and, at, give, one, or, scale, when)
+import ContingentClaims.Core.Claim (Inequality(..), and, at, cond, give, one, or, scale, when)
 import ContingentClaims.Core.Observation (Observation(..))
 import DA.Date (addDays)
 import DA.List (init, last)
@@ -53,6 +53,9 @@ createCallableBondClaims dateToTime schedule periodicSchedule useAdjustedDatesFo
   couponRate dayCountConvention notional cashInstrumentCid floatingRate
   fixingCalendars =
   let
+    --capRate : Optional Decimal = Some 1.5
+    capRate = None
+    floorRate : Optional Decimal = Some 0.0
     notionalAmount = scale (Const notional) $ one cashInstrumentCid
 
     -- Coupons and principal have a give node in front, to undo the give required in the main
@@ -73,7 +76,9 @@ createCallableBondClaims dateToTime schedule periodicSchedule useAdjustedDatesFo
         cpn = case floatingRate of
           None -> scale ((Const couponRate) * dcf) notionalAtPeriodEnd
           Some fr -> when (at resetDate) $
-            scale ((Observe fr.referenceRateId + Const couponRate) * dcf) notionalAtPeriodEnd
+            --scale (regularRate) $ scale (dcf) notionalAtPeriodEnd
+            --regularRateClaim
+            rateAfterCap
             where
               baseDate = if fr.resetRelativeTo == CalculationPeriodStartDate
                 then p.adjustedStartDate
@@ -90,6 +95,19 @@ createCallableBondClaims dateToTime schedule periodicSchedule useAdjustedDatesFo
                 Some Calendar -> addDays baseDate dayShift
               resetDate = adjustDate fixingCalendars fr.fixingDates.businessDayConvention
                 resetDateUnadj
+              regularRate = Observe fr.referenceRateId + Const couponRate
+              dcfAndNotional = scale dcf notionalAtPeriodEnd
+              regularRateClaim = scale regularRate dcfAndNotional
+              --cappedRate = cond capCondition capRateClaim regularRateClaim
+              rateAfterCap = case capRate of
+                None -> regularRateClaim
+                Some cap -> cond capCondition regularRateClaim regularRateClaim
+                  where
+                    capRate = Const cap
+                    --capCondition = Lte (regularRate, capRate)
+                    capCondition = Lte (Const 1.0, Const 0.0)
+                    capRateClaim = scale capRate dcfAndNotional
+
         coupon = give cpn
         called = ("CALLED", principal)
         notCalled = ("NOT CALLED", notCalledClaim)
