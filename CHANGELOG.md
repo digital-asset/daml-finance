@@ -243,6 +243,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Moved the `disclose` and `undisclose` utility functions to
   `Daml.Finance.Interface.Util.Disclosure`
 
+- Fix to signature of `disclose` (removed the `actor` argument).
+
 ### Daml.Finance.Interface.Instrument.Base
 
 - Dependencies update

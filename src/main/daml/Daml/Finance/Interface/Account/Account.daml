@@ -4,12 +4,14 @@
 -- | We recommend to import this module qualified.
 module Daml.Finance.Interface.Account.Account where
 
+import DA.List qualified as L (head)
 import DA.Optional (whenSome)
+import DA.Set qualified as S (toList)
 import Daml.Finance.Interface.Holding.Base qualified as Base (I)
 import Daml.Finance.Interface.Holding.Factory qualified as Holding (F)
 import Daml.Finance.Interface.Types.Common.Types (Id, AccountKey(..), InstrumentKey(..), Parties, Quantity)
-import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, disclose, getAuthorizedDisclosers, undisclose)
-import Daml.Finance.Interface.Util.KeyTable (HasSyntheticKey(..), UpdateWithKey, exercise, fetchByKey, insertWithState)
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (AddObservers(..), I, RemoveObservers(..))
+import Daml.Finance.Interface.Util.KeyTable (HasSyntheticKey(..), UpdateWithKey, exercise, exerciseByKey, insertWithState)
 import Daml.Finance.Interface.Util.KeyTable qualified as SyntheticallyKeyed (I)
 import Prelude hiding (archive, create, exercise, exerciseByKey, fetch, fetchByKey, fetchFromInterface, lookup, lookupByKey)
 
@@ -89,20 +91,20 @@ toKey v = AccountKey with custodian = v.custodian; owner = v.owner; id = v.id
 
 -- | HIDE
 discloseByKey : (Text, Parties) -> AccountKey -> Parties -> UpdateWithKey (ContractId Account)
-discloseByKey observersToAdd accountKey actors = do
-  (accountCid, account) <- fetchByKey @Account @Account accountKey
-  let disclosers = Disclosure.getAuthorizedDisclosers account actors
-  cid <- Disclosure.disclose @Account observersToAdd disclosers accountCid
-  insertWithState accountKey cid
-  pure cid
+discloseByKey observersToAdd accountKey disclosers = do
+  disclosureCid <- exerciseByKey @Account @Disclosure.I (L.head $ S.toList disclosers) accountKey $
+    Disclosure.AddObservers disclosers observersToAdd
+  let accountCid = coerceInterfaceContractId @Account disclosureCid
+  insertWithState accountKey accountCid
+  pure accountCid
 
 -- | HIDE
 undiscloseByKey : (Text, Parties) -> AccountKey -> Parties ->
   UpdateWithKey (Optional (ContractId Account))
-undiscloseByKey observersToRemove accountKey actors = do
-  (accountCid, account) <- fetchByKey @Account @Account accountKey
-  let disclosers = Disclosure.getAuthorizedDisclosers account actors
-  accountCid <- Disclosure.undisclose @Account observersToRemove disclosers accountCid
+undiscloseByKey observersToRemove accountKey disclosers = do
+  disclosureCid <- exerciseByKey @Account @Disclosure.I (L.head $ S.toList disclosers) accountKey $
+    Disclosure.RemoveObservers disclosers observersToRemove
+  let accountCid = coerceInterfaceContractId @Account . toInterfaceContractId @Disclosure.I <$> disclosureCid
   whenSome accountCid $ insertWithState accountKey
   pure accountCid
 

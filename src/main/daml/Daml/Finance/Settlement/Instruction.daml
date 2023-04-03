@@ -10,11 +10,11 @@ import Daml.Finance.Interface.Account.Account qualified as Account (Credit(..), 
 import Daml.Finance.Interface.Account.Util (getAccount)
 import Daml.Finance.Interface.Holding.Base qualified as Base (Acquire(..), I, LockType(..), Release(..))
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
-import Daml.Finance.Interface.Holding.Util (getAmount, getInstrument)
+import Daml.Finance.Interface.Holding.Util qualified as Holding (getAmount, getInstrument)
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..), Cancel(..), Execute(..), I, View(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), InstructionKey(..), RoutedStep)
 import Daml.Finance.Interface.Types.Common.Types (Id(..), Parties, PartiesMap)
-import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers, getAuthorizedDisclosers, disclose, undisclose)
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers, disclose, undisclose)
 import Daml.Finance.Interface.Util.KeyTable (UpdateWithKey, createWithKey, exercise, exerciseByKey, fetch, deleteWithState, exercise, fetchByKey, withKeyTable)
 import Daml.Finance.Interface.Util.KeyTable qualified as SyntheticallyKeyed (I, View(..))
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
@@ -67,18 +67,14 @@ template Instruction
           (show party <> " must match " <> show roleParty <> "(" <> show role <> ")") $
           party == roleParty
       addSignatories parties = parties `S.union` S.fromList (signatory this)
-      discloseAccount accountKey actors =
-        Account.discloseByKey (context, settlers) accountKey $ addSignatories actors
-      undiscloseAccount accountKey actors =
-        Account.undiscloseByKey (context, settlers) accountKey $ addSignatories actors
-      disclosePledge baseCid actors = do
-        base <- fetch baseCid
-        let disclosers = Disclosure.getAuthorizedDisclosers base $ addSignatories actors
-        Disclosure.disclose @Base.I @UpdateWithKey (context, settlers) disclosers baseCid
-      undisclosePledge baseCid actors = do
-        base <- fetch baseCid
-        let disclosers = Disclosure.getAuthorizedDisclosers base $ addSignatories actors
-        Disclosure.undisclose @Base.I @UpdateWithKey (context, settlers) disclosers baseCid
+      discloseAccount accountKey actors = Account.discloseByKey (context, settlers) accountKey $
+        addSignatories actors
+      undiscloseAccount accountKey actors = Account.undiscloseByKey (context, settlers) accountKey $
+        addSignatories actors
+      disclosePledge baseCid actors = Disclosure.disclose @Base.I @UpdateWithKey (context, settlers)
+        (addSignatories actors) baseCid
+      undisclosePledge baseCid actors = Disclosure.undisclose @Base.I @UpdateWithKey (context,
+        settlers) (addSignatories actors) baseCid
       releasePreviousAllocation actors =
         case allocation of
           Pledge lockedCid -> do
@@ -114,7 +110,7 @@ template Instruction
       getKey = instructionKey
       allocate Instruction.Allocate{actors; allocation; keyTable} = withKeyTable keyTable do
         let mustAuthorize = mustAuthorizeHelper actors
-        assertMsg ("allocation must be new " <> context) $ allocation /= this.allocation
+        assertMsg ("Allocation must be new. " <> context) $ allocation /= this.allocation
         releasedCid <- releasePreviousAllocation actors
         -- allocate
         newAllocation <- case allocation of
@@ -127,9 +123,10 @@ template Instruction
             mustAuthorize senderAccount.controllers.outgoing
             mustBe Custodian senderAccount.custodian
             mustBe Sender senderAccount.owner
-            assertMsg "the pledged amount must match" $ getAmount base == routedStep.quantity.amount
-            assertMsg "the pledged instrument must match" $
-              getInstrument base == routedStep.quantity.unit
+            assertMsg ("Pledged amount must match. " <> context) $
+              Holding.getAmount base == routedStep.quantity.amount
+            assertMsg ("Pledged instrument must match. " <> context) $
+              Holding.getInstrument base == routedStep.quantity.unit
             lockedCid <- exercise baseCid Base.Acquire with
               newLockers = requestors <> senderAccount.controllers.outgoing
               context
@@ -144,7 +141,7 @@ template Instruction
             mustBe Sender passThroughAccount.owner
             fromInstruction <- view . snd <$> fetchByKey @Instruction.I @Instruction.I
               fromInstructionKey
-            assertMsg "the pass-through-from instruction must be part of the batch" $
+            assertMsg ("Pass-through-from instruction must be part of the batch. " <> context) $
               fromInstruction.batchId == batchId && fromInstruction.requestors == requestors
             mustBe Custodian fromInstruction.routedStep.custodian
             mustBe Sender fromInstruction.routedStep.receiver
@@ -165,7 +162,7 @@ template Instruction
         pure (newInstructionCid, releasedCid)
       approve Instruction.Approve{actors; approval; keyTable} = withKeyTable keyTable do
         let mustAuthorize = mustAuthorizeHelper actors
-        assertMsg ("approval must be new " <> context) $ approval /= this.approval
+        assertMsg ("Approval must be new. " <> context) $ approval /= this.approval
         releasePreviousApproval actors
         -- approve
         case approval of
@@ -185,7 +182,7 @@ template Instruction
             mustBe Receiver passThroughAccount.owner
             toInstruction <- view . snd <$> fetchByKey @Instruction.I @Instruction.I
               toInstructionKey
-            assertMsg "the pass-through-to instruction must be part of the batch" $
+            assertMsg ("Pass-through-to instruction must be part of the batch. " <> context) $
               toInstruction.batchId == batchId && toInstruction.requestors == requestors
             mustBe Custodian toInstruction.routedStep.custodian
             mustBe Receiver toInstruction.routedStep.sender
@@ -202,20 +199,20 @@ template Instruction
         let mustAuthorize = mustAuthorizeHelper actors
         mustAuthorize requestors
         let
-          settler = fromSomeNote "there must be a settler among the actors" . L.head . S.toList $
-            actors `S.intersection` settlers
-          abortUnapproved = abort $ "instruction must be approved " <> context
+          settler = fromSomeNote ("Actors must intersect with settlers. " <> context) . L.head .
+            S.toList $ actors `S.intersection` settlers
+          abortUnapproved = abort $ "Instruction must be approved. " <> context
           abortOnOffledgerMix =
-            abort $ "mix of on- and off-ledger settlement is not supported " <> context
+            abort $ "Mix of on- and off-ledger settlement is not supported. " <> context
         -- execute instruction
         settledCid <- case (allocation, approval) of
           (Unallocated, Unapproved) -> do
-            abort $ "instruction must be allocated and approved" <> context
-          (Unallocated, _) -> abort $ "instruction must be allocated" <> context
+            abort $ "Instruction must be allocated and approved. " <> context
+          (Unallocated, _) -> abort $ "Instruction must be allocated. " <> context
           (_, Unapproved) -> abortUnapproved
           (PassThroughFrom _, _) -> do
             -- Pass-throughs are consumed by the routedStep (*) below
-            abort $ "holding has not been passed through " <> context
+            abort $ "Holding has not been passed through. " <> context
           (Pledge lockedCid, a) -> do
             baseCid <- exercise lockedCid Base.Release with context
             base <- fetch baseCid
@@ -241,7 +238,8 @@ template Instruction
                   (signedSenders <> signedReceivers) passThroughAccountKey)
                 (toInstructionCid, toInstruction) <- fmap view <$> fetchByKey @Instruction.I
                   @Instruction.I toInstructionKey
-                assertMsg "passthroughs must match" $
+                assertMsg ("The pass-through process must be compatible between the origin and " <>
+                  "destination endpoints. " <> context) $
                   toInstruction.allocation == PassThroughFrom (passThroughAccountKey,
                     instructionKey)
                 -- (*) in case of a pass-through, the newly created holding is immediately allocated
@@ -263,10 +261,11 @@ template Instruction
                 -- disclose to actors (such that they can get the TemplateTypeRep in the Batch)
                 Some <$> disclosePledge baseCid actors
               DebitSender -> do
-                assertMsg ("sender must be the same party as receiver " <> context) $
+                assertMsg ("Sender must be the same party as receiver. " <> context) $
                   routedStep.sender == routedStep.receiver
                 pure None
-              PassThroughTo _ -> abort $ "passthroughs for credits are not supported " <> context
+              PassThroughTo _ -> abort $
+                "Credit-receiver and pass-through-to combination is not supported. " <> context
               SettleOffledgerAcknowledge -> abortOnOffledgerMix
               Unapproved -> abortUnapproved
           (SettleOffledger, a) ->

@@ -92,7 +92,6 @@ within this repository.
         controller party
         do
           pure ()
-
   ```
 
 ### Interface structure
