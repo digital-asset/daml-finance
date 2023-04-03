@@ -3,7 +3,7 @@
 
 module Daml.Finance.Instrument.Bond.Util where
 
-import ContingentClaims.Core.Claim (and, at, give, one, or, scale, when)
+import ContingentClaims.Core.Claim (Inequality(..), and, at, cond, give, one, or, scale, when)
 import ContingentClaims.Core.Observation (Observation(..))
 import DA.Date (addDays)
 import DA.List (init, last)
@@ -48,10 +48,10 @@ rollSchedule getHolidayCalendars periodicSchedule holidayCalendarIds = do
 --   date and a redemption amount at the end (unless called by the issuer).
 createCallableBondClaims : (Date -> Time) -> Schedule -> PeriodicSchedule -> Bool
   -> Decimal -> DayCountConventionEnum -> Decimal -> Deliverable -> Optional FloatingRate
-  -> HolidayCalendarData -> TaggedClaim
+  -> Optional Decimal -> Optional Decimal -> HolidayCalendarData -> TaggedClaim
 createCallableBondClaims dateToTime schedule periodicSchedule useAdjustedDatesForDcf
   couponRate dayCountConvention notional cashInstrumentCid floatingRate
-  fixingCalendars =
+  capRate floorRate fixingCalendars =
   let
     notionalAmount = scale (Const notional) $ one cashInstrumentCid
 
@@ -72,8 +72,7 @@ createCallableBondClaims dateToTime schedule periodicSchedule useAdjustedDatesFo
         notionalAtPeriodEnd = when (at p.adjustedEndDate) $ notionalAmount
         cpn = case floatingRate of
           None -> scale ((Const couponRate) * dcf) notionalAtPeriodEnd
-          Some fr -> when (at resetDate) $
-            scale ((Observe fr.referenceRateId + Const couponRate) * dcf) notionalAtPeriodEnd
+          Some fr -> when (at resetDate) rateAfterCapAndFloor
             where
               baseDate = if fr.resetRelativeTo == CalculationPeriodStartDate
                 then p.adjustedStartDate
@@ -90,6 +89,22 @@ createCallableBondClaims dateToTime schedule periodicSchedule useAdjustedDatesFo
                 Some Calendar -> addDays baseDate dayShift
               resetDate = adjustDate fixingCalendars fr.fixingDates.businessDayConvention
                 resetDateUnadj
+              regularRate = Observe fr.referenceRateId + Const couponRate
+              dcfAndNotional = scale dcf notionalAtPeriodEnd
+              regularRateClaim = scale regularRate dcfAndNotional
+              rateAfterCap = case capRate of
+                None -> regularRateClaim
+                Some cap -> cond capCondition capRateClaim regularRateClaim
+                  where
+                    capCondition = Lte (Const cap, regularRate)
+                    capRateClaim = scale (Const cap) dcfAndNotional
+              rateAfterCapAndFloor = case floorRate of
+                None -> rateAfterCap
+                Some floor -> cond floorCondition floorRateClaim rateAfterCap
+                  where
+                    floorCondition = Lte (regularRate, Const floor)
+                    floorRateClaim = scale (Const floor) dcfAndNotional
+
         coupon = give cpn
         called = ("CALLED", principal)
         notCalled = ("NOT CALLED", notCalledClaim)
