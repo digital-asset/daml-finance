@@ -48,14 +48,11 @@ rollSchedule getHolidayCalendars periodicSchedule holidayCalendarIds = do
 --   date and a redemption amount at the end (unless called by the issuer).
 createCallableBondClaims : (Date -> Time) -> Schedule -> PeriodicSchedule -> Bool
   -> Decimal -> DayCountConventionEnum -> Decimal -> Deliverable -> Optional FloatingRate
-  -> HolidayCalendarData -> TaggedClaim
+  -> Optional Decimal -> Optional Decimal -> HolidayCalendarData -> TaggedClaim
 createCallableBondClaims dateToTime schedule periodicSchedule useAdjustedDatesForDcf
   couponRate dayCountConvention notional cashInstrumentCid floatingRate
-  fixingCalendars =
+  capRate floorRate fixingCalendars =
   let
-    --capRate : Optional Decimal = Some 1.5
-    capRate = None
-    floorRate : Optional Decimal = Some 0.0
     notionalAmount = scale (Const notional) $ one cashInstrumentCid
 
     -- Coupons and principal have a give node in front, to undo the give required in the main
@@ -75,10 +72,7 @@ createCallableBondClaims dateToTime schedule periodicSchedule useAdjustedDatesFo
         notionalAtPeriodEnd = when (at p.adjustedEndDate) $ notionalAmount
         cpn = case floatingRate of
           None -> scale ((Const couponRate) * dcf) notionalAtPeriodEnd
-          Some fr -> when (at resetDate) $
-            --scale (regularRate) $ scale (dcf) notionalAtPeriodEnd
-            --regularRateClaim
-            rateAfterCap
+          Some fr -> when (at resetDate) rateAfterCapAndFloor
             where
               baseDate = if fr.resetRelativeTo == CalculationPeriodStartDate
                 then p.adjustedStartDate
@@ -98,15 +92,18 @@ createCallableBondClaims dateToTime schedule periodicSchedule useAdjustedDatesFo
               regularRate = Observe fr.referenceRateId + Const couponRate
               dcfAndNotional = scale dcf notionalAtPeriodEnd
               regularRateClaim = scale regularRate dcfAndNotional
-              --cappedRate = cond capCondition capRateClaim regularRateClaim
               rateAfterCap = case capRate of
                 None -> regularRateClaim
-                Some cap -> cond capCondition regularRateClaim regularRateClaim
+                Some cap -> cond capCondition capRateClaim regularRateClaim
                   where
-                    capRate = Const cap
-                    --capCondition = Lte (regularRate, capRate)
-                    capCondition = Lte (Const 1.0, Const 0.0)
-                    capRateClaim = scale capRate dcfAndNotional
+                    capCondition = Lte (Const cap, regularRate)
+                    capRateClaim = scale (Const cap) dcfAndNotional
+              rateAfterCapAndFloor = case floorRate of
+                None -> rateAfterCap
+                Some floor -> cond floorCondition floorRateClaim rateAfterCap
+                  where
+                    floorCondition = Lte (regularRate, Const floor)
+                    floorRateClaim = scale (Const floor) dcfAndNotional
 
         coupon = give cpn
         called = ("CALLED", principal)
