@@ -6,7 +6,8 @@ module Daml.Finance.Instrument.Bond.Util where
 import ContingentClaims.Core.Claim (Inequality(..), and, at, cond, give, one, or, scale, when)
 import ContingentClaims.Core.Observation (Observation(..))
 import DA.Date (addDays)
-import DA.List (init, last)
+import DA.List (last)
+import DA.Optional (isSome)
 import Daml.Finance.Claims.Util.Builders (prepareAndTagClaims)
 import Daml.Finance.Data.Reference.HolidayCalendar (GetCalendar(..), HolidayCalendar, HolidayCalendarKey(..))
 import Daml.Finance.Data.Time.DateClock.Types (Unit(..))
@@ -21,6 +22,7 @@ import Daml.Finance.Util.Date.Calendar (addBusinessDays, adjustDate)
 import Daml.Finance.Util.Date.DayCount (calcPeriodDcf)
 import Daml.Finance.Util.Date.Schedule (createSchedule)
 import Prelude hiding (and, key, or)
+import Prelude qualified as P (and)
 
 -- | Maps a `Date` to `Time` using the rule in the `DateClock`.
 dateToDateClockTime : Date -> Time
@@ -44,13 +46,18 @@ rollSchedule getHolidayCalendars periodicSchedule holidayCalendarIds = do
   cals <- getHolidayCalendars holidayCalendarIds
   pure $ createSchedule cals periodicSchedule
 
+-- | Find out which schedule periods of scheduleA exist in scheduleB.
+includes : Schedule -> Schedule -> [Bool]
+includes scheduleA scheduleB =
+  map (\a -> isSome $ find (\b -> b.adjustedEndDate == a.adjustedEndDate) scheduleB) scheduleA
+
 -- | Calculate the claims for a callable bond with a fixed and/or floating coupon on each payment
 --   date and a redemption amount at the end (unless called by the issuer).
-createCallableBondClaims : (Date -> Time) -> Schedule -> PeriodicSchedule -> Bool
-  -> Decimal -> DayCountConventionEnum -> Decimal -> Deliverable -> Optional FloatingRate
+createCallableBondClaims : (Date -> Time) -> Schedule -> Schedule -> PeriodicSchedule
+  -> Bool -> Decimal -> DayCountConventionEnum -> Decimal -> Deliverable -> Optional FloatingRate
   -> Optional Decimal -> Optional Decimal -> HolidayCalendarData -> TaggedClaim
-createCallableBondClaims dateToTime schedule periodicSchedule useAdjustedDatesForDcf
-  couponRate dayCountConvention notional cashInstrumentCid floatingRate
+createCallableBondClaims dateToTime schedule callableSchedule periodicSchedule
+  useAdjustedDatesForDcf couponRate dayCountConvention notional cashInstrumentCid floatingRate
   capRate floorRate fixingCalendars =
   let
     notionalAmount = scale (Const notional) $ one cashInstrumentCid
@@ -59,11 +66,14 @@ createCallableBondClaims dateToTime schedule periodicSchedule useAdjustedDatesFo
     -- claim (in front of the or node, see explanation below).
     principal = give notionalAmount
 
-    -- Currently, it is possible to call on every coupon date
-    callPossibleInit = replicate (length schedule) True
+    -- Find out on which coupon dates it is possible to call the bond.
+    callPossibleInit = includes schedule callableSchedule
 
-    -- Except on the last one, because that does not make sense (principal repaid in any case)
-    callPossible = init callPossibleInit ++ [False]
+    -- Also search in the other direction, to ensure that no intended call dates are ignored.
+    potentialCallDatesFound = includes callableSchedule schedule
+
+    callPossible = if P.and potentialCallDatesFound then callPossibleInit
+      else error "All dates in the call schedule must exist in the coupon schedule"
 
     combineTagClaim (p, callingIsPossible) notCalledClaim =
       let
