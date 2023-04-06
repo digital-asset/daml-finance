@@ -120,6 +120,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `asBaseInstrument` implementations were removed as well as redundant `HasImplementation`
   instances)
 
+- Rename `DeclareDividend` to `DeclareDistribution`
+
 ### Daml.Finance.Instrument.Generic
 
 - Dependencies update
@@ -237,6 +239,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
   `asBaseInstrument` methods were removed as well as the redundant `HasImplementation` type class)
+
+- Rename `DeclareDividend` to `DeclareDistribution`
 
 ### Daml.Finance.Interface.Instrument.Generic
 
