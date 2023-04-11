@@ -136,6 +136,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Key Table
 
+- Rename `DeclareDividend` to `DeclareDistribution`
+
 ### Daml.Finance.Instrument.Generic
 
 - Dependencies update
@@ -282,6 +284,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `asBaseInstrument` methods were removed as well as the redundant `HasImplementation` type class)
 
 - Key Table (API change for `Factory.Remove`)
+
+- Rename `DeclareDividend` to `DeclareDistribution`
 
 ### Daml.Finance.Interface.Instrument.Generic
 
