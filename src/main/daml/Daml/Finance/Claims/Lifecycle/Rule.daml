@@ -7,11 +7,12 @@ import DA.Set (fromList, singleton)
 import DA.Text (sha256)
 import Daml.Finance.Claims.Util (isZero')
 import Daml.Finance.Claims.Util.Lifecycle (electionEvent, lifecycle, lifecycleClaims, netOnTag, splitPending, timeEvent)
-import Daml.Finance.Interface.Claims.Claim qualified as Claim (getAcquisitionTime)
-import Daml.Finance.Interface.Claims.Dynamic.Instrument qualified as DynamicInstrument (CreateNewVersion(..), GetView(..), I)
-import Daml.Finance.Interface.Claims.Types (EventData(..))
+import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, getAcquisitionTime)
+import Daml.Finance.Interface.Claims.Dynamic.Instrument qualified as DynamicInstrument (CreateNewVersion(..), GetView(..), I, View)
+import Daml.Finance.Interface.Claims.Types (EventData(..), Pending(..), TaggedClaim(..))
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (R, exerciseInterfaceByKey, getKey)
 import Daml.Finance.Interface.Lifecycle.Election qualified as Election (ApplyElection(..), Exercisable(..), ExercisableView(..), getElectionTime)
+import Daml.Finance.Interface.Lifecycle.Observable.NumericObservable qualified as NumericObservable (I)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I, View(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey, Parties, PartiesMap)
 import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey)
@@ -45,7 +46,7 @@ template Rule
       -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_BEGIN
       evolve Lifecycle.Evolve{eventCid; observableCids; instrument} = do
         v <- view <$> fetch eventCid
-        (remaining, pending, claims, claimInstrument, nv, acquisitionTime) <-
+        (remaining, pending, claims, claimInstrument, nv) <-
           fastForwardAndLifecycle instrument observableCids v.eventTime lifecycler
 
         let
@@ -87,10 +88,11 @@ template Rule
           electionTime = Election.getElectionTime election
           election = electionEvent electionTime v.electorIsOwner v.claim
 
-        (claimsWithoutElection, pending, claims, claimInstrument, nv, acquisitionTime) <-
+        (claimsWithoutElection, pending, claims, claimInstrument, nv) <-
           fastForwardAndLifecycle v.instrument observableCids electionTime lifecycler
 
         -- lifecycle as of the time given by the event, by applying the corresponding election
+        let acquisitionTime = Claim.getAcquisitionTime claimInstrument
         (remaining, pending) <- lifecycleClaims observableCids acquisitionTime claims [election]
         assertMsg "Election not possible on this date" $ remaining /= claimsWithoutElection
 
@@ -153,6 +155,8 @@ tryCreateNewInstrument actor prevElections eventTime electionData oldKey
 
 -- | HIDE
 -- Fast-forward to lastEventTimestamp and lifecycle as of the current event time.
+fastForwardAndLifecycle : InstrumentKey -> [ContractId NumericObservable.I] -> Time -> Party ->
+  Update ([TaggedClaim], [Pending], [TaggedClaim], Claim.I, DynamicInstrument.View)
 fastForwardAndLifecycle instrument observableCids eventTime lifecycler = do
 
   -- BOND_PROCESS_CLOCK_UPDATE_INITAL_CLAIMS_BEGIN
@@ -183,4 +187,4 @@ fastForwardAndLifecycle instrument observableCids eventTime lifecycler = do
   -- Lifecycle
   (remaining, pending) <- lifecycleClaims observableCids acquisitionTime claims
     [timeEvent eventTime]
-  pure (remaining, pending, claims, claimInstrument, nv, acquisitionTime)
+  pure (remaining, pending, claims, claimInstrument, nv)
