@@ -50,6 +50,7 @@ template Rule
 
         let
           pendingAfterNetting = netOnTag pending
+          (otherConsumed, otherProduced) = splitPending pendingAfterNetting
         if remaining == claims && null pendingAfterNetting then
           pure (None, [])
         else do
@@ -58,7 +59,6 @@ template Rule
             currentKey = BaseInstrument.getKey $ toInterface claimInstrument
             newKey = currentKey with version = sha256 $ show remaining
             producedInstrument = if isZero' remaining then None else Some newKey
-            (otherConsumed, otherProduced) = splitPending pendingAfterNetting
           tryCreateNewInstrument lifecycler nv.prevElections v.eventTime electionData instrument
             newKey
           effectCid <- toInterfaceContractId <$> create Effect with
@@ -92,14 +92,12 @@ template Rule
 
         -- lifecycle as of the time given by the event, by applying the corresponding election
         (remaining, pending) <- lifecycleClaims observableCids acquisitionTime claims [election]
+        assertMsg "Election not possible on this date" $ remaining /= claimsWithoutElection
 
-        let
-          pendingAfterNetting = netOnTag pending
         -- create new instrument and return effect
         if remaining == claims && null pending then
           pure (None, [])
         else do
-          assertMsg "Election not possible on this date" $ remaining /= claimsWithoutElection
           let
             electionData = Some (v.electorIsOwner, v.claim)
             currentKey = BaseInstrument.getKey $ toInterface claimInstrument
@@ -129,6 +127,29 @@ template Rule
       setObservers = setObserversImpl @Rule @Disclosure.I this None
       addObservers = addObserversImpl @Rule @Disclosure.I this None
       removeObservers = removeObserversImpl @Rule @Disclosure.I this None
+
+-- | HIDE
+-- Check if an instrument for the new key already exists, otherwise create it.
+tryCreateNewInstrument : Party -> [EventData] -> Time -> Optional (Bool,Text) -> InstrumentKey ->
+  InstrumentKey -> Update ()
+tryCreateNewInstrument actor prevElections eventTime electionData oldKey
+  newKey = do
+    existingRefCidOpt <- lookupByKey @BaseInstrument.R newKey
+    case existingRefCidOpt of
+      Some _ -> pure ()
+      None -> do
+        instrumentCid <- BaseInstrument.exerciseInterfaceByKey @DynamicInstrument.I oldKey
+          actor DynamicInstrument.CreateNewVersion with
+            lastEventTimestamp = eventTime
+            prevElections = case electionData of
+              None -> prevElections
+              Some (electorIsOwner, claimTag) -> prevElections ++ [newElection]
+                where
+                  newElection = EventData with
+                    t = eventTime
+                    election = Some (electorIsOwner, claimTag)
+            version = newKey.version
+        pure ()
 
 -- | HIDE
 -- Fast-forward to lastEventTimestamp and lifecycle as of the current event time.
@@ -163,26 +184,3 @@ fastForwardAndLifecycle instrument observableCids eventTime lifecycler = do
   (remaining, pending) <- lifecycleClaims observableCids acquisitionTime claims
     [timeEvent eventTime]
   pure (remaining, pending, claims, claimInstrument, nv, acquisitionTime)
-
--- | HIDE
--- Check if an instrument for the new key already exists, otherwise create it.
-tryCreateNewInstrument : Party -> [EventData] -> Time -> Optional (Bool,Text) -> InstrumentKey ->
-  InstrumentKey -> Update ()
-tryCreateNewInstrument actor prevElections eventTime electionData oldKey
-  newKey = do
-    existingRefCidOpt <- lookupByKey @BaseInstrument.R newKey
-    case existingRefCidOpt of
-      Some _ -> pure ()
-      None -> do
-        instrumentCid <- BaseInstrument.exerciseInterfaceByKey @DynamicInstrument.I oldKey
-          actor DynamicInstrument.CreateNewVersion with
-            lastEventTimestamp = eventTime
-            prevElections = case electionData of
-              None -> prevElections
-              Some (electorIsOwner, claimTag) -> prevElections ++ [newElection]
-                where
-                  newElection = EventData with
-                    t = eventTime
-                    election = Some (electorIsOwner, claimTag)
-            version = newKey.version
-        pure ()
