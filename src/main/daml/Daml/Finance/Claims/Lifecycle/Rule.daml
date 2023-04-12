@@ -44,35 +44,11 @@ template Rule
       view = Lifecycle.View with lifecycler; id; description
       -- BOND_PROCESS_CLOCK_UPDATE_INITAL_CLAIMS_BEGIN
       evolve Lifecycle.Evolve{eventCid; observableCids; instrument} = do
-        claimInstrument <- fetchInterfaceByKey @BaseInstrument.R instrument
-      -- BOND_PROCESS_CLOCK_UPDATE_INITAL_CLAIMS_END
-        -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_FASTFORWARD_BEGIN
-        -- Recover claims tree as of the lastEventTimestamp. For a bond, this just requires
-        -- lifecycling as of the lastEventTimestamp.
-        nv <- BaseInstrument.exerciseInterfaceByKey @DynamicInstrument.I instrument lifecycler
-          DynamicInstrument.GetView with viewer = lifecycler
-        let
-          prevElections = map (\e ->
-            case e.election of
-              None -> error "election missing"
-              Some (electorIsOwner, tag) -> electionEvent e.t electorIsOwner tag)
-            nv.prevElections
-
-        -- fast-forward the claims tree to the current version by replaying the previous elections
-        claims <- fst <$>
-          lifecycle lifecycler observableCids claimInstrument prevElections
-
-        let acquisitionTime = Claim.getAcquisitionTime claimInstrument
-
-        claims <- fst <$>
-          lifecycleClaims observableCids acquisitionTime claims [timeEvent nv.lastEventTimestamp]
-
-        -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_FASTFORWARD_END
-        -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_BEGIN
-        -- Lifecycle
         v <- view <$> fetch eventCid
-        (remaining, pending) <- lifecycleClaims observableCids acquisitionTime claims
-          [timeEvent v.eventTime]
+
+        (remaining, pending, claims, claimInstrument, nv, acquisitionTime) <- fastForwardAndLifecycle instrument observableCids v.eventTime lifecycler
+
+
         let
           pendingAfterNetting = netOnTag pending
           (otherConsumed, otherProduced) = splitPending pendingAfterNetting
@@ -112,6 +88,9 @@ template Rule
           electionTime = Election.getElectionTime election
           election = electionEvent electionTime v.electorIsOwner v.claim
 
+        (claimsWithoutElection, pending, claims, claimInstrument, nv, acquisitionTime) <- fastForwardAndLifecycle v.instrument observableCids electionTime lifecycler
+
+{-
         -- retrieve election data for previous elections and re-create election events
         nv <- BaseInstrument.exerciseInterfaceByKey @DynamicInstrument.I v.instrument lifecycler
           DynamicInstrument.GetView with viewer = lifecycler
@@ -136,6 +115,7 @@ template Rule
         claimsWithoutElection <- fst <$>
           lifecycleClaims observableCids acquisitionTime claims [timeEvent electionTime]
 
+ -}
         -- lifecycle as of the time given by the event, by applying the corresponding election
         (remaining, pending) <- lifecycleClaims observableCids acquisitionTime claims [election]
 
@@ -177,6 +157,40 @@ template Rule
       setObservers = setObserversImpl @Rule @Disclosure.I this None
       addObservers = addObserversImpl @Rule @Disclosure.I this None
       removeObservers = removeObserversImpl @Rule @Disclosure.I this None
+
+-- | HIDE
+-- Fast-forward to lastEventTimestamp and lifecycle as of the current event time.
+fastForwardAndLifecycle instrument observableCids eventTime lifecycler = do
+
+  claimInstrument <- fetchInterfaceByKey @BaseInstrument.R instrument
+  -- BOND_PROCESS_CLOCK_UPDATE_INITAL_CLAIMS_END
+  -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_FASTFORWARD_BEGIN
+  -- Recover claims tree as of the lastEventTimestamp. For a bond, this just requires
+  -- lifecycling as of the lastEventTimestamp.
+  nv <- BaseInstrument.exerciseInterfaceByKey @DynamicInstrument.I instrument lifecycler
+    DynamicInstrument.GetView with viewer = lifecycler
+  let
+    prevElections = map (\e ->
+      case e.election of
+        None -> error "election missing"
+        Some (electorIsOwner, tag) -> electionEvent e.t electorIsOwner tag)
+      nv.prevElections
+
+  -- fast-forward the claims tree to the current version by replaying the previous elections
+  claims <- fst <$>
+    lifecycle lifecycler observableCids claimInstrument prevElections
+
+  let acquisitionTime = Claim.getAcquisitionTime claimInstrument
+
+  claims <- fst <$>
+    lifecycleClaims observableCids acquisitionTime claims [timeEvent nv.lastEventTimestamp]
+
+  -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_FASTFORWARD_END
+  -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_BEGIN
+  -- Lifecycle
+  (remaining, pending) <- lifecycleClaims observableCids acquisitionTime claims
+    [timeEvent eventTime]
+  pure (remaining, pending, claims, claimInstrument, nv, acquisitionTime)
 
 -- | HIDE
 -- Check if an instrument for the new key already exists, otherwise create it.
