@@ -8,14 +8,15 @@ import DA.Text (sha256)
 import Daml.Finance.Claims.Util (isZero')
 import Daml.Finance.Claims.Util.Lifecycle (electionEvent, lifecycle, lifecycleClaims, netOnTag, splitPending, timeEvent)
 import Daml.Finance.Interface.Claims.Claim qualified as Claim (I, getAcquisitionTime)
-import Daml.Finance.Interface.Claims.Dynamic.Instrument qualified as DynamicInstrument (CreateNewVersion(..), GetView(..), I)
-import Daml.Finance.Interface.Claims.Types (EventData(..))
+import Daml.Finance.Interface.Claims.Dynamic.Instrument qualified as DynamicInstrument (CreateNewVersion(..), GetView(..), I, View)
+import Daml.Finance.Interface.Claims.Types (EventData(..), Pending(..), TaggedClaim(..))
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, getKey)
 import Daml.Finance.Interface.Lifecycle.Election qualified as Election (ApplyElection(..), Exercisable(..), ExercisableView(..), getElectionTime)
+import Daml.Finance.Interface.Lifecycle.Observable.NumericObservable qualified as NumericObservable (I)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I, View(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey, Parties, PartiesMap)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
-import Daml.Finance.Interface.Util.KeyTable (UpdateWithKey, create, exercise, exerciseByKey, fetch, fetchByKey, lookupByKey, withKeyTable)
+import Daml.Finance.Interface.Util.KeyTable (UpdateWithKey, create, exerciseByKey, fetch, fetchByKey, lookupByKey, withKeyTable)
 import Daml.Finance.Lifecycle.Effect (Effect(..))
 import Daml.Finance.Lifecycle.ElectionEffect (ElectionEffect(..))
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
@@ -43,25 +44,16 @@ template Rule
     -- Lifecycle time update events
     interface instance Lifecycle.I for Rule where
       view = Lifecycle.View with lifecycler; id; description
-      -- BOND_PROCESS_CLOCK_UPDATE_INITAL_CLAIMS_BEGIN
+      -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_BEGIN
       evolve Lifecycle.Evolve{eventCid; observableCids; instrument; keyTable} =
         withKeyTable keyTable do
-          (claimInstrumentCid, claimInstrument) <- fetchByKey @BaseInstrument.I @Claim.I instrument
-      -- BOND_PROCESS_CLOCK_UPDATE_INITAL_CLAIMS_END
-          -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_FASTFORWARD_BEGIN
-          -- Recover claims tree as of the lastEventTimestamp. For a bond, this just requires
-          -- lifecycling as of the lastEventTimestamp.
-          nv <- exercise (coerceInterfaceContractId @DynamicInstrument.I claimInstrumentCid)
-            DynamicInstrument.GetView with viewer = lifecycler
-          claims <- fst <$>
-            lifecycle lifecycler observableCids claimInstrument [timeEvent nv.lastEventTimestamp]
-          -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_FASTFORWARD_END
-          -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_BEGIN
-          -- Lifecycle
-          let acquisitionTime = Claim.getAcquisitionTime claimInstrument
           v <- view <$> fetch eventCid
-          (remaining, pending) <- lifecycleClaims observableCids acquisitionTime claims
-            [timeEvent v.eventTime]
+
+          -- Fast-forward the instrument from inception to the timestamp of the last event.
+          -- Then, perform a time-based lifecycling according to the current event.
+          (remaining, pending, claims, claimInstrument, dynInstrView) <-
+            fastForwardAndLifecycle instrument observableCids v.eventTime lifecycler
+
           let
             pendingAfterNetting = netOnTag pending
             (otherConsumed, otherProduced) = splitPending pendingAfterNetting
@@ -72,7 +64,8 @@ template Rule
               currentKey = BaseInstrument.getKey $ toInterface claimInstrument
               newKey = currentKey with version = sha256 $ show remaining
               producedInstrument = if isZero' remaining then None else Some newKey
-            tryCreateNewInstrument lifecycler v.eventTime instrument newKey
+            tryCreateNewInstrument lifecycler dynInstrView.prevElections v.eventTime None instrument
+              newKey
             effectCid <- toInterfaceContractId <$> create Effect with
               providers = singleton currentKey.issuer
               id = v.id
@@ -90,8 +83,9 @@ template Rule
     -- Lifecycle election events
     interface instance Election.Exercisable for Rule where
       view = Election.ExercisableView with lifecycler
-      applyElection Election.ApplyElection{electionCid; observableCids; keyTable} = do
+      applyElection Election.ApplyElection{electionCid; observableCids; keyTable} =
         withKeyTable keyTable do
+
           -- fetch election
           election <- fetch electionCid
           let
@@ -99,38 +93,35 @@ template Rule
             electionTime = Election.getElectionTime election
             election = electionEvent electionTime v.electorIsOwner v.claim
 
-          -- retrieve election data for previous elections and re-create election events
-          nv <- exerciseByKey @BaseInstrument.I @DynamicInstrument.I lifecycler v.instrument
-            DynamicInstrument.GetView with viewer = lifecycler
-          let
-            prevElections = map (\e ->
-              case e.election of
-                None -> error "election missing"
-                Some (electorIsOwner, tag) -> electionEvent e.t electorIsOwner tag)
-              nv.prevElections
-
-          -- fetch claim tree as of instrument inception
-          claimInstrument <- snd <$> fetchByKey @BaseInstrument.I v.instrument
-          let acquisitionTime = Claim.getAcquisitionTime claimInstrument
-
-          -- fast-forward the claims tree to the current version by replaying the previous elections
-          claims <- fst <$>
-            lifecycle lifecycler observableCids claimInstrument prevElections
+          -- Fast-forward the instrument from inception to the timestamp of the last event.
+          -- Then, perform a time-based lifecycling according to the current event (used to check
+          -- whether an election is indeed allowed).
+          (claimsWithoutElection, _, claims, claimInstrument, dynInstrView) <-
+            fastForwardAndLifecycle v.instrument observableCids electionTime lifecycler
 
           -- lifecycle as of the time given by the event, by applying the corresponding election
+          let acquisitionTime = Claim.getAcquisitionTime claimInstrument
           (remaining, pending) <- lifecycleClaims observableCids acquisitionTime claims [election]
+
+          -- Ensure that an election is indeed possible on this date. This is done by verifying that
+          -- the claims tree after the election is different from what it would have been in case of
+          -- a time-based lifecycling only. This check is required since election based lifecycling
+          -- fails silently (if there is no Or-node today, only a time-based lifecycling is
+          -- performed, without an error message).
+          assertMsg "Election not possible on this date" $ remaining /= claimsWithoutElection
 
           -- create new instrument and return effect
           if remaining == claims && null pending then
             pure (None, [])
           else do
             let
+              electionData = Some (v.electorIsOwner, v.claim)
               currentKey = BaseInstrument.getKey $ toInterface claimInstrument
               newKey = currentKey with version = sha256 $ show remaining
               producedInstrument = if isZero' remaining then None else Some newKey
               (otherConsumed, otherProduced) = splitPending pending
-            tryCreateNewElectionInstrument lifecycler nv.prevElections electionTime v.electorIsOwner
-              v.claim v.instrument newKey
+            tryCreateNewInstrument lifecycler dynInstrView.prevElections electionTime electionData
+              v.instrument newKey
             effectCid <- toInterfaceContractId <$>
               create ElectionEffect with
                 providers = fromList [v.instrument.issuer, v.instrument.depository]
@@ -155,34 +146,56 @@ template Rule
 
 -- | HIDE
 -- Check if an instrument for the new key already exists, otherwise create it.
-tryCreateNewInstrument : Party -> Time -> InstrumentKey -> InstrumentKey -> UpdateWithKey ()
-tryCreateNewInstrument actor eventTime oldKey newKey = do
-  existingRefCidOpt <- lookupByKey @BaseInstrument.I actor newKey
-  case existingRefCidOpt of
-    Some _ -> pure ()
-    None -> do
-      exerciseByKey @BaseInstrument.I @DynamicInstrument.I actor oldKey
-        DynamicInstrument.CreateNewVersion with
-          lastEventTimestamp = eventTime; version = newKey.version; prevElections = []
-      pure ()
-
--- | HIDE
--- Check if an instrument for the new key already exists, otherwise create it.
-tryCreateNewElectionInstrument : Party -> [EventData] -> Time -> Bool -> Text -> InstrumentKey ->
+tryCreateNewInstrument : Party -> [EventData] -> Time -> Optional (Bool,Text) -> InstrumentKey ->
   InstrumentKey -> UpdateWithKey ()
-tryCreateNewElectionInstrument actor prevElections eventTime electorIsOwner claimTag oldKey
-  newKey = do
+tryCreateNewInstrument actor prevElections eventTime electionData oldKey newKey = do
     existingRefCidOpt <- lookupByKey @BaseInstrument.I actor newKey
     case existingRefCidOpt of
       Some _ -> pure ()
       None -> do
-        let
-          newElection = EventData with
-            t = eventTime
-            election = Some (electorIsOwner, claimTag)
-        exerciseByKey @BaseInstrument.I @DynamicInstrument.I actor oldKey
+        instrumentCid <- exerciseByKey @BaseInstrument.I @DynamicInstrument.I actor oldKey
           DynamicInstrument.CreateNewVersion with
             lastEventTimestamp = eventTime
-            prevElections = prevElections ++ [newElection]
+            prevElections = case electionData of
+              None -> prevElections
+              Some (electorIsOwner, claimTag) -> prevElections ++ [newElection]
+                where
+                  newElection = EventData with
+                    t = eventTime
+                    election = Some (electorIsOwner, claimTag)
             version = newKey.version
         pure ()
+
+-- | HIDE
+-- Fast-forward to lastEventTimestamp and lifecycle as of the current event time.
+fastForwardAndLifecycle : InstrumentKey -> [ContractId NumericObservable.I] -> Time -> Party ->
+  UpdateWithKey ([TaggedClaim], [Pending], [TaggedClaim], Claim.I, DynamicInstrument.View)
+fastForwardAndLifecycle instrument observableCids eventTime lifecycler = do
+
+  -- BOND_PROCESS_CLOCK_UPDATE_INITAL_CLAIMS_BEGIN
+  claimInstrument <- snd <$> fetchByKey @BaseInstrument.I instrument
+  -- BOND_PROCESS_CLOCK_UPDATE_INITAL_CLAIMS_END
+  -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_FASTFORWARD_BEGIN
+  -- Recover claims tree as of the lastEventTimestamp. For a bond, this just requires
+  -- lifecycling as of the lastEventTimestamp.
+  dynInstrView <- exerciseByKey @BaseInstrument.I @DynamicInstrument.I lifecycler instrument
+    DynamicInstrument.GetView with viewer = lifecycler
+  let
+    prevElections = map (\e ->
+      case e.election of
+        None -> error "election missing"
+        Some (electorIsOwner, tag) -> electionEvent e.t electorIsOwner tag)
+      dynInstrView.prevElections
+    prevEvents = prevElections <> [timeEvent dynInstrView.lastEventTimestamp]
+
+  -- fast-forward the claims tree to the current version by replaying the previous events
+  -- (the previous elections + the lastEventTimestamp)
+  claims <- fst <$> lifecycle lifecycler observableCids claimInstrument prevEvents
+
+  let acquisitionTime = Claim.getAcquisitionTime claimInstrument
+
+  -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_FASTFORWARD_END
+  -- Lifecycle
+  (remaining, pending) <- lifecycleClaims observableCids acquisitionTime claims
+    [timeEvent eventTime]
+  pure (remaining, pending, claims, claimInstrument, dynInstrView)

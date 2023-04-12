@@ -10,7 +10,7 @@ import Daml.Finance.Data.Numeric.Observation (Observation(..))
 import Daml.Finance.Data.Reference.HolidayCalendar (HolidayCalendar(..))
 import Daml.Finance.Data.Reference.HolidayCalendar qualified as HolidayCalendar (T)
 import Daml.Finance.Instrument.Bond.Callable.Instrument qualified as Instrument (T)
-import Daml.Finance.Instrument.Bond.Test.Util (electAndVerifyPaymentEffects, originateCallableBond, originateMultiScheduleCallableBond)
+import Daml.Finance.Instrument.Bond.Test.Util (electAndVerifyPaymentEffects, ensureElectionNotPossible, originateCallableBond, originateMultiScheduleCallableBond)
 import Daml.Finance.Interface.Instrument.Bond.Callable.BondTypes (DateRelativeToEnum(..), DayTypeEnum(..), FixingDates(..), FloatingRate(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..))
 import Daml.Finance.Interface.Types.Date.Calendar (BusinessDayConventionEnum(..), HolidayCalendarData(..))
@@ -18,7 +18,7 @@ import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum(..))
 import Daml.Finance.Interface.Types.Date.RollConvention (PeriodEnum(..))
 import Daml.Finance.Interface.Util.Common (qty)
 import Daml.Finance.Test.Util.Common (createParties)
-import Daml.Finance.Test.Util.Instrument (originate, verifyNoLifecycleEffects)
+import Daml.Finance.Test.Util.Instrument (lifecycleAndVerifyPaymentEffects, originate, verifyNoLifecycleEffects)
 import Daml.Finance.Test.Util.Time (createPaymentPeriodicSchedule, createPeriodicSchedule, dateToDateClockTime)
 import Daml.Script
 
@@ -596,15 +596,15 @@ runFloatingFloorCapCallable6M = script do
     amount = 1.0
     electorIsOwner = False
 
-  -- Coupon date 1: Lifecycle and verify that there is an effect for one coupon.
+  -- Coupon date 1 (not a call date): Lifecycle and verify that there is an effect for one coupon.
   let
     expectedConsumed = []
     expectedProduced = [qty 0.0026888889 cashInstrumentCid]
-  (Some bondInstrumentAfterCoupon1, effectCid) <- electAndVerifyPaymentEffects @Instrument.T
-    @HolidayCalendar.T (date 2022 Apr 15) amount bondInstrument electorIsOwner issuer investor
-    [publicParty] "NOT CALLED" [observableCid] expectedConsumed expectedProduced
+  Some bondInstrumentAfterCoupon1 <- lifecycleAndVerifyPaymentEffects @Instrument.T
+    @HolidayCalendar.T [publicParty] (date 2022 Apr 15) bondInstrument issuer [observableCid]
+    expectedConsumed expectedProduced
 
-  -- Coupon date 2: Lifecycle and verify that there is an effect for one coupon.
+  -- Coupon date 2 (call date): Lifecycle and verify that there is an effect for one coupon.
   let
     expectedConsumed = []
     expectedProduced = [qty 0.0037916667 cashInstrumentCid]
@@ -612,15 +612,16 @@ runFloatingFloorCapCallable6M = script do
     @HolidayCalendar.T (date 2022 Jul 15) amount bondInstrumentAfterCoupon1 electorIsOwner issuer
     investor [publicParty] "NOT CALLED" [observableCid] expectedConsumed expectedProduced
 
-  -- Coupon date 3: Lifecycle and verify that there are no effects (0% coupon due to floor)
+  -- Coupon date 3 (not a call date): Lifecycle and verify that there are no effects (0% coupon due
+  -- to floor)
   let
     expectedConsumed = []
     expectedProduced = []
-  (Some bondInstrumentAfterCoupon3, effectCid) <- electAndVerifyPaymentEffects @Instrument.T
-    @HolidayCalendar.T (date 2022 Oct 17) amount bondInstrumentAfterCoupon2 electorIsOwner issuer
-    investor [publicParty] "NOT CALLED" [observableCid] expectedConsumed expectedProduced
+  Some bondInstrumentAfterCoupon3 <- lifecycleAndVerifyPaymentEffects @Instrument.T
+    @HolidayCalendar.T [publicParty] (date 2022 Oct 17) bondInstrumentAfterCoupon2 issuer
+    [observableCid] expectedConsumed expectedProduced
 
-  -- Coupon date 4: Lifecycle and verify that there is an effect for one coupon.
+  -- Coupon date 4 (call date): Lifecycle and verify that there is an effect for one coupon.
   let
     expectedConsumed = []
     expectedProduced = [qty 0.0027805556 cashInstrumentCid]
@@ -628,16 +629,20 @@ runFloatingFloorCapCallable6M = script do
     @HolidayCalendar.T (date 2023 Jan 16) amount bondInstrumentAfterCoupon3 electorIsOwner issuer
     investor [publicParty] "NOT CALLED" [observableCid] expectedConsumed expectedProduced
 
-  -- Coupon date 5: Try to call, which does not work because the bond is not callable on this date.
-  -- Instead, a regular coupon is lifecycled.
+  -- Coupon date 5 (not a call date): Try to call the bond and verify that this is not possible.
+  ensureElectionNotPossible @Instrument.T @HolidayCalendar.T (date 2023 Apr 17) amount
+    bondInstrumentAfterCoupon4 electorIsOwner issuer investor [publicParty] "CALLED" [observableCid]
+
+  -- Coupon date 5 (not a call date): Lifecycle and verify that there is an effect for one coupon.
   let
     expectedConsumed = []
     expectedProduced = [qty 0.0027805556 cashInstrumentCid]
-  (Some bondInstrumentAfterCoupon5, effectCid) <- electAndVerifyPaymentEffects @Instrument.T
-    @HolidayCalendar.T (date 2023 Apr 17) amount bondInstrumentAfterCoupon4 electorIsOwner issuer
-    investor [publicParty] "CALLED" [observableCid] expectedConsumed expectedProduced
+  Some bondInstrumentAfterCoupon5 <- lifecycleAndVerifyPaymentEffects @Instrument.T
+    @HolidayCalendar.T [publicParty] (date 2023 Apr 17) bondInstrumentAfterCoupon4 issuer
+    [observableCid] expectedConsumed expectedProduced
 
-  -- Coupon date 6: Try to call, which works as expected: one coupon and early redemption amount.
+  -- Coupon date 6 (call date): Try to call, which works as expected: one coupon and early
+  -- redemption amount.
   let
     expectedConsumed = []
     expectedProduced = [qty 0.0027805556 cashInstrumentCid, qty 1.0 cashInstrumentCid]
