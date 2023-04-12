@@ -15,7 +15,7 @@ import Daml.Finance.Instrument.Bond.ZeroCoupon.Instrument qualified as ZeroCoupo
 import Daml.Finance.Interface.Claims.Types (Deliverable)
 import Daml.Finance.Interface.Instrument.Bond.Callable.BondTypes (FloatingRate)
 import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (GetView(..), I)
-import Daml.Finance.Interface.Lifecycle.Election qualified as Election (Apply(..))
+import Daml.Finance.Interface.Lifecycle.Election qualified as Election (Apply(..), Exercisable, I)
 import Daml.Finance.Interface.Lifecycle.Election.Factory qualified as Election (Create(..), F)
 import Daml.Finance.Interface.Lifecycle.Observable.NumericObservable qualified as NumericObservable (I)
 import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey, InstrumentQuantity, Parties)
@@ -141,49 +141,59 @@ originateInflationLinkedBond depository issuer label description observers lastE
     -- CREATE_INFLATION_LINKED_BOND_INSTRUMENT_END
     createReference cid depository issuer observers
 
+-- | Create the Election and the lifecycle rule.
+createElectionAndLifecycleRule : Date -> Decimal -> InstrumentKey -> Bool -> Party -> Party -> Text
+  -> Script (ContractId Election.I, ContractId Election.Exercisable)
+createElectionAndLifecycleRule today amount instrument electorIsOwner issuer elector electedTag = do
+  -- Create election factory to allow holders to create elections
+  electionFactoryCid <- submit issuer do
+    toInterfaceContractId @Election.F <$> createCmd Election.Factory with
+      provider = issuer
+      observers = M.fromList [("Observers", S.fromList [elector, issuer])]
+
+  -- Create a lifecycle rule
+  lifecycleRuleCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Lifecycle.Rule with
+      providers = S.singleton issuer
+      observers = M.empty
+      lifecycler = issuer
+      id = Id "LifecycleRule"
+      description = "Rule to lifecycle an Election based instrument"
+
+  -- Create the Election
+  let
+    counterparty = issuer
+    description = "election for a callable bond"
+  electionCid <- submit elector do
+    exerciseCmd electionFactoryCid Election.Create with
+      actors = S.singleton elector
+      id = Id "election id"
+      description
+      claim = electedTag
+      electionTime = dateToDateClockTime today
+      electorIsOwner
+      elector
+      counterparty
+      instrument
+      amount
+      observers = M.fromList [("Holders", S.fromList [issuer, elector, counterparty])]
+      provider = issuer
+
+  pure (electionCid, lifecycleRuleCid)
+
 -- | Verify the payments of an instrument after an election (excluding settlement)
 electAndVerifyPaymentEffects : Date -> Decimal -> InstrumentKey -> Bool -> Party -> Party -> [Party]
   -> Text -> [ContractId NumericObservable.I] -> [InstrumentQuantity] -> [InstrumentQuantity]
   -> Script (Optional InstrumentKey, ContractId Effect.I)
 electAndVerifyPaymentEffects today amount instrument electorIsOwner issuer elector readAs
   electedTag observableCids expectedConsumedQuantities expectedProducedQuantities = do
-
-    -- Create election factory to allow holders to create elections
-    electionFactoryCid <- submit issuer do
-      toInterfaceContractId @Election.F <$> createCmd Election.Factory with
-        provider = issuer
-        observers = M.fromList [("Observers", S.fromList [elector, issuer])]
-
-    -- Create a lifecycle rule
-    lifecycleRuleCid <- toInterfaceContractId <$> submit issuer do
-      createCmd Lifecycle.Rule with
-        providers = S.singleton issuer
-        observers = M.empty
-        lifecycler = issuer
-        id = Id "LifecycleRule"
-        description = "Rule to lifecycle an Election based instrument"
+    -- Create the Election and the lifecycle rule
+    (electionCid, lifecycleRuleCid) <- createElectionAndLifecycleRule today amount instrument
+      electorIsOwner issuer elector electedTag
 
     -- Apply election to generate new instrument version + effects
-    let
-      counterparty = issuer
-      description = "election for a callable bond"
-    exerciseOptionCid <- submit elector do
-      exerciseCmd electionFactoryCid Election.Create with
-        actors = S.singleton elector
-        id = Id "election id"
-        description
-        claim = electedTag
-        electionTime = dateToDateClockTime today
-        electorIsOwner
-        elector
-        counterparty
-        instrument
-        amount
-        observers = M.fromList [("Holders", S.fromList [issuer, elector, counterparty])]
-        provider = issuer
-
     (newInstrumentKey, [effectCid]) <- submitMulti [issuer] readAs do
-      exerciseCmd exerciseOptionCid Election.Apply with
+      exerciseCmd electionCid Election.Apply with
         observableCids
         exercisableCid = lifecycleRuleCid
 
@@ -198,3 +208,18 @@ electAndVerifyPaymentEffects today amount instrument electorIsOwner issuer elect
       sort expectedProducedQuantities == sort effectView.otherProduced
 
     pure (newInstrumentKey, effectCid)
+
+-- | Try to lifecycle an election and verify that this is not possible.
+ensureElectionNotPossible : Date -> Decimal -> InstrumentKey -> Bool -> Party -> Party -> [Party]
+  -> Text -> [ContractId NumericObservable.I] -> Script ()
+ensureElectionNotPossible today amount instrument electorIsOwner issuer elector readAs
+  electedTag observableCids = do
+    -- Create the Election and the lifecycle rule
+    (electionCid, lifecycleRuleCid) <- createElectionAndLifecycleRule today amount instrument
+      electorIsOwner issuer elector electedTag
+
+    -- Try to apply the election and verify that this does not work
+    submitMultiMustFail [issuer] readAs do
+      exerciseCmd electionCid Election.Apply with
+        observableCids
+        exercisableCid = lifecycleRuleCid
