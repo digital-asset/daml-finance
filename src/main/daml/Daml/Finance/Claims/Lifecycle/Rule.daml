@@ -42,24 +42,23 @@ template Rule
     -- Lifecycle time update events
     interface instance Lifecycle.I for Rule where
       view = Lifecycle.View with lifecycler; id; description
-      -- BOND_PROCESS_CLOCK_UPDATE_INITAL_CLAIMS_BEGIN
+      -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_BEGIN
       evolve Lifecycle.Evolve{eventCid; observableCids; instrument} = do
         v <- view <$> fetch eventCid
-
-        (remaining, pending, claims, claimInstrument, nv, acquisitionTime) <- fastForwardAndLifecycle instrument observableCids v.eventTime lifecycler
-
+        (remaining, pending, claims, claimInstrument, nv, acquisitionTime) <-
+          fastForwardAndLifecycle instrument observableCids v.eventTime lifecycler
 
         let
           pendingAfterNetting = netOnTag pending
-          (otherConsumed, otherProduced) = splitPending pendingAfterNetting
         if remaining == claims && null pendingAfterNetting then
           pure (None, [])
         else do
           let
+            electionData = None
             currentKey = BaseInstrument.getKey $ toInterface claimInstrument
             newKey = currentKey with version = sha256 $ show remaining
             producedInstrument = if isZero' remaining then None else Some newKey
-            electionData = None
+            (otherConsumed, otherProduced) = splitPending pendingAfterNetting
           tryCreateNewInstrument lifecycler nv.prevElections v.eventTime electionData instrument
             newKey
           effectCid <- toInterfaceContractId <$> create Effect with
@@ -88,52 +87,25 @@ template Rule
           electionTime = Election.getElectionTime election
           election = electionEvent electionTime v.electorIsOwner v.claim
 
-        (claimsWithoutElection, pending, claims, claimInstrument, nv, acquisitionTime) <- fastForwardAndLifecycle v.instrument observableCids electionTime lifecycler
+        (claimsWithoutElection, pending, claims, claimInstrument, nv, acquisitionTime) <-
+          fastForwardAndLifecycle v.instrument observableCids electionTime lifecycler
 
-{-
-        -- retrieve election data for previous elections and re-create election events
-        nv <- BaseInstrument.exerciseInterfaceByKey @DynamicInstrument.I v.instrument lifecycler
-          DynamicInstrument.GetView with viewer = lifecycler
-        let
-          prevElections = map (\e ->
-            case e.election of
-              None -> error "election missing"
-              Some (electorIsOwner, tag) -> electionEvent e.t electorIsOwner tag)
-            nv.prevElections
-
-        -- fetch claim tree as of instrument inception
-        claimInstrument <- fetchInterfaceByKey @BaseInstrument.R v.instrument
-        let acquisitionTime = Claim.getAcquisitionTime claimInstrument
-
-        -- fast-forward the claims tree to the current version by replaying the previous elections
-        claims <- fst <$>
-          lifecycle lifecycler observableCids claimInstrument prevElections
-
-        claims <- fst <$>
-          lifecycleClaims observableCids acquisitionTime claims [timeEvent nv.lastEventTimestamp]
-
-        claimsWithoutElection <- fst <$>
-          lifecycleClaims observableCids acquisitionTime claims [timeEvent electionTime]
-
- -}
         -- lifecycle as of the time given by the event, by applying the corresponding election
         (remaining, pending) <- lifecycleClaims observableCids acquisitionTime claims [election]
 
+        let
+          pendingAfterNetting = netOnTag pending
         -- create new instrument and return effect
         if remaining == claims && null pending then
           pure (None, [])
         else do
-          debug claims
-          debug remaining
           assertMsg "Election not possible on this date" $ remaining /= claimsWithoutElection
-          -- TODO: Look into this in more detail
-          -- When CALLED on 2023 Apr 17 this the check should throw an error
           let
+            electionData = Some (v.electorIsOwner, v.claim)
             currentKey = BaseInstrument.getKey $ toInterface claimInstrument
             newKey = currentKey with version = sha256 $ show remaining
             producedInstrument = if isZero' remaining then None else Some newKey
             (otherConsumed, otherProduced) = splitPending pending
-            electionData = Some (v.electorIsOwner, v.claim)
           tryCreateNewInstrument lifecycler nv.prevElections electionTime electionData v.instrument
             newKey
           effectCid <- toInterfaceContractId <$>
@@ -162,6 +134,7 @@ template Rule
 -- Fast-forward to lastEventTimestamp and lifecycle as of the current event time.
 fastForwardAndLifecycle instrument observableCids eventTime lifecycler = do
 
+  -- BOND_PROCESS_CLOCK_UPDATE_INITAL_CLAIMS_BEGIN
   claimInstrument <- fetchInterfaceByKey @BaseInstrument.R instrument
   -- BOND_PROCESS_CLOCK_UPDATE_INITAL_CLAIMS_END
   -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_FASTFORWARD_BEGIN
@@ -186,7 +159,6 @@ fastForwardAndLifecycle instrument observableCids eventTime lifecycler = do
     lifecycleClaims observableCids acquisitionTime claims [timeEvent nv.lastEventTimestamp]
 
   -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_FASTFORWARD_END
-  -- BOND_PROCESS_CLOCK_UPDATE_LIFECYCLE_BEGIN
   -- Lifecycle
   (remaining, pending) <- lifecycleClaims observableCids acquisitionTime claims
     [timeEvent eventTime]
