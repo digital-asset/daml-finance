@@ -33,7 +33,7 @@ prepareAndTagClaims dateToTime cs tag =
 createFixRatePaymentClaimsList : Schedule -> PeriodicSchedule -> Bool -> Decimal -> Bool ->
   DayCountConventionEnum -> Decimal -> Deliverable -> [C]
 createFixRatePaymentClaimsList schedule periodicSchedule useAdjustedDatesForDcf couponRate
-  ownerReceives dayCountConvention notional cashInstrumentCid =
+  ownerReceives dayCountConvention notional cashInstrument =
     let
       couponDatesAdjusted = map (.adjustedEndDate) schedule
       couponAmounts = map (\p ->
@@ -44,7 +44,7 @@ createFixRatePaymentClaimsList schedule periodicSchedule useAdjustedDatesForDcf 
       couponClaimAmounts = mconcat $
         zipWith
           (\d a ->
-            when (TimeGte d) $ scale (Const a) $ scale (Const notional) $ one cashInstrumentCid
+            when (TimeGte d) $ scale (Const a) $ scale (Const notional) $ one cashInstrument
           ) couponDatesAdjusted couponAmounts
     in
       [if ownerReceives then couponClaimAmounts else give couponClaimAmounts]
@@ -54,10 +54,10 @@ createFixRatePaymentClaimsList schedule periodicSchedule useAdjustedDatesForDcf 
 createFixRatePaymentClaims : (Date -> Time) -> Schedule -> PeriodicSchedule -> Bool -> Decimal ->
   Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> TaggedClaim
 createFixRatePaymentClaims dateToTime schedule periodicSchedule useAdjustedDatesForDcf
-  couponRate ownerReceives dayCountConvention notional cashInstrumentCid =
+  couponRate ownerReceives dayCountConvention notional cashInstrument =
     let
       couponClaims = createFixRatePaymentClaimsList schedule periodicSchedule useAdjustedDatesForDcf
-        couponRate ownerReceives dayCountConvention notional cashInstrumentCid
+        couponRate ownerReceives dayCountConvention notional cashInstrument
     in prepareAndTagClaims dateToTime couponClaims "Fix rate payment"
 
 -- | Calculate a fix rate amount (if a credit event has not yet happened) for each payment date and
@@ -67,10 +67,10 @@ createConditionalCreditFixRatePaymentClaims : (Date -> Time) -> Schedule -> Peri
   TaggedClaim
 createConditionalCreditFixRatePaymentClaims dateToTime schedule periodicSchedule
   useAdjustedDatesForDcf couponRate ownerReceives dayCountConvention notional
-  cashInstrumentCid defaultProbabilityReferenceId
+  cashInstrument defaultProbabilityReferenceId
   = let
       couponClaims = createFixRatePaymentClaimsList schedule periodicSchedule useAdjustedDatesForDcf
-        couponRate ownerReceives dayCountConvention notional cashInstrumentCid
+        couponRate ownerReceives dayCountConvention notional cashInstrument
       creditEvent = Lte (Const 1.0, Observe defaultProbabilityReferenceId)
       couponClaimUntilCreditEvent =
         when (TimeGte periodicSchedule.effectiveDate)
@@ -83,13 +83,13 @@ createConditionalCreditFixRatePaymentClaims dateToTime schedule periodicSchedule
 -- | Calculate a (1-recoveryRate) payment if a credit event just happened and create claims.
 createCreditEventPaymentClaims : (Date -> Time) -> Bool -> Decimal -> Deliverable -> Observable ->
   Observable -> PeriodicSchedule -> TaggedClaim
-createCreditEventPaymentClaims dateToTime ownerReceives notional cashInstrumentCid
+createCreditEventPaymentClaims dateToTime ownerReceives notional cashInstrument
   defaultProbabilityReferenceId recoveryRateReferenceId periodicSchedule =
   let
     creditEvent = Lte (Const 1.0, Observe defaultProbabilityReferenceId)
     payoffAmount =
       scale ((Const 1.0 - Observe recoveryRateReferenceId) * Const notional)
-      $ one cashInstrumentCid
+      $ one cashInstrument
     payoff = if ownerReceives then payoffAmount else give payoffAmount
     creditEventClaim =
       when (TimeGte periodicSchedule.effectiveDate)
@@ -106,7 +106,7 @@ createCreditEventPaymentClaims dateToTime ownerReceives notional cashInstrumentC
 createFloatingRatePaymentClaims : (Date -> Time) -> Schedule -> PeriodicSchedule -> Bool ->
   Decimal -> Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> Observable -> TaggedClaim
 createFloatingRatePaymentClaims dateToTime schedule periodicSchedule useAdjustedDatesForDcf
-  floatingRateSpread ownerReceives dayCountConvention notional cashInstrumentCid referenceRateId =
+  floatingRateSpread ownerReceives dayCountConvention notional cashInstrument referenceRateId =
   let
     couponClaimAmounts = mconcat $ map (\p ->
         when (TimeGte p.adjustedStartDate)
@@ -117,7 +117,7 @@ createFloatingRatePaymentClaims dateToTime schedule periodicSchedule useAdjusted
           ))
         $ when (TimeGte p.adjustedEndDate)
         $ scale (Const notional)
-        $ one cashInstrumentCid
+        $ one cashInstrument
       ) schedule
     couponClaims = if ownerReceives then couponClaimAmounts else give couponClaimAmounts
   in prepareAndTagClaims dateToTime [couponClaims] "Floating rate payment"
@@ -133,11 +133,11 @@ createFloatingRatePaymentClaims dateToTime schedule periodicSchedule useAdjusted
 createAssetPerformancePaymentClaims : (Date -> Time) -> Schedule -> PeriodicSchedule -> Bool ->
   Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> Observable -> TaggedClaim
 createAssetPerformancePaymentClaims dateToTime schedule periodicSchedule useAdjustedDatesForDcf
-  ownerReceives dayCountConvention notional cashInstrumentCid referenceAssetId =
+  ownerReceives dayCountConvention notional cashInstrument referenceAssetId =
   let
     assetClaimAmounts = mconcat $ map (\p ->
       let
-        endClaim = when (TimeGte p.adjustedEndDate) $ scale (Const notional) $ one cashInstrumentCid
+        endClaim = when (TimeGte p.adjustedEndDate) $ scale (Const notional) $ one cashInstrument
       in
         scaleByAssetPerformance p.adjustedStartDate p.adjustedEndDate (Observe referenceAssetId)
           endClaim
@@ -154,12 +154,12 @@ createAssetPerformancePaymentClaims dateToTime schedule periodicSchedule useAdju
 createFxAdjustedPrincipalClaim : (Date -> Time) -> Bool -> Decimal -> Decimal -> Deliverable ->
   Date -> TaggedClaim
 createFxAdjustedPrincipalClaim dateToTime ownerReceives fxRateMultiplier notional
-  cashInstrumentCid valueDate =
+  cashInstrument valueDate =
   let
     fxLegClaimAmount = when (TimeGte valueDate)
                        $ scale (Const fxRateMultiplier)
                        $ scale (Const notional)
-                       $ one cashInstrumentCid
+                       $ one cashInstrument
     fxLegClaim = if ownerReceives then fxLegClaimAmount else give fxLegClaimAmount
   in
     prepareAndTagClaims dateToTime [fxLegClaim] "Principal payment"
@@ -181,12 +181,12 @@ scaleByAssetPerformance startDate endDate asset claim =
 -- | Create the claim for a cash-settled, automatically exercised option.
 createEuropeanCashClaim : (Date -> Time) -> Bool -> Decimal -> Observable -> Deliverable -> Date ->
   Bool -> TaggedClaim
-createEuropeanCashClaim dateToTime isLong strike spot cashInstrumentCid expiryDate
+createEuropeanCashClaim dateToTime isLong strike spot cashInstrument expiryDate
   isCall =
   let
     intrinsicValue = if isCall then Observe spot - Const strike
                              else Const strike - Observe spot
-    exercised = scale intrinsicValue $ one cashInstrumentCid
+    exercised = scale intrinsicValue $ one cashInstrument
     notExercised = zero
     autoExerciseCondition = if isCall then Lte (Const strike, Observe spot)
                                     else Lte (Observe spot, Const strike)
