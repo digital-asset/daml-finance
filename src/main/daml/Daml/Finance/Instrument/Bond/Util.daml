@@ -67,10 +67,10 @@ calculateFixingDate baseDate fixingDates fixingCalendars dayShift =
 
 -- | Apply a cap and a floor to a floating rate claim.
 capAndFloorRate : O -> Optional Decimal -> Optional Decimal -> O -> C -> Decimal -> C
-capAndFloorRate observedFloatingRate capRate floorRate dcf notionalAtPeriodEnd couponRate =
+capAndFloorRate observedFloatingRate capRate floorRate dcf notionalAmount couponRate =
   let
     regularRate = observedFloatingRate + Const couponRate
-    dcfAndNotional = scale dcf notionalAtPeriodEnd
+    dcfAndNotional = scale dcf notionalAmount
     regularRateClaim = scale regularRate dcfAndNotional
     rateAfterCap = case capRate of
       None -> regularRateClaim
@@ -115,19 +115,18 @@ createCallableBondClaims dateToTime schedule callableSchedule periodicSchedule
       let
         dcf = Const $ calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf
           periodicSchedule.terminationDate periodicSchedule.frequency
-        notionalAtPeriodEnd = when (at p.adjustedEndDate) notionalAmount
         cpn = case floatingRate of
-          None -> scale ((Const couponRate) * dcf) notionalAtPeriodEnd
+          None -> scale ((Const couponRate) * dcf) notionalAmount
           Some fr -> case fr.referenceRateType of
-            SingleFixing -> when (at resetDate) rateAfterCapAndFloor
+            SingleFixing -> rateAfterCapAndFloor
               where
                 baseDate = if fr.resetRelativeTo == CalculationPeriodStartDate
                   then p.adjustedStartDate else p.adjustedEndDate
                 resetDate = calculateFixingDate baseDate fr.fixingDates fixingCalendars dayShift
-                observedFloatingRate = Observe fr.referenceRateId
+                observedFloatingRate = ObserveAt fr.referenceRateId resetDate
                 rateAfterCapAndFloor = capAndFloorRate observedFloatingRate capRate floorRate dcf
-                  notionalAtPeriodEnd couponRate
-            CompoundedIndex dcfConventionImpl -> when (at p.adjustedEndDate) rateAfterCapAndFloor
+                  notionalAmount couponRate
+            CompoundedIndex dcfConventionImpl -> rateAfterCapAndFloor
               where
                 resetDateStart = calculateFixingDate p.adjustedStartDate fr.fixingDates
                   fixingCalendars dayShift
@@ -144,7 +143,7 @@ createCallableBondClaims dateToTime schedule callableSchedule periodicSchedule
                 -- dcf of the current swap -> calculate an annualized rate and apply the actual dcf:
                 convertImplicitDcfToActualDcf = dcf / dcfImpl
                 rateAfterCapAndFloor = capAndFloorRate compoundedFloatingRate capRate floorRate
-                  convertImplicitDcfToActualDcf notionalAtPeriodEnd couponRate
+                  convertImplicitDcfToActualDcf notionalAmount couponRate
             where
               dayShift = if fr.fixingDates.period == D then fr.fixingDates.periodMultiplier
                 else error "Only daily periods supported"
@@ -152,10 +151,9 @@ createCallableBondClaims dateToTime schedule callableSchedule periodicSchedule
         coupon = give cpn
         called = ("CALLED", principal)
         notCalled = ("NOT CALLED", notCalledClaim)
-        tailClaim = if callingIsPossible then when (at p.adjustedEndDate) $ or called notCalled
-          else notCalledClaim
+        tailClaim = if callingIsPossible then or called notCalled else notCalledClaim
       in
-        and coupon tailClaim
+        when (at p.adjustedEndDate) $ and coupon tailClaim
 
     finalCouponDate = (.adjustedEndDate) $ last schedule
     notCalledFinal = when (at finalCouponDate) principal
