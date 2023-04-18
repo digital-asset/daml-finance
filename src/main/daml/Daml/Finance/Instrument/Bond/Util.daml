@@ -55,7 +55,8 @@ includes scheduleA scheduleB =
 --   date and a redemption amount at the end (unless called by the issuer).
 createCallableBondClaims : (Date -> Time) -> Schedule -> Schedule -> PeriodicSchedule
   -> Bool -> Decimal -> DayCountConventionEnum -> Decimal -> Deliverable -> Optional FloatingRate
-  -> Optional Decimal -> Optional Decimal -> HolidayCalendarData -> TaggedClaim
+  -> Optional Decimal -> Optional Decimal -> HolidayCalendarData
+  -> TaggedClaim
 createCallableBondClaims dateToTime schedule callableSchedule periodicSchedule
   useAdjustedDatesForDcf couponRate dayCountConvention notional cashInstrument floatingRate
   capRate floorRate fixingCalendars =
@@ -117,7 +118,7 @@ createCallableBondClaims dateToTime schedule callableSchedule periodicSchedule
                       floorRateClaim = scale (Const floor) dcfAndNotional
 
             -- TODO: implement claim for compounded SOFR (using ObserveAt)
-            CompoundedIndex -> when (at p.adjustedEndDate) $ rateAfterCapAndFloor
+            CompoundedIndex dcfConventionImpl -> when (at p.adjustedEndDate) rateAfterCapAndFloor
               where
                 dayShiftBase = if fr.fixingDates.period == D
                   then fr.fixingDates.periodMultiplier
@@ -144,7 +145,23 @@ createCallableBondClaims dateToTime schedule callableSchedule periodicSchedule
                 compoundedFloatingRate = Observe fr.referenceRateId /
                   ObserveAt fr.referenceRateId resetDateStart - Const 1.0 -- TODO: include DCF
                 regularRate = compoundedFloatingRate + Const couponRate
-                dcfAndNotional = scale dcf notionalAtPeriodEnd
+
+                -- Calculate dcf using the method implicitly used for the rate Index,
+                -- for example Act360 in the case of SOFR Index, see page 35 here:
+                -- https://www.newyorkfed.org/medialibrary/Microsites/arrc/files/2021/users-guide-to-sofr2021-update.pdf
+                dcfImpl = Const $ calcPeriodDcf dcfConventionImpl
+                  p useAdjustedDatesForDcf periodicSchedule.terminationDate
+                  periodicSchedule.frequency
+
+                  --Const $ calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf
+                  --periodicSchedule.terminationDate periodicSchedule.frequency
+
+                -- The implicit dcf used for index calculation does not necessarily match the actual
+                -- dcf of the current swap -> calculate an annualized rate and apply the actual dcf:
+                convertImplicitDcfToActualDcf = dcf / dcfImpl
+
+                --dcfAndNotional = scale dcf notionalAtPeriodEnd
+                dcfAndNotional = scale convertImplicitDcfToActualDcf notionalAtPeriodEnd
                 regularRateClaim = scale regularRate dcfAndNotional
                 rateAfterCap = case capRate of
                   None -> regularRateClaim
