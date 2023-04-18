@@ -11,11 +11,12 @@ module ContingentClaims.Lifecycle.Util (
   , pruneZeros'
 ) where
 
+import ContingentClaims.Core.Internal.AcquisitionTime (AcquisitionTime(..), afterOrAtToday, extend)
 import ContingentClaims.Core.Internal.Claim (Claim(..), ClaimF(..), Inequality(..))
-import ContingentClaims.Core.Observation (Observation)
+import ContingentClaims.Core.Observation (Observation, ObservationF(..))
 import DA.Bifunctor (first)
 import DA.Foldable (all, fold, maximum)
-import Daml.Control.Recursion (Corecursive(..), Recursive(..))
+import Daml.Control.Recursion (Corecursive(..), Recursive(..), cata)
 import Prelude hiding (all, sequence, sum, mapA)
 
 -- | Return the fixing dates of a claim. This does not discriminate between optional dates which
@@ -81,3 +82,36 @@ pruneZeros' other = embed other
 -- This avoids requiring the equality type constraint on `a`.
 isZero Zero = True
 isZero _ = False
+
+-- How do we handle the actual acquisition time of Until nodes?
+-- We would need to introduce a negation
+-- for now we can write a propagate minimal acquisition time function
+acquire' : (Ord t, Eq a)
+  => (AcquisitionTime t x o, Claim t x a o)
+    -- ^ Input claim in functor form and its acquisition time.
+  -> ClaimF t x a o (AcquisitionTime t x o, Claim t x a o)
+-- acquire' _ _ (s, When (TimeLte t) c) =
+--   pure $ WhenF (TimeLte t) if t < s then Left c else Right (s, c)
+acquire' (s, c@(When (Lte _) _)) = (s, ) <$> project c
+acquire' (s, c@(When obs _)) = (extend obs s, ) <$> project c
+acquire' (s, other) = (s, ) <$> project other
+
+-- I need to access the current node's acquisition time in the cata function --> how to do that?
+-- Do I need to write a custom hylo function or something along those lines?
+verify : ClaimF t x a o (AcquisitionTime t x o, Claim t x a o) -> Bool
+verify _ = True
+
+isWellDefined : (Ord t) => AcquisitionTime t x o -> Observation t x o -> Bool
+isWellDefined t obs = cata alg obs
+  where
+    alg = \case
+      ConstF _ -> True
+      ObserveF _ -> True
+      ObserveAtF _ t' -> afterOrAtToday t' t
+      AddF (x, x') -> x && x'
+      NegF x -> x
+      MulF (x, x') -> x && x'
+      DivF (x, x') -> x && x'
+
+-- we need to define a new recursive type (t, Claim) (, ClaimF) as the corresponding functor
+
