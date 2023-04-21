@@ -11,6 +11,7 @@ module Daml.Finance.Claims.Util.Builders where
 import ContingentClaims.Core.Builders (european)
 import ContingentClaims.Core.Claim (Claim, Inequality(..), and, at, cond, give, one, orList, scale, until, upTo, when, zero)
 import ContingentClaims.Core.Observation (Observation(..))
+import DA.Foldable (foldMap)
 import Daml.Finance.Claims.Util (toTime)
 import Daml.Finance.Interface.Claims.Types (Deliverable, Observable, TaggedClaim(..))
 import Daml.Finance.Interface.Types.Common.Types (InstrumentQuantity)
@@ -109,13 +110,12 @@ createFloatingRatePaymentClaims dateToTime schedule periodicSchedule useAdjusted
   floatingRateSpread ownerReceives dayCountConvention notional cashInstrument referenceRateId =
   let
     couponClaimAmounts = mconcat $ map (\p ->
-        when (TimeGte p.adjustedStartDate)
+        when (TimeGte p.adjustedEndDate)
         $ scale (
-          (Observe referenceRateId + Const floatingRateSpread) *
+          (ObserveAt referenceRateId p.adjustedStartDate + Const floatingRateSpread) *
           (Const (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf
                     periodicSchedule.terminationDate periodicSchedule.frequency)
           ))
-        $ when (TimeGte p.adjustedEndDate)
         $ scale (Const notional)
         $ one cashInstrument
       ) schedule
@@ -135,12 +135,14 @@ createAssetPerformancePaymentClaims : (Date -> Time) -> Schedule -> PeriodicSche
 createAssetPerformancePaymentClaims dateToTime schedule periodicSchedule useAdjustedDatesForDcf
   ownerReceives dayCountConvention notional cashInstrument referenceAssetId =
   let
-    assetClaimAmounts = mconcat $ map (\p ->
+    assetClaimAmounts = foldMap (\p ->
       let
-        endClaim = when (TimeGte p.adjustedEndDate) $ scale (Const notional) $ one cashInstrument
+        performance =
+          Observe referenceAssetId / ObserveAt referenceAssetId p.adjustedStartDate - Const 1.0
       in
-        scaleByAssetPerformance p.adjustedStartDate p.adjustedEndDate (Observe referenceAssetId)
-          endClaim
+        when (TimeGte p.adjustedEndDate)
+          $ scale (Const notional * performance)
+          $ one cashInstrument
       ) schedule
     assetClaims = if ownerReceives then assetClaimAmounts else give assetClaimAmounts
   in

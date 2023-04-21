@@ -60,6 +60,29 @@ lifecycleInstrument readAs today instrument issuer observableCids = do
 
   pure (lifecycleCid, effectCids)
 
+-- | Verify that the consumed/produced quantities match the expected ones.
+verifyConsumedAndProduced : [InstrumentQuantity] -> [InstrumentQuantity] -> ContractId Effect.I
+  -> Party -> Script ()
+verifyConsumedAndProduced expectedConsumed expectedProduced effectCid
+  issuer = do
+    -- Get the effect
+    effectView <- submit issuer do
+      exerciseCmd effectCid Effect.GetView with viewer = issuer
+
+    -- Sort the instrument quantities for a more robust comparison
+    let
+      sortedConsumed = sort effectView.otherConsumed
+      sortedProduced = sort effectView.otherProduced
+      sortedExpectedConsumed = sort expectedConsumed
+      sortedExpectedProduced = sort expectedProduced
+
+    assertMsg ("The consumed quantities " <> show sortedConsumed <>
+      " do not match the expected ones " <> show sortedExpectedConsumed) $
+      sortedExpectedConsumed == sortedConsumed
+    assertMsg ("The produced quantities " <> show sortedProduced <>
+      " do not match the expected ones " <> show sortedExpectedProduced) $
+      sortedExpectedProduced == sortedProduced
+
 -- | Verify a that there are no lifecycle effects of the instrument on this date.
 verifyNoLifecycleEffects : forall t1 t2.
   ( Template t1
@@ -86,19 +109,12 @@ lifecycleAndVerifyPaymentEffects : forall t1 t2.
   [ContractId NumericObservable.I] -> [InstrumentQuantity] -> [InstrumentQuantity] ->
   Script (Optional InstrumentKey)
 lifecycleAndVerifyPaymentEffects readAs today instrument issuer
-  observableCids expectedConsumedQuantities expectedProducedQuantities = do
+  observableCids expectedConsumed expectedProduced = do
     (newInstrumentKey, [effectCid]) <-
       lifecycleInstrument @t1 @t2 readAs today instrument issuer observableCids
 
-    -- Get the effect
-    effectView <- submit issuer do
-      exerciseCmd effectCid Effect.GetView with viewer = issuer
-
     -- Verify that the consumed/produced quantities match the expected ones
-    assertMsg "The consumed quantities do not match the expected ones" $
-      sort expectedConsumedQuantities == sort effectView.otherConsumed
-    assertMsg "The produced quantities do not match the expected ones" $
-      sort expectedProducedQuantities == sort effectView.otherProduced
+    verifyConsumedAndProduced expectedConsumed expectedProduced effectCid issuer
 
     pure newInstrumentKey
 
@@ -155,7 +171,7 @@ electAndVerifyPaymentEffects : forall t1 t2.
   -> Text -> [ContractId NumericObservable.I] -> [InstrumentQuantity] -> [InstrumentQuantity]
   -> Script (Optional InstrumentKey, ContractId Effect.I)
 electAndVerifyPaymentEffects today amount instrument electorIsOwner issuer elector readAs
-  electedTag observableCids expectedConsumedQuantities expectedProducedQuantities = do
+  electedTag observableCids expectedConsumed expectedProduced = do
     -- Create the Election and the lifecycle rule
     (electionCid, lifecycleRuleCid) <- createElectionAndLifecycleRule today amount instrument
       electorIsOwner issuer elector electedTag
@@ -170,15 +186,8 @@ electAndVerifyPaymentEffects today amount instrument electorIsOwner issuer elect
         exercisableCid = lifecycleRuleCid
         keyTable
 
-    -- Get the effect
-    effectView <- submit issuer do
-      exerciseCmd effectCid Effect.GetView with viewer = issuer
-
     -- Verify that the consumed/produced quantities match the expected ones
-    assertMsg "The consumed quantities do not match the expected ones" $
-      sort expectedConsumedQuantities == sort effectView.otherConsumed
-    assertMsg "The produced quantities do not match the expected ones" $
-      sort expectedProducedQuantities == sort effectView.otherProduced
+    verifyConsumedAndProduced expectedConsumed expectedProduced effectCid issuer
 
     pure (newInstrumentKey, effectCid)
 
