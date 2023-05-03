@@ -450,7 +450,7 @@ calcFlatCompounding notional currency p s
   if null calculationPeriodDataSelected then [] else [scale notional $ compoundedRates]
     where
     foldRates acc (pp, includeSpread) =
-      scale (rate * pp.dcf) acc
+      when (TimeGte pp.rateFixingDate) $ scale (rate * pp.dcf) acc
       where
         regularRateExclSpread = ObserveAt floatingRateIndex pp.rateFixingDate
         regularRateInclSpread = regularRateExclSpread + Const floatingRateSpread
@@ -545,11 +545,15 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
 
       -- calculate compounded floating rate claim for a payment period
       -- this supports both straight and spread-exclusive compounding
-      createClaim regularRate p =
+      createClaim includeSpread p =
         scale notional $ compoundedRates
         where
           (notional, paymentPeriodData) = calculateNotionalAndFixings p s
             calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
+
+          regularRateExclSpread = Observe floatingRateCalculation.floatingRateIndex
+          regularRateInclSpread = regularRateExclSpread + Const floatingRateSpread
+          regularRate = if includeSpread then regularRateInclSpread else regularRateExclSpread
 
           compoundRates acc pp =
             when (TimeGte pp.rateFixingDate) $ scale (Const 1.0 + rate * pp.dcf) acc
@@ -656,12 +660,12 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
         Some Straight -> if compoundedRefRate then error "compounded ref rate not supported"
           else [claimAmounts, correctionClaimAmounts]
           where
-            claimAmounts = mconcat $ map (createClaim regularRateInclSpread) paymentSchedule
+            claimAmounts = mconcat $ map (createClaim True) paymentSchedule
             correctionClaimAmounts = mconcat $ map createCorrectionClaim paymentSchedule
         Some SpreadExclusive -> if compoundedRefRate then error "compounded ref rate not supported"
           else [claimAmounts, spreadClaimAmounts, correctionClaimAmounts]
           where
-            claimAmounts = mconcat $ map (createClaim regularRateExclSpread) paymentSchedule
+            claimAmounts = mconcat $ map (createClaim False) paymentSchedule
             spreadClaimAmounts = mconcat $ map createSpreadClaim paymentSchedule
             correctionClaimAmounts = mconcat $ map createCorrectionClaim paymentSchedule
         Some Flat -> if compoundedRefRate then error "compounded ref rate not supported"
