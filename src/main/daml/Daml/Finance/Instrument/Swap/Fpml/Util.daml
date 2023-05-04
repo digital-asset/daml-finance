@@ -137,15 +137,15 @@ applyPaymentDaysOffset paymentSchedule paymentDates paymentCalendars =
     None -> paymentSchedule
 
 -- | Define observable part of claim when one specific floating rate is provided for a stub period.
-getSingleStubRate : StubFloatingRate -> Optional O
-getSingleStubRate floatingRate =
-  Some (Observe floatingRate.floatingRateIndex)
+getSingleStubRate : StubFloatingRate -> Date -> Optional O
+getSingleStubRate floatingRate rateFixingDate =
+  Some (ObserveAt floatingRate.floatingRateIndex rateFixingDate)
 
 -- | Linearly interpolates two rates within a period, as specified in
 -- https://www.isda.org/a/aWkgE/Linear-interpolation-04022022.pdf
 getInterpolatedStubRate : StubFloatingRate -> StubFloatingRate -> SchedulePeriod ->
-  HolidayCalendarData -> BusinessDayConventionEnum -> Optional O
-getInterpolatedStubRate fr1 fr2 p cal convention =
+  HolidayCalendarData -> BusinessDayConventionEnum -> Date -> Optional O
+getInterpolatedStubRate fr1 fr2 p cal convention rateFixingDate =
   let
     tenor1 = fromSome fr1.indexTenor
     tenor2 = fromSome fr2.indexTenor
@@ -167,15 +167,16 @@ getInterpolatedStubRate fr1 fr2 p cal convention =
   -- )
   -- This expression can be simplified to:
   in
-    Some $ Const w1 * Observe fr1.floatingRateIndex + Const w2 * Observe fr2.floatingRateIndex
+    Some $ Const w1 * ObserveAt fr1.floatingRateIndex rateFixingDate +
+      Const w2 * ObserveAt fr2.floatingRateIndex rateFixingDate
 
 -- | Get the floating stub rate to be used for a stub period.
 getStubRateFloating : [StubFloatingRate] -> SchedulePeriod -> HolidayCalendarData ->
-  BusinessDayConventionEnum -> Optional O
-getStubRateFloating floatingRates p cal convention =
+  BusinessDayConventionEnum -> Date -> Optional O
+getStubRateFloating floatingRates p cal convention rateFixingDate =
   case floatingRates of
-    [rate] -> getSingleStubRate rate
-    [rate1, rate2] -> getInterpolatedStubRate rate1 rate2 p cal convention
+    [rate] -> getSingleStubRate rate rateFixingDate
+    [rate1, rate2] -> getInterpolatedStubRate rate1 rate2 p cal convention rateFixingDate
     other -> error "only one or two floating stub rates supported"
 
 -- | Get the stub rate to be used for a stub period.
@@ -184,8 +185,8 @@ getStubRateFloating floatingRates p cal convention =
 -- 2. One or two floating rates for the stub.
 -- 3. No specific stub rate defined -> use the same rate as is used for regular periods.
 getStubRate : StubCalculationPeriodAmount -> Bool -> SchedulePeriod -> HolidayCalendarData ->
-  BusinessDayConventionEnum -> Bool-> Optional O
-getStubRate sc initialStub p cal convention fixLeg =
+  BusinessDayConventionEnum -> Bool -> Date -> Optional O
+getStubRate sc initialStub p cal convention fixLeg rateFixingDate =
   let
     stubValue = if initialStub then fromSome sc.initialStub else fromSome sc.finalStub
   in
@@ -194,7 +195,7 @@ getStubRate sc initialStub p cal convention fixLeg =
       StubValue_FloatingRate stubFloatingRates ->
         if fixLeg
         then error "floating stub not supported for fix leg"
-        else getStubRateFloating stubFloatingRates p cal convention
+        else getStubRateFloating stubFloatingRates p cal convention rateFixingDate
 
 -- | Align the payment schedule with the calculation schedule.
 alignPaymentSchedule : [SchedulePeriod] -> [SchedulePeriod] -> Update [SchedulePeriod]
@@ -357,7 +358,7 @@ calculatePrincipalExchangePaymentClaims paymentScheduleAligned issuerPaysLeg cur
             notional = case fxRateId of
               None -> notionalConst
               Some fxRateId -> if fxAdjRequired then notionalConst * fxRateObs else notionalConst
-                where fxRateObs = Observe fxRateId
+                where fxRateObs = ObserveAt fxRateId fixingDate
       createInitialClaim f p (n, fxAdjRequired) =
         if issuerPaysLeg then give principalInitialClaim else principalInitialClaim
         where
@@ -412,9 +413,9 @@ roundRate rate rounding =
 -- | HIDE
 -- Get the floating rate to be used for a period, taking stub periods into account.
 getFloatingRate : SwapStream -> SchedulePeriod -> SchedulePeriod ->
-  O -> HolidayCalendarData -> Bool -> O
+  O -> HolidayCalendarData -> Bool -> Date -> O
 getFloatingRate s calculationPeriod paymentPeriod
-  regularRate rateFixingCalendar fixLeg =
+  regularRate rateFixingCalendar fixLeg rateFixingDate =
   case (calculationPeriod.stubType, s.stubCalculationPeriodAmount) of
     (Some stubType, Some scpa) -> fromOptional regularRate $
       getStubRate
@@ -424,6 +425,7 @@ getFloatingRate s calculationPeriod paymentPeriod
         rateFixingCalendar
         s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessDayConvention
         fixLeg
+        rateFixingDate
     _ -> regularRate
 
 -- | HIDE
@@ -431,33 +433,36 @@ getFloatingRate s calculationPeriod paymentPeriod
 -- It follows the ISDA calculation example for flat compounding, example 4.2:
 -- https://www.isda.org/a/2KiDE/isda-compounding-memo.pdf
 calcFlatCompounding : O -> Deliverable -> SchedulePeriod -> SwapStream
-  -> O -> O -> HolidayCalendarData -> Bool ->
+  -> Text -> Decimal -> HolidayCalendarData -> Bool ->
   [CalculationPeriodData] -> [CalculationPeriodData] -> [C]
 calcFlatCompounding notional currency p s
-  regularRateInclSpread regularRateExclSpread rateFixingCalendar fixLeg
+  floatingRateIndex floatingRateSpread rateFixingCalendar fixLeg
   (x::xs) calculationPeriodDataSelected =
   calcFlatCompounding notional currency p s
-    regularRateInclSpread regularRateExclSpread rateFixingCalendar fixLeg
+    floatingRateIndex floatingRateSpread rateFixingCalendar fixLeg
     xs calculationPeriodDataSelected ++
   calcFlatCompounding notional currency p s
-  regularRateInclSpread regularRateExclSpread rateFixingCalendar fixLeg
+  floatingRateIndex floatingRateSpread rateFixingCalendar fixLeg
   xs (calculationPeriodDataSelected ++ [x])
 calcFlatCompounding notional currency p s
-  regularRateInclSpread regularRateExclSpread rateFixingCalendar fixLeg
-  [] calculationPeriodDataSelected  =
+  floatingRateIndex floatingRateSpread rateFixingCalendar fixLeg
+  [] calculationPeriodDataSelected =
   if null calculationPeriodDataSelected then [] else [scale notional $ compoundedRates]
     where
     foldRates acc (pp, includeSpread) =
-      when (TimeGte pp.rateFixingDate) $ scale (rate * pp.dcf) acc
+      scale (rate * pp.dcf) acc
       where
+        regularRateExclSpread = ObserveAt floatingRateIndex pp.rateFixingDate
+        regularRateInclSpread = regularRateExclSpread + Const floatingRateSpread
         regularRate = if includeSpread then regularRateInclSpread else regularRateExclSpread
         rate = getFloatingRate s pp.calculationPeriod p regularRate rateFixingCalendar fixLeg
+          pp.rateFixingDate
 
     includeSpread = True :: replicate (length calculationPeriodDataSelected - 1) False
 
-    compoundedRates = foldl
+    compoundedRates = when (TimeGte p.adjustedEndDate) $ foldl
       foldRates
-      (when (TimeGte p.adjustedEndDate) $ one currency)
+      (one currency)
       (reverse $ zip calculationPeriodDataSelected includeSpread)
 
 -- | HIDE
@@ -535,59 +540,68 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
         [se] -> se.initialValue
         _ -> error "Multiple SpreadSchedules not yet supported"
       (compoundedRefRate, dcfConventionImplicit) = checkRefRateCompounding floatingRateCalculation
-      regularRateExclSpread = Observe floatingRateCalculation.floatingRateIndex
-      regularRateInclSpread = regularRateExclSpread + Const floatingRateSpread
 
       -- calculate compounded floating rate claim for a payment period
       -- this supports both straight and spread-exclusive compounding
-      createClaim regularRate p =
+      createClaim includeSpread p =
         scale notional $ compoundedRates
         where
           (notional, paymentPeriodData) = calculateNotionalAndFixings p s
             calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
 
           compoundRates acc pp =
-            when (TimeGte pp.rateFixingDate) $ scale (Const 1.0 + rate * pp.dcf) acc
+            scale (Const 1.0 + rate * pp.dcf) acc
             where
+              regularRateExclSpread = ObserveAt floatingRateCalculation.floatingRateIndex
+                pp.rateFixingDate
+              regularRateInclSpread = regularRateExclSpread + Const floatingRateSpread
+              regularRate = if includeSpread then regularRateInclSpread else regularRateExclSpread
               rate = getFloatingRate s pp.calculationPeriod p regularRate rateFixingCalendar fixLeg
+                pp.rateFixingDate
 
-          compoundedRates = foldl
+          compoundedRates = when (TimeGte p.adjustedEndDate) $ foldl
             compoundRates
-            (when (TimeGte p.adjustedEndDate) $ one currency)
+            (one currency)
             (reverse paymentPeriodData)
 
       -- calculate all calculation period claims (using flat compounding) for a payment period
       createCalcPeriodClaim p =
-        mconcat $ calcFlatCompounding notional currency p s regularRateInclSpread
-          regularRateExclSpread rateFixingCalendar fixLeg paymentPeriodData []
+        mconcat $ calcFlatCompounding notional currency p s
+          floatingRateCalculation.floatingRateIndex floatingRateSpread rateFixingCalendar fixLeg
+          paymentPeriodData []
         where
           (notional, paymentPeriodData) = calculateNotionalAndFixings p s
             calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
 
       -- calculate simple interest rate claim (no calc period compounding) for a payment period
       -- using a non-compounded reference rate
-      createSimpleClaim regularRate p =
+      createSimpleClaim p =
         mconcat $ map createSimpleRate paymentPeriodData
         where
           (notional, paymentPeriodData) = calculateNotionalAndFixings p s
             calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
           createSimpleRate pp =
-            when (TimeGte pp.rateFixingDate) $ scale notional $
-            when (TimeGte pp.rateFixingDate) $ scale (rate * pp.dcf) $
+            when (TimeGte pp.rateFixingDate) $ scale notional $ scale (rate * pp.dcf) $
               when (TimeGte p.adjustedEndDate) $ one currency
             where
+              regularRateExclSpread = ObserveAt floatingRateCalculation.floatingRateIndex
+                pp.rateFixingDate
+              regularRate = regularRateExclSpread + Const floatingRateSpread
               rate = getFloatingRate s pp.calculationPeriod p regularRate rateFixingCalendar fixLeg
+                pp.rateFixingDate
 
       -- calculate simple interest rate claim (no calc period compounding) for a payment period
       -- using a compounded reference rate
-      createSimpleClaimCompoundedRefRate regularRate p =
+      createSimpleClaimCompoundedRefRate p =
         mconcat $ map createSimpleRateCompoundingRefRate paymentPeriodData
         where
           (notional, paymentPeriodData) = calculateNotionalAndFixings p s
             calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
           createSimpleRateCompoundingRefRate pp = claim
             where
+              regularRate = Observe floatingRateCalculation.floatingRateIndex
               rate = getFloatingRate s pp.calculationPeriod p regularRate rateFixingCalendar fixLeg
+                pp.rateFixingDate
               -- Calculate dcf using the method implicitly used for the rate Index,
               -- for example Act360 in the case of SOFR Index, see page 35 here:
               -- https://www.newyorkfed.org/medialibrary/Microsites/arrc/files/2021/users-guide-to-sofr2021-update.pdf
@@ -638,21 +652,21 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
         if compoundedRefRate then
           let
             claimAmounts = mconcat $
-              map (createSimpleClaimCompoundedRefRate regularRateExclSpread) paymentSchedule
+              map createSimpleClaimCompoundedRefRate paymentSchedule
             spreadClaimAmounts = mconcat $ map createSpreadClaim paymentSchedule
           in [claimAmounts, spreadClaimAmounts]
-        else map (createSimpleClaim regularRateInclSpread) paymentSchedule
+        else map createSimpleClaim paymentSchedule
 
       claimAmounts = case s.calculationPeriodAmount.calculation.compoundingMethodEnum of
         Some Straight -> if compoundedRefRate then error "compounded ref rate not supported"
           else [claimAmounts, correctionClaimAmounts]
           where
-            claimAmounts = mconcat $ map (createClaim regularRateInclSpread) paymentSchedule
+            claimAmounts = mconcat $ map (createClaim True) paymentSchedule
             correctionClaimAmounts = mconcat $ map createCorrectionClaim paymentSchedule
         Some SpreadExclusive -> if compoundedRefRate then error "compounded ref rate not supported"
           else [claimAmounts, spreadClaimAmounts, correctionClaimAmounts]
           where
-            claimAmounts = mconcat $ map (createClaim regularRateExclSpread) paymentSchedule
+            claimAmounts = mconcat $ map (createClaim False) paymentSchedule
             spreadClaimAmounts = mconcat $ map createSpreadClaim paymentSchedule
             correctionClaimAmounts = mconcat $ map createCorrectionClaim paymentSchedule
         Some Flat -> if compoundedRefRate then error "compounded ref rate not supported"
