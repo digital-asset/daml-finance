@@ -502,6 +502,46 @@ calculateNotionalAndFixings p s
       )
       paymentPeriodStaticDataFiltered
 
+-- | HIDE
+-- Calculate notional and fixing data for a payment period.
+calculateNotionalsAndFixings : SchedulePeriod -> SwapStream ->
+  [CalculationPeriodStaticData] -> Optional Text -> Bool -> PeriodicSchedule ->
+  ([O], [CalculationPeriodData])
+calculateNotionalsAndFixings p s
+  paymentPeriodStaticData fxRateId useAdjustedDatesForDcf periodicSchedule =
+  (notional, paymentPeriodData)
+  where
+    paymentPeriodStaticDataFiltered = filter (\c ->
+      c.calculationPeriod.unadjustedEndDate <= p.unadjustedEndDate &&
+      c.calculationPeriod.unadjustedEndDate > p.unadjustedStartDate)
+      paymentPeriodStaticData
+
+    -- Ensure that all notionals and fxAdjRequireds are the same for each paymentPeriod
+    notionals = map (.notional) paymentPeriodStaticDataFiltered
+    n = if length (dedup notionals) <= 1 then head notionals
+      else error "notional must be constant within a payment period"
+    fxAdjRequireds = map (.fxAdjRequired) paymentPeriodStaticDataFiltered
+    fxAdjRequired = if length (dedup fxAdjRequireds) <= 1 then head fxAdjRequireds
+      else error "fxAdjRequired must be constant within a payment period"
+
+    notionalConst = Const n
+    notional = map
+      (\c -> case fxRateId of
+        None -> notionalConst
+        Some fxRateId -> if fxAdjRequired then notionalConst * fxRateObs else notionalConst
+          where fxRateObs = ObserveAt fxRateId c.rateFixingDate
+      )
+      paymentPeriodStaticDataFiltered
+    paymentPeriodData = map
+      (\c -> CalculationPeriodData with
+          calculationPeriod = c.calculationPeriod
+          rateFixingDate = c.rateFixingDate
+          dcf = Const (calcPeriodDcf s.calculationPeriodAmount.calculation.dayCountFraction
+            c.calculationPeriod useAdjustedDatesForDcf periodicSchedule.terminationDate
+            periodicSchedule.frequency)
+      )
+      paymentPeriodStaticDataFiltered
+
 -- | Check whether a FloatingRateCalculation uses a reference rate that needs to be compounded.
 -- Seems there is no FpML element that specificies this, but that it is implicit in the rate name,
 -- for example "USD-SOFR-COMPOUND"
@@ -593,11 +633,11 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
       -- calculate simple interest rate claim (no calc period compounding) for a payment period
       -- using a compounded reference rate
       createSimpleClaimCompoundedRefRate p =
-        mconcat $ map createSimpleRateCompoundingRefRate paymentPeriodData
+        mconcat $ zipWith createSimpleRateCompoundingRefRate paymentPeriodData notionals
         where
-          (notional, paymentPeriodData) = calculateNotionalAndFixings p s
+          (notionals, paymentPeriodData) = calculateNotionalsAndFixings p s
             calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
-          createSimpleRateCompoundingRefRate pp = claim
+          createSimpleRateCompoundingRefRate pp notional = claim
             where
               regularRate = Observe floatingRateCalculation.floatingRateIndex
               rate = getFloatingRate s pp.calculationPeriod p regularRate rateFixingCalendar fixLeg
@@ -615,9 +655,9 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
                 if pp.rateFixingDate < pp.calculationPeriod.adjustedEndDate
                 then error "fixing of notional must not occur before the final calculation date"
                 else
-                  when (TimeGte pp.rateFixingDate) $ scale notional $
+                  when (TimeGte p.adjustedEndDate) $ scale notional $
                   scale (convertImplicitDcfToActualDcf) $
-                  when (TimeGte p.adjustedEndDate) $ one currency
+                  one currency
               claim =
                 -- calculate a daily compounded reference rate using the corresponding index,
                 -- see page 36 here:
