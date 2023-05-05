@@ -50,6 +50,8 @@ data CalculationPeriodData = CalculationPeriodData
       -- ^ The fixing date used for the floating rate.
     dcf : O
       -- ^ The daycount fraction used for the floating rate in this calculation period.
+    notional : O
+      -- ^ (Possibly fx adjusted) notional used for this calculation period
   deriving (Eq, Show)
 
 -- | Create a schedule for calculation periods.
@@ -499,6 +501,7 @@ calculateNotionalAndFixings p s
           dcf = Const (calcPeriodDcf s.calculationPeriodAmount.calculation.dayCountFraction
             c.calculationPeriod useAdjustedDatesForDcf periodicSchedule.terminationDate
             periodicSchedule.frequency)
+          notional
       )
       paymentPeriodStaticDataFiltered
 
@@ -506,10 +509,10 @@ calculateNotionalAndFixings p s
 -- Calculate notional and fixing data for a payment period.
 calculateNotionalsAndFixings : SchedulePeriod -> SwapStream ->
   [CalculationPeriodStaticData] -> Optional Text -> Bool -> PeriodicSchedule ->
-  ([O], [CalculationPeriodData])
+  [CalculationPeriodData]
 calculateNotionalsAndFixings p s
   paymentPeriodStaticData fxRateId useAdjustedDatesForDcf periodicSchedule =
-  (notional, paymentPeriodData)
+  paymentPeriodData
   where
     paymentPeriodStaticDataFiltered = filter (\c ->
       c.calculationPeriod.unadjustedEndDate <= p.unadjustedEndDate &&
@@ -539,6 +542,10 @@ calculateNotionalsAndFixings p s
           dcf = Const (calcPeriodDcf s.calculationPeriodAmount.calculation.dayCountFraction
             c.calculationPeriod useAdjustedDatesForDcf periodicSchedule.terminationDate
             periodicSchedule.frequency)
+          notional = case fxRateId of
+            None -> notionalConst
+            Some fxRateId -> if fxAdjRequired then notionalConst * fxRateObs else notionalConst
+              where fxRateObs = ObserveAt fxRateId c.rateFixingDate
       )
       paymentPeriodStaticDataFiltered
 
@@ -616,12 +623,13 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
       -- calculate simple interest rate claim (no calc period compounding) for a payment period
       -- using a non-compounded reference rate
       createSimpleClaim p =
-        mconcat $ zipWith createSimpleRate paymentPeriodData notionals
+        mconcat $ map createSimpleRate paymentPeriodData
         where
-          (notionals, paymentPeriodData) = calculateNotionalsAndFixings p s
+          paymentPeriodData = calculateNotionalsAndFixings p s
             calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
-          createSimpleRate pp notional =
-            when (TimeGte p.adjustedEndDate) $ scale notional $ scale (rate * pp.dcf) $ one currency
+          createSimpleRate pp =
+            when (TimeGte p.adjustedEndDate) $ scale pp.notional $ scale (rate * pp.dcf) $
+              one currency
             where
               regularRateExclSpread = ObserveAt floatingRateCalculation.floatingRateIndex
                 pp.rateFixingDate
@@ -632,11 +640,11 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
       -- calculate simple interest rate claim (no calc period compounding) for a payment period
       -- using a compounded reference rate
       createSimpleClaimCompoundedRefRate p =
-        mconcat $ zipWith createSimpleRateCompoundingRefRate paymentPeriodData notionals
+        mconcat $ map createSimpleRateCompoundingRefRate paymentPeriodData
         where
-          (notionals, paymentPeriodData) = calculateNotionalsAndFixings p s
+          paymentPeriodData = calculateNotionalsAndFixings p s
             calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
-          createSimpleRateCompoundingRefRate pp notional = claim
+          createSimpleRateCompoundingRefRate pp = claim
             where
               -- Calculate dcf using the method implicitly used for the rate Index,
               -- for example Act360 in the case of SOFR Index, see page 35 here:
@@ -651,7 +659,7 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
                 if pp.rateFixingDate < pp.calculationPeriod.adjustedEndDate
                 then error "fixing of notional must not occur before the final calculation date"
                 else
-                  scale (notional * convertImplicitDcfToActualDcf) $ one currency
+                  scale (pp.notional * convertImplicitDcfToActualDcf) $ one currency
               rateStart = ObserveAt floatingRateCalculation.floatingRateIndex
                 pp.calculationPeriod.adjustedStartDate
               rateEnd = ObserveAt floatingRateCalculation.floatingRateIndex
