@@ -10,7 +10,7 @@ import DA.Date (addDays, subDate)
 import DA.Foldable (foldMap)
 import DA.List (dedup, head, init, last, sortOn, tail)
 import DA.Optional (fromOptional, fromSome, isNone, isSome, whenSome)
-import Daml.Finance.Claims.Util.Builders (prepareAndTagClaims, scaleByAssetPerformance)
+import Daml.Finance.Claims.Util.Builders (prepareAndTagClaims)
 import Daml.Finance.Instrument.Swap.Util (dateToDateClockTime, getHolidayCalendars)
 import Daml.Finance.Interface.Claims.Types (Deliverable, Observable, TaggedClaim(..))
 import Daml.Finance.Interface.Instrument.Swap.Fpml.FpmlTypes
@@ -639,9 +639,6 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
             calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
           createSimpleRateCompoundingRefRate pp notional = claim
             where
-              regularRate = Observe floatingRateCalculation.floatingRateIndex
-              rate = getFloatingRate s pp.calculationPeriod p regularRate rateFixingCalendar fixLeg
-                pp.rateFixingDate
               -- Calculate dcf using the method implicitly used for the rate Index,
               -- for example Act360 in the case of SOFR Index, see page 35 here:
               -- https://www.newyorkfed.org/medialibrary/Microsites/arrc/files/2021/users-guide-to-sofr2021-update.pdf
@@ -655,15 +652,16 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
                 if pp.rateFixingDate < pp.calculationPeriod.adjustedEndDate
                 then error "fixing of notional must not occur before the final calculation date"
                 else
-                  when (TimeGte p.adjustedEndDate) $ scale notional $
-                  scale (convertImplicitDcfToActualDcf) $
-                  one currency
+                  scale (notional * convertImplicitDcfToActualDcf) $ one currency
+              rateStart = ObserveAt floatingRateCalculation.floatingRateIndex
+                pp.calculationPeriod.adjustedStartDate
+              rateEnd = ObserveAt floatingRateCalculation.floatingRateIndex
+                pp.calculationPeriod.adjustedEndDate
               claim =
                 -- calculate a daily compounded reference rate using the corresponding index,
                 -- see page 36 here:
                 -- https://www.newyorkfed.org/medialibrary/Microsites/arrc/files/2021/users-guide-to-sofr2021-update.pdf
-                scaleByAssetPerformance pp.calculationPeriod.adjustedStartDate
-                  pp.calculationPeriod.adjustedEndDate rate endClaim
+                when (TimeGte p.adjustedEndDate) $ scale (rateEnd / rateStart - Const 1.0) endClaim
 
       -- Calculate a floating rate correction claim for a payment period
       -- (corresponding to the "-1" in a perf calculation)
