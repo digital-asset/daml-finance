@@ -549,7 +549,6 @@ runFloatingFloorCapCallable6M = script do
         dayType = Some Business
         businessDayConvention = NoAdjustment
         businessCenters = ["USD"]
-    noticeDays = 0
     -- CREATE_3M_CAP_FLOOR_FLOATING_6M_CALLABLE_BOND_VARIABLES_END
     observations = M.fromList
       [ (dateToDateClockTime $ date 2022 Jan 13, 0.010)
@@ -597,6 +596,7 @@ runFloatingFloorCapCallable6M = script do
     callSchedule = createPeriodicSchedule callScheduleFirstRegular holidayCalendarIds
       businessDayConvention callPeriod callPeriodMultiplier callScheduleStartDate
       callScheduleEndDate rollDay
+    noticeDays = 5
     -- CREATE_3M_CAP_FLOOR_FLOATING_6M_CALLABLE_BOND_SCHEDULE_END
 
   bondInstrument <- originateMultiScheduleCallableBond issuer issuer "BONDTEST1" "Callable Bond" pp
@@ -615,13 +615,21 @@ runFloatingFloorCapCallable6M = script do
   Some bondInstrumentAfterCoupon1 <- lifecycleAndVerifyPaymentEffects [publicParty]
     (date 2022 Apr 15) bondInstrument issuer [observableCid] expectedConsumed expectedProduced
 
-  -- Coupon date 2 (call date): Lifecycle and verify that there is an effect for one coupon.
+  -- Call date before Coupon date 2: Lifecycle to get the new instrument.
+  let
+    expectedConsumed = []
+    expectedProduced = []
+  (Some bondInstrumentAfterCallDate2, effectCid) <- electAndVerifyPaymentEffects (date 2022 Jul 8)
+    amount bondInstrumentAfterCoupon1 electorIsOwner issuer investor [publicParty] "NOT CALLED"
+    [observableCid] expectedConsumed expectedProduced
+
+  -- Coupon date 2: Lifecycle and verify that there is an effect for one coupon.
   let
     expectedConsumed = []
     expectedProduced = [qty 0.0037916667 cashInstrument]
-  (Some bondInstrumentAfterCoupon2, effectCid) <- electAndVerifyPaymentEffects (date 2022 Jul 15)
-    amount bondInstrumentAfterCoupon1 electorIsOwner issuer investor [publicParty] "NOT CALLED"
-    [observableCid] expectedConsumed expectedProduced
+  Some bondInstrumentAfterCoupon2 <- lifecycleAndVerifyPaymentEffects [publicParty]
+    (date 2022 Jul 15) bondInstrumentAfterCallDate2 issuer [observableCid] expectedConsumed
+    expectedProduced
 
   -- Coupon date 3 (not a call date): Lifecycle and verify that there are no effects (0% coupon due
   -- to floor)
@@ -632,13 +640,26 @@ runFloatingFloorCapCallable6M = script do
     (date 2022 Oct 17) bondInstrumentAfterCoupon2 issuer [observableCid] expectedConsumed
     expectedProduced
 
+  -- Call date before Coupon date 4: Lifecycle to get the new instrument.
+  let
+    expectedConsumed = []
+    expectedProduced = []
+  (Some bondInstrumentAfterCallDate4, effectCid) <- electAndVerifyPaymentEffects (date 2023 Jan 9)
+    amount bondInstrumentAfterCoupon3 electorIsOwner issuer investor [publicParty] "NOT CALLED"
+    [observableCid] expectedConsumed expectedProduced
+
   -- Coupon date 4 (call date): Lifecycle and verify that there is an effect for one coupon.
   let
     expectedConsumed = []
     expectedProduced = [qty 0.0027805556 cashInstrument]
-  (Some bondInstrumentAfterCoupon4, effectCid) <- electAndVerifyPaymentEffects (date 2023 Jan 16)
-    amount bondInstrumentAfterCoupon3 electorIsOwner issuer investor [publicParty] "NOT CALLED"
-    [observableCid] expectedConsumed expectedProduced
+  Some bondInstrumentAfterCoupon4 <- lifecycleAndVerifyPaymentEffects [publicParty]
+    (date 2023 Jan 16) bondInstrumentAfterCallDate4 issuer [observableCid] expectedConsumed
+    expectedProduced
+
+  -- 5 business days before coupon date 5 (not a call date): Try to call the bond and verify that
+  -- this is not possible.
+  ensureElectionNotPossible (date 2023 Apr 10) amount bondInstrumentAfterCoupon4 electorIsOwner
+    issuer investor [publicParty] "CALLED" [observableCid]
 
   -- Coupon date 5 (not a call date): Try to call the bond and verify that this is not possible.
   ensureElectionNotPossible (date 2023 Apr 17) amount bondInstrumentAfterCoupon4 electorIsOwner
@@ -652,14 +673,21 @@ runFloatingFloorCapCallable6M = script do
     (date 2023 Apr 17) bondInstrumentAfterCoupon4 issuer [observableCid] expectedConsumed
     expectedProduced
 
-  -- Coupon date 6 (call date): Try to call, which works as expected: one coupon and early
-  -- redemption amount.
+  -- Coupon date 6 (call date): Call the bond and get the new instrument.
   let
     expectedConsumed = []
-    expectedProduced = [qty 0.0027805556 cashInstrument, qty 1.0 cashInstrument]
-  (Some bondInstrumentAfterCoupon6, effectCid) <- electAndVerifyPaymentEffects (date 2023 Jul 17)
+    expectedProduced = []
+  (Some bondInstrumentAfterCallDate6, effectCid) <- electAndVerifyPaymentEffects (date 2023 Jul 10)
     amount bondInstrumentAfterCoupon5 electorIsOwner issuer investor [publicParty] "CALLED"
     [observableCid] expectedConsumed expectedProduced
+
+  -- Coupon date 6 (call date): Lifecycle one coupon and the early redemption amount.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 1.0027805556 cashInstrument]
+  Some bondInstrumentAfterCoupon6 <- lifecycleAndVerifyPaymentEffects [publicParty]
+    (date 2023 Jul 17) bondInstrumentAfterCallDate6 issuer [observableCid] expectedConsumed
+    expectedProduced
 
   pure ()
 
