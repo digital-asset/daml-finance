@@ -549,7 +549,7 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
       -- calculate compounded floating rate claim for a payment period
       -- this supports both straight and spread-exclusive compounding
       createClaim includeSpread p =
-        scale notional $ compoundedRates
+        scale notional $ compoundedRatePayment
         where
           (constNotional, paymentPeriodData) = calculateNotionalAndFixings p s
             calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
@@ -557,7 +557,7 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
             constNotional
 
           compoundRates acc pp =
-            scale (Const 1.0 + rate * pp.dcf) acc
+            (Const 1.0 + rate * pp.dcf) * acc
             where
               regularRateExclSpread = ObserveAt floatingRateCalculation.floatingRateIndex
                 pp.rateFixingDate
@@ -566,10 +566,9 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
               rate = getFloatingRate s pp.calculationPeriod p regularRate rateFixingCalendar fixLeg
                 pp.rateFixingDate
 
-          compoundedRates = when (TimeGte p.adjustedEndDate) $ foldl
-            compoundRates
-            (one currency)
-            (reverse paymentPeriodData)
+          compoundedRates = foldl compoundRates (Const 1.0) $ reverse paymentPeriodData
+          compoundedRatePayment = when (TimeGte p.adjustedEndDate) $
+            scale (compoundedRates - Const 1.0) $ one currency
 
       -- calculate all calculation period claims (using flat compounding) for a payment period
       createCalcPeriodClaim p =
@@ -633,18 +632,6 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
                 -- https://www.newyorkfed.org/medialibrary/Microsites/arrc/files/2021/users-guide-to-sofr2021-update.pdf
                 when (TimeGte p.adjustedEndDate) $ scale (rateEnd / rateStart - Const 1.0) endClaim
 
-      -- Calculate a floating rate correction claim for a payment period
-      -- (corresponding to the "-1" in a perf calculation)
-      -- This will no longer be needed when improved compounding logic is supported in CC
-      createCorrectionClaim p =
-        give $ scale notional $ when (TimeGte p.adjustedEndDate) $ one currency
-        where
-          (constNotional, _) = calculateNotionalAndFixings p s calculationScheduleStaticData
-            fxRateId useAdjustedDatesForDcf periodicSchedule
-          notional = fromSomeNote
-            "createCorrectionClaim requires a constant notional during a payment period"
-            constNotional
-
       -- calculate floating rate spread claim for a payment period
       createSpreadClaim p =
         mconcat $ simpleInterestSpreadClaims
@@ -673,16 +660,14 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
 
       claimAmounts = case s.calculationPeriodAmount.calculation.compoundingMethodEnum of
         Some Straight -> if compoundedRefRate then error "compounded ref rate not supported"
-          else [claimAmounts, correctionClaimAmounts]
+          else [claimAmounts]
           where
             claimAmounts = mconcat $ map (createClaim True) paymentSchedule
-            correctionClaimAmounts = mconcat $ map createCorrectionClaim paymentSchedule
         Some SpreadExclusive -> if compoundedRefRate then error "compounded ref rate not supported"
-          else [claimAmounts, spreadClaimAmounts, correctionClaimAmounts]
+          else [claimAmounts, spreadClaimAmounts]
           where
             claimAmounts = mconcat $ map (createClaim False) paymentSchedule
             spreadClaimAmounts = mconcat $ map createSpreadClaim paymentSchedule
-            correctionClaimAmounts = mconcat $ map createCorrectionClaim paymentSchedule
         Some Flat -> if compoundedRefRate then error "compounded ref rate not supported"
           else map createCalcPeriodClaim paymentSchedule
         Some NoCompounding -> calcRateNoCompounding compoundedRefRate
