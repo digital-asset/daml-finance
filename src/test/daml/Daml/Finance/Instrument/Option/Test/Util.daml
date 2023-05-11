@@ -3,7 +3,6 @@
 
 module Daml.Finance.Instrument.Option.Test.Util where
 
-import DA.List (sort)
 import DA.Map qualified as M (empty, fromList)
 import DA.Set qualified as S (fromList, singleton)
 import Daml.Finance.Claims.Lifecycle.Rule qualified as Lifecycle (Rule(..))
@@ -14,10 +13,10 @@ import Daml.Finance.Instrument.Option.EuropeanPhysical.Instrument qualified as E
 import Daml.Finance.Interface.Instrument.Option.Dividend.Election.Factory qualified as DivOptionElection (Create(..), F)
 import Daml.Finance.Interface.Instrument.Option.Dividend.Types (ElectionTypeEnum(..))
 import Daml.Finance.Interface.Instrument.Option.Types (OptionTypeEnum)
-import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (GetView(..), I)
-import Daml.Finance.Interface.Lifecycle.Election qualified as Election (Apply(..))
+import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (I)
 import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey, InstrumentQuantity, Parties)
 import Daml.Finance.Test.Util.Instrument (createReference)
+import Daml.Finance.Test.Util.Lifecycle (applyElectionAndVerify)
 import Daml.Finance.Test.Util.Time (dateToDateClockTime)
 import Daml.Script
 
@@ -72,7 +71,7 @@ electAndVerifyDivOptionPaymentEffects : [Party] -> Date -> Decimal -> Instrument
   Party -> ElectionTypeEnum -> [InstrumentQuantity] -> [InstrumentQuantity]
   -> Script (Optional InstrumentKey, ContractId Effect.I)
 electAndVerifyDivOptionPaymentEffects readAs today amount instrument issuer
-  elector electedTag expectedConsumedQuantities expectedProducedQuantities = do
+  elector electedTag expectedConsumed expectedProduced = do
     -- Create election factory to allow holders to create elections
     electionFactoryCid <- submit issuer do
       toInterfaceContractId @DivOptionElection.F <$> createCmd DivOptionElection.Factory with
@@ -93,7 +92,7 @@ electAndVerifyDivOptionPaymentEffects readAs today amount instrument issuer
       electorIsOwner = True
       counterparty = issuer
       description = "election for physically settled option"
-    exerciseOptionCid <- submitMulti [elector] readAs
+    electionCid <- submitMulti [elector] readAs
       do
         exerciseCmd electionFactoryCid DivOptionElection.Create with
           actors = S.singleton elector
@@ -109,20 +108,6 @@ electAndVerifyDivOptionPaymentEffects readAs today amount instrument issuer
           observers = M.fromList [("Holders", S.fromList [issuer, elector, counterparty])]
           provider = issuer
 
-    -- Apply election to generate new instrument version + effects
-    (newInstrumentKey, [effectCid]) <- submitMulti [issuer] readAs do
-      exerciseCmd exerciseOptionCid Election.Apply with
-        observableCids = []
-        exercisableCid = lifecycleRuleCid
+    applyElectionAndVerify issuer readAs [] expectedConsumed expectedProduced electionCid
+      lifecycleRuleCid
 
-    -- Get the effect
-    effectView <- submit issuer do
-      exerciseCmd effectCid Effect.GetView with viewer = issuer
-
-    -- Verify that the consumed/produced quantities match the expected ones
-    assertMsg "The consumed quantities do not match the expected ones" $
-      sort expectedConsumedQuantities == sort effectView.otherConsumed
-    assertMsg "The produced quantities do not match the expected ones" $
-      sort expectedProducedQuantities == sort effectView.otherProduced
-
-    pure (newInstrumentKey, effectCid)
