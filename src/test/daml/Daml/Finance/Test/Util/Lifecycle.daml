@@ -158,7 +158,37 @@ createElectionAndLifecycleRule today amount instrument electorIsOwner issuer ele
 
   pure (electionCid, lifecycleRuleCid)
 
--- | Verify the payments of an instrument after an election (excluding settlement)
+-- | Apply an election and verify that the election effect matches the expected result.
+applyElectionAndVerify : forall t1 t2.
+  ( Template t1
+  , HasAgreement t1
+  , HasToInterface t1 BaseInstrument.I
+  , Template t2
+  , HasAgreement t2
+  , HasToInterface t2 HolidayCalendar.I
+  )
+  => InstrumentKey -> Party -> [Party] -> [ContractId NumericObservable.I] ->
+  [InstrumentQuantity] -> [InstrumentQuantity] -> ContractId Election.I ->
+  ContractId Election.Exercisable -> Script (Optional InstrumentKey, ContractId Effect.I)
+applyElectionAndVerify instrument issuer readAs observableCids
+  expectedConsumed expectedProduced electionCid
+  lifecycleRuleCid = do
+    -- Build key table
+    keyTable <- Instrument.buildKeyTable @t1 @t2 [issuer] instrument
+
+    -- Apply election to generate new instrument version + effects
+    (newInstrumentKey, [effectCid]) <- submitMulti [issuer] readAs do
+       fst <$> exerciseCmd electionCid Election.Apply with
+        observableCids
+        exercisableCid = lifecycleRuleCid
+        keyTable
+
+    -- Verify that the consumed/produced quantities match the expected ones
+    verifyConsumedAndProduced expectedConsumed expectedProduced effectCid issuer
+
+    pure (newInstrumentKey, effectCid)
+
+-- | Verify the payments of an instrument after an election (excluding settlement).
 electAndVerifyPaymentEffects : forall t1 t2.
   ( Template t1
   , HasAgreement t1
@@ -176,20 +206,8 @@ electAndVerifyPaymentEffects today amount instrument electorIsOwner issuer elect
     (electionCid, lifecycleRuleCid) <- createElectionAndLifecycleRule today amount instrument
       electorIsOwner issuer elector electedTag
 
-    -- Build key table
-    keyTable <- Instrument.buildKeyTable @t1 @t2 [issuer] instrument
-
-    -- Apply election to generate new instrument version + effects
-    (newInstrumentKey, [effectCid]) <- submitMulti [issuer] readAs do
-       fst <$> exerciseCmd electionCid Election.Apply with
-        observableCids
-        exercisableCid = lifecycleRuleCid
-        keyTable
-
-    -- Verify that the consumed/produced quantities match the expected ones
-    verifyConsumedAndProduced expectedConsumed expectedProduced effectCid issuer
-
-    pure (newInstrumentKey, effectCid)
+    applyElectionAndVerify @t1 @t2 instrument issuer readAs observableCids expectedConsumed
+      expectedProduced electionCid lifecycleRuleCid
 
 -- | Try to lifecycle an election and verify that this is not possible.
 ensureElectionNotPossible : forall t1 t2.

@@ -9,8 +9,8 @@ import DA.BigNumeric qualified as BN
 import DA.Date (addDays, subDate)
 import DA.Foldable (foldMap)
 import DA.List (dedup, head, init, last, sortOn, tail)
-import DA.Optional (fromOptional, fromSome, isNone, isSome, whenSome)
-import Daml.Finance.Claims.Util.Builders (prepareAndTagClaims, scaleByAssetPerformance)
+import DA.Optional (fromOptional, fromSome, fromSomeNote, isNone, isSome, whenSome)
+import Daml.Finance.Claims.Util.Builders (prepareAndTagClaims)
 import Daml.Finance.Instrument.Swap.Util (dateToDateClockTime, getHolidayCalendars)
 import Daml.Finance.Interface.Claims.Types (Deliverable, Observable, TaggedClaim(..))
 import Daml.Finance.Interface.Instrument.Swap.Fpml.FpmlTypes
@@ -35,9 +35,9 @@ data CalculationPeriodStaticData = CalculationPeriodStaticData
     calculationPeriod : SchedulePeriod
       -- ^ Calculation period that this static data refers to.
     notional : Decimal
-      -- ^ Notional used for this calculation period
+      -- ^ Notional used for this calculation period.
     fxAdjRequired : Bool
-      -- ^ Indicates whether the notional should be FX adjusted
+      -- ^ Indicates whether the notional should be FX adjusted.
     rateFixingDate : Date
       -- ^ The fixing date used for the floating rate.
   deriving (Eq, Show)
@@ -51,6 +51,8 @@ data CalculationPeriodData = CalculationPeriodData
       -- ^ The fixing date used for the floating rate.
     dcf : O
       -- ^ The daycount fraction used for the floating rate in this calculation period.
+    notional : O
+      -- ^ (Possibly fx adjusted) notional used for this calculation period.
   deriving (Eq, Show)
 
 -- | Create a schedule for calculation periods.
@@ -356,7 +358,7 @@ calculatePrincipalExchangePaymentClaims paymentScheduleAligned issuerPaysLeg cur
   fxRateId notionals rateFixingDates pe =
     let
       createPrincipalClaim fixingDate p (n, fxAdjRequired) startOrEndDate =
-        when (TimeGte fixingDate) $ scale notional $ when (TimeGte paymentDate) $ one currency
+        when (TimeGte paymentDate) $ scale notional $ one currency
           where
             paymentDate = startOrEndDate p
             notionalConst = Const n
@@ -474,10 +476,10 @@ calcFlatCompounding notional currency p s
 -- Calculate notional and fixing data for a payment period.
 calculateNotionalAndFixings : SchedulePeriod -> SwapStream ->
   [CalculationPeriodStaticData] -> Optional Text -> Bool -> PeriodicSchedule ->
-  (O, [CalculationPeriodData])
+  (Optional O, [CalculationPeriodData])
 calculateNotionalAndFixings p s
   paymentPeriodStaticData fxRateId useAdjustedDatesForDcf periodicSchedule =
-  (notional, paymentPeriodData)
+  (constantNotional, paymentPeriodData)
   where
     paymentPeriodStaticDataFiltered = filter (\c ->
       c.calculationPeriod.unadjustedEndDate <= p.unadjustedEndDate &&
@@ -493,10 +495,9 @@ calculateNotionalAndFixings p s
       else error "fxAdjRequired must be constant within a payment period"
 
     notionalConst = Const n
-    notional = case fxRateId of
-      None -> notionalConst
-      Some fxRateId -> if fxAdjRequired then notionalConst * fxRateObs else notionalConst
-        where fxRateObs = Observe fxRateId
+    constantNotional = case fxRateId of
+      None -> Some notionalConst
+      Some fxRateId -> None
     paymentPeriodData = map
       (\c -> CalculationPeriodData with
           calculationPeriod = c.calculationPeriod
@@ -504,6 +505,10 @@ calculateNotionalAndFixings p s
           dcf = Const (calcPeriodDcf s.calculationPeriodAmount.calculation.dayCountFraction
             c.calculationPeriod useAdjustedDatesForDcf periodicSchedule.terminationDate
             periodicSchedule.frequency)
+          notional = case fxRateId of
+            None -> notionalConst
+            Some fxRateId -> if fxAdjRequired then notionalConst * fxRateObs else notionalConst
+              where fxRateObs = ObserveAt fxRateId c.rateFixingDate
       )
       paymentPeriodStaticDataFiltered
 
@@ -549,13 +554,15 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
       -- calculate compounded floating rate claim for a payment period
       -- this supports both straight and spread-exclusive compounding
       createClaim includeSpread p =
-        scale notional $ compoundedRates
+        scale notional compoundedRatePayment
         where
-          (notional, paymentPeriodData) = calculateNotionalAndFixings p s
+          (constNotional, paymentPeriodData) = calculateNotionalAndFixings p s
             calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
+          notional = fromSomeNote "createClaim requires a constant notional during a payment period"
+            constNotional
 
           compoundRates acc pp =
-            scale (Const 1.0 + rate * pp.dcf) acc
+            (Const 1.0 + rate * pp.dcf) * acc
             where
               regularRateExclSpread = ObserveAt floatingRateCalculation.floatingRateIndex
                 pp.rateFixingDate
@@ -564,10 +571,9 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
               rate = getFloatingRate s pp.calculationPeriod p regularRate rateFixingCalendar fixLeg
                 pp.rateFixingDate
 
-          compoundedRates = when (TimeGte p.adjustedEndDate) $ foldl
-            compoundRates
-            (one currency)
-            (reverse paymentPeriodData)
+          compoundedRates = foldl compoundRates (Const 1.0) paymentPeriodData
+          compoundedRatePayment = when (TimeGte p.adjustedEndDate) $
+            scale (compoundedRates - Const 1.0) $ one currency
 
       -- calculate all calculation period claims (using flat compounding) for a payment period
       createCalcPeriodClaim p =
@@ -575,38 +581,38 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
           floatingRateCalculation.floatingRateIndex floatingRateSpread rateFixingCalendar fixLeg
           paymentPeriodData []
         where
-          (notional, paymentPeriodData) = calculateNotionalAndFixings p s
+          (constNotional, paymentPeriodData) = calculateNotionalAndFixings p s
             calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
+          notional = fromSomeNote
+            "createCalcPeriodClaim requires a constant notional during a payment period"
+            constNotional
 
       -- calculate simple interest rate claim (no calc period compounding) for a payment period
       -- using a non-compounded reference rate
       createSimpleClaim p =
         mconcat $ map createSimpleRate paymentPeriodData
         where
-          (notional, paymentPeriodData) = calculateNotionalAndFixings p s
+          (_, paymentPeriodData) = calculateNotionalAndFixings p s
             calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
           createSimpleRate pp =
-            when (TimeGte pp.rateFixingDate) $ scale notional $ scale (rate * pp.dcf) $
-              when (TimeGte p.adjustedEndDate) $ one currency
+            when (TimeGte p.adjustedEndDate) $ scale (pp.notional * periodRate) $ one currency
             where
               regularRateExclSpread = ObserveAt floatingRateCalculation.floatingRateIndex
                 pp.rateFixingDate
               regularRate = regularRateExclSpread + Const floatingRateSpread
               rate = getFloatingRate s pp.calculationPeriod p regularRate rateFixingCalendar fixLeg
                 pp.rateFixingDate
+              periodRate = rate * pp.dcf
 
       -- calculate simple interest rate claim (no calc period compounding) for a payment period
       -- using a compounded reference rate
       createSimpleClaimCompoundedRefRate p =
         mconcat $ map createSimpleRateCompoundingRefRate paymentPeriodData
         where
-          (notional, paymentPeriodData) = calculateNotionalAndFixings p s
+          (_, paymentPeriodData) = calculateNotionalAndFixings p s
             calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
           createSimpleRateCompoundingRefRate pp = claim
             where
-              regularRate = Observe floatingRateCalculation.floatingRateIndex
-              rate = getFloatingRate s pp.calculationPeriod p regularRate rateFixingCalendar fixLeg
-                pp.rateFixingDate
               -- Calculate dcf using the method implicitly used for the rate Index,
               -- for example Act360 in the case of SOFR Index, see page 35 here:
               -- https://www.newyorkfed.org/medialibrary/Microsites/arrc/files/2021/users-guide-to-sofr2021-update.pdf
@@ -620,31 +626,26 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
                 if pp.rateFixingDate < pp.calculationPeriod.adjustedEndDate
                 then error "fixing of notional must not occur before the final calculation date"
                 else
-                  when (TimeGte pp.rateFixingDate) $ scale notional $
-                  scale (convertImplicitDcfToActualDcf) $
-                  when (TimeGte p.adjustedEndDate) $ one currency
+                  scale (pp.notional * convertImplicitDcfToActualDcf) $ one currency
+              rateStart = ObserveAt floatingRateCalculation.floatingRateIndex
+                pp.calculationPeriod.adjustedStartDate
+              rateEnd = ObserveAt floatingRateCalculation.floatingRateIndex
+                pp.calculationPeriod.adjustedEndDate
               claim =
                 -- calculate a daily compounded reference rate using the corresponding index,
                 -- see page 36 here:
                 -- https://www.newyorkfed.org/medialibrary/Microsites/arrc/files/2021/users-guide-to-sofr2021-update.pdf
-                scaleByAssetPerformance pp.calculationPeriod.adjustedStartDate
-                  pp.calculationPeriod.adjustedEndDate rate endClaim
-
-      -- Calculate a floating rate correction claim for a payment period
-      -- (corresponding to the "-1" in a perf calculation)
-      -- This will no longer be needed when improved compounding logic is supported in CC
-      createCorrectionClaim p =
-        give $ scale notional $ when (TimeGte p.adjustedEndDate) $ one currency
-        where
-          (notional, _) = calculateNotionalAndFixings p s calculationScheduleStaticData fxRateId
-            useAdjustedDatesForDcf periodicSchedule
+                when (TimeGte p.adjustedEndDate) $ scale (rateEnd / rateStart - Const 1.0) endClaim
 
       -- calculate floating rate spread claim for a payment period
       createSpreadClaim p =
         mconcat $ simpleInterestSpreadClaims
         where
-          (notional, paymentPeriodData) = calculateNotionalAndFixings p s
+          (constNotional, paymentPeriodData) = calculateNotionalAndFixings p s
             calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
+          notional = fromSomeNote
+            "createSpreadClaim requires a constant notional during a payment period"
+            constNotional
           spread = Const floatingRateSpread
           simpleInterestSpreadClaims = map
             (\pp -> scale (notional * spread * pp.dcf) $
@@ -664,16 +665,14 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
 
       claimAmounts = case s.calculationPeriodAmount.calculation.compoundingMethodEnum of
         Some Straight -> if compoundedRefRate then error "compounded ref rate not supported"
-          else [claimAmounts, correctionClaimAmounts]
+          else [claimAmounts]
           where
             claimAmounts = mconcat $ map (createClaim True) paymentSchedule
-            correctionClaimAmounts = mconcat $ map createCorrectionClaim paymentSchedule
         Some SpreadExclusive -> if compoundedRefRate then error "compounded ref rate not supported"
-          else [claimAmounts, spreadClaimAmounts, correctionClaimAmounts]
+          else [claimAmounts, spreadClaimAmounts]
           where
             claimAmounts = mconcat $ map (createClaim False) paymentSchedule
             spreadClaimAmounts = mconcat $ map createSpreadClaim paymentSchedule
-            correctionClaimAmounts = mconcat $ map createCorrectionClaim paymentSchedule
         Some Flat -> if compoundedRefRate then error "compounded ref rate not supported"
           else map createCalcPeriodClaim paymentSchedule
         Some NoCompounding -> calcRateNoCompounding compoundedRefRate

@@ -5,7 +5,6 @@
 
 module Daml.Finance.Instrument.Option.Test.Util where
 
-import DA.List (sort)
 import DA.Map qualified as M (empty, fromList)
 import DA.Set qualified as S (fromList, singleton)
 import Daml.Finance.Claims.Lifecycle.Rule qualified as Lifecycle (Rule(..))
@@ -18,11 +17,10 @@ import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstru
 import Daml.Finance.Interface.Instrument.Option.Dividend.Election.Factory qualified as DivOptionElection (Create(..), F)
 import Daml.Finance.Interface.Instrument.Option.Dividend.Types (ElectionTypeEnum(..))
 import Daml.Finance.Interface.Instrument.Option.Types (OptionTypeEnum)
-import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (GetView(..), I)
-import Daml.Finance.Interface.Lifecycle.Election qualified as Election (Apply(..))
+import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (I)
 import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey, InstrumentQuantity, Parties)
 import Daml.Finance.Interface.Util.KeyTable (getKey)
-import Daml.Finance.Test.Util.Instrument qualified as Instrument (buildKeyTable)
+import Daml.Finance.Test.Util.Lifecycle (applyElectionAndVerify)
 import Daml.Finance.Test.Util.Time (dateToDateClockTime)
 import Daml.Script
 
@@ -84,62 +82,44 @@ electAndVerifyDivOptionPaymentEffects : forall t1 t2.
   ) => [Party] -> Date -> Decimal -> InstrumentKey -> Party -> Party -> ElectionTypeEnum
     -> [InstrumentQuantity] -> [InstrumentQuantity]
     -> Script (Optional InstrumentKey, ContractId Effect.I)
-electAndVerifyDivOptionPaymentEffects readAs today amount instrument issuer custodian electedTag
-  expectedConsumedQuantities expectedProducedQuantities = do
+electAndVerifyDivOptionPaymentEffects readAs today amount instrument issuer elector electedTag
+  expectedConsumed expectedProduced = do
 
-    -- Create election offers to allow holders to create elections
+    -- Create election factory to allow holders to create elections
     electionFactoryCid <- submit issuer do
       toInterfaceContractId @DivOptionElection.F <$> createCmd DivOptionElection.Factory with
         provider = issuer
-        observers = M.fromList [("Holders", S.singleton custodian)]
+        observers = M.fromList [("Observers", S.fromList [elector, issuer])]
 
-    -- Apply election to generate new instrument version + effects
-    lifecycleRuleCid <- toInterfaceContractId <$> submit custodian do
+    -- Create a lifecycle rule
+    lifecycleRuleCid <- toInterfaceContractId <$> submit issuer do
       createCmd Lifecycle.Rule with
-        providers = S.singleton custodian
+        providers = S.singleton issuer
         observers = M.empty
         lifecycler = issuer
         id = Id "LifecycleRule"
         description = "Rule to lifecycle a generic instrument"
 
-    -- Apply election to generate new instrument version + effects
+    -- Create the Election
     let
       electorIsOwner = True
       counterparty = issuer
       description = "election for physically settled option"
-    exerciseOptionCid <- submitMulti [custodian] readAs
+    electionCid <- submitMulti [elector] readAs
       do
         exerciseCmd electionFactoryCid DivOptionElection.Create with
-          actors = S.singleton custodian
+          actors = S.singleton elector
           id = Id "election id"
           description
           claimType = electedTag
           electionTime = dateToDateClockTime today
           electorIsOwner
-          elector = custodian
+          elector
           counterparty
           instrument
           amount
-          observers = M.fromList [("Holders", S.fromList [custodian, issuer])]
+          observers = M.fromList [("Holders", S.fromList [issuer, elector, counterparty])]
           provider = issuer
 
-    -- Build key table
-    keyTable <- Instrument.buildKeyTable @t1 @t2 [issuer] instrument
-
-    (newInstrumentKey, [effectCid]) <- submit issuer do
-      fst <$> exerciseCmd exerciseOptionCid Election.Apply with
-        observableCids = []
-        exercisableCid = lifecycleRuleCid
-        keyTable
-
-    -- Get the effect
-    effectView <- submit issuer do
-      exerciseCmd effectCid Effect.GetView with viewer = issuer
-
-    -- Verify that the consumed/produced quantities match the expected ones
-    assertMsg "The consumed quantities do not match the expected ones" $
-      sort expectedConsumedQuantities == sort effectView.otherConsumed
-    assertMsg "The produced quantities do not match the expected ones" $
-      sort expectedProducedQuantities == sort effectView.otherProduced
-
-    pure (newInstrumentKey, effectCid)
+    applyElectionAndVerify @t1 @t2 instrument issuer readAs [] expectedConsumed expectedProduced
+      electionCid lifecycleRuleCid
