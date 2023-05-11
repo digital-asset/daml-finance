@@ -72,43 +72,45 @@ electAndVerifyDivOptionPaymentEffects : [Party] -> Date -> Decimal -> Instrument
   Party -> ElectionTypeEnum -> [InstrumentQuantity] -> [InstrumentQuantity]
   -> Script (Optional InstrumentKey, ContractId Effect.I)
 electAndVerifyDivOptionPaymentEffects readAs today amount instrument issuer
-  custodian electedTag expectedConsumedQuantities expectedProducedQuantities = do
-
-    -- Create election offers to allow holders to create elections
+  elector electedTag expectedConsumedQuantities expectedProducedQuantities = do
+    -- Create election factory to allow holders to create elections
     electionFactoryCid <- submit issuer do
       toInterfaceContractId @DivOptionElection.F <$> createCmd DivOptionElection.Factory with
         provider = issuer
-        observers = M.fromList [("Holders", S.singleton custodian)]
-    -- Apply election to generate new instrument version + effects
-    lifecycleRuleCid <- toInterfaceContractId <$> submit custodian do
+        observers = M.fromList [("Observers", S.fromList [elector, issuer])]
+
+    -- Create a lifecycle rule
+    lifecycleRuleCid <- toInterfaceContractId <$> submit issuer do
       createCmd Lifecycle.Rule with
-        providers = S.singleton custodian
+        providers = S.singleton issuer
         observers = M.empty
         lifecycler = issuer
         id = Id "LifecycleRule"
         description = "Rule to lifecycle a generic instrument"
 
+    -- Create the Election
     let
       electorIsOwner = True
       counterparty = issuer
       description = "election for physically settled option"
-    exerciseOptionCid <- submitMulti [custodian] readAs
+    exerciseOptionCid <- submitMulti [elector] readAs
       do
         exerciseCmd electionFactoryCid DivOptionElection.Create with
-          actors = S.singleton custodian
+          actors = S.singleton elector
           id = Id "election id"
           description
           claimType = electedTag
           electionTime = dateToDateClockTime today
           electorIsOwner
-          elector = custodian
+          elector
           counterparty
           instrument
           amount
-          observers = M.fromList [("Holders", S.fromList [custodian, issuer])]
+          observers = M.fromList [("Holders", S.fromList [issuer, elector, counterparty])]
           provider = issuer
 
-    (newInstrumentKey, [effectCid]) <- submit issuer do
+    -- Apply election to generate new instrument version + effects
+    (newInstrumentKey, [effectCid]) <- submitMulti [issuer] readAs do
       exerciseCmd exerciseOptionCid Election.Apply with
         observableCids = []
         exercisableCid = lifecycleRuleCid
