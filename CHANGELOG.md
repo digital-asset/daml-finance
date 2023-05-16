@@ -349,6 +349,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   rather than waiting until settlement occurs. In particular, a check was added that verifies that
   the specified pass-through instruction is part of the batch.
 
+- Removed the `key` from the `Batch` implementation.
+
 ### Daml.Finance.Util
 
 - Dependencies update
