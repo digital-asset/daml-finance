@@ -87,6 +87,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `asNumericObservable`, `asTimeObservable`, and `asEvent` implementations were removed as well as
   redundant `HasImplementation` instances)
 
+- Removed `key` from `DateClock`.
+
 ### Daml.Finance.Holding
 
 - Dependencies update
