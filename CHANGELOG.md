@@ -97,6 +97,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Moved `HolidayCalendarKey` to `Daml.Finance.Interface.Data`
 
+- Removed `key` from `DateClock`.
+
 ### Daml.Finance.Holding
 
 - Dependencies update
@@ -427,6 +429,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   the specified pass-through instruction is part of the batch.
 
 - Key Table
+
+- Removed the `key` from the `Batch` implementation.
 
 ### Daml.Finance.Util
 
