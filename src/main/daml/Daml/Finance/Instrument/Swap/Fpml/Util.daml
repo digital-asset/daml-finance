@@ -527,7 +527,8 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
   periodicSchedule calculationSchedule paymentSchedule useAdjustedDatesForDcf issuerPaysLeg currency
   issuer calendarDataAgency fxRateId fxFixingDates notionals = do
     assertMsg "rate rounding not yet supported" $ isNone floatingRateCalculation.finalRateRounding
-    (rateFixingDates, rateFixingCalendar) <- getRateFixingsAndCalendars s (fromSome s.resetDates)
+    let resetDates = fromSome s.resetDates
+    (rateFixingDates, rateFixingCalendar) <- getRateFixingsAndCalendars s resetDates
       calculationSchedule issuer calendarDataAgency
     whenSome fxFixingDates $ \fxDates ->
       assertMsg "fxFixingDates must match rateFixingDates" $ fxDates == rateFixingDates
@@ -617,15 +618,13 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
               -- The implicit dcf used for index calculation does not necessarily match the actual
               -- dcf of the current swap -> calculate an annualized rate and apply the actual dcf:
               convertImplicitDcfToActualDcf = pp.dcf / dcfImpl
-              endClaim =
-                if pp.rateFixingDate < pp.calculationPeriod.adjustedEndDate
-                then error "fixing of notional must not occur before the final calculation date"
-                else
-                  scale (pp.notional * convertImplicitDcfToActualDcf) $ one currency
-              rateStart = ObserveAt floatingRateCalculation.floatingRateIndex
-                pp.calculationPeriod.adjustedStartDate
-              rateEnd = ObserveAt floatingRateCalculation.floatingRateIndex
-                pp.calculationPeriod.adjustedEndDate
+              endClaim = scale (pp.notional * convertImplicitDcfToActualDcf) $ one currency
+              fixingStartDate = addBusinessDays rateFixingCalendar
+                resetDates.fixingDates.periodMultiplier pp.calculationPeriod.adjustedStartDate
+              rateStart = ObserveAt floatingRateCalculation.floatingRateIndex fixingStartDate
+              fixingEndDate = addBusinessDays rateFixingCalendar
+                resetDates.fixingDates.periodMultiplier pp.calculationPeriod.adjustedEndDate
+              rateEnd = ObserveAt floatingRateCalculation.floatingRateIndex fixingEndDate
               claim =
                 -- calculate a daily compounded reference rate using the corresponding index,
                 -- see page 36 here:
