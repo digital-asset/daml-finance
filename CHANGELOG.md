@@ -87,6 +87,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `asNumericObservable`, `asTimeObservable`, and `asEvent` implementations were removed as well as
   redundant `HasImplementation` instances)
 
+- Removed `key` from `DateClock`.
+
 ### Daml.Finance.Holding
 
 - Dependencies update
@@ -348,6 +350,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   These checks help to identify settlement failures at the time of allocation/approval itself,
   rather than waiting until settlement occurs. In particular, a check was added that verifies that
   the specified pass-through instruction is part of the batch.
+
+- Removed the `key` from the `Batch` implementation.
 
 ### Daml.Finance.Util
 
