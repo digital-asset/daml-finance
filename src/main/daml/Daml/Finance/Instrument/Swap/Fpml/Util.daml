@@ -11,6 +11,7 @@ import DA.Foldable (foldMap)
 import DA.List (dedup, head, init, last, sortOn, tail)
 import DA.Optional (fromOptional, fromSome, fromSomeNote, isNone, isSome, whenSome)
 import Daml.Finance.Claims.Util.Builders (prepareAndTagClaims)
+import Daml.Finance.Claims.Util.Date (convertImplicitDcfToActualDcf)
 import Daml.Finance.Data.Reference.HolidayCalendar (getHolidayCalendars)
 import Daml.Finance.Data.Time.DateClock (dateToDateClockTime)
 import Daml.Finance.Interface.Claims.Types (Deliverable, Observable, TaggedClaim(..))
@@ -19,7 +20,7 @@ import Daml.Finance.Interface.Types.Common.Types (Id(..))
 import Daml.Finance.Interface.Types.Date.Calendar (BusinessDayAdjustment(..), BusinessDayConventionEnum(..), HolidayCalendarData)
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum(..))
 import Daml.Finance.Interface.Types.Date.RollConvention (Period(..), PeriodEnum(..))
-import Daml.Finance.Interface.Types.Date.Schedule (Frequency(..), ScheduleFrequency(..), PeriodicSchedule(..), SchedulePeriod(..), StubPeriodTypeEnum(..))
+import Daml.Finance.Interface.Types.Date.Schedule (Frequency(..), PeriodicSchedule(..), ScheduleFrequency(..), SchedulePeriod(..), StubPeriodTypeEnum(..))
 import Daml.Finance.Util.Date.Calendar (addBusinessDays, adjustDate, merge)
 import Daml.Finance.Util.Date.DayCount (calcPeriodDcf)
 import Daml.Finance.Util.Date.RollConvention (addPeriod)
@@ -610,16 +611,9 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
             calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
           createSimpleRateCompoundingRefRate pp = claim
             where
-              -- Calculate dcf using the method implicitly used for the rate Index,
-              -- for example Act360 in the case of SOFR Index, see page 35 here:
-              -- https://www.newyorkfed.org/medialibrary/Microsites/arrc/files/2021/users-guide-to-sofr2021-update.pdf
-              dcfImpl = Const (calcPeriodDcf (fromSome dcfConventionImplicit)
-                pp.calculationPeriod useAdjustedDatesForDcf periodicSchedule.terminationDate
-                periodicSchedule.frequency)
-              -- The implicit dcf used for index calculation does not necessarily match the actual
-              -- dcf of the current swap -> calculate an annualized rate and apply the actual dcf:
-              convertImplicitDcfToActualDcf = pp.dcf / dcfImpl
-              endClaim = scale (pp.notional * convertImplicitDcfToActualDcf) $ one currency
+              dcfConversionFactor = convertImplicitDcfToActualDcf pp.dcf pp.calculationPeriod
+                useAdjustedDatesForDcf periodicSchedule $ fromSome dcfConventionImplicit
+              endClaim = scale (pp.notional * dcfConversionFactor) $ one currency
               fixingStartDate = addBusinessDays rateFixingCalendar
                 resetDates.fixingDates.periodMultiplier pp.calculationPeriod.adjustedStartDate
               rateStart = ObserveAt floatingRateCalculation.floatingRateIndex fixingStartDate
