@@ -18,6 +18,10 @@ mkdir ${docs_dir}/.assembly
 # Copy source code into assembly file structure
 cp -r ${root_dir}/src ${docs_dir}/.assembly
 
+# Copy quickstarter code into the assembly
+mkdir ${docs_dir}/.assembly/quickstart-finance
+cp -r ${docs_dir}/code-samples/getting-started/* ${docs_dir}/.assembly/quickstart-finance
+
 # Copy doc build output into assembly file structure
 mkdir -p ${docs_dir}/.assembly/reference/code-documentation
 cp -r ${docs_dir}/build/daml-finance-rst ${docs_dir}/.assembly/reference/code-documentation/daml-finance-rst
