@@ -52,6 +52,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Style changes
 
+- Add andList smart constructor
+
 ### ContingentClaims.Lifecycle
 
 - Dependencies update
