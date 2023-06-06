@@ -336,6 +336,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
   `asEvent` implementations were removed as well as redundant `HasImplementation` instances)
 
+- Add check that instruments exist for `Distribution` and `Replacement`
+
 ### Daml.Finance.Settlement
 
 - Dependencies update
