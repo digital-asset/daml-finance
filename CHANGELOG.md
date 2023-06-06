@@ -52,6 +52,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Style changes
 
+- Add andList smart constructor
+
 ### ContingentClaims.Lifecycle
 
 - Dependencies update
@@ -335,6 +337,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `asEvent` implementations were removed as well as redundant `HasImplementation` instances)
 
 - Let `Election` and `ElectionEffect` implement the `Disclosure` interface.
+
+- Add check that instruments exist for `Distribution` and `Replacement`
 
 ### Daml.Finance.Settlement
 
