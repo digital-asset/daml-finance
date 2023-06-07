@@ -5,13 +5,17 @@ module Daml.Finance.Data.Reference.HolidayCalendar where
 
 import DA.Set (singleton)
 import Daml.Finance.Interface.Data.Reference.HolidayCalendar (HolidayCalendarKey(..))
-import Daml.Finance.Interface.Data.Reference.HolidayCalendar qualified as HolidayCalendar (I, View(..))
+import Daml.Finance.Interface.Data.Reference.HolidayCalendar qualified as HolidayCalendar (GetView(..), I, View(..))
 import Daml.Finance.Interface.Data.Reference.HolidayCalendar.Factory qualified as HolidayCalendarFactory
 import Daml.Finance.Interface.Types.Common.Types (PartiesMap)
 import Daml.Finance.Interface.Types.Date.Calendar (HolidayCalendarData)
+import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..), Schedule)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Interface.Util.KeyTable (UpdateWithKey, archive, create, exerciseByKey)
 import Daml.Finance.Interface.Util.KeyTable qualified as SyntheticallyKeyed (I, View(..))
+import Daml.Finance.Util.Date.Schedule (createSchedule)
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+import Prelude hiding (archive, create, exercise, exerciseByKey, fetch, fetchByKey, fetchFromInterface, lookup, lookupByKey)
 
 -- | Type synonym for `HolidayCalendar`.
 type T = HolidayCalendar
@@ -79,3 +83,18 @@ template Factory
       setObservers = setObserversImpl @Factory this
       addObservers = addObserversImpl @Factory this
       removeObservers = removeObserversImpl @Factory this
+
+-- | Retrieve holiday calendar(s) from the ledger.
+getHolidayCalendars : Party -> Party -> [Text] -> UpdateWithKey [HolidayCalendarData]
+getHolidayCalendars viewer provider holidayCalendarIds = forA holidayCalendarIds
+  \id -> do
+    let holidayCalendar = HolidayCalendarKey with provider; id
+    (.calendar) <$> exerciseByKey @HolidayCalendar.I @HolidayCalendar.I viewer holidayCalendar
+      HolidayCalendar.GetView with viewer
+
+-- | Retrieve holiday calendar(s) from the ledger and roll out a schedule.
+rollSchedule : ([Text] -> UpdateWithKey [HolidayCalendarData]) -> PeriodicSchedule ->
+  [Text] -> UpdateWithKey (Schedule, [HolidayCalendarData])
+rollSchedule getHolidayCalendars periodicSchedule holidayCalendarIds = do
+  cals <- getHolidayCalendars holidayCalendarIds
+  pure (createSchedule cals periodicSchedule, cals)

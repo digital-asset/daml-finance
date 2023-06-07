@@ -52,6 +52,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Style changes
 
+- Add andList smart constructor
+
 ### ContingentClaims.Lifecycle
 
 - Dependencies update
@@ -354,6 +356,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Key Table (added key data type for `TimeObservable` + API change for `Rule.Lifecycle.Evolve`)
 
+- Introduced `getInstrumentKeys` method to base `Event.I`.
+
 ### Daml.Finance.Interface.Settlement
 
 - Dependencies update
@@ -411,6 +415,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Key Table
 
+- Add check that instruments exist for `Distribution` and `Replacement`
+
 ### Daml.Finance.Settlement
 
 - Dependencies update
@@ -438,5 +444,5 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Style changes
 
-- Type signature for utility functions cahnged `setObserversImpl`, `addObserversImpl`, and
+- Type signature for utility functions changed `setObserversImpl`, `addObserversImpl`, and
   `removeObserversImpl`).

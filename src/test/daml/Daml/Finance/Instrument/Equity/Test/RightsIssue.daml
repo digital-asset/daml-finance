@@ -20,6 +20,7 @@ import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (E
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..))
 import Daml.Finance.Interface.Util.Common (qty)
+import Daml.Finance.Lifecycle.Event.Distribution qualified as Event (T)
 import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
 import Daml.Finance.Lifecycle.Rule.Distribution qualified as Distribution (Rule(..))
 import Daml.Finance.Settlement.Factory (Factory(..))
@@ -29,7 +30,7 @@ import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), cr
 import Daml.Finance.Test.Util.Common (createParties, queryAnyByKey)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerAndAmountOfHolding)
 import Daml.Finance.Test.Util.Instrument (originate)
-import Daml.Finance.Test.Util.Lifecycle (electAndVerifyPaymentEffects)
+import Daml.Finance.Test.Util.Lifecycle (buildKeyTableForLifecycleEvolve, electAndVerifyPaymentEffects)
 import Daml.Script
 
 -- Rights issue and subscription: lifecycling and settlement
@@ -94,13 +95,17 @@ run = script do
         newInstrument = exEquityInstrument
         perUnitDistribution = [qty 0.1 rightsInstrument]
 
+  -- Build key table
+  keyTable <- buildKeyTableForLifecycleEvolve @Equity.T @HolidayCalendar.T @Event.T [issuer]
+    distributionEventCid cumEquityInstrument
+
   -- Lifecycle rights issue
   (_, [effectCid]) <- submit issuer do
     fst <$> exerciseCmd distributionRuleCid Lifecycle.Evolve with
       observableCids = []
       eventCid = distributionEventCid
       instrument = cumEquityInstrument
-      keyTable = mempty
+      keyTable
 
   -- Claim effect
   routeProviderCid <- toInterfaceContractId <$> submit custodian do
@@ -187,7 +192,7 @@ run = script do
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit custodian do
     createCmd Claim.Rule with
       providers = S.singleton custodian
-      claimers = S.fromList [investor, issuer]
+      claimers = S.fromList [custodian, investor]
       settlers
       routeProviderCid
       settlementFactoryCid
@@ -235,16 +240,17 @@ run = script do
     expectedConsumed = [qty 40.0 cashInstrument]
     expectedProduced = [qty 1.0 exEquityInstrument]
   (_, effectShortPutCid) <- electAndVerifyPaymentEffects @EuropeanPhysicalOption.T
-    @HolidayCalendar.T expiryDate sharesExcess shortPutInstrument isLong issuer issuer [publicParty]
-    "EXERCISE" [] expectedConsumed expectedProduced
+    @HolidayCalendar.T expiryDate sharesExcess shortPutInstrument isLong issuer custodian
+    [publicParty] "EXERCISE" [] expectedConsumed expectedProduced
 
-  issuerPutHoldingCid <- Account.credit [publicParty] shortPutInstrument sharesExcess issuerAccount
+  investorShortPutHoldingCid <- Account.credit [publicParty] shortPutInstrument sharesExcess
+    investorAccount
 
   -- Electing for the same amount as the size of the holding works:
-  submitMulti [issuer] [publicParty] do
+  submitMulti [custodian] [publicParty] do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
-      claimer = issuer
-      holdingCids = [issuerPutHoldingCid]
+      claimer = custodian
+      holdingCids = [investorShortPutHoldingCid]
       effectCid = effectShortPutCid
       batchId = Id "PutOptionExerciseSettlement"
 

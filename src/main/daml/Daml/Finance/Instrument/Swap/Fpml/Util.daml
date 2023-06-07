@@ -3,7 +3,7 @@
 
 module Daml.Finance.Instrument.Swap.Fpml.Util where
 
-import ContingentClaims.Core.Claim (Claim, Inequality(..), give, one, scale, when)
+import ContingentClaims.Core.Claim (Claim, Inequality(..), andList, give, one, scale, when)
 import ContingentClaims.Core.Observation (Observation(..))
 import DA.BigNumeric qualified as BN
 import DA.Date (addDays, subDate)
@@ -11,7 +11,9 @@ import DA.Foldable (foldMap)
 import DA.List (dedup, head, init, last, sortOn, tail)
 import DA.Optional (fromOptional, fromSome, fromSomeNote, isNone, isSome, whenSome)
 import Daml.Finance.Claims.Util.Builders (prepareAndTagClaims)
-import Daml.Finance.Instrument.Swap.Util (dateToDateClockTime, getHolidayCalendars)
+import Daml.Finance.Claims.Util.Date (convertImplicitDcfToActualDcf)
+import Daml.Finance.Data.Reference.HolidayCalendar (getHolidayCalendars)
+import Daml.Finance.Data.Time.DateClock (dateToDateClockTime)
 import Daml.Finance.Interface.Claims.Types (Deliverable, Observable, TaggedClaim(..))
 import Daml.Finance.Interface.Instrument.Swap.Fpml.FpmlTypes
 import Daml.Finance.Interface.Types.Common.Types (Id(..))
@@ -339,7 +341,7 @@ calculateFixPaymentClaimsFromSwapStream fixedRateSchedule s periodicSchedule cal
           regularRate = Const fixRate
           rate = regularRate
       claimAmounts =
-        mconcat $ zipWith createClaim (zip calculationSchedule notionals) paymentScheduleAligned
+        andList $ zipWith createClaim (zip calculationSchedule notionals) paymentScheduleAligned
       claims = if issuerPaysLeg then claimAmounts else give claimAmounts
       claimsTagged = prepareAndTagClaims dateToDateClockTime [claims] "Fix rate payment"
       allTaggedClaims = case s.principalExchanges of
@@ -578,7 +580,7 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
 
       -- calculate all calculation period claims (using flat compounding) for a payment period
       createCalcPeriodClaim p =
-        mconcat $ calcFlatCompounding notional currency p s
+        andList $ calcFlatCompounding notional currency p s
           floatingRateCalculation.floatingRateIndex floatingRateSpread rateFixingCalendar fixLeg
           paymentPeriodData []
         where
@@ -591,7 +593,7 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
       -- calculate simple interest rate claim (no calc period compounding) for a payment period
       -- using a non-compounded reference rate
       createSimpleClaim p =
-        mconcat $ map createSimpleRate paymentPeriodData
+        andList $ map createSimpleRate paymentPeriodData
         where
           (_, paymentPeriodData) = calculateNotionalAndFixings p s
             calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
@@ -608,22 +610,15 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
       -- calculate simple interest rate claim (no calc period compounding) for a payment period
       -- using a compounded reference rate
       createSimpleClaimCompoundedRefRate p =
-        mconcat $ map createSimpleRateCompoundingRefRate paymentPeriodData
+        andList $ map createSimpleRateCompoundingRefRate paymentPeriodData
         where
           (_, paymentPeriodData) = calculateNotionalAndFixings p s
             calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
           createSimpleRateCompoundingRefRate pp = claim
             where
-              -- Calculate dcf using the method implicitly used for the rate Index,
-              -- for example Act360 in the case of SOFR Index, see page 35 here:
-              -- https://www.newyorkfed.org/medialibrary/Microsites/arrc/files/2021/users-guide-to-sofr2021-update.pdf
-              dcfImpl = Const (calcPeriodDcf (fromSome dcfConventionImplicit)
-                pp.calculationPeriod useAdjustedDatesForDcf periodicSchedule.terminationDate
-                periodicSchedule.frequency)
-              -- The implicit dcf used for index calculation does not necessarily match the actual
-              -- dcf of the current swap -> calculate an annualized rate and apply the actual dcf:
-              convertImplicitDcfToActualDcf = pp.dcf / dcfImpl
-              endClaim = scale (pp.notional * convertImplicitDcfToActualDcf) $ one currency
+              dcfConversionFactor = convertImplicitDcfToActualDcf pp.dcf pp.calculationPeriod
+                useAdjustedDatesForDcf periodicSchedule $ fromSome dcfConventionImplicit
+              endClaim = scale (pp.notional * dcfConversionFactor) $ one currency
               fixingStartDate = addBusinessDays rateFixingCalendar
                 resetDates.fixingDates.periodMultiplier pp.calculationPeriod.adjustedStartDate
               rateStart = ObserveAt floatingRateCalculation.floatingRateIndex fixingStartDate
@@ -638,7 +633,7 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
 
       -- calculate floating rate spread claim for a payment period
       createSpreadClaim p =
-        mconcat $ simpleInterestSpreadClaims
+        andList $ simpleInterestSpreadClaims
         where
           (constNotional, paymentPeriodData) = calculateNotionalAndFixings p s
             calculationScheduleStaticData fxRateId useAdjustedDatesForDcf periodicSchedule
@@ -656,9 +651,9 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
       calcRateNoCompounding compoundedRefRate =
         if compoundedRefRate then
           let
-            claimAmounts = mconcat $
+            claimAmounts = andList $
               map createSimpleClaimCompoundedRefRate paymentSchedule
-            spreadClaimAmounts = mconcat $ map createSpreadClaim paymentSchedule
+            spreadClaimAmounts = andList $ map createSpreadClaim paymentSchedule
           in [claimAmounts, spreadClaimAmounts]
         else map createSimpleClaim paymentSchedule
 
@@ -666,12 +661,12 @@ calculateFloatingPaymentClaimsFromSwapStream floatingRateCalculation s
         Some Straight -> if compoundedRefRate then error "compounded ref rate not supported"
           else [claimAmounts]
           where
-            claimAmounts = mconcat $ map (createClaim True) paymentSchedule
+            claimAmounts = andList $ map (createClaim True) paymentSchedule
         Some SpreadExclusive -> if compoundedRefRate then error "compounded ref rate not supported"
           else [claimAmounts, spreadClaimAmounts]
           where
-            claimAmounts = mconcat $ map (createClaim False) paymentSchedule
-            spreadClaimAmounts = mconcat $ map createSpreadClaim paymentSchedule
+            claimAmounts = andList $ map (createClaim False) paymentSchedule
+            spreadClaimAmounts = andList $ map createSpreadClaim paymentSchedule
         Some Flat -> if compoundedRefRate then error "compounded ref rate not supported"
           else map createCalcPeriodClaim paymentSchedule
         Some NoCompounding -> calcRateNoCompounding compoundedRefRate

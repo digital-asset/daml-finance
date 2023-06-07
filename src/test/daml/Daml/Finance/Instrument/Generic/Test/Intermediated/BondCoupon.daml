@@ -3,7 +3,7 @@
 
 module Daml.Finance.Instrument.Generic.Test.Intermediated.BondCoupon where
 
-import ContingentClaims.Core.Claim (Inequality(..), one, scale, when)
+import ContingentClaims.Core.Claim (Inequality(..), andList, one, scale, when)
 import ContingentClaims.Core.Observation (Observation(..))
 import DA.Assert ((===))
 import DA.Date (addDays, toDateUTC)
@@ -12,6 +12,7 @@ import DA.Map qualified as M (Map, empty, fromList)
 import DA.Set qualified as S (empty, fromList, singleton, toList)
 import Daml.Finance.Account.Account qualified as Account (T)
 import Daml.Finance.Data.Reference.HolidayCalendar qualified as HolidayCalendar (T)
+import Daml.Finance.Data.Time.DateClockUpdate qualified as Event (T)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Instrument.Generic.Instrument qualified as Instrument (T)
 import Daml.Finance.Instrument.Generic.Lifecycle.Rule qualified as Lifecycle (Rule(..))
@@ -38,7 +39,7 @@ import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), bu
 import Daml.Finance.Test.Util.Common (createParties, queryAnyByKey)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
 import Daml.Finance.Test.Util.Instrument qualified as BaseInstrument (originate)
-import Daml.Finance.Test.Util.Instrument qualified as Instrument (buildKeyTable)
+import Daml.Finance.Test.Util.Lifecycle (buildKeyTableForLifecycleEvolve)
 import Daml.Finance.Test.Util.Time (createClockUpdateEvent)
 import Daml.Script
 
@@ -132,7 +133,7 @@ originateSecurityAndDefineRoute TestParties{bank, csd, investor, issuer, publicP
       today = toDateUTC now
       expiry = addDays today 180
       bondLabel = "ABC.DE 2% " <> show expiry <> " Corp"
-      claims = mapClaimToUTCTime $ mconcat
+      claims = mapClaimToUTCTime $ andList
         [ when (TimeGte $ today) $ scale (Const 0.02) $ one cashInstrument
         , when (TimeGte $ expiry) $ scale (Const 0.02) $ one cashInstrument
         , when (TimeGte $ expiry) $ scale (Const 1.0) $ one cashInstrument
@@ -209,7 +210,8 @@ runIntermediatedLifecyclingNonAtomic = script do
   -- LIFECYCLE_BOND_CREATE_RULE_END
 
   -- Build key table
-  keyTable <- Instrument.buildKeyTable @Instrument.T @HolidayCalendar.T [issuer] bondInstrument
+  keyTable <- buildKeyTableForLifecycleEvolve @Instrument.T @HolidayCalendar.T @Event.T [issuer]
+    clockEventCid bondInstrument
 
   -- LIFECYCLE_BOND_BEGIN
   -- Try to lifecycle instrument
@@ -403,7 +405,8 @@ runIntermediatedLifecyclingAtomic = script do
       description = "Rule to lifecycle a generic instrument"
 
   -- Build key table
-  keyTable <- Instrument.buildKeyTable @Instrument.T @HolidayCalendar.T [issuer] bondInstrument
+  keyTable <- buildKeyTableForLifecycleEvolve @Instrument.T @HolidayCalendar.T @Event.T [issuer]
+    clockEventCid bondInstrument
 
   -- Try to lifecycle the instrument
   (_, [effectCid]) <- submit issuer do
@@ -605,7 +608,8 @@ template EffectSettlementService
           Instruction.Allocate with
             actors = S.singleton issuer; allocation = Pledge cashHoldingCid; keyTable
         ((issuerInstrumentInstructionCid, _), keyTable) <- exercise issuerInstrumentInstructionCid
-          Instruction.Allocate with actors = S.singleton issuer; allocation = CreditReceiver; keyTable
+          Instruction.Allocate with
+            actors = S.singleton issuer; allocation = CreditReceiver; keyTable
 
         -- Approve instructions
         (csdInstrumentInstructionCid, keyTable) <- exercise csdInstrumentInstructionCid

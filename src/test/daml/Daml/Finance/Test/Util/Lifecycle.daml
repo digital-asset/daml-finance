@@ -5,33 +5,43 @@
 
 module Daml.Finance.Test.Util.Lifecycle where
 
+import DA.Action (foldlA)
 import DA.List (sort)
 import DA.Map qualified as M (empty, fromList)
-import DA.Set qualified as S (empty, fromList, singleton)
+import DA.Set qualified as S (empty, fromList, singleton, toList)
 import Daml.Finance.Claims.Lifecycle.Rule (Rule(..))
 import Daml.Finance.Claims.Lifecycle.Rule qualified as Lifecycle (Rule(..))
+import Daml.Finance.Interface.Claims.Dynamic.Instrument qualified as DynamicInstrument (I, getHolidayCalendarKeys)
 import Daml.Finance.Interface.Data.Reference.HolidayCalendar qualified as HolidayCalendar (I)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I)
 import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (GetView(..), I)
 import Daml.Finance.Interface.Lifecycle.Election qualified as Election (Apply(..), Exercisable, I)
 import Daml.Finance.Interface.Lifecycle.Election.Factory qualified as Election (Create(..), F)
+import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I, getInstrumentKeys)
 import Daml.Finance.Interface.Lifecycle.Observable.NumericObservable qualified as NumericObservable (I)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I)
 import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey, InstrumentQuantity)
+import Daml.Finance.Interface.Util.KeyTable (KeyTable, insert)
 import Daml.Finance.Lifecycle.Election qualified as Election (Factory(..))
-import Daml.Finance.Test.Util.Instrument qualified as Instrument (buildKeyTable)
+import Daml.Finance.Test.Util.Common (queryAnyByKey)
 import Daml.Finance.Test.Util.Time (createClockUpdateEvent, dateToDateClockTime)
 import Daml.Script
 
 -- | Lifecycle the instrument as of this date. This is a general function that can be used for
 -- different kinds of instruments.
-lifecycleInstrument : forall t1 t2.
+lifecycleInstrument : forall t1 t2 t3.
   ( Template t1
   , HasAgreement t1
   , HasToInterface t1 BaseInstrument.I
   , Template t2
   , HasAgreement t2
   , HasToInterface t2 HolidayCalendar.I
+  , HasAgreement t3
+  , HasTemplateTypeRep t3
+  , HasToAnyTemplate t3
+  , HasFromAnyTemplate t3
+  , HasFromInterface t3 Event.I
+  , HasToInterface t3 Event.I
   ) => [Party] -> Date -> InstrumentKey -> Party -> [ContractId NumericObservable.I] ->
   Script (Optional InstrumentKey, [ContractId Effect.I])
 lifecycleInstrument readAs today instrument issuer observableCids = do
@@ -48,7 +58,7 @@ lifecycleInstrument readAs today instrument issuer observableCids = do
       description = "Rule to lifecycle an instrument"
 
   -- Build key table
-  keyTable <- Instrument.buildKeyTable @t1 @t2 [issuer] instrument
+  keyTable <- buildKeyTableForLifecycleEvolve @t1 @t2 @t3 [issuer] clockEventCid instrument
 
   -- Try to lifecycle the instrument
   (lifecycleCid, effectCids) <- submitMulti [issuer] readAs do
@@ -84,34 +94,46 @@ verifyConsumedAndProduced expectedConsumed expectedProduced effectCid
       sortedExpectedProduced == sortedProduced
 
 -- | Verify a that there are no lifecycle effects of the instrument on this date.
-verifyNoLifecycleEffects : forall t1 t2.
+verifyNoLifecycleEffects : forall t1 t2 t3.
   ( Template t1
   , HasAgreement t1
   , HasToInterface t1 BaseInstrument.I
   , Template t2
   , HasAgreement t2
   , HasToInterface t2 HolidayCalendar.I
+  , HasAgreement t3
+  , HasTemplateTypeRep t3
+  , HasToAnyTemplate t3
+  , HasFromAnyTemplate t3
+  , HasFromInterface t3 Event.I
+  , HasToInterface t3 Event.I
   ) => [Party] -> Date -> InstrumentKey -> Party ->
   [ContractId NumericObservable.I] -> Script ()
 verifyNoLifecycleEffects readAs today instrument issuer observableCids = do
-  (_, effectCids) <- lifecycleInstrument @t1 @t2 readAs today instrument issuer observableCids
+  (_, effectCids) <- lifecycleInstrument @t1 @t2 @t3 readAs today instrument issuer observableCids
   assertMsg ("There should be no lifecycle effects on " <> show today) (null effectCids)
 
 -- | Verify the payments from a payment date of an instrument (excluding settlement)
-lifecycleAndVerifyPaymentEffects : forall t1 t2.
+lifecycleAndVerifyPaymentEffects : forall t1 t2 t3.
   ( Template t1
   , HasAgreement t1
   , HasToInterface t1 BaseInstrument.I
   , Template t2
   , HasAgreement t2
   , HasToInterface t2 HolidayCalendar.I
+  , HasAgreement t3
+  , HasTemplateTypeRep t3
+  , HasToAnyTemplate t3
+  , HasFromAnyTemplate t3
+  , HasFromInterface t3 Event.I
+  , HasToInterface t3 Event.I
   ) => [Party] -> Date -> InstrumentKey -> Party ->
   [ContractId NumericObservable.I] -> [InstrumentQuantity] -> [InstrumentQuantity] ->
   Script (Optional InstrumentKey)
 lifecycleAndVerifyPaymentEffects readAs today instrument issuer
   observableCids expectedConsumed expectedProduced = do
     (newInstrumentKey, [effectCid]) <-
-      lifecycleInstrument @t1 @t2 readAs today instrument issuer observableCids
+      lifecycleInstrument @t1 @t2 @t3 readAs today instrument issuer observableCids
 
     -- Verify that the consumed/produced quantities match the expected ones
     verifyConsumedAndProduced expectedConsumed expectedProduced effectCid issuer
@@ -174,7 +196,7 @@ applyElectionAndVerify instrument issuer readAs observableCids
   expectedConsumed expectedProduced electionCid
   lifecycleRuleCid = do
     -- Build key table
-    keyTable <- Instrument.buildKeyTable @t1 @t2 [issuer] instrument
+    keyTable <- buildKeyTableForElectionApply @t1 @t2 [issuer] instrument
 
     -- Apply election to generate new instrument version + effects
     (newInstrumentKey, [effectCid]) <- submitMulti [issuer] readAs do
@@ -226,7 +248,7 @@ ensureElectionNotPossible today amount instrument electorIsOwner issuer elector 
       electorIsOwner issuer elector electedTag
 
     -- Build key table
-    keyTable <- Instrument.buildKeyTable @t1 @t2 [issuer] instrument
+    keyTable <- buildKeyTableForElectionApply @t1 @t2 [issuer] instrument
 
     -- Try to apply the election and verify that this does not work
     submitMultiMustFail [issuer] readAs do
@@ -234,3 +256,52 @@ ensureElectionNotPossible today amount instrument electorIsOwner issuer elector 
         observableCids
         exercisableCid = lifecycleRuleCid
         keyTable
+
+-- | Builds key table for the Election.Apply choice.
+buildKeyTableForElectionApply :
+  forall t1 t2.
+  ( Template t1
+  , HasAgreement t1
+  , HasToInterface t1 BaseInstrument.I
+  , Template t2
+  , HasAgreement t2
+  , HasToInterface t2 HolidayCalendar.I
+  ) => [Party] -> InstrumentKey -> Script KeyTable
+buildKeyTableForElectionApply actors instrument = do
+  (iCid, i) <- queryAnyByKey @t1 @BaseInstrument.I actors instrument
+  let keyTable = insert instrument iCid mempty
+  -- adding key table for holiday calendars
+  case fromInterface @DynamicInstrument.I i of
+    None -> pure keyTable
+    Some dynamicInstrument -> foldlA
+      (\keyTable h -> do
+        iCid <- fst <$> queryAnyByKey @t2 @HolidayCalendar.I h.provider h
+        pure $ insert h iCid keyTable
+      )
+      keyTable
+      (S.toList $ DynamicInstrument.getHolidayCalendarKeys dynamicInstrument)
+
+-- | Builds key table for the Lifecycle.Evolve choice.
+buildKeyTableForLifecycleEvolve : forall t1 t2 t3.
+  ( Template t1
+  , HasAgreement t1
+  , HasToInterface t1 BaseInstrument.I
+  , Template t2
+  , HasAgreement t2
+  , HasToInterface t2 HolidayCalendar.I
+  , Template t3
+  , HasAgreement t3
+  , HasFromInterface t3 Event.I
+  , HasToInterface t3 Event.I
+  ) => [Party] -> ContractId Event.I -> InstrumentKey -> Script KeyTable
+buildKeyTableForLifecycleEvolve actors eventCid instrument = do
+  keyTable <- buildKeyTableForElectionApply @t1 @t2 actors instrument
+  Some event <- fmap (toInterface @Event.I) <$> queryContractId actors
+    (fromInterfaceContractId @t3 eventCid)
+  keyTable <- foldlA
+    (\keyTable instrumentKey -> do
+      instrumentCid <- fst <$> queryAnyByKey @t1 @BaseInstrument.I actors instrumentKey
+      pure $ insert instrumentKey instrumentCid keyTable
+    )
+    keyTable (Event.getInstrumentKeys $ toInterface @Event.I event)
+  pure keyTable
