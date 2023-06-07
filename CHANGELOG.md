@@ -414,6 +414,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `asEvent` implementations were removed as well as redundant `HasImplementation` instances)
 
 - Key Table
+-
+- Let `Election` and `ElectionEffect` implement the `Disclosure` interface.
 
 - Add check that instruments exist for `Distribution` and `Replacement`
 
