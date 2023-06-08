@@ -114,6 +114,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Key Table
 
+- Added the new owner as observer of the `Transfer` choice of the `Transferable` interface.
+
 ### Daml.Finance.Instrument.Bond
 
 - Dependencies update

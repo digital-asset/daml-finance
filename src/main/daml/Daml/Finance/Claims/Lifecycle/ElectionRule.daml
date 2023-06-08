@@ -48,61 +48,62 @@ template Rule
 
     interface instance Election.Exercisable for Rule where
       view = Election.ExercisableView with lifecycler
-      applyElection Election.ApplyElection{electionCid; observableCids; keyTable} = withKeyTable keyTable do
+      applyElection Election.ApplyElection{electionCid; observableCids; keyTable} =
+        withKeyTable keyTable do
 
-        -- fetch election
-        election <- fetch electionCid
-        let
-          v = view election
-          electionTime = Election.getElectionTime election
-          election = electionEvent electionTime v.electorIsOwner v.claim
-
-        -- retrieve election data for previous elections and re-create election events
-        nv <- exerciseByKey @BaseInstrument.I @DynamicInstrument.I lifecycler v.instrument $
-          DynamicInstrument.GetView with viewer = lifecycler
-        let
-          prevElections = map (\e ->
-            case e.election of
-              None -> error "election missing"
-              Some (electorIsOwner, tag) -> electionEvent e.t electorIsOwner tag)
-            nv.prevElections
-
-        -- fetch claim tree as of instrument inception
-        claimInstrument <- snd <$> fetchByKey @BaseInstrument.I @Claim.I v.instrument
-        let acquisitionTime = Claim.getAcquisitionTime claimInstrument
-
-        -- fast-forward the claims tree to the current version by replaying the previous elections
-        claims <- fst <$> lifecycle lifecycler observableCids claimInstrument prevElections
-
-        -- lifecycle as of the time given by the event, by applying the corresponding election
-        (remaining, pending) <- lifecycleClaims observableCids acquisitionTime claims [election]
-
-        -- create new instrument and return effect
-        if remaining == claims && null pending then
-          pure (None, [])
-        else do
+          -- fetch election
+          election <- fetch electionCid
           let
-            currentKey = BaseInstrument.getKey $ toInterface claimInstrument
-            newKey = currentKey with version = sha256 $ show remaining
-            producedInstrument = if isZero' remaining then None else Some newKey
-            (otherConsumed, otherProduced) = splitPending pending
-          tryCreateNewInstrument lifecycler nv.prevElections electionTime v.electorIsOwner v.claim
-            v.instrument newKey
-          effectCid <- toInterfaceContractId <$>
-            create ElectionEffect with
-              providers = fromList [v.instrument.issuer, v.instrument.depository]
-              custodian = if v.electorIsOwner then v.counterparty else v.elector
-              owner = if v.electorIsOwner then v.elector else v.counterparty
-              id = v.id
-              description = v.description
-              targetInstrument = currentKey
-              producedInstrument
-              amount = v.amount
-              otherConsumed
-              otherProduced
-              settlementTime = Some electionTime
-              observers = v.observers
-          pure (Some newKey, [effectCid])
+            v = view election
+            electionTime = Election.getElectionTime election
+            election = electionEvent electionTime v.electorIsOwner v.claim
+
+          -- retrieve election data for previous elections and re-create election events
+          nv <- exerciseByKey @BaseInstrument.I @DynamicInstrument.I lifecycler v.instrument $
+            DynamicInstrument.GetView with viewer = lifecycler
+          let
+            prevElections = map (\e ->
+              case e.election of
+                None -> error "election missing"
+                Some (electorIsOwner, tag) -> electionEvent e.t electorIsOwner tag)
+              nv.prevElections
+
+          -- fetch claim tree as of instrument inception
+          claimInstrument <- snd <$> fetchByKey @BaseInstrument.I @Claim.I v.instrument
+          let acquisitionTime = Claim.getAcquisitionTime claimInstrument
+
+          -- fast-forward the claims tree to the current version by replaying the previous elections
+          claims <- fst <$> lifecycle lifecycler observableCids claimInstrument prevElections
+
+          -- lifecycle as of the time given by the event, by applying the corresponding election
+          (remaining, pending) <- lifecycleClaims observableCids acquisitionTime claims [election]
+
+          -- create new instrument and return effect
+          if remaining == claims && null pending then
+            pure (None, [])
+          else do
+            let
+              currentKey = BaseInstrument.getKey $ toInterface claimInstrument
+              newKey = currentKey with version = sha256 $ show remaining
+              producedInstrument = if isZero' remaining then None else Some newKey
+              (otherConsumed, otherProduced) = splitPending pending
+            tryCreateNewInstrument lifecycler nv.prevElections electionTime v.electorIsOwner v.claim
+              v.instrument newKey
+            effectCid <- toInterfaceContractId <$>
+              create ElectionEffect with
+                providers = fromList [v.instrument.issuer, v.instrument.depository]
+                custodian = if v.electorIsOwner then v.counterparty else v.elector
+                owner = if v.electorIsOwner then v.elector else v.counterparty
+                id = v.id
+                description = v.description
+                targetInstrument = currentKey
+                producedInstrument
+                amount = v.amount
+                otherConsumed
+                otherProduced
+                settlementTime = Some electionTime
+                observers = v.observers
+            pure (Some newKey, [effectCid])
 
     interface instance Disclosure.I for Rule where
       view = Disclosure.View with disclosureControllers = providers; observers
