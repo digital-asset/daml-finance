@@ -185,23 +185,31 @@ createEuropeanCashClaim dateToTime isLong strike spot cashInstrument expiryDate
   in
     prepareAndTagClaims dateToTime [claim] "Option payment"
 
--- | Create the claim for a cash-settled, automatically exercised option.
-createBarrierEuropeanCashClaim : (Date -> Time) -> Bool -> Decimal -> Observable -> Deliverable -> Date ->
-  Bool -> TaggedClaim
-createBarrierEuropeanCashClaim dateToTime isLong strike spot cashInstrument expiryDate
-  isCall =
+-- | Create the claim for a barrier option (automatically exercised, cash-settled).
+createBarrierEuropeanCashClaim : (Date -> Time) -> Bool -> Decimal -> Observable -> Deliverable
+  -> Date -> Bool -> Decimal -> Date -> Bool -> Bool -> TaggedClaim
+createBarrierEuropeanCashClaim dateToTime isLong strike spot cashInstrument
+  expiryDate isCall barrier barrierStartDate isDown isOut =
   let
+    barrierEvent = if isDown then Lte (Observe spot, Const barrier)
+                             else Lte (Const barrier, Observe spot)
     intrinsicValue = if isCall then Observe spot - Const strike
                              else Const strike - Observe spot
     exercised = scale intrinsicValue $ one cashInstrument
     notExercised = zero
     autoExerciseCondition = if isCall then Lte (Const strike, Observe spot)
-                                    else Lte (Observe spot, Const strike)
-    claimAmount = when (TimeGte expiryDate) $
-                  cond autoExerciseCondition exercised notExercised
+                                      else Lte (Observe spot, Const strike)
+    vanillaOption = when (TimeGte expiryDate) $ cond autoExerciseCondition exercised notExercised
+    -- when (at start) $ when inequality $ when (TimeLte maturity) payoff
+    --barrierClaimAmountExclStartDate = if isOut then until barrierEvent vanillaOptionClaim
+    barrierClaimAmountExclStartDate = if isOut
+      then andList [vanillaOption, when barrierEvent $ when (TimeLte expiryDate) $ give vanillaOption]
+      --else when barrierEvent vanillaOption
+      else when barrierEvent $ when (TimeLte expiryDate) $ vanillaOption
+    claimAmount = when (at barrierStartDate) barrierClaimAmountExclStartDate
     claim = if isLong then claimAmount else give claimAmount
   in
-    prepareAndTagClaims dateToTime [claim] "Option payment"
+    prepareAndTagClaims dateToTime [claim] "Barrier option payment"
 
 -- | Create the claim for a physically settled European option.
 createEuropeanPhysicalClaim : (Date -> Time) -> Bool -> Decimal -> Deliverable -> Deliverable ->
