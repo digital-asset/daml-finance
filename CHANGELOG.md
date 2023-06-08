@@ -102,6 +102,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `asBase`, and `asTransferable` implementations were removed as well as redundant
   `HasImplementation` instances)
 
+- Added the new owner as observer of the `Transfer` choice of the `Transferable` interface.
+
 ### Daml.Finance.Instrument.Bond
 
 - Dependencies update
