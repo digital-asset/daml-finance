@@ -1,0 +1,86 @@
+-- Copyright (c) 2023 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Account.Test.Freeze where
+
+import DA.Map qualified as M (empty)
+import DA.Set qualified as S (empty, fromList, singleton, toList)
+import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
+import Daml.Finance.Holding.Test.Common (TestInitialState(..), TestParties(..), setupInitialState, setupParties)
+import Daml.Finance.Interface.Account.Account qualified as Account (Freeze(..), I, Unfreeze(..))
+import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
+import Daml.Finance.Test.Util.Account qualified as ControlledBy (ControlledBy(..))
+import Daml.Finance.Test.Util.Account qualified as Account (submitExerciseInterfaceByKeyCmd, submitMustFailExerciseInterfaceByKeyCmd)
+import Daml.Script
+
+data Freezers = CustodianOnly | RegulatorOnly | CustodianAndRegulator deriving Eq
+
+-- | Verify that custodian can freeze an account with a party.
+freezeWith : Freezers -> Bool -> Script ()
+freezeWith f freezeOutgoing = script do
+  -- Create parties.
+  tp@TestParties{custodian; issuer; investor; regulator} <- setupParties
+
+  -- Initialize state.
+  TestInitialState {issuerAccount; investorAccount; issuerHoldingCid} <-
+    setupInitialState tp (Fungible.Factory with provider = custodian; observers = M.empty) []
+      ControlledBy.Custodian
+  let
+    freezers = case f of
+      CustodianOnly -> S.singleton custodian
+      RegulatorOnly -> S.singleton regulator
+      CustodianAndRegulator -> S.fromList [custodian, regulator]
+    freezeControllers = S.toList (S.singleton custodian <> freezers)
+    accountToBeFrozen = if freezeOutgoing then issuerAccount else investorAccount
+
+  -- Freezers can't be the empty set.
+  Account.submitMustFailExerciseInterfaceByKeyCmd @Account.I [custodian] [] issuerAccount
+    $ Account.Freeze with freezers = S.empty
+
+  -- A third party (here the regulator) can't freeze the account (even if it would be visible).
+  Account.submitMustFailExerciseInterfaceByKeyCmd @Account.I [regulator] [custodian] issuerAccount
+    $ Account.Freeze with freezers = S.fromList [regulator]
+
+  -- Custodian and freezers (i.e., freezeControllers) can freeze the account to freezers.
+  Account.submitExerciseInterfaceByKeyCmd @Account.I freezeControllers [] accountToBeFrozen
+    $ Account.Freeze with freezers
+
+  -- Account can't be frozen again.
+  Account.submitMustFailExerciseInterfaceByKeyCmd @Account.I freezeControllers [] accountToBeFrozen
+    $ Account.Freeze with freezers
+
+  -- Custodian can't transfer (as account is frozen).
+  submitMultiMustFail [custodian] [] do
+    exerciseCmd (coerceInterfaceContractId @Transferable.I issuerHoldingCid)
+      Transferable.Transfer with
+        actors = S.singleton custodian
+        newOwnerAccount = investorAccount
+
+  -- Freezers can unfreeze the account.
+  Account.submitExerciseInterfaceByKeyCmd @Account.I (S.toList freezers) [] accountToBeFrozen
+    $ Account.Unfreeze
+
+  -- Custodian can transfer (as account is unfrozen).
+  submitMulti [custodian] [] do
+    exerciseCmd (coerceInterfaceContractId @Transferable.I issuerHoldingCid)
+      Transferable.Transfer with actors = S.singleton custodian; newOwnerAccount = investorAccount
+
+  pure ()
+
+test1 : Script ()
+test1 = freezeWith CustodianOnly True
+
+test2 : Script ()
+test2 = freezeWith CustodianOnly False
+
+test3 : Script ()
+test3 = freezeWith RegulatorOnly True
+
+test4 : Script ()
+test4 = freezeWith RegulatorOnly False
+
+test5 : Script ()
+test5 = freezeWith CustodianAndRegulator True
+
+test6 : Script ()
+test6 = freezeWith CustodianAndRegulator False

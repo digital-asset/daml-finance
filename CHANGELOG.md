@@ -77,6 +77,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Uses `ensure` to ensure that the set of outgoing controllers is non-empty.
 
+- Added implementations to `Freeze` and `Unfreeze` an account.
+
 ### Daml.Finance.Claims
 
 - Dependencies update
@@ -201,6 +203,12 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`
   method was removed as well as the redundant `HasImplementation` type class)
+
+- The `Account` has been updated to includes choices to `Freeze` and `Unfreeze` itself. In addition,
+  the `Controller` data type now includes the attribute `freezers : Parties`, signifying the parties
+  who has the necessary authorization to initiate  a freeze. Furthermore, the `View` data type has
+  been expanded with an `unfreezers : Parties` attribute, denoting the parties capable of unfreezing
+  a frozen account (this set remains empty for accounts that are not frozen).
 
 ### Daml.Finance.Interface.Claims
 

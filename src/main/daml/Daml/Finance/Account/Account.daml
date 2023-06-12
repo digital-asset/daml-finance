@@ -4,12 +4,12 @@
 module Daml.Finance.Account.Account where
 
 import DA.Map qualified as M (empty)
-import DA.Set qualified as S (fromList, null, singleton)
-import Daml.Finance.Interface.Account.Account qualified as Account (Controllers(..), Credit(..), Debit(..), GetCid(..), I, R, View(..), createReference, disclosureUpdateReference)
+import DA.Set qualified as S (empty, fromList, null, singleton)
+import Daml.Finance.Interface.Account.Account qualified as Account (Controllers(..), Credit(..), Debit(..), Freeze(..), GetCid(..), I, R, View(..), createReference, disclosureUpdateReference)
 import Daml.Finance.Interface.Account.Factory qualified as AccountFactory (Create(..), F, Remove(..), View(..))
 import Daml.Finance.Interface.Holding.Factory qualified as HoldingFactory (Create(..), F, Remove(..))
-import Daml.Finance.Interface.Types.Common.Types (AccountKey(..), Id, PartiesMap)
-import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Interface.Types.Common.Types (AccountKey(..), Id, Parties, PartiesMap)
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (AddObservers(..), I, RemoveObservers(..), View(..), flattenObservers)
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
 
 -- | Type synonym for `Account`.
@@ -23,38 +23,62 @@ template Account
     owner : Party
       -- ^ The account owner.
     controllers : Account.Controllers
-      -- ^ Controllers of transfers.
+      -- ^ Controllers of transfers and freezes.
     id : Id
       -- ^ Identifier of the account.
     description : Text
       -- ^ Description of the account.
     holdingFactoryCid : ContractId HoldingFactory.F
       -- ^ Associated holding factory.
+    unfreezers : Parties
+      -- ^ Parties who has frozen the account and are authorized to unfreeze it.
     observers : PartiesMap
       -- ^ Observers.
   where
-    signatory custodian, owner
+    signatory custodian, owner, unfreezers
     observer Disclosure.flattenObservers observers
 
     -- Outgoing controllers must be non-empty.
     ensure not . S.null $ controllers.outgoing
 
-    let account = AccountKey with custodian; owner; id
+    let
+      account = AccountKey with custodian; owner; id
+      mustNotBeFrozen = assertMsg @Update "account must not be frozen" $ S.null unfreezers
+      contextFrozen = "Frozen"
 
     interface instance Account.I for Account where
-      view = Account.View with custodian; id; owner; holdingFactoryCid; description; controllers
+      view = Account.View with
+        custodian; id; owner; holdingFactoryCid; description; controllers; unfreezers
       getKey = account
-      credit Account.Credit{quantity} =
+      credit Account.Credit{quantity} = do
+        mustNotBeFrozen
         exercise holdingFactoryCid HoldingFactory.Create with
           instrument = quantity.unit
           account
           amount = quantity.amount
           observers = M.empty
       debit Account.Debit{holdingCid} = do
+        mustNotBeFrozen
         vHolding <- view <$> fetch holdingCid
         assertMsg "accounts must match" $ vHolding.account == account
         exercise holdingFactoryCid HoldingFactory.Remove with
           actors = S.fromList [account.custodian, account.owner]; holdingCid
+      freeze Account.Freeze{freezers} = do
+        mustNotBeFrozen
+        assertMsg "Freezers must be non-empty" (not . S.null $ freezers)
+        newCid <- toInterfaceContractId @Disclosure.I <$> create this with unfreezers = freezers
+        -- adding freezers as observers to Account.R
+        coerceInterfaceContractId @Account.I <$> exercise newCid Disclosure.AddObservers with
+          disclosers = S.fromList (signatory this) <> freezers
+          observersToAdd = (contextFrozen, freezers)
+      unfreeze = do
+        newCid <- toInterfaceContractId <$> create this with unfreezers = S.empty
+        -- removing freezers as observers to Account.R
+        optional newCid coerceContractId <$>
+          exercise (toInterfaceContractId @Disclosure.I newCid)
+            Disclosure.RemoveObservers with
+              disclosers = S.fromList (signatory this) <> unfreezers
+              observersToRemove = (contextFrozen, unfreezers)
 
     interface instance Disclosure.I for Account where
       view = Disclosure.View with disclosureControllers = S.fromList [custodian, owner]; observers
@@ -79,7 +103,7 @@ template Factory
         description} = do
           cid <- toInterfaceContractId <$> create Account with
             custodian = account.custodian; owner = account.owner; controllers; id = account.id
-            holdingFactoryCid; observers; description
+            description; holdingFactoryCid; unfreezers = S.empty; observers
           Account.createReference account.custodian cid
           pure cid
       remove AccountFactory.Remove{account} = do
