@@ -102,6 +102,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `asBase`, and `asTransferable` implementations were removed as well as redundant
   `HasImplementation` instances)
 
+- Added the new owner as observer of the `Transfer` choice of the `Transferable` interface.
+
 ### Daml.Finance.Instrument.Bond
 
 - Dependencies update
@@ -335,6 +337,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
   `asEvent` implementations were removed as well as redundant `HasImplementation` instances)
+
+- Let `Election` and `ElectionEffect` implement the `Disclosure` interface.
 
 - Add check that instruments exist for `Distribution` and `Replacement`
 
