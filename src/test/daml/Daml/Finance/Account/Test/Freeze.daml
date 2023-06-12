@@ -7,10 +7,10 @@ import DA.Map qualified as M (empty)
 import DA.Set qualified as S (empty, fromList, singleton, toList)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Holding.Test.Common (TestInitialState(..), TestParties(..), setupInitialState, setupParties)
-import Daml.Finance.Interface.Account.Account qualified as Account (Freeze(..), I, Unfreeze(..))
+import Daml.Finance.Interface.Account.Account qualified as Account (Freeze(..), Frozen(..), I, Unfreeze(..))
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
-import Daml.Finance.Test.Util.Account qualified as ControlledBy (ControlledBy(..))
 import Daml.Finance.Test.Util.Account qualified as Account (submitExerciseInterfaceByKeyCmd, submitMustFailExerciseInterfaceByKeyCmd)
+import Daml.Finance.Test.Util.Account qualified as ControlledBy (ControlledBy(..))
 import Daml.Script
 
 data Freezers = CustodianOnly | RegulatorOnly | CustodianAndRegulator deriving Eq
@@ -26,42 +26,47 @@ freezeWith f freezeOutgoing = script do
     setupInitialState tp (Fungible.Factory with provider = custodian; observers = M.empty) []
       ControlledBy.Custodian
   let
-    freezers = case f of
+    unfreezers = case f of
       CustodianOnly -> S.singleton custodian
       RegulatorOnly -> S.singleton regulator
       CustodianAndRegulator -> S.fromList [custodian, regulator]
-    freezeControllers = S.toList (S.singleton custodian <> freezers)
+    freezers = S.toList (S.singleton custodian <> unfreezers)
     accountToBeFrozen = if freezeOutgoing then issuerAccount else investorAccount
+    context = "Frozen"
 
-  -- Freezers can't be the empty set.
-  Account.submitMustFailExerciseInterfaceByKeyCmd @Account.I [custodian] [] issuerAccount
-    $ Account.Freeze with freezers = S.empty
+  -- Unfreezers can't be the empty set.
+  Account.submitMustFailExerciseInterfaceByKeyCmd @Account.I [custodian] [] issuerAccount $
+    Account.Freeze with
+      frozen = Account.Frozen with unfreezers = S.empty; context
 
-  -- A third party (here the regulator) can't freeze the account (even if it would be visible).
-  Account.submitMustFailExerciseInterfaceByKeyCmd @Account.I [regulator] [custodian] issuerAccount
-    $ Account.Freeze with freezers = S.fromList [regulator]
+  -- A third party (here the regulator) can't freeze the account (even if they would see it).
+  Account.submitMustFailExerciseInterfaceByKeyCmd @Account.I [regulator] [custodian] issuerAccount $
+    Account.Freeze with
+      frozen = Account.Frozen with unfreezers = S.fromList [regulator]; context
 
-  -- Custodian and freezers (i.e., freezeControllers) can freeze the account to freezers.
-  Account.submitExerciseInterfaceByKeyCmd @Account.I freezeControllers [] accountToBeFrozen
-    $ Account.Freeze with freezers
+  -- Freezers can freeze the account to unfreezers.
+  Account.submitExerciseInterfaceByKeyCmd @Account.I freezers [] accountToBeFrozen $
+    Account.Freeze with
+      frozen = Account.Frozen with unfreezers; context
 
   -- Account can't be frozen again.
-  Account.submitMustFailExerciseInterfaceByKeyCmd @Account.I freezeControllers [] accountToBeFrozen
-    $ Account.Freeze with freezers
+  Account.submitMustFailExerciseInterfaceByKeyCmd @Account.I freezers [] accountToBeFrozen $
+    Account.Freeze with
+      frozen = Account.Frozen with unfreezers; context
 
   -- Custodian can't transfer (as account is frozen).
-  submitMultiMustFail [custodian] [] do
+  submitMustFail custodian do
     exerciseCmd (coerceInterfaceContractId @Transferable.I issuerHoldingCid)
       Transferable.Transfer with
         actors = S.singleton custodian
         newOwnerAccount = investorAccount
 
-  -- Freezers can unfreeze the account.
-  Account.submitExerciseInterfaceByKeyCmd @Account.I (S.toList freezers) [] accountToBeFrozen
-    $ Account.Unfreeze
+  -- Unfreezers can unfreeze the account.
+  Account.submitExerciseInterfaceByKeyCmd @Account.I (S.toList unfreezers) [] accountToBeFrozen $
+    Account.Unfreeze
 
   -- Custodian can transfer (as account is unfrozen).
-  submitMulti [custodian] [] do
+  submit custodian do
     exerciseCmd (coerceInterfaceContractId @Transferable.I issuerHoldingCid)
       Transferable.Transfer with actors = S.singleton custodian; newOwnerAccount = investorAccount
 
