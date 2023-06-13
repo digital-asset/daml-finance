@@ -167,23 +167,47 @@ createFxAdjustedPrincipalClaim dateToTime ownerReceives fxRateMultiplier notiona
     prepareAndTagClaims dateToTime [fxLegClaim] "Principal payment"
 -- FIXED_RATE_BOND_REDEMPTION_CLAIM_END
 
--- | Create the claim for a cash-settled, automatically exercised option.
+-- | Create the claim for a long vanilla option (cash-settled, automatically exercised).
+createVanillaOptionClaim : (Date -> Time) -> Decimal -> Observable -> Deliverable -> Date -> Bool
+  -> C
+createVanillaOptionClaim dateToTime strike spot cashInstrument expiryDate isCall =
+  let
+    intrinsicValue = if isCall then Observe spot - Const strike
+                               else Const strike - Observe spot
+    exercised = scale intrinsicValue $ one cashInstrument
+    notExercised = zero
+    autoExerciseCondition = if isCall then Lte (Const strike, Observe spot)
+                                      else Lte (Observe spot, Const strike)
+  in
+    when (TimeGte expiryDate) $ cond autoExerciseCondition exercised notExercised
+
+-- | Create the claim for a cash-settled, automatically exercised option (long or short).
 createEuropeanCashClaim : (Date -> Time) -> Bool -> Decimal -> Observable -> Deliverable -> Date ->
   Bool -> TaggedClaim
 createEuropeanCashClaim dateToTime isLong strike spot cashInstrument expiryDate
   isCall =
   let
-    intrinsicValue = if isCall then Observe spot - Const strike
-                             else Const strike - Observe spot
-    exercised = scale intrinsicValue $ one cashInstrument
-    notExercised = zero
-    autoExerciseCondition = if isCall then Lte (Const strike, Observe spot)
-                                    else Lte (Observe spot, Const strike)
-    claimAmount = when (TimeGte expiryDate) $
-                  cond autoExerciseCondition exercised notExercised
+    claimAmount = createVanillaOptionClaim dateToTime strike spot cashInstrument expiryDate isCall
     claim = if isLong then claimAmount else give claimAmount
   in
-    prepareAndTagClaims dateToTime [claim] "Option payment"
+    prepareAndTagClaims dateToTime [claim] "European option payment"
+
+-- | Create the claim for a barrier option (automatically exercised, cash-settled).
+createBarrierEuropeanCashClaim : (Date -> Time) -> Bool -> Decimal -> Observable -> Deliverable
+  -> Date -> Bool -> Decimal -> Date -> Bool -> Bool -> TaggedClaim
+createBarrierEuropeanCashClaim dateToTime isLong strike spot cashInstrument
+  expiryDate isCall barrier barrierStartDate isDown isOut =
+  let
+    barrierEvent = if isDown then Lte (Observe spot, Const barrier)
+                             else Lte (Const barrier, Observe spot)
+    vanillaOption = createVanillaOptionClaim dateToTime strike spot cashInstrument expiryDate isCall
+    barrierClaimAmountExclStartDate = if isOut
+      then vanillaOption `and` when barrierEvent (when (TimeLte expiryDate) (give vanillaOption))
+      else when barrierEvent $ when (TimeLte expiryDate) vanillaOption
+    claimAmount = when (at barrierStartDate) barrierClaimAmountExclStartDate
+    claim = if isLong then claimAmount else give claimAmount
+  in
+    prepareAndTagClaims dateToTime [claim] "Barrier option payment"
 
 -- | Create the claim for a physically settled European option.
 createEuropeanPhysicalClaim : (Date -> Time) -> Bool -> Decimal -> Deliverable -> Deliverable ->
