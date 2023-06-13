@@ -106,7 +106,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Added the new owner as observer of the `Transfer` choice of the `Transferable` interface.
 
-- Fix to locking (don't allow an empty `lockers` set).
+- Fix for locking (don't allow an empty `lockers` set).
 
 ### Daml.Finance.Instrument.Bond
 
