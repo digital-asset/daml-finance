@@ -5,10 +5,12 @@ module Daml.Finance.Instrument.StructuredProduct.BarrierReverseConvertible.Instr
 
 import DA.Date (daysSinceEpochToDate)
 import DA.Set (singleton)
-import Daml.Finance.Claims.Util.Builders (createBarrierEuropeanCashClaim)
+import Daml.Finance.Claims.Util.Builders (createBarrierEuropeanCashClaim, createFixRatePaymentClaims, createFxAdjustedPrincipalClaim)
+import Daml.Finance.Data.Reference.HolidayCalendar (getHolidayCalendars, rollSchedule)
 import Daml.Finance.Instrument.StructuredProduct.Util (dateToDateClockTime)
 import Daml.Finance.Interface.Claims.Claim qualified as Claim (GetClaims(..), I, View(..))
 import Daml.Finance.Interface.Claims.Dynamic.Instrument qualified as DynamicInstrument (CreateNewVersion(..), I, View(..))
+import Daml.Finance.Interface.Claims.Types (EventData)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, View(..), createReference, disclosureUpdateReference)
 import Daml.Finance.Interface.Instrument.Option.Types (BarrierTypeEnum(..), OptionTypeEnum(..))
 import Daml.Finance.Interface.Instrument.StructuredProduct.BarrierReverseConvertible.Instrument qualified as BarrierEuropeanOption (I, View(..))
@@ -69,6 +71,8 @@ template Instrument
     lastEventTimestamp : Time
       -- ^ (Market) time of the last recorded lifecycle event. If no event has occurred yet, the
       --   time of creation should be used.
+    prevElections : [EventData] -- TODO: Rename to prevEvents
+      -- ^ A list of previous events that have been lifecycled on this instrument so far.
   where
     signatory depository, issuer
     observer Disclosure.flattenObservers observers
@@ -93,7 +97,18 @@ template Instrument
             DownAndIn -> (True, False)
           optionsClaim = createBarrierEuropeanCashClaim dateToDateClockTime ownerReceives strike
             referenceAssetId currency expiryDate call barrier barrierStartDate down out
-        pure [optionsClaim]
+          getCalendars = getHolidayCalendars actor calendarDataProvider
+        (schedule, _) <- rollSchedule getCalendars periodicSchedule holidayCalendarIds
+        let
+          useAdjustedDatesForDcf = True
+          ownerReceives = True
+          fxAdjustment = 1.0
+          couponClaims = createFixRatePaymentClaims dateToDateClockTime schedule periodicSchedule
+            useAdjustedDatesForDcf couponRate ownerReceives dayCountConvention notional currency
+          redemptionClaim = createFxAdjustedPrincipalClaim dateToDateClockTime ownerReceives
+            fxAdjustment notional currency periodicSchedule.terminationDate
+        --pure [optionsClaim]
+        pure [optionsClaim, couponClaims, redemptionClaim]
 
     interface instance BaseInstrument.I for Instrument where
       view = BaseInstrument.View with
@@ -118,13 +133,15 @@ template Instrument
           currency
           notional
           lastEventTimestamp
+          prevElections
 
     interface instance DynamicInstrument.I for Instrument where
-      view = DynamicInstrument.View with lifecycler = issuer; lastEventTimestamp; prevElections = []
-      createNewVersion DynamicInstrument.CreateNewVersion{version; lastEventTimestamp} = do
-        cid <- create this with version; lastEventTimestamp
-        BaseInstrument.createReference issuer $ toInterfaceContractId cid
-        pure $ toInterfaceContractId cid
+      view = DynamicInstrument.View with lifecycler = issuer; lastEventTimestamp; prevElections
+      createNewVersion DynamicInstrument.CreateNewVersion{version; lastEventTimestamp;
+        prevElections} = do
+          cid <- create this with version; lastEventTimestamp; prevElections
+          BaseInstrument.createReference issuer $ toInterfaceContractId cid
+          pure $ toInterfaceContractId cid
 
     interface instance Disclosure.I for Instrument where
       view = Disclosure.View with disclosureControllers = singleton issuer; observers
