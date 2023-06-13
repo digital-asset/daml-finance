@@ -73,6 +73,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`
   implementation was removed as well as redundant `HasImplementation` instances)
 
+- Uses `ensure` to ensure that the set of outgoing controllers is non-empty.
+
 ### Daml.Finance.Claims
 
 - Dependencies update
@@ -354,10 +356,16 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`
   implementation was removed as well as redundant `HasImplementation` instances)
 
-- We have enhanced the pass-through allocation/approval process by incorporating additional checks.
-  These checks help to identify settlement failures at the time of allocation/approval itself,
-  rather than waiting until settlement occurs. In particular, a check was added that verifies that
-  the specified pass-through instruction is part of the batch.
+- When an `Allocation` (`Approval`) takes place, a check has been added to ensure that either the
+  `sender` or the `custodian` (`receiver` or the `custodian`) is among the authorizers.
+
+- When reallocation (re-approval) occurs, it is required that the `signedSenders`
+  (`signedReceivers`) of the `Instruction` are part of the authorizing set.
+
+- We have improved the pass-through allocation/approval process by adding additional checks. These
+  checks detect settlement failures during the allocation/approval stage, rather than waiting until
+  settlement occurs. Specifically, we now verify that the specified pass-through `Instruction` is
+  actually part of the `Batch`.
 
 - Removed the `key` from the `Batch` implementation.
 
