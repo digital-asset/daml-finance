@@ -169,11 +169,14 @@ createFxAdjustedPrincipalClaim dateToTime ownerReceives fxRateMultiplier notiona
 
 -- | Create the claim for a long vanilla option (cash-settled, automatically exercised).
 createVanillaOptionClaim : (Date -> Time) -> Decimal -> Observable -> Deliverable -> Date -> Bool
-  -> C
-createVanillaOptionClaim dateToTime strike spot cashInstrument expiryDate isCall =
+  -> Bool -> C
+createVanillaOptionClaim dateToTime strike spot cashInstrument expiryDate isCall
+  percentageOfStrike =
   let
-    intrinsicValue = if isCall then Observe spot - Const strike
-                               else Const strike - Observe spot
+    intrinsicValueAbs = if isCall then Observe spot - Const strike
+                                  else Const strike - Observe spot
+    intrinsicValue = if percentageOfStrike then intrinsicValueAbs / Const strike
+      else intrinsicValueAbs
     exercised = scale intrinsicValue $ one cashInstrument
     notExercised = zero
     autoExerciseCondition = if isCall then Lte (Const strike, Observe spot)
@@ -183,24 +186,26 @@ createVanillaOptionClaim dateToTime strike spot cashInstrument expiryDate isCall
 
 -- | Create the claim for a cash-settled, automatically exercised option (long or short).
 createEuropeanCashClaim : (Date -> Time) -> Bool -> Decimal -> Observable -> Deliverable -> Date ->
-  Bool -> TaggedClaim
+  Bool -> Bool -> TaggedClaim
 createEuropeanCashClaim dateToTime isLong strike spot cashInstrument expiryDate
-  isCall =
+  isCall percentageOfStrike =
   let
     claimAmount = createVanillaOptionClaim dateToTime strike spot cashInstrument expiryDate isCall
+      percentageOfStrike
     claim = if isLong then claimAmount else give claimAmount
   in
     prepareAndTagClaims dateToTime [claim] "European option payment"
 
 -- | Create the claim for a barrier option (automatically exercised, cash-settled).
 createBarrierEuropeanCashClaim : (Date -> Time) -> Bool -> Decimal -> Observable -> Deliverable
-  -> Date -> Bool -> Decimal -> Date -> Bool -> Bool -> TaggedClaim
+  -> Date -> Bool -> Decimal -> Date -> Bool -> Bool -> Bool -> TaggedClaim
 createBarrierEuropeanCashClaim dateToTime isLong strike spot cashInstrument
-  expiryDate isCall barrier barrierStartDate isDown isOut =
+  expiryDate isCall barrier barrierStartDate isDown isOut percentageOfStrike =
   let
     barrierEvent = if isDown then Lte (Observe spot, Const barrier)
                              else Lte (Const barrier, Observe spot)
     vanillaOption = createVanillaOptionClaim dateToTime strike spot cashInstrument expiryDate isCall
+      percentageOfStrike
     barrierClaimAmountExclStartDate = if isOut
       then vanillaOption `and` when barrierEvent (when (TimeLte expiryDate) (give vanillaOption))
       else when barrierEvent $ when (TimeLte expiryDate) vanillaOption
