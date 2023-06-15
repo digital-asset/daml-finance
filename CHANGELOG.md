@@ -207,7 +207,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - The `Account` has been updated to includes choices to `Freeze` and `Unfreeze` itself. In addition,
   the `Controller` data type now includes the attribute `freezers : Parties`, signifying the parties
   who has the necessary authorization to initiate a freeze. Furthermore, the `View` data type has
-  been expanded with a `frozen : Optional Frozen` attribute. If set, it contains the parties capable
+  been expanded with a `frozen : Optional FreezeDetails` attribute. If set, it contains the parties capable
   of unfreezing a frozen account as well as a context/reason for a freezing it.
 
 ### Daml.Finance.Interface.Claims
