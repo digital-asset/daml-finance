@@ -54,7 +54,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Add smart constructors: orList & andList
 
-- Add `ObserveAt`observation builder
+- Add `ObserveAt` observation builder
 
 ### ContingentClaims.Lifecycle
 
@@ -85,7 +85,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Add support for hybrid (election & time-based) instruments
 
-- Create version consisting of more than hash of remaining claims
+- Create version consisting of more than hash of remaining claims: it now includes
+  `lastEventTimestamp` as well.
 
 - Create instruments even if they have a Zero claim
 
