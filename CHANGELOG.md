@@ -112,6 +112,10 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Unecessary `Remove` choice (implementations) were removed.
 
+- As the locking logic from the `Holding.Base` interface was factored out to a separate interface
+  called `Lockable` of the `Daml.Finance.Interface.Util` package, the `acquireImpl` and
+  `releaseImpl` moved to the `Lockable` module in the `Daml.Finance.Util` implementation package.
+
 - Dependencies update
 
 - Added default `splitImpl` and `mergeImpl` for `Fungible` to `Util.daml` (also generalized the
@@ -245,6 +249,9 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Removed unnecessary `ArchiveFungible` choice
 
+- Factored out the locking logic from the `Holding.Base` interface to a separate interface called
+  `Lockable` of the `Daml.Finance.Interface.Util` package.
+
 - Dependencies update
 
 - Style changes
@@ -374,6 +381,9 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Interface.Util
 
+- Added a `Lockable` module containing with the interface for locking (the `Acquire` and `Release`
+  choices used to be part of the `Holding.Base` interface).
+
 - Dependencies update
 
 - Makes use of `requires` to enforce the interface hierarchy (in particular the redundant
@@ -422,6 +432,9 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Removed the `key` from the `Batch` implementation.
 
 ### Daml.Finance.Util
+
+- Added a `Lockable` module containing the `aquireImpl` and `releaseImpl` locking utitlity
+  functions.
 
 - Dependencies update
 
