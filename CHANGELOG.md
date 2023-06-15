@@ -52,7 +52,9 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Style changes
 
-- Add andList smart constructor
+- Add smart constructors: orList & andList
+
+- Add `ObserveAt` observation builder
 
 ### ContingentClaims.Lifecycle
 
@@ -84,6 +86,13 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Key Table
 
 - Style changes
+
+- Add support for hybrid (election & time-based) instruments
+
+- Create version consisting of more than hash of remaining claims: it now includes
+  `lastEventTimestamp` as well.
+
+- Create instruments even if they have a Zero claim
 
 ### Daml.Finance.Data
 
@@ -117,6 +126,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Key Table
 
 - Added the new owner as observer of the `Transfer` choice of the `Transferable` interface.
+
+- Fix for locking (don't allow an empty `lockers` set).
 
 ### Daml.Finance.Instrument.Bond
 
@@ -180,6 +191,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Key Table
 
+- Add barrier options
+
 ### Daml.Finance.Instrument.Swap
 
 - Dependencies update
@@ -191,6 +204,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   instances)
 
 - Key Table
+
+- Refactor using `ObserveAt`
 
 ### Daml.Finance.Instrument.Token
 
@@ -324,6 +339,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `HasImplementation` type class)
 
 - Key Table (API change for `Factory.Remove`)
+
+- Add barrier options
 
 ### Daml.Finance.Interface.Instrument.Swap
 
