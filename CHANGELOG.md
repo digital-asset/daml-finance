@@ -54,7 +54,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Add smart constructors: orList & andList
 
-- Add `ObserveAt`
+- Add `ObserveAt`observation builder
 
 ### ContingentClaims.Lifecycle
 
