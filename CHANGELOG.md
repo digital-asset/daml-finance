@@ -52,7 +52,9 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Style changes
 
-- Add andList smart constructor
+- Add smart constructors: orList & andList
+
+- Add `ObserveAt` observation builder
 
 ### ContingentClaims.Lifecycle
 
@@ -80,6 +82,13 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Dependencies update
 
 - Style changes
+
+- Add support for hybrid (election & time-based) instruments
+
+- Create version consisting of more than hash of remaining claims: it now includes
+  `lastEventTimestamp` as well.
+
+- Create instruments even if they have a Zero claim
 
 ### Daml.Finance.Data
 
@@ -162,6 +171,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `asBaseInstrument` implementations were removed as well as redundant `HasImplementation`
   instances)
 
+- Add barrier options
+
 ### Daml.Finance.Instrument.Swap
 
 - Dependencies update
@@ -171,6 +182,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
   `asBaseInstrument` implementations were removed as well as redundant `HasImplementation`
   instances)
+
+- Refactor using `ObserveAt`
 
 ### Daml.Finance.Instrument.Token
 
@@ -277,6 +290,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`,
   `asBaseInstrument`, and `asEvent` methods were removed as well as the redundant
   `HasImplementation` type class)
+
+- Add barrier options
 
 ### Daml.Finance.Interface.Instrument.Swap
 
