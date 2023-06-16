@@ -1,4 +1,4 @@
-# Daml.Finance.Instrument.Option
+# Daml.Finance.Instrument.StructuredProduct
 
 This package contains Instrument implementations that model a variety of structured products.
 
