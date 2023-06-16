@@ -10,9 +10,10 @@ import Daml.Finance.Interface.Account.Account qualified as Account (Controllers(
 import Daml.Finance.Interface.Account.Factory qualified as AccountFactory (Create(..), F, Remove(..), View(..))
 import Daml.Finance.Interface.Holding.Factory qualified as HoldingFactory (Create(..), F)
 import Daml.Finance.Interface.Types.Common.Types (AccountKey(..), Id, PartiesMap)
-import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
-import Daml.Finance.Interface.Util.Lockable qualified as Lockable (I)
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (AddObservers(..), I, RemoveObservers(..), View(..), flattenObservers)
+import Daml.Finance.Interface.Util.Lockable qualified as Lockable (Acquire(..), I, Lock, Release(..), View(..), getLockers)
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+import Daml.Finance.Util.Lockable (acquireImpl, isValidLock, releaseImpl)
 
 -- | Type synonym for `Account`.
 type T = Account
@@ -24,6 +25,8 @@ template Account
       -- ^ The account provider.
     owner : Party
       -- ^ The account owner.
+    lock : Optional Lockable.Lock
+      -- ^ An optional lock for the account.
     controllers : Account.Controllers
       -- ^ Controllers of transfers.
     id : Id
@@ -35,24 +38,28 @@ template Account
     observers : PartiesMap
       -- ^ Observers.
   where
-    signatory custodian, owner
+    signatory custodian, owner, Lockable.getLockers this
     observer Disclosure.flattenObservers observers
 
     -- Outgoing controllers must be non-empty.
-    ensure not . S.null $ controllers.outgoing
+    ensure isValidLock lock && (not . S.null $ controllers.outgoing)
 
-    let account = AccountKey with custodian; owner; id
+    let
+      account = AccountKey with custodian; owner; id
+      mustNotBeLocked = assertMsg @Update "Must not be locked" $ isNone lock
 
     interface instance Account.I for Account where
       view = Account.View with custodian; id; owner; holdingFactoryCid; description; controllers
       getKey = account
-      credit Account.Credit{quantity} =
+      credit Account.Credit{quantity} = do
+        mustNotBeLocked
         exercise holdingFactoryCid HoldingFactory.Create with
           instrument = quantity.unit
           account
           amount = quantity.amount
           observers = M.empty
       debit Account.Debit{holdingCid} = do
+        mustNotBeLocked
         holding <- fetch holdingCid
         let
           vHolding = view holding
@@ -60,6 +67,25 @@ template Account
         assertMsg "Holding must not be locked" $ isNone vLockable.lock
         assertMsg "Accounts must match" $ vHolding.account == account
         archive holdingCid
+
+    interface instance Lockable.I for Account where
+      view = Lockable.View with lock; controllers = S.singleton custodian
+      acquire Lockable.Acquire{newLockers; context; lockType} = do
+        newLockableCid <- toInterfaceContractId @Disclosure.I <$>
+          acquireImpl this.lock (\lock -> this with lock) Lockable.Acquire{newLockers; context; lockType}
+        -- adding freezers as observers to Account.R
+        fromInterfaceContractId @Lockable.I <$>
+          exercise newLockableCid Disclosure.AddObservers with
+            disclosers = S.fromList $ signatory this
+            observersToAdd = (context, newLockers)
+      release Lockable.Release{context} = do
+        newLockableCid <- releaseImpl this.lock (\lock -> this with lock) Lockable.Release{context}
+         -- removing unfreezers as observers to Account.R
+        optional newLockableCid coerceContractId <$>
+          exercise (toInterfaceContractId @Disclosure.I newLockableCid)
+            Disclosure.RemoveObservers with
+              disclosers = S.fromList $ signatory this
+              observersToRemove = (context, Lockable.getLockers this)
 
     interface instance Disclosure.I for Account where
       view = Disclosure.View with disclosureControllers = S.fromList [custodian, owner]; observers
@@ -83,8 +109,8 @@ template Factory
       create' AccountFactory.Create {account; holdingFactoryCid; controllers; observers;
         description} = do
           cid <- toInterfaceContractId <$> create Account with
-            custodian = account.custodian; owner = account.owner; controllers; id = account.id
-            holdingFactoryCid; observers; description
+            custodian = account.custodian; owner = account.owner; lock = None; controllers
+            id = account.id; holdingFactoryCid; observers; description
           Account.createReference account.custodian cid
           pure cid
       remove AccountFactory.Remove{account} = do

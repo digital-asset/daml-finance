@@ -72,6 +72,9 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Account
 
+- Let the `Account` implement the `Lockable` interface with `custodian` as required authorizer (for
+  exercising the `Acquire` choice).
+
 - Dependencies update
 
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`
@@ -216,6 +219,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   instances)
 
 ### Daml.Finance.Interface.Account
+
+- Let the `Account` require the `Lockable` interface, effectively allowing to freeze an account.
 
 - Dependencies update
 
