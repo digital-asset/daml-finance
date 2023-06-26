@@ -1,0 +1,246 @@
+module Scripts.FixedRateBond where
+
+import DA.Date (DayOfWeek(..), Month(..), date, toGregorian)
+import DA.Map qualified as M (empty, fromList)
+import DA.Set qualified as S (empty, fromList, singleton, toList)
+import Daml.Script
+
+-- INTERFACE DEPENDENCIES --
+import Daml.Finance.Interface.Instrument.Bond.FixedRate.Factory qualified as FixedRate (Create(..), F(..))
+import Daml.Finance.Interface.Instrument.Bond.FixedRate.Types (FixedRate(..))
+import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I)
+import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..), I)
+import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I)
+import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
+import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
+import Daml.Finance.Interface.Types.Common.Types (Id(..), Parties)
+import Daml.Finance.Interface.Types.Date.Calendar (BusinessDayAdjustment(..), BusinessDayConventionEnum(..), HolidayCalendarData(..))
+import Daml.Finance.Interface.Types.Date.Classes (HasUTCTimeConversion(..))
+import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum(..))
+import Daml.Finance.Interface.Types.Date.RollConvention (Period(..), PeriodEnum(..), RollConventionEnum(..))
+import Daml.Finance.Interface.Types.Date.Schedule (Frequency(..), PeriodicSchedule(..), ScheduleFrequency(..))
+
+-- IMPLEMENTATION DEPENDENCIES --
+import Daml.Finance.Claims.Lifecycle.Rule (Rule(..))
+import Daml.Finance.Data.Reference.HolidayCalendar (HolidayCalendar(..))
+import Daml.Finance.Data.Time.DateClock.Types (Unit(..))
+import Daml.Finance.Data.Time.DateClockUpdate qualified as DataTime (DateClockUpdateEvent(..))
+import Daml.Finance.Instrument.Bond.FixedRate.Factory qualified as FixedRate (Factory(..))
+import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
+
+import Scripts.Settlement (SettlementState(..), runSettlement)
+import Workflow.CreditAccount qualified as CreditAccount
+
+-- | Test script that
+-- 1. creates a fixed rate bond instrument (and holding)
+-- 2. creates a lifecycle rule
+-- 3. creates a lifecycle event (time event: DateClockUpdate)
+-- 4. lifecycles the time event
+-- 5. processes the lifecycle effect
+-- 6. settles the distribution
+runLifecycling : Script()
+runLifecycling = do
+
+  -- Execute the `runSettlement` script. Bob now holds 10 tokens in his account.
+  SettlementState{alice
+    , bank
+    , bob
+    , public
+    , aliceAccount
+    , bobAccount
+    , usdInstrument
+    , tokenInstrument
+    , routeProviderCid
+    , settlementFactoryCid
+    , tokenFactoryCid
+    , aliceHoldingCid
+    , bobHoldingCid} <- runSettlement
+
+  now <- getTime
+  let pp = [("FactoryProvider", S.singleton public)]
+
+  -- Create and distribute bond
+  -- CREATE_FIXED_RATE_BOND_VARIABLES_BEGIN
+  let
+    issueDate = date 2019 Jan 16
+    firstCouponDate = date 2019 May 15
+    maturityDate = date 2020 May 15
+    notional = 1.0
+    couponRate = 0.011
+    couponPeriod = M
+    couponPeriodMultiplier = 12
+    dayCountConvention = ActActISDA
+    businessDayConvention = Following
+    -- CREATE_FIXED_RATE_BOND_VARIABLES_END
+    holidayCalendarIds = ["USD"]
+    cal =
+      HolidayCalendarData with
+        id = "USD"
+        weekend = [Saturday, Sunday]
+        holidays = [date 2019 Dec 19]
+
+    periodicSchedule = createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds
+      businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate
+
+  -- A reference data provider publishes the holiday calendar on the ledger
+  calendarCid <- submit bank do
+    createCmd HolidayCalendar with
+      provider = bank
+      calendar = cal
+      observers = M.fromList pp
+
+  fixedRateBondFactoryCid <- toInterfaceContractId @FixedRate.F <$> submit bank do
+    createCmd FixedRate.Factory with
+      provider = bank
+      observers = M.empty
+
+  let
+    bondInstrument = tokenInstrument with version = "3" -- TODO: Change key to bond key
+
+  bondv1 <- submit bank do
+    exerciseCmd fixedRateBondFactoryCid FixedRate.Create with
+      fixedRate = FixedRate with
+        instrument = bondInstrument
+        description = "Instrument representing units of a generic token"
+        couponRate
+        periodicSchedule
+        holidayCalendarIds
+        calendarDataProvider = bank
+        dayCountConvention
+        currency = usdInstrument
+        notional
+        lastEventTimestamp = now
+      observers = M.fromList pp
+
+  -- Credit Bob's account with a bond holding
+  bobRequestCid <- submit bob do
+    createCmd CreditAccount.Request with
+      account = bobAccount
+      instrument = bondInstrument
+      amount = 100000.0
+  bobBondHoldingCid <- submit bank do exerciseCmd bobRequestCid CreditAccount.Accept
+
+  -- Create a clock update event
+  clockEventCid <- createClockUpdateEvent (S.singleton bank) firstCouponDate S.empty
+
+  -- Create a lifecycle rule
+  lifecycleRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit bank do
+    createCmd Rule with
+      providers = S.singleton bank
+      observers = M.empty
+      lifecycler = bank
+      id = Id "LifecycleRule"
+      description = "Rule to lifecycle an instrument"
+
+  -- TODO: Replace submitMulti calls?
+
+  -- Try to lifecycle the instrument
+  (lifecycleCid, [effectCid]) <- submitMulti [bank] [public] do
+    exerciseCmd lifecycleRuleCid Lifecycle.Evolve with
+      eventCid = clockEventCid
+      observableCids = []
+      instrument = bondInstrument
+
+  -- Create the claim rule
+  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [bank, bob] [] do
+    createCmd Claim.Rule with
+      providers = S.fromList [bank, bob]
+      claimers = S.singleton bob
+      settlers = S.singleton bob
+      routeProviderCid
+      settlementFactoryCid
+      netInstructions = False
+
+  -- Claim effect
+  -- CLAIM_EVENT_BEGIN
+  result <- submitMulti [bob] [public] do
+    exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
+      claimer = bob
+      holdingCids = [bobBondHoldingCid]
+      effectCid -- This is equivalent to writing effectCid = effectCid
+      batchId = Id "BondSettlement"
+  let [bobInstructionCid, bankInstructionCid, couponInstructionCid] = result.instructionCids
+  -- CLAIM_EVENT_END
+
+  -- EFFECT_SETTLEMENT_BEGIN
+  -- Allocate instruction
+  (bobInstructionCid, _) <- submit bob do
+    exerciseCmd bobInstructionCid Instruction.Allocate with
+      actors = S.singleton bob
+      allocation = Pledge bobBondHoldingCid
+
+  (bankInstructionCid, _) <- submit bank do
+    exerciseCmd bankInstructionCid Instruction.Allocate with
+      actors = S.singleton bank
+      allocation = CreditReceiver
+
+  (couponInstructionCid, _) <- submit bank do
+    exerciseCmd couponInstructionCid Instruction.Allocate with
+      actors = S.singleton bank
+      allocation = CreditReceiver
+
+  -- Approve instruction
+  bobInstructionCid <- submit bank do
+    exerciseCmd bobInstructionCid Instruction.Approve with
+      actors = S.singleton bank
+      approval = DebitSender
+
+  bankInstructionCid <- submit bob do
+    exerciseCmd bankInstructionCid Instruction.Approve with
+      actors = S.singleton bob
+      approval = TakeDelivery bobAccount
+
+  couponInstructionCid <- submit bob do
+    exerciseCmd couponInstructionCid Instruction.Approve with
+      actors = S.singleton bob
+      approval = TakeDelivery bobAccount
+
+  -- Settle batch
+  submitMulti [bob] [public] do
+    exerciseCmd result.batchCid Batch.Settle with actors = S.singleton bob
+  -- EFFECT_SETTLEMENT_END
+
+  pure ()
+
+-- | Create a schedule for periodic payments.
+createPaymentPeriodicSchedule : Date -> [Text] -> BusinessDayConventionEnum -> PeriodEnum ->
+  Int -> Date -> Date -> PeriodicSchedule
+createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds businessDayConvention couponPeriod
+  couponPeriodMultiplier issueDate maturityDate = do
+    -- CREATE_PERIODIC_SCHEDULE_BEGIN
+    let
+      (y, m, d) = toGregorian firstCouponDate
+      periodicSchedule = PeriodicSchedule with
+        businessDayAdjustment =
+          BusinessDayAdjustment with
+            calendarIds = holidayCalendarIds
+            convention = businessDayConvention
+        effectiveDateBusinessDayAdjustment = None
+        terminationDateBusinessDayAdjustment = None
+        frequency =
+          Periodic Frequency with
+            rollConvention = DOM d
+            period = Period with
+              period = couponPeriod
+              periodMultiplier = couponPeriodMultiplier
+        effectiveDate = issueDate
+        firstRegularPeriodStartDate = Some firstCouponDate
+        lastRegularPeriodEndDate = Some maturityDate
+        stubPeriodType = None
+        terminationDate = maturityDate
+    -- CREATE_PERIODIC_SCHEDULE_END
+    periodicSchedule
+
+-- | Given a `Date`, it creates a `DateClockUpdateEvent`.
+createClockUpdateEvent : Parties -> Date -> Parties
+  -> Script (ContractId Event.I)
+createClockUpdateEvent providers today observers = do
+  let
+    description = show today
+    id = Id description
+    date = Unit today
+  eventCid <- toInterfaceContractId <$> submitMulti (S.toList providers) [] do
+    createCmd DataTime.DateClockUpdateEvent with
+      providers; id; description; date = today; observers; eventTime = toUTCTime date
+  pure eventCid
