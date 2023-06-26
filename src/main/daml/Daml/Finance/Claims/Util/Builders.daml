@@ -169,12 +169,16 @@ createFxAdjustedPrincipalClaim dateToTime ownerReceives fxRateMultiplier notiona
 
 -- | Create the claim for a long vanilla option (cash-settled, automatically exercised).
 createVanillaOptionClaim : (Date -> Time) -> Decimal -> Observable -> Deliverable -> Date -> Bool
-  -> C
-createVanillaOptionClaim dateToTime strike spot cashInstrument expiryDate isCall =
+  -> Optional Decimal -> Decimal -> C
+createVanillaOptionClaim dateToTime strike spot cashInstrument expiryDate isCall
+  referenceLevel notionalMultiplier =
   let
-    intrinsicValue = if isCall then Observe spot - Const strike
-                               else Const strike - Observe spot
-    exercised = scale intrinsicValue $ one cashInstrument
+    intrinsicValueAbs = if isCall then Observe spot - Const strike
+                                  else Const strike - Observe spot
+    intrinsicValue = case referenceLevel of
+      Some ref -> intrinsicValueAbs / Const ref
+      None -> intrinsicValueAbs
+    exercised = scale (Const notionalMultiplier * intrinsicValue) $ one cashInstrument
     notExercised = zero
     autoExerciseCondition = if isCall then Lte (Const strike, Observe spot)
                                       else Lte (Observe spot, Const strike)
@@ -183,24 +187,26 @@ createVanillaOptionClaim dateToTime strike spot cashInstrument expiryDate isCall
 
 -- | Create the claim for a cash-settled, automatically exercised option (long or short).
 createEuropeanCashClaim : (Date -> Time) -> Bool -> Decimal -> Observable -> Deliverable -> Date ->
-  Bool -> TaggedClaim
+  Bool -> Optional Decimal -> Decimal -> TaggedClaim
 createEuropeanCashClaim dateToTime isLong strike spot cashInstrument expiryDate
-  isCall =
+  isCall referenceLevel notionalMultiplier =
   let
     claimAmount = createVanillaOptionClaim dateToTime strike spot cashInstrument expiryDate isCall
+      referenceLevel notionalMultiplier
     claim = if isLong then claimAmount else give claimAmount
   in
     prepareAndTagClaims dateToTime [claim] "European option payment"
 
 -- | Create the claim for a barrier option (automatically exercised, cash-settled).
 createBarrierEuropeanCashClaim : (Date -> Time) -> Bool -> Decimal -> Observable -> Deliverable
-  -> Date -> Bool -> Decimal -> Date -> Bool -> Bool -> TaggedClaim
+  -> Date -> Bool -> Decimal -> Date -> Bool -> Bool -> Optional Decimal -> Decimal -> TaggedClaim
 createBarrierEuropeanCashClaim dateToTime isLong strike spot cashInstrument
-  expiryDate isCall barrier barrierStartDate isDown isOut =
+  expiryDate isCall barrier barrierStartDate isDown isOut referenceLevel notionalMultiplier =
   let
     barrierEvent = if isDown then Lte (Observe spot, Const barrier)
                              else Lte (Const barrier, Observe spot)
     vanillaOption = createVanillaOptionClaim dateToTime strike spot cashInstrument expiryDate isCall
+      referenceLevel notionalMultiplier
     barrierClaimAmountExclStartDate = if isOut
       then vanillaOption `and` when barrierEvent (when (TimeLte expiryDate) (give vanillaOption))
       else when barrierEvent $ when (TimeLte expiryDate) vanillaOption
