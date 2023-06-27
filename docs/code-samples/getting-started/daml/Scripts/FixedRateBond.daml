@@ -14,7 +14,7 @@ import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (E
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
-import Daml.Finance.Interface.Types.Common.Types (Id(..), Parties)
+import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey(..), Parties)
 import Daml.Finance.Interface.Types.Date.Calendar (BusinessDayAdjustment(..), BusinessDayConventionEnum(..), HolidayCalendarData(..))
 import Daml.Finance.Interface.Types.Date.Classes (HasUTCTimeConversion(..))
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum(..))
@@ -33,16 +33,16 @@ import Scripts.Settlement (SettlementState(..), runSettlement)
 import Workflow.CreditAccount qualified as CreditAccount
 
 -- | Test script that
--- 1. creates a fixed rate bond instrument (and holding)
+-- 1. creates a fixed rate bond instrument and a holding on it
 -- 2. creates a lifecycle rule
 -- 3. creates a lifecycle event (time event: DateClockUpdate)
 -- 4. lifecycles the time event
 -- 5. processes the lifecycle effect
 -- 6. settles the distribution
-runLifecycling : Script()
-runLifecycling = do
+runFixedRateBond : Script()
+runFixedRateBond = do
 
-  -- Execute the `runSettlement` script. Bob now holds 10 tokens in his account.
+  -- Execute the `runSettlement` script to set up roles, accounts and a cash instrument
   SettlementState{alice
     , bank
     , bob
@@ -73,15 +73,37 @@ runLifecycling = do
     dayCountConvention = ActActISDA
     businessDayConvention = Following
     -- CREATE_FIXED_RATE_BOND_VARIABLES_END
+
+    -- CREATE_FIXED_RATE_BOND_CALENDARS_BEGIN
     holidayCalendarIds = ["USD"]
     cal =
       HolidayCalendarData with
         id = "USD"
         weekend = [Saturday, Sunday]
         holidays = [date 2019 Dec 19]
+    -- CREATE_FIXED_RATE_BOND_CALENDARS_END
 
-    periodicSchedule = createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds
-      businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate
+    -- CREATE_PERIODIC_SCHEDULE_BEGIN
+    (y, m, d) = toGregorian firstCouponDate
+    periodicSchedule = PeriodicSchedule with
+      businessDayAdjustment =
+        BusinessDayAdjustment with
+          calendarIds = holidayCalendarIds
+          convention = businessDayConvention
+      effectiveDateBusinessDayAdjustment = None
+      terminationDateBusinessDayAdjustment = None
+      frequency =
+        Periodic Frequency with
+          rollConvention = DOM d
+          period = Period with
+            period = couponPeriod
+            periodMultiplier = couponPeriodMultiplier
+      effectiveDate = issueDate
+      firstRegularPeriodStartDate = Some firstCouponDate
+      lastRegularPeriodEndDate = Some maturityDate
+      stubPeriodType = None
+      terminationDate = maturityDate
+    -- CREATE_PERIODIC_SCHEDULE_END
 
   -- A reference data provider publishes the holiday calendar on the ledger
   calendarCid <- submit bank do
@@ -95,14 +117,21 @@ runLifecycling = do
       provider = bank
       observers = M.empty
 
+  -- Bank creates a bond instrument
   let
-    bondInstrument = tokenInstrument with version = "3" -- TODO: Change key to bond key
+    instrumentId = Id "FixedRateBond"
+    instrumentVersion = "0"
+    bondInstrument = InstrumentKey with
+      issuer = bank
+      depository = bank
+      id = instrumentId
+      version = instrumentVersion
 
   bondv1 <- submit bank do
     exerciseCmd fixedRateBondFactoryCid FixedRate.Create with
       fixedRate = FixedRate with
         instrument = bondInstrument
-        description = "Instrument representing units of a generic token"
+        description = "Instrument representing units of a fixed rate bond"
         couponRate
         periodicSchedule
         holidayCalendarIds
@@ -133,10 +162,8 @@ runLifecycling = do
       id = Id "LifecycleRule"
       description = "Rule to lifecycle an instrument"
 
-  -- TODO: Replace submitMulti calls?
-
   -- Try to lifecycle the instrument
-  (lifecycleCid, [effectCid]) <- submitMulti [bank] [public] do
+  (lifecycleCid, [effectCid]) <- submit bank do
     exerciseCmd lifecycleRuleCid Lifecycle.Evolve with
       eventCid = clockEventCid
       observableCids = []
@@ -202,35 +229,6 @@ runLifecycling = do
   -- EFFECT_SETTLEMENT_END
 
   pure ()
-
--- | Create a schedule for periodic payments.
-createPaymentPeriodicSchedule : Date -> [Text] -> BusinessDayConventionEnum -> PeriodEnum ->
-  Int -> Date -> Date -> PeriodicSchedule
-createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds businessDayConvention couponPeriod
-  couponPeriodMultiplier issueDate maturityDate = do
-    -- CREATE_PERIODIC_SCHEDULE_BEGIN
-    let
-      (y, m, d) = toGregorian firstCouponDate
-      periodicSchedule = PeriodicSchedule with
-        businessDayAdjustment =
-          BusinessDayAdjustment with
-            calendarIds = holidayCalendarIds
-            convention = businessDayConvention
-        effectiveDateBusinessDayAdjustment = None
-        terminationDateBusinessDayAdjustment = None
-        frequency =
-          Periodic Frequency with
-            rollConvention = DOM d
-            period = Period with
-              period = couponPeriod
-              periodMultiplier = couponPeriodMultiplier
-        effectiveDate = issueDate
-        firstRegularPeriodStartDate = Some firstCouponDate
-        lastRegularPeriodEndDate = Some maturityDate
-        stubPeriodType = None
-        terminationDate = maturityDate
-    -- CREATE_PERIODIC_SCHEDULE_END
-    periodicSchedule
 
 -- | Given a `Date`, it creates a `DateClockUpdateEvent`.
 createClockUpdateEvent : Parties -> Date -> Parties
