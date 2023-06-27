@@ -11,7 +11,7 @@ mkdir .\.lib
 echo Downloading the list of dependencies
 for /f "tokens=2" %%a IN ('findstr "^version" daml.yaml') DO (set version=%%a)
 
-curl -Lf# "https://raw.githubusercontent.com/digital-asset/daml-finance/main/docs/code-samples/getting-started-config/%version%.conf" -o .lib/%version%.conf
+curl -Lf# "https://raw.githubusercontent.com/digital-asset/daml-finance/main/docs/code-samples/tutorials-config/%version%.conf" -o .lib/%version%.conf
 
 for /F "tokens=*" %%a in (.lib/%version%.conf) do (
   for /F "tokens=1,2" %%b in ("%%a") do (
