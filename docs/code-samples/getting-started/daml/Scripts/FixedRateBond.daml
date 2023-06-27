@@ -72,18 +72,27 @@ runFixedRateBond = do
     couponPeriodMultiplier = 12
     dayCountConvention = ActActISDA
     businessDayConvention = Following
-    -- CREATE_FIXED_RATE_BOND_VARIABLES_END
+  -- CREATE_FIXED_RATE_BOND_VARIABLES_END
 
-    -- CREATE_FIXED_RATE_BOND_CALENDARS_BEGIN
+  -- CREATE_FIXED_RATE_BOND_CALENDARS_BEGIN
+  let
     holidayCalendarIds = ["USD"]
     cal =
       HolidayCalendarData with
         id = "USD"
         weekend = [Saturday, Sunday]
         holidays = [date 2019 Dec 19]
-    -- CREATE_FIXED_RATE_BOND_CALENDARS_END
 
-    -- CREATE_PERIODIC_SCHEDULE_BEGIN
+  -- A reference data provider publishes the holiday calendar on the ledger
+  calendarCid <- submit bank do
+    createCmd HolidayCalendar with
+      provider = bank
+      calendar = cal
+      observers = M.fromList pp
+  -- CREATE_FIXED_RATE_BOND_CALENDARS_END
+
+  -- CREATE_PERIODIC_SCHEDULE_BEGIN
+  let
     (y, m, d) = toGregorian firstCouponDate
     periodicSchedule = PeriodicSchedule with
       businessDayAdjustment =
@@ -103,21 +112,15 @@ runFixedRateBond = do
       lastRegularPeriodEndDate = Some maturityDate
       stubPeriodType = None
       terminationDate = maturityDate
-    -- CREATE_PERIODIC_SCHEDULE_END
+  -- CREATE_PERIODIC_SCHEDULE_END
 
-  -- A reference data provider publishes the holiday calendar on the ledger
-  calendarCid <- submit bank do
-    createCmd HolidayCalendar with
-      provider = bank
-      calendar = cal
-      observers = M.fromList pp
-
+  -- CREATE_FIXED_RATE_BOND_INSTRUMENT_BEGIN
   fixedRateBondFactoryCid <- toInterfaceContractId @FixedRate.F <$> submit bank do
     createCmd FixedRate.Factory with
       provider = bank
       observers = M.empty
 
-  -- Bank creates a bond instrument
+  -- Define an instrument key for the bond
   let
     instrumentId = Id "FixedRateBond"
     instrumentVersion = "0"
@@ -127,7 +130,8 @@ runFixedRateBond = do
       id = instrumentId
       version = instrumentVersion
 
-  bondv1 <- submit bank do
+  -- Bank creates the bond instrument
+  fixedRateBondCid <- submit bank do
     exerciseCmd fixedRateBondFactoryCid FixedRate.Create with
       fixedRate = FixedRate with
         instrument = bondInstrument
@@ -141,7 +145,9 @@ runFixedRateBond = do
         notional
         lastEventTimestamp = now
       observers = M.fromList pp
+  -- CREATE_FIXED_RATE_BOND_INSTRUMENT_END
 
+  -- CREATE_FIXED_RATE_BOND_HOLDING_BEGIN
   -- Credit Bob's account with a bond holding
   bobRequestCid <- submit bob do
     createCmd CreditAccount.Request with
@@ -149,10 +155,9 @@ runFixedRateBond = do
       instrument = bondInstrument
       amount = 100000.0
   bobBondHoldingCid <- submit bank do exerciseCmd bobRequestCid CreditAccount.Accept
+  -- CREATE_FIXED_RATE_BOND_HOLDING_END
 
-  -- Create a clock update event
-  clockEventCid <- createClockUpdateEvent (S.singleton bank) firstCouponDate S.empty
-
+  -- CREATE_LIFECYCLE_RULE_BEGIN
   -- Create a lifecycle rule
   lifecycleRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit bank do
     createCmd Rule with
@@ -161,14 +166,23 @@ runFixedRateBond = do
       lifecycler = bank
       id = Id "LifecycleRule"
       description = "Rule to lifecycle an instrument"
+  -- CREATE_LIFECYCLE_RULE_END
 
+  -- CREATE_CLOCK_UPDATE_EVENT_BEGIN
+  -- Create a clock update event
+  clockEventCid <- createClockUpdateEvent (S.singleton bank) firstCouponDate S.empty
+  -- CREATE_CLOCK_UPDATE_EVENT_END
+
+  -- LIFECYCLE_BOND_BEGIN
   -- Try to lifecycle the instrument
   (lifecycleCid, [effectCid]) <- submit bank do
     exerciseCmd lifecycleRuleCid Lifecycle.Evolve with
       eventCid = clockEventCid
       observableCids = []
       instrument = bondInstrument
+  -- LIFECYCLE_BOND_END
 
+  -- CREATE_CLAIM_RULE_BEGIN
   -- Create the claim rule
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [bank, bob] [] do
     createCmd Claim.Rule with
@@ -178,9 +192,10 @@ runFixedRateBond = do
       routeProviderCid
       settlementFactoryCid
       netInstructions = False
+  -- CREATE_CLAIM_RULE_END
 
   -- Claim effect
-  -- CLAIM_EVENT_BEGIN
+  -- CLAIM_EFFECT_BEGIN
   result <- submitMulti [bob] [public] do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
       claimer = bob
@@ -188,7 +203,7 @@ runFixedRateBond = do
       effectCid -- This is equivalent to writing effectCid = effectCid
       batchId = Id "BondSettlement"
   let [bobInstructionCid, bankInstructionCid, couponInstructionCid] = result.instructionCids
-  -- CLAIM_EVENT_END
+  -- CLAIM_EFFECT_END
 
   -- EFFECT_SETTLEMENT_BEGIN
   -- Allocate instruction
