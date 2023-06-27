@@ -6,13 +6,18 @@ import DA.Set qualified as S (empty, fromList, singleton, toList)
 import Daml.Script
 
 -- INTERFACE DEPENDENCIES --
+import Daml.Finance.Interface.Account.Factory qualified as Account (F)
+import Daml.Finance.Interface.Holding.Factory qualified as Holding (F)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (I)
 import Daml.Finance.Interface.Instrument.Bond.FixedRate.Factory qualified as FixedRate (Create(..), F(..))
 import Daml.Finance.Interface.Instrument.Bond.FixedRate.Types (FixedRate(..))
 import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I)
 import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..), I)
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I)
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
+import Daml.Finance.Interface.Settlement.Factory qualified as Settlement (F)
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.RouteProvider qualified as RouteProvider (I)
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey(..), Parties)
 import Daml.Finance.Interface.Types.Date.Calendar (BusinessDayAdjustment(..), BusinessDayConventionEnum(..), HolidayCalendarData(..))
@@ -22,14 +27,19 @@ import Daml.Finance.Interface.Types.Date.RollConvention (Period(..), PeriodEnum(
 import Daml.Finance.Interface.Types.Date.Schedule (Frequency(..), PeriodicSchedule(..), ScheduleFrequency(..))
 
 -- IMPLEMENTATION DEPENDENCIES --
+import Daml.Finance.Account.Account qualified as Account (Factory(..))
 import Daml.Finance.Claims.Lifecycle.Rule (Rule(..))
 import Daml.Finance.Data.Reference.HolidayCalendar (HolidayCalendar(..))
 import Daml.Finance.Data.Time.DateClock.Types (Unit(..))
 import Daml.Finance.Data.Time.DateClockUpdate qualified as DataTime (DateClockUpdateEvent(..))
+import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Instrument.Bond.FixedRate.Factory qualified as FixedRate (Factory(..))
+import Daml.Finance.Instrument.Token.Instrument (Instrument(..))
 import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
+import Daml.Finance.Settlement.Factory qualified as Settlement (Factory(..))
+import Daml.Finance.Settlement.RouteProvider.SingleCustodian (SingleCustodian(..))
 
-import Scripts.Settlement (SettlementState(..), runSettlement)
+import Workflow.CreateAccount qualified as CreateAccount
 import Workflow.CreditAccount qualified as CreditAccount
 
 -- | Test script that
@@ -42,22 +52,63 @@ import Workflow.CreditAccount qualified as CreditAccount
 runFixedRateBond : Script()
 runFixedRateBond = do
 
-  -- Execute the `runSettlement` script to set up roles, accounts and a cash instrument
-  SettlementState{alice
-    , bank
-    , bob
-    , public
-    , aliceAccount
-    , bobAccount
-    , usdInstrument
-    , tokenInstrument
-    , routeProviderCid
-    , settlementFactoryCid
-    , tokenFactoryCid
-    , aliceHoldingCid
-    , bobHoldingCid} <- runSettlement
+  -- Allocate parties
+  [bank, bob, public] <- mapA createParty ["Bank", "Bob", "Public"]
 
+  -- Account Factory (it is used by the bank to create accounts)
+  accountFactoryCid <- toInterfaceContractId @Account.F <$> submit bank do
+    createCmd Account.Factory with provider = bank; observers = M.empty
+
+  -- Holding Factory (it is used by the bank to create holdings with the desired implementation)
+  holdingFactoryCid <- toInterfaceContractId @Holding.F <$> submit bank do
+    createCmd Fungible.Factory with
+      provider = bank
+      observers = M.fromList [("PublicObserver", S.singleton public )]
+
+  -- Bob sets up account @Bank
+  bobRequestCid <- submit bob do createCmd CreateAccount.Request with owner = bob; custodian = bank
+  bobAccount <- submit bank do
+    exerciseCmd bobRequestCid CreateAccount.Accept with
+      label = "Bob@Bank"
+      description = "Account of Bob at Bank"
+      accountFactoryCid = accountFactoryCid
+      holdingFactoryCid = holdingFactoryCid
+      observers = []
+
+  -- Setup a route provider
+  -- This is used transform settlement `Step`s into a `RoutedStep`s using a single custodian
+  routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit bank do
+    createCmd SingleCustodian with
+      provider = bank; observers = S.fromList [bob]; custodian = bank
+
+  -- Setup a Settlement Factory facility
+  -- This is used to generate settlement instructions from a list of `RoutedStep`s
+  settlementFactoryCid <- toInterfaceContractId @Settlement.F <$> submit bank do
+    createCmd Settlement.Factory with
+      provider = bank
+      observers = S.fromList [bob]
+
+  -- Bank creates the cash instrument
+  let
+    instrumentId = Id "USD"
+    instrumentVersion = "0"
+    usdInstrument = InstrumentKey with
+      issuer = bank
+      depository = bank
+      id = instrumentId
+      version = instrumentVersion
   now <- getTime
+
+  cashInstrumentCid <- toInterfaceContractId @Instrument.I <$> submit bank do
+    createCmd Instrument with
+      depository = bank
+      issuer = bank
+      id = instrumentId
+      version = instrumentVersion
+      description = "Instrument representing units of USD"
+      validAsOf = now
+      observers = M.empty
+
   let pp = [("Public Party", S.singleton public)]
 
   -- Create and distribute bond
@@ -257,3 +308,11 @@ createClockUpdateEvent providers today observers = do
     createCmd DataTime.DateClockUpdateEvent with
       providers; id; description; date = today; observers; eventTime = toUTCTime date
   pure eventCid
+
+-- | Creates a user + party given a hint.
+createParty : Text -> Script Party
+createParty name = do
+  party <- allocatePartyWithHint name $ PartyIdHint name
+  userId <- validateUserId name
+  createUser (User userId (Some party)) [CanActAs party]
+  pure party
