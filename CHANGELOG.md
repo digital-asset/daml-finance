@@ -92,6 +92,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Data
 
+- Unecessary `Remove` choice (implementations) were removed.
+
 - Dependencies update
 
 - Style changes
@@ -103,6 +105,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Removed `key` from `DateClock`.
 
 ### Daml.Finance.Holding
+
+- Unecessary `Remove` choice (implementations) were removed.
 
 - Dependencies update
 
@@ -211,6 +215,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Interface.Data
 
+- Unecessary `Remove` choices were removed from factories.
+
 - Dependencies update
 
 - Style changes
@@ -220,6 +226,10 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `HasImplementation` type class)
 
 ### Daml.Finance.Interface.Holding
+
+- Unecessary `Remove` choices were removed from factories.
+
+- Removed unnecessary `ArchiveFungible` choice
 
 - Dependencies update
 
@@ -313,6 +323,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Interface.Lifecycle
 
+- Unecessary (as of SDK 2.6) `Remove` choices were removed from factories.
+
 - Dependencies update
 
 - Style changes
@@ -347,6 +359,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `HasImplementation` type class was removed)
 
 ### Daml.Finance.Lifecycle
+
+- Unecessary `Remove` choice (implementations) were removed.
 
 - Dependencies update
 
