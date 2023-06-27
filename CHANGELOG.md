@@ -79,6 +79,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Uses `ensure` to ensure that the set of outgoing controllers is non-empty.
 
+- Adds a check that locked holdings can't be debited.
+
 ### Daml.Finance.Claims
 
 - Dependencies update
@@ -122,6 +124,12 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Added the new owner as observer of the `Transfer` choice of the `Transferable` interface.
 
 - Fix for locking (don't allow an empty `lockers` set).
+
+- Prohibits the `Transfer`, `Split`, `Merge`, and `Debit` actions on holdings that are in a locked
+  state, requiring them to be unlocked first. Adjustments have been made in the corresponding
+  implementations to accommodate this change. Notably, the type signatures for `splitImpl` and
+  `mergeImpl` have been modified. For `transferImpl`, the re-entrant lock logic has been extracted
+  and is now supplied as an independent template in `Daml.Finance.Holding.Test.Transfer`.
 
 ### Daml.Finance.Instrument.Bond
 
@@ -246,6 +254,9 @@ This document tracks pending changes to packages. It is facilitating the write-u
   type class)
 
 - Fix to signature of `disclose` (removed the `actor` argument).
+
+- The `lockers` have been removed as controllers of the `Transfer`, `Split`, and `Merge` choices.
+  Any `Holding` in a locked state must first be unlocked before any modifications can be made to it.
 
 ### Daml.Finance.Interface.Instrument.Base
 

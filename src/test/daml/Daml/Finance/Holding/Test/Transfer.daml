@@ -3,19 +3,21 @@
 
 module Daml.Finance.Holding.Test.Transfer where
 
+import DA.Action (foldlA)
 import DA.Assert ((===))
 import DA.Map qualified as M (fromList)
-import DA.Set qualified as S (fromList, singleton)
+import DA.Set qualified as S (fromList, singleton, toList)
 import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
 import Daml.Finance.Holding.Test.Common (TestInitialState(..), TestParties(..), setupInitialState, setupParties)
-import Daml.Finance.Interface.Holding.Base qualified as Base (Acquire(..), GetView(..), I, LockType(..))
+import Daml.Finance.Interface.Holding.Base qualified as Base (Acquire(..), GetView(..), I, LockType(..), Release(..))
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
+import Daml.Finance.Interface.Types.Common.Types (AccountKey(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..))
 import Daml.Script
 
--- | Verify that transfer preserves holding locks.
-locksArePreserved : Script ()
-locksArePreserved = script do
+-- | Test transfer and preservation of locks.
+testTransfer : Bool -> Script ()
+testTransfer useReentrantLockTransferService = script do
   -- Create parties
   tp@TestParties{custodian; issuer; investor; locker; publicParty} <- setupParties
 
@@ -36,17 +38,104 @@ locksArePreserved = script do
     exerciseCmd baseCid Base.Acquire with
       newLockers = S.singleton locker; context = "C2"; lockType = Base.Reentrant
 
-  -- Transfer
-  newHoldingCid <- submitMulti [issuer, investor, locker] [publicParty] do
-    exerciseCmd (fromInterfaceContractId @Transferable.I baseCid) Transferable.Transfer with
-      actors = S.fromList [issuer, investor, locker]; newOwnerAccount = investorAccount
+  baseCid <- if useReentrantLockTransferService then
+    do
+      -- Create re-entrant lock transfer service
+      reentrantTransferUtilityCid <- submitMulti [custodian, issuer, investor, locker] [] do
+        createCmd ReentrantLockTransferService with
+          custodian
+          locker
+          observers = [issuer, investor]
+
+      -- Transfer with re-entrant locks
+      transferableCid <- submitMulti [issuer, investor, locker] [publicParty] do
+        exerciseCmd reentrantTransferUtilityCid TransferWithLocks with
+          sender = issuer
+          receiverAccount = investorAccount
+          transferableCid = coerceInterfaceContractId @Transferable.I baseCid
+
+      pure $ toInterfaceContractId @Base.I transferableCid
+  else
+   do
+      -- Transfer
+      submitMultiMustFail [issuer, investor, locker] [publicParty] do
+        exerciseCmd (coerceInterfaceContractId @Transferable.I baseCid) Transferable.Transfer with
+          actors = S.fromList [issuer, investor, locker]; newOwnerAccount = investorAccount
+
+      -- Unlock
+      baseCid <- submitMulti [locker] [] do
+        exerciseCmd (coerceInterfaceContractId @Base.I baseCid) Base.Release with
+          context = "C1"
+      baseCid <- submitMulti [locker] [] do
+        exerciseCmd (coerceInterfaceContractId @Base.I baseCid) Base.Release with
+          context = "C2"
+
+      -- Transfer
+      newHoldingCid <- submitMulti [issuer, investor] [publicParty] do
+        exerciseCmd (coerceInterfaceContractId @Transferable.I baseCid) Transferable.Transfer with
+          actors = S.fromList [issuer, investor]; newOwnerAccount = investorAccount
+
+      -- Lock asset (using same contexts)
+      baseCid <- submitMulti [investor, locker] [] do
+        exerciseCmd (coerceInterfaceContractId @Base.I newHoldingCid) Base.Acquire with
+          newLockers = S.singleton locker; context = "C1"; lockType = Base.Reentrant
+      submitMulti [investor, locker] [] do
+        exerciseCmd baseCid Base.Acquire with
+          newLockers = S.singleton locker; context = "C2"; lockType = Base.Reentrant
 
   -- Verify lock is maintained
   Some lock <- (.lock) <$> submit locker do
-    exerciseCmd (toInterfaceContractId @Base.I newHoldingCid)
-      Base.GetView with viewer = locker
+    exerciseCmd baseCid Base.GetView with viewer = locker
   lock.lockers === S.singleton locker
   lock.context === S.fromList ["C1", "C2"]
   lock.lockType === Base.Reentrant
 
   pure ()
+
+-- | Example template with re-entrant lock logic.
+template ReentrantLockTransferService
+  with
+    custodian : Party
+    locker : Party
+    observers : [Party]
+  where
+    signatory custodian, locker
+    observer observers
+
+    nonconsuming choice TransferWithLocks : ContractId Transferable.I
+      with
+        sender : Party
+        receiverAccount : AccountKey
+        transferableCid : ContractId Transferable.I
+      controller sender, receiverAccount.owner
+      do
+        let baseCid = toInterfaceContractId @Base.I transferableCid
+        vBase <- view <$> fetch baseCid
+        -- Release all locks
+        let
+          releaseAll cid lock =
+            foldlA (\acc context -> exercise acc Base.Release with context) cid
+              (S.toList lock.context)
+        baseCid <- toInterfaceContractId @Base.I <$>
+          optional (pure baseCid) (releaseAll baseCid) vBase.lock
+        -- Transfer
+        newBaseCid <- toInterfaceContractId @Base.I <$>
+          exercise (coerceInterfaceContractId @Transferable.I baseCid)
+            Transferable.Transfer with
+              actors = S.fromList [sender, receiverAccount.owner]; newOwnerAccount = receiverAccount
+        -- Reapply locks
+        let
+          reapplyLocks cid lock =
+            foldlA
+              (\acc context -> exercise acc Base.Acquire with
+                  newLockers = lock.lockers; context; lockType = lock.lockType
+              )
+              cid (S.toList lock.context)
+        coerceInterfaceContractId <$>
+          optional (pure newBaseCid) (reapplyLocks newBaseCid) vBase.lock
+
+test1 : Script()
+test1 = testTransfer True
+
+test2 : Script()
+test2 = testTransfer False
