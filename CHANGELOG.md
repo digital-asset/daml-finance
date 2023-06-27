@@ -333,7 +333,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Interface.Lifecycle
 
-- Unecessary `Remove` choices were removed from factories.
+- Unecessary (as of SDK 2.6) `Remove` choices were removed from factories.
 
 - Dependencies update
 
