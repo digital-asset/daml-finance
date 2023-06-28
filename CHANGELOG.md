@@ -125,6 +125,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Instrument.Bond
 
+- The factory create choices return the corresponding interface (instead of the base interface).
+
 - Dependencies update
 
 - Style changes
@@ -139,6 +141,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Instrument.Equity
 
+- The factory create choices return the corresponding interface (instead of the base interface).
+
 - Dependencies update
 
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
@@ -148,6 +152,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Rename `DeclareDividend` to `DeclareDistribution`
 
 ### Daml.Finance.Instrument.Generic
+
+- The factory create choices return the corresponding interface (instead of the base interface).
 
 - Dependencies update
 
@@ -162,6 +168,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - During lifeycling: create a new instrument also in case of a Zero claim (breaking change).
 
 ### Daml.Finance.Instrument.Option
+
+- The factory create choices return the corresponding interface (instead of the base interface).
 
 - Dependencies update
 
@@ -181,9 +189,13 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Instrument.StructuredProduct
 
+- The factory create choices return the corresponding interface (instead of the base interface).
+
 - Add Barrier Reverse Convertible instrument
 
 ### Daml.Finance.Instrument.Swap
+
+- The factory create choices return the corresponding interface (instead of the base interface).
 
 - Dependencies update
 
@@ -196,6 +208,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Refactor using `ObserveAt`
 
 ### Daml.Finance.Instrument.Token
+
+- The factory create choices return the corresponding interface (instead of the base interface).
 
 - Dependencies update
 
@@ -260,6 +274,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Interface.Instrument.Bond
 
+- The factory create choices return the corresponding interface (instead of the base interface).
+
 - Dependencies update
 
 - Added `GetView` to all instruments
@@ -274,6 +290,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Interface.Instrument.Equity
 
+- The factory create choices return the corresponding interface (instead of the base interface).
+
 - Dependencies update
 
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
@@ -282,6 +300,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Rename `DeclareDividend` to `DeclareDistribution`
 
 ### Daml.Finance.Interface.Instrument.Generic
+
+- The factory create choices return the corresponding interface (instead of the base interface).
 
 - Dependencies update
 
@@ -292,6 +312,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `HasImplementation` type class)
 
 ### Daml.Finance.Interface.Instrument.Option
+
+- The factory create choices return the corresponding interface (instead of the base interface).
 
 - Dependencies update
 
@@ -311,9 +333,13 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Interface.Instrument.StructuredProduct
 
+- The factory create choices return the corresponding interface (instead of the base interface).
+
 - Add Barrier Reverse Convertible instrument
 
 ### Daml.Finance.Interface.Instrument.Swap
+
+- The factory create choices return the corresponding interface (instead of the base interface).
 
 - Dependencies update
 
@@ -325,6 +351,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `asBaseInstrument` methods were removed as well as the redundant `HasImplementation` type class)
 
 ### Daml.Finance.Interface.Instrument.Token
+
+- The factory create choices return the corresponding interface (instead of the base interface).
 
 - Dependencies update
 
