@@ -5,15 +5,16 @@ module Daml.Finance.Holding.Util where
 
 import DA.Action (foldlA)
 import DA.Foldable qualified as F (all)
-import DA.Optional (isSome)
-import DA.Set qualified as S (delete, fromList, insert, isSubsetOf, notMember, null, singleton, toList)
+import DA.Optional (isNone)
+import DA.Set qualified as S (fromList, isSubsetOf)
 import DA.Traversable qualified as T (forA)
 import Daml.Finance.Interface.Account.Account qualified as Account (Credit(..), Debit(..), I, R, exerciseInterfaceByKey)
 import Daml.Finance.Interface.Account.Util (fetchAccount)
-import Daml.Finance.Interface.Holding.Base qualified as Base (Acquire(..), I, Lock(..), LockType(..), Release(..), getLockers)
+import Daml.Finance.Interface.Holding.Base qualified as Base (I)
 import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (I, Merge(..), Split(..), SplitResult(..))
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
 import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey, qty, verify)
+import Daml.Finance.Interface.Util.Lockable qualified as Lockable (I)
 
 -- | Default implementation of `transfer` for the `Transferable` interface.
 transferImpl : Transferable.I -> ContractId Transferable.I -> Transferable.Transfer
@@ -25,22 +26,16 @@ transferImpl this self Transferable.Transfer{actors; newOwnerAccount} = do
   account <- fetchAccount base
   let
     vBase = view base
+    vLockable = view $ toInterface @Lockable.I this
     vAccount = view account
-    lockers = Base.getLockers base
+  assertMsg "Holding must not be locked" $ isNone vLockable.lock
   vNewAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I newOwnerAccount
   -- Verify
   assertMsg "Actors must contain all transfer outgoing of the sender account"
     $ vAccount.controllers.outgoing `S.isSubsetOf` actors
   assertMsg "Actors must contain all transfer incoming of the receiving account"
     $ vNewAccount.controllers.incoming `S.isSubsetOf` actors
-  assertMsg "Actors must contain all lockers" $ lockers `S.isSubsetOf` actors
   assertMsg "Custodians must be the same" $ vBase.account.custodian == vAccount.custodian
-  -- Release all locks
-  let
-    releaseAll cid lock =
-      foldlA (\acc context -> exercise acc Base.Release with context) cid (S.toList lock.context)
-  baseCid <- toInterfaceContractId @Base.I <$>
-    optional (pure baseCid) (releaseAll baseCid) vBase.lock
   -- Debit
   Account.exerciseInterfaceByKey @Account.I vBase.account vBase.account.custodian
     Account.Debit with holdingCid = baseCid
@@ -51,66 +46,22 @@ transferImpl this self Transferable.Transfer{actors; newOwnerAccount} = do
   newBase <- fetch newBaseCid
   assertMsg "credited and debited holding types must match" $
     interfaceTypeRep newBase == interfaceTypeRep base
-  -- Reapply locks
-  let
-    reapplyLocks cid lock = foldlA (\acc context -> exercise acc Base.Acquire with
-      newLockers = lock.lockers; context; lockType = lock.lockType) cid (S.toList lock.context)
-  fromInterfaceContractId <$> optional (pure newBaseCid) (reapplyLocks newBaseCid) vBase.lock
-
--- | Default implementation of `acquire` from the `Base` interface.
-acquireImpl :
-  ( HasCreate t
-  , HasSignatory t
-  , HasFromInterface t Base.I
-  , HasToInterface t Base.I
-  ) => Optional Base.Lock -> (Optional Base.Lock -> t) -> Base.Acquire -> Update (ContractId Base.I)
-acquireImpl currentLock setLock Base.Acquire{newLockers; context; lockType} = do
-  assertMsg "New lockers must be non-empty" (not $ S.null newLockers)
-  newHolding <- setLock . Some <$> case currentLock of
-    None -> pure Base.Lock with lockers = newLockers; context = S.singleton context; lockType
-    Some existingLock -> do
-      case lockType of
-        Base.Reentrant -> do
-          assertMsg "New lockers must match the existing lockers"
-            $ existingLock.lockers == newLockers
-          assertMsg "New lock type must match the existing lock type"
-            $ existingLock.lockType == lockType
-          assertMsg "Contract must not be already locked for the provided context"
-            $ S.notMember context existingLock.context
-          pure existingLock with
-            context = context `S.insert` existingLock.context
-        Base.Semaphore ->
-          abort "A Semaphore lock can not be locked multiple times."
-  assertMsg "New lockers must be signatories of the new holding"
-    $ newLockers `S.isSubsetOf` S.fromList (signatory newHolding)
-  toInterfaceContractId <$> create newHolding
-
--- | Default implementation of `release` from the `Base` interface.
-releaseImpl :
-  ( HasCreate t
-  , HasFromInterface t Base.I
-  , HasToInterface t Base.I
-  ) => Optional Base.Lock -> (Optional Base.Lock -> t) -> Base.Release -> Update (ContractId Base.I)
-releaseImpl currentLock setLock Base.Release{context} = do
-  assertMsg "Must be locked" $ isSome currentLock
-  let
-    release lock = do
-      let newContext = context `S.delete` lock.context
-      case (lock.lockType, S.null newContext) of
-        (Base.Reentrant, False) -> Some lock with context = newContext
-        _ -> None
-    releasedLock = currentLock >>= release
-  fmap toInterfaceContractId . create . setLock $ releasedLock
+  pure $ fromInterfaceContractId newBaseCid
 
 -- | Default implementation of `split` from the `Fungible` interface.
 splitImpl :
   ( HasCreate t
   , HasToInterface t Fungible.I
-  ) => Decimal -> (Decimal -> t) -> Fungible.Split -> Update Fungible.SplitResult
-splitImpl currentAmount setAmount Fungible.Split{amounts} = do
+  ) => Fungible.I -> (Decimal -> t) -> Fungible.Split -> Update Fungible.SplitResult
+splitImpl this setAmount Fungible.Split{amounts} = do
+  let
+    base = toInterface @Base.I this
+    vBase = view base
+    vLockable = view $ toInterface @Lockable.I this
+  assertMsg "Holding must not be locked" $ isNone vLockable.lock
   let spawn = fmap toInterfaceContractId . create . setAmount
   splitCids <- forA amounts spawn
-  restAmount <- getRestAmount amounts currentAmount
+  restAmount <- getRestAmount amounts vBase.amount
   rest <- T.forA restAmount spawn
   pure Fungible.SplitResult with splitCids; rest
 
@@ -123,25 +74,34 @@ mergeImpl :
   , HasFromInterface t Fungible.I
   , HasToInterface t Fungible.I
   )
-  => Decimal
+  => Fungible.I
   -> (t -> Decimal)
   -> (Decimal -> t)
   -> Fungible.Merge
   -> Update (ContractId Fungible.I)
-mergeImpl currentAmount getAmount setAmount Fungible.Merge{fungibleCids} = do
+mergeImpl this getAmount setAmount Fungible.Merge{fungibleCids} = do
+  let
+    base = toInterface @Base.I this
+    vBase = view base
+    vLockable = view $ toInterface @Lockable.I this
+  assertMsg "Holding must not be locked" $ isNone vLockable.lock
   assertMsg "List of fungibles must be non-empty" . not . null $ fungibleCids
   let
-    currentSignatories = S.fromList . signatory . setAmount $ currentAmount
-    current = view . toInterface @Base.I . toInterface @Fungible.I . setAmount $ currentAmount
+    currentSignatories = S.fromList . signatory . setAmount $ vBase.amount
+    current = view . toInterface @Base.I . toInterface @Fungible.I . setAmount $ vBase.amount
     aggregate aggregatedAmount fungibleCid = do
       Some (otherHoldingCid, otherHolding) <- fetchFromInterface @t fungibleCid
-      let other = view . toInterface @Base.I . toInterface @Fungible.I $ otherHolding
+      let
+        otherBase = toInterface @Base.I . toInterface @Fungible.I $ otherHolding
+        other = view otherBase
+        otherLock = view $ toInterface @Lockable.I otherBase
       assertMsg "Instrument must match" $ other.instrument == current.instrument
       assertMsg "Account must match" $ other.account == current.account
       assertMsg "Signatories must match" $ S.fromList (signatory otherHolding) == currentSignatories
+      assertMsg "Other holding must not be locked" $ isNone otherLock.lock
       archive otherHoldingCid
       pure $ aggregatedAmount + getAmount otherHolding
-  tot <- foldlA aggregate currentAmount fungibleCids
+  tot <- foldlA aggregate vBase.amount fungibleCids
   fmap toInterfaceContractId . create . setAmount $ tot
 
 -- | HIDE

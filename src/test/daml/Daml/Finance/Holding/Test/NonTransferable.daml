@@ -10,9 +10,10 @@ import Daml.Finance.Account.Account qualified as Account (T)
 import Daml.Finance.Holding.NonTransferable qualified as NonTransferable (Factory(..))
 import Daml.Finance.Holding.Test.Common (TestInitialState(..), TestParties(..), setupInitialState, setupParties)
 import Daml.Finance.Interface.Account.Account qualified as Account (Debit(..), I)
-import Daml.Finance.Interface.Holding.Base qualified as Base (Acquire(..), I, LockType(..), Release(..))
+import Daml.Finance.Interface.Holding.Base qualified as Base (I)
 import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (I, Split(..))
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
+import Daml.Finance.Interface.Util.Lockable qualified as Lockable (Acquire(..), I, LockType(..), Release(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), submitExerciseInterfaceByKeyCmd, submitMustFailExerciseInterfaceByKeyCmd)
 import Daml.Script
 
@@ -41,65 +42,66 @@ run = script do
 
   -- Cannot lock with empty lockers
   submitMustFail issuer do
-    exerciseCmd (fromInterfaceContractId @Base.I issuerHoldingCid)
-      Base.Acquire with
-        newLockers = S.empty; context = "Test Lock"; lockType = Base.Semaphore
+    exerciseCmd (toInterfaceContractId @Lockable.I issuerHoldingCid)
+      Lockable.Acquire with
+        newLockers = S.empty; context = "Test Lock"; lockType = Lockable.Semaphore
 
   -- Lock asset with a one time lock
-  baseCid <- submitMulti [issuer, locker] [] do
-    exerciseCmd (fromInterfaceContractId @Base.I issuerHoldingCid)
-      Base.Acquire with
-        newLockers = S.singleton locker; context = "Test Lock"; lockType = Base.Semaphore
+  lockableCid <- submitMulti [issuer, locker] [] do
+    exerciseCmd (toInterfaceContractId @Lockable.I issuerHoldingCid)
+      Lockable.Acquire with
+        newLockers = S.singleton locker; context = "Test Lock"; lockType = Lockable.Semaphore
 
   -- Same Locker attempts locks asset again
   submitMultiMustFail [issuer, locker] [] do
-    exerciseCmd baseCid Base.Acquire with
-      newLockers = S.singleton locker; context = "Second attempt"; lockType = Base.Semaphore
+    exerciseCmd lockableCid Lockable.Acquire with
+      newLockers = S.singleton locker; context = "Second attempt"; lockType =Lockable.Semaphore
 
   -- Another locker attempts to lock this asset
   submitMultiMustFail [issuer, locker2] [] do
-    exerciseCmd baseCid Base.Acquire with
-      newLockers = S.singleton locker2; context = "Steal lock"; lockType = Base.Semaphore
+    exerciseCmd lockableCid Lockable.Acquire with
+      newLockers = S.singleton locker2; context = "Steal lock"; lockType =Lockable.Semaphore
 
   -- Cannot debit
   Account.submitMustFailExerciseInterfaceByKeyCmd @Account.I [custodian, issuer] [] issuerAccount $
-    Account.Debit with holdingCid = toInterfaceContractId baseCid
+    Account.Debit with holdingCid = fromInterfaceContractId @Base.I lockableCid
 
   -- Unlock asset
-  baseCid <- submit locker do exerciseCmd baseCid Base.Release with context = "Test Lock"
+  lockableCid <- submit locker do
+    exerciseCmd lockableCid Lockable.Release with context = "Test Lock"
 
   -- Lock asset with a reentrant lock
-  baseCid <- submitMulti [issuer, locker] [] do
-    exerciseCmd baseCid Base.Acquire with
-      newLockers = S.singleton locker; context = "Lock 1"; lockType = Base.Reentrant
+  lockableCid <- submitMulti [issuer, locker] [] do
+    exerciseCmd lockableCid Lockable.Acquire with
+      newLockers = S.singleton locker; context = "Lock 1"; lockType = Lockable.Reentrant
 
   -- Same Locker locks asset again for the same context
   submitMultiMustFail [issuer, locker] [] do
-    exerciseCmd baseCid Base.Acquire with
-      newLockers = S.singleton locker; context = "Lock 1"; lockType = Base.Reentrant
+    exerciseCmd lockableCid Lockable.Acquire with
+      newLockers = S.singleton locker; context = "Lock 1"; lockType = Lockable.Reentrant
 
   -- Lock asset with a reentrant lock for another context
-  baseCid <- submitMulti [issuer, locker] [] do
-    exerciseCmd baseCid Base.Acquire with
-      newLockers = S.singleton locker; context = "Lock 2"; lockType = Base.Reentrant
+  lockableCid <- submitMulti [issuer, locker] [] do
+    exerciseCmd lockableCid Lockable.Acquire with
+      newLockers = S.singleton locker; context = "Lock 2"; lockType = Lockable.Reentrant
 
   -- Another locker attempts to lock this asset
   submitMultiMustFail [issuer, locker2] [] do
-    exerciseCmd baseCid Base.Acquire with
-       newLockers = S.singleton locker2; context = "Steal lock"; lockType = Base.Semaphore
+    exerciseCmd lockableCid Lockable.Acquire with
+       newLockers = S.singleton locker2; context = "Steal lock"; lockType = Lockable.Semaphore
   submitMultiMustFail [issuer, locker2] [] do
-    exerciseCmd baseCid Base.Acquire with
-      newLockers = S.singleton locker2; context = "Steal lock"; lockType = Base.Reentrant
+    exerciseCmd lockableCid Lockable.Acquire with
+      newLockers = S.singleton locker2; context = "Steal lock"; lockType = Lockable.Reentrant
 
   -- Unlock one lock
-  baseCid <- submit locker do exerciseCmd baseCid Base.Release with context = "Lock 2"
+  lockableCid <- submit locker do exerciseCmd lockableCid Lockable.Release with context = "Lock 2"
 
   -- Debit fails as the asset is still locked
   Account.submitMustFailExerciseInterfaceByKeyCmd @Account.I [custodian, issuer] [] issuerAccount $
-    Account.Debit with holdingCid = toInterfaceContractId baseCid
+    Account.Debit with holdingCid = fromInterfaceContractId @Base.I lockableCid
 
   -- Unlock the final lock
-  holdingCid <- submit locker do exerciseCmd baseCid Base.Release with context = "Lock 1"
+  lockableCid <- submit locker do exerciseCmd lockableCid Lockable.Release with context = "Lock 1"
 
   -- Make sure the issuer account has no observers
   [(accountCid, account)] <- query @Account.T issuer
@@ -107,6 +109,6 @@ run = script do
 
   -- Debit asset
   Account.submitExerciseInterfaceByKeyCmd @Account.I [custodian, issuer] [] issuerAccount $
-    Account.Debit with holdingCid
+    Account.Debit with holdingCid = fromInterfaceContractId @Base.I lockableCid
 
   pure ()

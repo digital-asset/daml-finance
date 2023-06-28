@@ -7,7 +7,7 @@ import DA.List qualified as L (head)
 import DA.Set qualified as S (empty, fromList, intersection, isSubsetOf, null, singleton, toList, union)
 import Daml.Finance.Interface.Account.Account qualified as Account (Credit(..), Debit(..), I, R, disclose, exerciseInterfaceByKey, undisclose)
 import Daml.Finance.Interface.Account.Util (getAccount)
-import Daml.Finance.Interface.Holding.Base qualified as Base (Acquire(..), I, LockType(..), Release(..))
+import Daml.Finance.Interface.Holding.Base qualified as Base (I)
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
 import Daml.Finance.Interface.Holding.Util qualified as Holding (disclose, getAmount, getInstrument, undisclose)
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..), Cancel(..), Execute(..), I, View(..))
@@ -15,6 +15,7 @@ import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), In
 import Daml.Finance.Interface.Types.Common.Types (AccountKey, Id(..), Parties, PartiesMap)
 import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Interface.Util.Lockable qualified as Lockable (Acquire(..), I, LockType(..), Release(..))
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
 
 -- | Type synonym for `Instruction`.
@@ -80,8 +81,9 @@ template Instruction
         -- signed senders must agree to release previous allocation
         allMustAuthorize signedSenders
         case allocation of
-          Pledge lockedCid -> do
-            baseCid <- exercise lockedCid Base.Release with context
+          Pledge baseCid -> do
+            baseCid <- fromInterfaceContractId @Base.I <$>
+              exercise (toInterfaceContractId @Lockable.I baseCid) Lockable.Release with context
             base <- fetch baseCid
             let senderAccountKey = getAccount base
             undiscloseAccount senderAccountKey actors
@@ -132,11 +134,13 @@ template Instruction
               Holding.getAmount base == routedStep.quantity.amount
             assertMsg ("Pledged instrument must match. " <> context) $
               Holding.getInstrument base == routedStep.quantity.unit
-            lockedCid <- exercise baseCid Base.Acquire with
-              newLockers = requestors <> senderAccount.controllers.outgoing
-              context
-              lockType = Base.Semaphore
-            pure $ Pledge lockedCid
+            baseCid <- fromInterfaceContractId @Base.I <$>
+              exercise (toInterfaceContractId @Lockable.I baseCid)
+                Lockable.Acquire with
+                  newLockers = requestors <> senderAccount.controllers.outgoing
+                  context
+                  lockType = Lockable.Semaphore
+            pure $ Pledge baseCid
           PassThroughFrom (passThroughAccountKey, fromInstructionKey) -> do
             discloseAccount passThroughAccountKey actors
             passThroughAccount <- view <$>
@@ -218,8 +222,9 @@ template Instruction
           (PassThroughFrom _, _) -> do
             -- Pass-throughs are consumed by the routedStep (*) below
             abort $ "Holding has not been passed through. " <> context
-          (Pledge lockedCid, a) -> do
-            baseCid <- exercise lockedCid Base.Release with context
+          (Pledge baseCid, a) -> do
+            baseCid <- fromInterfaceContractId @Base.I <$>
+              exercise (toInterfaceContractId @Lockable.I baseCid) Lockable.Release with context
             base <- fetch baseCid
             let senderAccountKey = getAccount base
             case a of
