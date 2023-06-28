@@ -72,12 +72,17 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Account
 
+- Let the `Account` implement the `Lockable` interface with `custodian` as required authorizer (for
+  exercising the `Acquire` choice).
+
 - Dependencies update
 
 - Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`
   implementation was removed as well as redundant `HasImplementation` instances)
 
 - Uses `ensure` to ensure that the set of outgoing controllers is non-empty.
+
+- Adds a check that locked holdings can't be debited.
 
 ### Daml.Finance.Claims
 
@@ -110,6 +115,10 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Unecessary `Remove` choice (implementations) were removed.
 
+- As the locking logic from the `Holding.Base` interface was factored out to a separate interface
+  called `Lockable` of the `Daml.Finance.Interface.Util` package, the `acquireImpl` and
+  `releaseImpl` moved to the `Lockable` module in the `Daml.Finance.Util` implementation package.
+
 - Dependencies update
 
 - Added default `splitImpl` and `mergeImpl` for `Fungible` to `Util.daml` (also generalized the
@@ -122,6 +131,12 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Added the new owner as observer of the `Transfer` choice of the `Transferable` interface.
 
 - Fix for locking (don't allow an empty `lockers` set).
+
+- Prohibits the `Transfer`, `Split`, `Merge`, and `Debit` actions on holdings that are in a locked
+  state, requiring them to be unlocked first. Adjustments have been made in the corresponding
+  implementations to accommodate this change. Notably, the type signatures for `splitImpl` and
+  `mergeImpl` have been modified. For `transferImpl`, the re-entrant lock logic has been extracted
+  and is now supplied as an independent template in `Daml.Finance.Holding.Test.Transfer`.
 
 ### Daml.Finance.Instrument.Bond
 
@@ -205,6 +220,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Interface.Account
 
+- Let the `Account` require the `Lockable` interface, effectively allowing to freeze an account.
+
 - Dependencies update
 
 - Removed `type K = AccountKey`
@@ -237,6 +254,9 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Removed unnecessary `ArchiveFungible` choice
 
+- Factored out the locking logic from the `Holding.Base` interface to a separate interface called
+  `Lockable` of the `Daml.Finance.Interface.Util` package.
+
 - Dependencies update
 
 - Style changes
@@ -246,6 +266,9 @@ This document tracks pending changes to packages. It is facilitating the write-u
   type class)
 
 - Fix to signature of `disclose` (removed the `actor` argument).
+
+- The `lockers` have been removed as controllers of the `Transfer`, `Split`, and `Merge` choices.
+  Any `Holding` in a locked state must first be unlocked before any modifications can be made to it.
 
 ### Daml.Finance.Interface.Instrument.Base
 
@@ -363,6 +386,9 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Interface.Util
 
+- Added a `Lockable` module containing with the interface for locking (the `Acquire` and `Release`
+  choices used to be part of the `Holding.Base` interface).
+
 - Dependencies update
 
 - Makes use of `requires` to enforce the interface hierarchy (in particular the redundant
@@ -411,6 +437,9 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Removed the `key` from the `Batch` implementation.
 
 ### Daml.Finance.Util
+
+- Added a `Lockable` module containing the `aquireImpl` and `releaseImpl` locking utitlity
+  functions.
 
 - Dependencies update
 

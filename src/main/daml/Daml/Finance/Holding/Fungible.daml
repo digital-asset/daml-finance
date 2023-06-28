@@ -3,17 +3,17 @@
 
 module Daml.Finance.Holding.Fungible where
 
-import DA.Optional (isSome)
-import DA.Set qualified as S (fromList, null, singleton)
-import Daml.Finance.Holding.Util (acquireImpl, mergeImpl, releaseImpl, splitImpl, transferImpl)
-import Daml.Finance.Interface.Holding.Base (getLockers)
-import Daml.Finance.Interface.Holding.Base qualified as Base (I, Lock(..), View(..))
+import DA.Set (fromList, singleton)
+import Daml.Finance.Holding.Util (mergeImpl, splitImpl, transferImpl)
+import Daml.Finance.Interface.Holding.Base qualified as Base (I, View(..))
 import Daml.Finance.Interface.Holding.Factory qualified as HoldingFactory (Create(..), F, View(..))
 import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (I, View(..))
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, View(..))
 import Daml.Finance.Interface.Types.Common.Types (AccountKey(..), InstrumentKey(..), PartiesMap)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Interface.Util.Lockable qualified as Lockable (I, Lock(..), View(..), getLockers)
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+import Daml.Finance.Util.Lockable (acquireImpl, isValidLock, releaseImpl)
 
 -- | Type synonym for `Factory`.
 type F = Factory
@@ -32,36 +32,39 @@ template Fungible
       -- ^ The account at which the holding is held. Defines the holding's owner and custodian.
     amount : Decimal
       -- ^ Number of units.
-    lock : Optional Base.Lock
-      -- ^ An optional lock of a holding.
+    lock : Optional Lockable.Lock
+      -- ^ An optional lock for the holding.
     observers : PartiesMap
       -- ^ Observers.
   where
-    signatory account.custodian, account.owner, getLockers this
+    signatory account.custodian, account.owner, Lockable.getLockers this
     observer Disclosure.flattenObservers observers
 
-    ensure amount > 0.0 && not (isSome lock && S.null (getLockers this))
+    ensure amount > 0.0 && isValidLock lock
 
     interface instance Disclosure.I for Fungible where
       view = Disclosure.View with
-        disclosureControllers = S.fromList [account.owner, account.custodian]; observers
+        disclosureControllers = fromList [account.owner, account.custodian]; observers
       setObservers = setObserversImpl @_ @Disclosure.I this None
       addObservers = addObserversImpl @_ @Disclosure.I this None
       removeObservers = removeObserversImpl @_ @Disclosure.I this None
 
-    interface instance Base.I for Fungible where
-      view = Base.View with instrument; account; amount; lock
+    interface instance Lockable.I for Fungible where
+      view = Lockable.View with lock; controllers = singleton account.owner
       acquire = acquireImpl this.lock (\lock -> this with lock)
       release = releaseImpl this.lock (\lock -> this with lock)
+
+    interface instance Base.I for Fungible where
+      view = Base.View with instrument; account; amount
 
     interface instance Transferable.I for Fungible where
       view = Transferable.View {}
       transfer = transferImpl $ toInterface this
 
     interface instance Fungible.I for Fungible where
-      view = Fungible.View with modifiers = S.singleton account.owner
-      split = splitImpl amount (\amount -> this with amount)
-      merge = mergeImpl amount (.amount) (\amount -> this with amount)
+      view = Fungible.View with modifiers = singleton account.owner
+      split = splitImpl (toInterface @Fungible.I this) (\amount -> this with amount)
+      merge = mergeImpl (toInterface @Fungible.I this) (.amount) (\amount -> this with amount)
 
 -- | Implementation of the corresponding Holding Factory.
 template Factory
@@ -83,7 +86,7 @@ template Factory
             create Fungible with instrument; account; amount; observers; lock = None
 
     interface instance Disclosure.I for Factory where
-      view = Disclosure.View with disclosureControllers = S.singleton provider; observers
+      view = Disclosure.View with disclosureControllers = singleton provider; observers
       setObservers = setObserversImpl @Factory @Disclosure.I this None
       addObservers = addObserversImpl @Factory @Disclosure.I this None
       removeObservers = removeObserversImpl @Factory @Disclosure.I this None
