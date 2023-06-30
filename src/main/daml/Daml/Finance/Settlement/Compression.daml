@@ -1,0 +1,64 @@
+-- Copyright (c) 2023 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Interface.Settlement.Compression (compress) where
+
+import Daml.Finance.Interface.Settlement.Types (RoutedStep(..))
+
+-- Compress RoutedSteps by bypassing intermediaries.
+-- It only handled cycles such as A -> B, B -> A but does not handle
+-- cycles such as A -> B, B -> C, C -> A. The latter case can be handled
+-- by doing multiple passes of this function.
+compress : [RoutedStep] -> [RoutedStep]
+compress = compressRec []
+
+-- | HIDE
+-- Recursive utility for RoutedStep compression.
+-- The first argument is the list of steps for which we know that
+-- the receiver is not an intermediary.
+-- The second argument is the list of all other steps.
+-- At each stage, we
+-- - take the first element of the second list and consider the receiving party
+-- - look for steps where this party is an intermediary
+-- - if found, apply the bypass
+compressRec : [RoutedStep] -> [RoutedStep] -> [RoutedStep]
+compressRec visited [] = visited
+compressRec visited (target :: rest) =
+  let
+    (newtarget, newVisited) = foldr folder (target, []) visited
+    (newertarget, newRest)  = foldr folder (newtarget, []) rest
+    newerVisited = if (newertarget.quantity.amount == 0.0)
+      then newVisited
+      else newertarget :: newVisited
+  in
+    compressRec newerVisited newRest
+  where
+    folder elem (acc, rest) = (rest <>) <$> replace acc elem
+
+-- | HIDE
+-- Given two routed steps, check if they are adjacent.
+-- If they are adjacent, try to bypass the intermediary.
+-- Examples:
+-- A -- 10 --> B, C -- 10 --> D is left unchanged
+-- A -- 10 --> B, B -- 20 --> C is modified to A -- 0 --> B, B -- 10 --> C, A -- 10 --> C
+-- A -- 20 --> B, B -- 10 --> C is modified to A -- 10 --> B, A -- 10 --> C
+replace : RoutedStep -> RoutedStep -> (RoutedStep, [RoutedStep])
+replace s1 s2 | s1.receiver /= s2.sender
+              || s1.custodian /= s2.custodian
+              || s1.quantity.unit /= s2.quantity.unit
+              = (s1, [s2])
+replace s1 s2 =
+  let
+    mergedStep =
+      if (s1.sender == s2.receiver) then [] else [s2 with sender = s1.sender; quantity = q2]
+    leftoverStep =
+      if (q3.amount == 0.0) then [] else [s2 with quantity = q3]
+  in
+    ((s1 with quantity = q1), mergedStep <> leftoverStep)
+  where
+    a1 = s1.quantity.amount
+    a2 = s2.quantity.amount
+    q1 = s1.quantity with amount = a1 - min a1 a2 -- unconsumed amount from first step
+    q2 = s2.quantity with amount = min a1 a2      -- amount for which we bypass the intermediary
+    q3 = s2.quantity with amount = a2 - min a1 a2 -- amount for which we cannot bypass the intermediary
+
