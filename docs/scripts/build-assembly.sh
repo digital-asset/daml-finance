@@ -22,9 +22,9 @@ cp -r ${root_dir}/src ${docs_dir}/.assembly
 mkdir ${docs_dir}/.assembly/quickstart-finance
 cp -r ${docs_dir}/code-samples/getting-started/* ${docs_dir}/.assembly/quickstart-finance
 
-# Copy finance-instruments code into the assembly
-mkdir ${docs_dir}/.assembly/finance-instruments
-cp -r ${docs_dir}/code-samples/instruments/* ${docs_dir}/.assembly/finance-instruments
+# Copy finance-lifecycle code into the assembly
+mkdir ${docs_dir}/.assembly/finance-lifecycle
+cp -r ${docs_dir}/code-samples/lifecycle/* ${docs_dir}/.assembly/finance-lifecycle
 
 # Copy doc build output into assembly file structure
 mkdir -p ${docs_dir}/.assembly/reference/code-documentation
