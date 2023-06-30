@@ -19,7 +19,7 @@ import Daml.Finance.Interface.Settlement.Factory qualified as Settlement (F)
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
 import Daml.Finance.Interface.Settlement.RouteProvider qualified as RouteProvider (I)
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
-import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey(..), Parties)
+import Daml.Finance.Interface.Types.Common.Types (AccountKey, Id(..), InstrumentKey(..), Parties)
 import Daml.Finance.Interface.Types.Date.Calendar (BusinessDayAdjustment(..), BusinessDayConventionEnum(..), HolidayCalendarData(..))
 import Daml.Finance.Interface.Types.Date.Classes (HasUTCTimeConversion(..))
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum(..))
@@ -42,6 +42,21 @@ import Daml.Finance.Settlement.RouteProvider.SingleCustodian (SingleCustodian(..
 import Workflow.CreateAccount qualified as CreateAccount
 import Workflow.CreditAccount qualified as CreditAccount
 
+-- | Helper container used to transfer state from one script to another.
+data FixedRateState = FixedRateState
+  with
+    bank : Party
+    bob : Party
+    public : Party
+    bobAccount : AccountKey
+    periodicSchedule : PeriodicSchedule
+    usdInstrument : InstrumentKey
+    holidayCalendarIds : [Text]
+    lifecycleRuleCid : ContractId Lifecycle.I
+    lifecycleClaimRuleCid : ContractId Claim.I
+    firstCouponClockEventCid : ContractId Event.I
+  deriving (Eq, Show)
+
 -- | Test script that
 -- 1. creates a fixed rate bond instrument and a holding on it
 -- 2. creates a lifecycle rule
@@ -49,7 +64,7 @@ import Workflow.CreditAccount qualified as CreditAccount
 -- 4. lifecycles the time event
 -- 5. processes the lifecycle effect
 -- 6. settles the distribution
-runFixedRateBond : Script()
+runFixedRateBond : Script FixedRateState
 runFixedRateBond = do
 
   -- Allocate parties
@@ -221,14 +236,14 @@ runFixedRateBond = do
 
   -- CREATE_CLOCK_UPDATE_EVENT_BEGIN
   -- Create a clock update event
-  clockEventCid <- createClockUpdateEvent (S.singleton bank) firstCouponDate S.empty
+  firstCouponClockEventCid <- createClockUpdateEvent (S.singleton bank) firstCouponDate S.empty
   -- CREATE_CLOCK_UPDATE_EVENT_END
 
   -- LIFECYCLE_BOND_BEGIN
   -- Try to lifecycle the instrument
   (lifecycleCid, [effectCid]) <- submit bank do
     exerciseCmd lifecycleRuleCid Lifecycle.Evolve with
-      eventCid = clockEventCid
+      eventCid = firstCouponClockEventCid
       observableCids = []
       instrument = bondInstrument
   -- LIFECYCLE_BOND_END
@@ -294,7 +309,17 @@ runFixedRateBond = do
     exerciseCmd result.batchCid Batch.Settle with actors = S.singleton bob
   -- EFFECT_SETTLEMENT_END
 
-  pure ()
+  pure FixedRateState with
+    bank
+    bob
+    public
+    bobAccount
+    periodicSchedule
+    usdInstrument
+    holidayCalendarIds
+    lifecycleRuleCid
+    lifecycleClaimRuleCid
+    firstCouponClockEventCid
 
 -- | Given a `Date`, it creates a `DateClockUpdateEvent`.
 createClockUpdateEvent : Parties -> Date -> Parties
