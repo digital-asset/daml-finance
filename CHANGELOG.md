@@ -384,6 +384,9 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Interface.Lifecycle
 
+- Changed the `Calculate` choice of the `Effect.I` to take a quantity as argument instead of a
+  `ContractId Holding` (in order to not leak information about the holding to the effect provider).
+
 - Unecessary (as of SDK 2.6) `Remove` choices were removed from factories.
 
 - Dependencies update
@@ -414,7 +417,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Interface.Util
 
-- Added a `Lockable` module containing with the interface for locking (the `Acquire` and `Release`
+- Added a `Lockable` module containing the interface for locking (the `Acquire` and `Release`
   choices used to be part of the `Holding.Base` interface).
 
 - Dependencies update
@@ -423,6 +426,10 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `HasImplementation` type class was removed)
 
 ### Daml.Finance.Lifecycle
+
+- The `Calculate` choice of the `Effect` and `ElectionEffect` now takes a quantity as argument
+  to reflect the change in the `Effect.I` interface. The implementation of the `ClaimEffect` choice
+  body of `Daml.Finance.Lifecycle.Rule.Claim` also changed accordingly.
 
 - Unecessary `Remove` choice (implementations) were removed.
 
