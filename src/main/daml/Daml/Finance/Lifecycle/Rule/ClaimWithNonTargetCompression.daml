@@ -1,0 +1,152 @@
+-- Copyright (c) 2023 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Lifecycle.Rule.ClaimWithNonTargetCompression where
+
+import DA.Foldable (forA_)
+import DA.Set (member)
+import Daml.Finance.Interface.Account.Util (getCustodian, getOwner)
+import Daml.Finance.Interface.Holding.Util (getInstrument)
+import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (Calculate(..), CalculationResult(..), GetView(..))
+import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..), ClaimResult(..), I, View(..))
+import Daml.Finance.Interface.Settlement.Factory qualified as Settlement (F, Instruct(..))
+import Daml.Finance.Interface.Settlement.RouteProvider qualified as RouteProvider (Discover(..), I)
+import Daml.Finance.Interface.Settlement.Types (Step(..))
+import Daml.Finance.Interface.Types.Common.Types (Parties)
+import Daml.Finance.Lifecycle.Rule.Util
+
+-- | Type synonym for `Rule`.
+type T = Rule
+
+-- | Rule contract that allows an actor to claim effects, returning settlement instructions.
+template Rule
+  with
+    providers : Parties
+      -- ^ Providers of the claim rule. Together with the actors of the `ClaimEffect` choice the
+      --   authorization requirements to upgrade the holdings being claimed have to be met.
+    claimers : Parties
+      -- ^ Any of the parties can claim an effect.
+    settlers : Parties
+      -- ^ Any of the parties can trigger settlement of the resulting batch.
+    routeProviderCid : ContractId RouteProvider.I
+      -- ^ RouteProvider used to discover settlement routes.
+    settlementFactoryCid : ContractId Settlement.F
+      -- ^ Settlement factory contract used to create a `Batch` of `Instruction`\s.
+    netInstructions : Bool
+      -- ^ Configure whether netting should be enabled for quantities having the same (instrument,
+      --   sender, receiver).
+  where
+    signatory providers
+    observer claimers
+
+    interface instance Claim.I for Rule where
+      view = Claim.View with providers; claimers; settlers; routeProviderCid; settlementFactoryCid
+      claimEffect Claim.ClaimEffect{claimer; holdingCids; effectCid; batchId} = do
+        assertMsg "Effect can only be claimed by authorized parties." $
+          claimer `member` this.claimers
+        effectView <- exercise effectCid Effect.GetView with viewer = claimer
+        holdings <- mapA fetch holdingCids
+        forA_ holdings \h ->
+          assertMsg "The provided holding does not reference the expected instrument." $
+            getInstrument h == effectView.targetInstrument
+
+        -- Calculate settlement steps
+        let
+          createSteps consume quantities holding =
+            let
+              owner = getOwner holding
+              custodian = getCustodian holding
+              sender = if consume then owner else custodian
+              receiver = if consume then custodian else owner
+            in map (\quantity -> Step with sender; receiver; quantity) quantities
+
+          calculateSteps holding holdingCid = do
+            Effect.CalculationResult{consumed; produced} <-
+              exercise effectCid Effect.Calculate with actor = claimer; holdingCid
+            let
+              (consumedNetted, producedNetted) =
+                if netInstructions
+                then splitPending . net $ mergeConsumedAndProduced consumed produced
+                else (consumed, produced)
+              consumedSteps = createSteps True consumedNetted holding
+              producedSteps = createSteps False producedNetted holding
+            pure $ consumedSteps <> producedSteps
+
+        -- Settlement steps
+        steps <- mconcat <$> sequence (zipWith calculateSteps holdings holdingCids)
+
+        -- Compress non-target-instrument legs
+        let
+          compressedSteps = uncurry (<>) $ compress <$>
+            partition (\s -> s.quantity.unit.id == effectView.targetInstrument.id) steps
+
+        -- Discover settlement routes
+        routedSteps <- exercise routeProviderCid RouteProvider.Discover with
+          discoverors = providers; contextId = None; steps = compressedSteps
+
+        -- Generate settlement instructions for other instruments
+        (batchCid, instructionCids) <- exercise settlementFactoryCid Settlement.Instruct with
+          instructors = providers
+          settlers
+          id = batchId
+          description = effectView.description
+          contextId = Some effectView.id
+          routedSteps
+          settlementTime = effectView.settlementTime
+
+        pure Claim.ClaimResult with batchCid; instructionCids
+
+-- Compress RoutedSteps by bypassing intermediaries.
+-- It only handled cycles such as A -> B, B -> A but does not handle
+-- cycles such as A -> B, B -> C, C -> A. The latter case can be handled
+-- by doing multiple passes of this function.
+compress : [Step] -> [Step]
+compress = compressRec []
+
+-- | HIDE
+-- Recursive utility for Step compression.
+-- The first argument is the list of steps for which we know that
+-- the receiver is not an intermediary.
+-- The second argument is the list of all other steps.
+-- At each stage, we
+-- - take the first element of the second list and consider the receiving party
+-- - look for steps where this party is an intermediary
+-- - if found, apply the bypass
+compressRec : [Step] -> [Step] -> [Step]
+compressRec visited [] = visited
+compressRec visited (target :: rest) =
+  let
+    (newtarget, newVisited) = foldr folder (target, []) visited
+    (newertarget, newRest)  = foldr folder (newtarget, []) rest
+    newerVisited = if (newertarget.quantity.amount == 0.0)
+      then newVisited
+      else newertarget :: newVisited
+  in
+    compressRec newerVisited newRest
+  where
+    folder elem (acc, rest) = (rest <>) <$> replace acc elem
+
+-- | HIDE
+-- Given two steps, check if they are adjacent.
+-- If they are adjacent, try to bypass the intermediary.
+-- Examples:
+-- A -- 10 --> B, C -- 10 --> D is left unchanged
+-- A -- 10 --> B, B -- 10 --> C is modified to A -- 0 --> B, A -- 10 --> C
+-- A -- 10 --> B, B -- 20 --> C is modified to A -- 0 --> B, B -- 10 --> C, A -- 10 --> C
+-- A -- 20 --> B, B -- 10 --> C is modified to A -- 10 --> B, A -- 10 --> C
+replace : Step -> Step -> (Step, [Step])
+replace s1 s2 | s1.receiver /= s2.sender || s1.quantity.unit /= s2.quantity.unit = (s1, [s2])
+replace s1 s2 =
+  let
+    mergedStep =
+      if s1.sender == s2.receiver then [] else [s2 with sender = s1.sender; quantity = q2]
+    leftoverStep =
+      if q3.amount == 0.0 then [] else [s2 with quantity = q3]
+  in
+    ((s1 with quantity = q1), mergedStep <> leftoverStep)
+  where
+    a1 = s1.quantity.amount
+    a2 = s2.quantity.amount
+    q1 = s1.quantity with amount = a1 - min a1 a2 -- unconsumed amount from first step
+    q2 = s2.quantity with amount = min a1 a2      -- amount for which we bypass the intermediary
+    q3 = s2.quantity with amount = a2 - min a1 a2 -- amount for which we cannot bypass the intermediary

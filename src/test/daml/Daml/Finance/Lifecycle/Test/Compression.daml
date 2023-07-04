@@ -1,0 +1,64 @@
+-- Copyright (c) 2023 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Lifecycle.Test.Compression where
+
+import DA.Assert ((===))
+import DA.Set (fromList)
+import Daml.Finance.Interface.Settlement.Types (Step(..))
+import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey(..))
+import Daml.Finance.Interface.Util.Common (qty)
+import Daml.Finance.Lifecycle.Rule.ClaimWithNonTargetCompression (compress)
+import Daml.Script
+
+-- | Test for the `compress` function, which tries to eliminate intermediaries from [Step].
+testCompression : Script ()
+testCompression = do
+
+  [a, b, c, d, e] <- mapA allocateParty ["a", "b", "c", "d", "e"]
+
+  let
+    i1 = InstrumentKey with id = Id "1"; issuer = a; depository = a; version = "1"
+    i2 = InstrumentKey with id = Id "1"; issuer = a; depository = a; version = "2"
+    i3 = InstrumentKey with id = Id "1"; issuer = a; depository = a; version = "3"
+    i4 = InstrumentKey with id = Id "1"; issuer = a; depository = a; version = "4"
+    i5 = InstrumentKey with id = Id "1"; issuer = a; depository = a; version = "5"
+    i6 = InstrumentKey with id = Id "1"; issuer = a; depository = a; version = "6"
+    i7 = InstrumentKey with id = Id "1"; issuer = a; depository = a; version = "7"
+
+    input = [
+        Step a b (qty 10.0 i1) -- non-adjacent step
+      , Step a b (qty 10.0 i2) -- cycle
+      , Step b a (qty 5.0 i2)
+      , Step a b (qty 15.0 i3) -- exact bypass
+      , Step b c (qty 15.0 i3)
+      , Step a b (qty 10.0 i4) -- incomplete bypass
+      , Step b c (qty 15.0 i4)
+      , Step a b (qty 20.0 i5) -- bypass with leftover
+      , Step b c (qty 15.0 i5)
+      , Step c d (qty 1.0 i6) -- chain
+      , Step a b (qty 1.0 i6)
+      , Step b c (qty 1.0 i6)
+      , Step a b (qty 15.0 i7) -- bifurcation
+      , Step b c (qty 10.0 i7)
+      , Step c d (qty 5.0 i7)
+      , Step c e (qty 5.0 i7)
+      ]
+
+    expected = [
+        Step a b (qty 10.0 i1) -- non-adjacent step
+      , Step a b (qty 5.0 i2) -- cycle
+      , Step a c (qty 15.0 i3) -- exact bypass
+      , Step a c (qty 10.0 i4) -- incomplete bypass
+      , Step b c (qty 5.0 i4)
+      , Step a b (qty 5.0 i5) -- bypass with leftover
+      , Step a c (qty 15.0 i5)
+      , Step a d (qty 1.0 i6) -- chain
+      , Step a b (qty 5.0 i7) -- bifurcation
+      , Step a d (qty 5.0 i7)
+      , Step a e (qty 5.0 i7)
+      ]
+
+  fromList expected === fromList (compress input)
+
+  pure ()
