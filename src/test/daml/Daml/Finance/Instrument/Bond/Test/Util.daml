@@ -3,15 +3,18 @@
 
 module Daml.Finance.Instrument.Bond.Test.Util where
 
-import DA.Map qualified as M (fromList)
+import DA.Map qualified as M (empty, fromList)
+import Daml.Finance.Instrument.Bond.Callable.Factory qualified as Callable (Factory(..))
 import Daml.Finance.Instrument.Bond.Callable.Instrument qualified as Callable (Instrument(..))
 import Daml.Finance.Instrument.Bond.FixedRate.Instrument qualified as FixedRate (Instrument(..))
 import Daml.Finance.Instrument.Bond.FloatingRate.Instrument qualified as FloatingRate (Instrument(..))
 import Daml.Finance.Instrument.Bond.InflationLinked.Instrument qualified as InflationLinked (Instrument(..))
 import Daml.Finance.Instrument.Bond.ZeroCoupon.Instrument qualified as ZeroCoupon (Instrument(..))
 import Daml.Finance.Interface.Claims.Types (Deliverable)
+import Daml.Finance.Interface.Instrument.Bond.Callable.Factory qualified as Callable (Create(..), F(..))
+import Daml.Finance.Interface.Instrument.Bond.Callable.Types (Callable(..))
 import Daml.Finance.Interface.Instrument.Bond.Types (FloatingRate)
-import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey, Parties)
+import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey(..), Parties)
 import Daml.Finance.Interface.Types.Date.Calendar (BusinessDayConventionEnum)
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
 import Daml.Finance.Interface.Types.Date.RollConvention (PeriodEnum)
@@ -51,15 +54,54 @@ originateCallableBond depository issuer label description observers lastEventTim
       couponSchedule = createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds
         businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate
       callSchedule = couponSchedule
+
+    -- Create a floating rate bond factory
+    callableBondFactoryCid <- toInterfaceContractId @Callable.F <$> submit issuer do
+      createCmd Callable.Factory with
+        provider = issuer
+        observers = M.empty
+
     -- CREATE_CALLABLE_BOND_INSTRUMENT_BEGIN
-    cid <- toInterfaceContractId <$> submitMulti [depository, issuer] [] do
+{-     cid <- toInterfaceContractId <$> submitMulti [depository, issuer] [] do
       createCmd Callable.Instrument with
         depository; issuer; id = Id label; version = "0"; description
         observers = M.fromList observers; lastEventTimestamp; prevEvents = []; couponSchedule
         callSchedule; noticeDays; holidayCalendarIds; calendarDataProvider; dayCountConvention
         useAdjustedDatesForDcf; floatingRate; couponRate; capRate; floorRate; currency; notional
+ -}
+    let
+      instrumentId = Id label
+      instrumentVersion = "0"
+      bondInstrument = InstrumentKey with
+        issuer
+        depository
+        id = instrumentId
+        version = instrumentVersion
+
+    cid <- submitMulti [issuer] [calendarDataProvider] do
+      exerciseCmd callableBondFactoryCid Callable.Create with
+        callable = Callable with
+          instrument = bondInstrument
+          description = "Instrument representing units of a callable bond"
+          floatingRate
+          couponRate
+          capRate
+          floorRate
+          couponSchedule
+          noticeDays
+          callSchedule
+          holidayCalendarIds
+          calendarDataProvider
+          dayCountConvention
+          useAdjustedDatesForDcf
+          currency
+          notional
+          lastEventTimestamp
+          prevEvents = []
+        observers = M.fromList observers
     -- CREATE_CALLABLE_BOND_INSTRUMENT_END
-    createReference cid depository issuer observers
+    --createReference cid depository issuer observers
+    pure bondInstrument
 
 originateMultiScheduleCallableBond : Party -> Party -> Text -> Text -> [(Text, Parties)] -> Time ->
   [Text] -> Party -> DayCountConventionEnum -> Bool -> Optional FloatingRate ->
