@@ -1,13 +1,15 @@
-module Scripts.FloatingRateBond where
+module Scripts.CallableBond where
 
 import DA.Date (Month(..), date)
 import DA.Map qualified as M (empty, fromList)
-import DA.Set qualified as S (singleton)
+import DA.Set qualified as S (fromList, singleton)
 import Daml.Script
 
 -- INTERFACE DEPENDENCIES --
-import Daml.Finance.Interface.Instrument.Bond.FloatingRate.Factory qualified as FloatingRate (Create(..), F(..))
-import Daml.Finance.Interface.Instrument.Bond.FloatingRate.Types (FloatingRate(..))
+import Daml.Finance.Interface.Instrument.Bond.Callable.Factory qualified as Callable (Create(..), F(..))
+import Daml.Finance.Interface.Instrument.Bond.Callable.Types (Callable(..))
+import Daml.Finance.Interface.Lifecycle.Election qualified as Election (Apply(..), Exercisable, I)
+import Daml.Finance.Interface.Lifecycle.Election.Factory qualified as Election (Create(..), F)
 import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..))
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (Evolve(..))
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
@@ -21,20 +23,21 @@ import Daml.Finance.Interface.Types.Date.RollConvention (PeriodEnum(..))
 -- IMPLEMENTATION DEPENDENCIES --
 import Daml.Finance.Data.Numeric.Observation (Observation(..))
 import Daml.Finance.Data.Time.DateClock (dateToDateClockTime)
-import Daml.Finance.Instrument.Bond.FloatingRate.Factory qualified as FloatingRate (Factory(..))
+import Daml.Finance.Instrument.Bond.Callable.Factory qualified as Callable (Factory(..))
+import Daml.Finance.Lifecycle.Election qualified as Election (Factory(..))
 
 import Workflow.CreditAccount qualified as CreditAccount
 
 import Scripts.FixedRateBond (FixedRateState(..), runFixedRateBond)
 
 -- | Test script that
--- 1. creates a floating rate bond instrument and a holding on it
+-- 1. creates a callable bond instrument and a holding on it
 -- 2. reuses the lifecycle rule and lifecycle event from the fixed rate bond tutorial
 -- 3. lifecycles the time event
 -- 4. processes the lifecycle effect
 -- 5. settles the distribution
-runFloatingRateBond : Script()
-runFloatingRateBond = do
+runCallableBond : Script()
+runCallableBond = do
 
   -- Execute the `runFixedRateBond` script to reuse variables.
   FixedRateState{bank
@@ -53,27 +56,31 @@ runFloatingRateBond = do
   let pp = [("Public Party", S.singleton public)]
 
   -- Create and distribute bond
-  -- CREATE_FLOATING_RATE_BOND_VARIABLES_BEGIN
+  -- CREATE_CALLABLE_BOND_VARIABLES_BEGIN
   let
     notional = 1.0
-    referenceRateId = "USD/LIBOR/3M"
-    couponSpread = 0.011
+    floatingRate = None
+    couponRate = 0.011
+    capRate = None
+    floorRate = None
     couponPeriod = M
     couponPeriodMultiplier = 3
     dayCountConvention = ActActISDA
+    useAdjustedDatesForDcf = True
     businessDayConvention = Following
-  -- CREATE_FLOATING_RATE_BOND_VARIABLES_END
+    noticeDays = 0
+  -- CREATE_CALLABLE_BOND_VARIABLES_END
 
-  -- CREATE_FLOATING_RATE_BOND_INSTRUMENT_BEGIN
+  -- CREATE_CALLABLE_BOND_INSTRUMENT_BEGIN
   -- Create a floating rate bond factory
-  floatingRateBondFactoryCid <- toInterfaceContractId @FloatingRate.F <$> submit bank do
-    createCmd FloatingRate.Factory with
+  callableBondFactoryCid <- toInterfaceContractId @Callable.F <$> submit bank do
+    createCmd Callable.Factory with
       provider = bank
       observers = M.empty
 
   -- Define an instrument key for the bond
   let
-    instrumentId = Id "FloatingRateBond"
+    instrumentId = Id "CallableBond"
     instrumentVersion = "0"
     bondInstrument = InstrumentKey with
       issuer = bank
@@ -82,24 +89,30 @@ runFloatingRateBond = do
       version = instrumentVersion
 
   -- Bank creates the bond instrument
-  floatingRateBondCid <- submit bank do
-    exerciseCmd floatingRateBondFactoryCid FloatingRate.Create with
-      floatingRate = FloatingRate with
+  callableBondCid <- submit bank do
+    exerciseCmd callableBondFactoryCid Callable.Create with
+      callable = Callable with
         instrument = bondInstrument
-        description = "Instrument representing units of a floating rate bond"
-        referenceRateId
-        couponSpread
-        periodicSchedule
+        description = "Instrument representing units of a callable bond"
+        floatingRate
+        couponRate
+        capRate
+        floorRate
+        couponSchedule = periodicSchedule
+        noticeDays
+        callSchedule = periodicSchedule
         holidayCalendarIds
         calendarDataProvider = bank
         dayCountConvention
+        useAdjustedDatesForDcf
         currency = usdInstrument
         notional
         lastEventTimestamp = now
+        prevElections = []
       observers = M.fromList pp
-  -- CREATE_FLOATING_RATE_BOND_INSTRUMENT_END
+  -- CREATE_CALLABLE_BOND_INSTRUMENT_END
 
-  -- CREATE_FLOATING_RATE_BOND_HOLDING_BEGIN
+  -- CREATE_CALLABLE_BOND_HOLDING_BEGIN
   -- Credit Bob's account with a bond holding
   bobRequestCid <- submit bob do
     createCmd CreditAccount.Request with
@@ -107,22 +120,52 @@ runFloatingRateBond = do
       instrument = bondInstrument
       amount = 100000.0
   bobBondHoldingCid <- submit bank do exerciseCmd bobRequestCid CreditAccount.Accept
-  -- CREATE_FLOATING_RATE_BOND_HOLDING_END
+  -- CREATE_CALLABLE_BOND_HOLDING_END
 
-  -- CREATE_FLOATING_RATE_OBSERVATIONS_BEGIN
-  let observations = M.fromList [(dateToDateClockTime $ date 2019 Jan 16, -0.00311)]
+  -- Create election factory to allow holders to create elections
+  electionFactoryCid <- submit bank do
+    toInterfaceContractId @Election.F <$> createCmd Election.Factory with
+      provider = bank
+      observers = M.fromList [("Observers", S.fromList [bob, bank])]
 
-  observableCid <- toInterfaceContractId <$> submit bank do
-    createCmd Observation with
-      provider = bank; id = Id referenceRateId; observations; observers = M.empty
-  -- CREATE_FLOATING_RATE_OBSERVATIONS_END
+  -- Create the Election
+  let
+    counterparty = bank
+    electedTag = "CALLED"
+    --electedTag = "NOT CALLED"
+    amount = 100000.0
+    description = "election for a callable bond"
+    firstCouponDate = date 2019 May 15
+  electionCid <- submit bank do
+    exerciseCmd electionFactoryCid Election.Create with
+      actors = S.singleton bank
+      id = Id "election id"
+      description
+      claim = electedTag
+      electionTime = dateToDateClockTime firstCouponDate
+      electorIsOwner = False
+      elector = bank
+      counterparty
+      instrument = bondInstrument
+      amount
+      observers = M.fromList [("Holders", S.fromList [bank, bob])]
+      provider = bank
 
+  let
+    exercisableCid = coerceInterfaceContractId @Election.Exercisable lifecycleRuleCid
+  -- Apply election to generate new instrument version + effects
+  (newInstrumentKey, [effectCid]) <- submitMulti [bank] [public] do
+    exerciseCmd electionCid Election.Apply with
+      observableCids = []
+      exercisableCid
+
+{-
   -- LIFECYCLE_BOND_BEGIN
   -- Try to lifecycle the instrument
   (lifecycleCid, [effectCid]) <- submit bank do
     exerciseCmd lifecycleRuleCid Lifecycle.Evolve with
       eventCid = firstCouponClockEventCid
-      observableCids = [observableCid]
+      observableCids = []
       instrument = bondInstrument
   -- LIFECYCLE_BOND_END
 
@@ -174,5 +217,5 @@ runFloatingRateBond = do
   submitMulti [bob] [public] do
     exerciseCmd result.batchCid Batch.Settle with actors = S.singleton bob
   -- EFFECT_SETTLEMENT_END
-
+ -}
   pure ()
