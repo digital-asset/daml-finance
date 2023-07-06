@@ -8,10 +8,9 @@ import Daml.Script
 -- INTERFACE DEPENDENCIES --
 import Daml.Finance.Interface.Instrument.Bond.Callable.Factory qualified as Callable (Create(..), F(..))
 import Daml.Finance.Interface.Instrument.Bond.Callable.Types (Callable(..))
-import Daml.Finance.Interface.Lifecycle.Election qualified as Election (Apply(..), Exercisable, I)
+import Daml.Finance.Interface.Lifecycle.Election qualified as Election (Apply(..), Exercisable)
 import Daml.Finance.Interface.Lifecycle.Election.Factory qualified as Election (Create(..), F)
-import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..))
-import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (Evolve(..))
+import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..), I)
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
@@ -21,10 +20,10 @@ import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum(..))
 import Daml.Finance.Interface.Types.Date.RollConvention (PeriodEnum(..))
 
 -- IMPLEMENTATION DEPENDENCIES --
-import Daml.Finance.Data.Numeric.Observation (Observation(..))
 import Daml.Finance.Data.Time.DateClock (dateToDateClockTime)
 import Daml.Finance.Instrument.Bond.Callable.Factory qualified as Callable (Factory(..))
 import Daml.Finance.Lifecycle.Election qualified as Election (Factory(..))
+import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
 
 import Workflow.CreditAccount qualified as CreditAccount
 
@@ -48,6 +47,8 @@ runCallableBond = do
     , usdInstrument
     , holidayCalendarIds
     , lifecycleRuleCid
+    , routeProviderCid
+    , settlementFactoryCid
     , lifecycleClaimRuleCid
     , firstCouponClockEventCid} <- runFixedRateBond
 
@@ -131,8 +132,8 @@ runCallableBond = do
   -- Create the Election
   let
     counterparty = bank
-    electedTag = "CALLED"
-    --electedTag = "NOT CALLED"
+    --electedTag = "CALLED"
+    electedTag = "NOT CALLED"
     amount = 100000.0
     description = "election for a callable bond"
     firstCouponDate = date 2019 May 15
@@ -153,30 +154,36 @@ runCallableBond = do
 
   let
     exercisableCid = coerceInterfaceContractId @Election.Exercisable lifecycleRuleCid
+
+  -- LIFECYCLE_BOND_BEGIN
   -- Apply election to generate new instrument version + effects
   (newInstrumentKey, [effectCid]) <- submitMulti [bank] [public] do
     exerciseCmd electionCid Election.Apply with
       observableCids = []
       exercisableCid
-
-{-
-  -- LIFECYCLE_BOND_BEGIN
-  -- Try to lifecycle the instrument
-  (lifecycleCid, [effectCid]) <- submit bank do
-    exerciseCmd lifecycleRuleCid Lifecycle.Evolve with
-      eventCid = firstCouponClockEventCid
-      observableCids = []
-      instrument = bondInstrument
   -- LIFECYCLE_BOND_END
+
+  -- CREATE_CLAIM_RULE_BEGIN
+  -- Create the claim rule
+  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [bank, bob] [] do
+    createCmd Claim.Rule with
+      providers = S.fromList [bank, bob]
+      claimers = S.singleton bank
+      settlers = S.singleton bob
+      routeProviderCid
+      settlementFactoryCid
+      netInstructions = False
+  -- CREATE_CLAIM_RULE_END
 
   -- Claim effect
   -- CLAIM_EFFECT_BEGIN
-  result <- submitMulti [bob] [public] do
+  result <- submitMulti [bank,bob] [public] do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
-      claimer = bob
+      claimer = bank
       holdingCids = [bobBondHoldingCid]
       effectCid -- This is equivalent to writing effectCid = effectCid
       batchId = Id "BondSettlement"
+
   let [bobInstructionCid, bankInstructionCid, couponInstructionCid] = result.instructionCids
   -- CLAIM_EFFECT_END
 
@@ -217,5 +224,5 @@ runCallableBond = do
   submitMulti [bob] [public] do
     exerciseCmd result.batchCid Batch.Settle with actors = S.singleton bob
   -- EFFECT_SETTLEMENT_END
- -}
+
   pure ()
