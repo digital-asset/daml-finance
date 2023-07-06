@@ -27,6 +27,13 @@ fi
 mkdir ${root_dir}/.dars
 cp ${root_dir}/package/main/daml/*/.daml/dist/* ${root_dir}/.dars/
 
+# Copy json docs into a dedicated folder
+if [[ -d ${root_dir}/.docs ]]; then
+  rm -r ${root_dir}/.docs
+fi
+mkdir ${root_dir}/.docs
+cp ${root_dir}/package/main/daml/*/.docs/* ${root_dir}/.docs/
+
 boldCyan='\033[1;96m'
 colour_off='\033[0m'
 echo -e "\n${boldCyan}All packages successfully built!${colour_off}"

@@ -29,3 +29,11 @@ echo -e "${boldWhite}Compiling ${project_name}...${colour_off}"
 DAML_PROJECT=${project} daml build
 
 echo -e "\n${cyan}Successfully built package ${project_name}.${colour_off}"
+
+echo -e "${boldWhite}Generating Json documentation for ${project_name}...${colour_off}"
+DAML_PROJECT=${project} daml damlc docs \
+		--output=${project}/.docs/${project_name}-doc.json \
+		--package-name=${project_name} \
+		--format Json \
+    $(find -L ${project}/daml -name '*.daml')
+echo -e "\n${cyan}Successfully generated Json documentation for ${project_name}.${colour_off}"
