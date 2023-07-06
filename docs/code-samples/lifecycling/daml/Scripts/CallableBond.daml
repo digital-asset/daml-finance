@@ -31,10 +31,11 @@ import Scripts.FixedRateBond (FixedRateState(..), runFixedRateBond)
 
 -- | Test script that
 -- 1. creates a callable bond instrument and a holding on it
--- 2. reuses the lifecycle rule and lifecycle event from the fixed rate bond tutorial
--- 3. lifecycles the time event
--- 4. processes the lifecycle effect
--- 5. settles the distribution
+-- 2. reuses the lifecycle rule and settlement factory from the fixed rate bond tutorial
+-- 3. creates the an election
+-- 4. lifecycles the election event
+-- 5. processes the lifecycle effect
+-- 6. settles the distribution
 runCallableBond : Script()
 runCallableBond = do
 
@@ -48,9 +49,7 @@ runCallableBond = do
     , holidayCalendarIds
     , lifecycleRuleCid
     , routeProviderCid
-    , settlementFactoryCid
-    , lifecycleClaimRuleCid
-    , firstCouponClockEventCid} <- runFixedRateBond
+    , settlementFactoryCid} <- runFixedRateBond
 
   now <- getTime
 
@@ -81,13 +80,11 @@ runCallableBond = do
 
   -- Define an instrument key for the bond
   let
-    instrumentId = Id "CallableBond"
-    instrumentVersion = "0"
     bondInstrument = InstrumentKey with
       issuer = bank
       depository = bank
-      id = instrumentId
-      version = instrumentVersion
+      id = Id "CallableBond"
+      version = "0"
 
   -- Bank creates the bond instrument
   callableBondCid <- submit bank do
@@ -123,48 +120,42 @@ runCallableBond = do
   bobBondHoldingCid <- submit bank do exerciseCmd bobRequestCid CreditAccount.Accept
   -- CREATE_CALLABLE_BOND_HOLDING_END
 
+  -- CREATE_ELECTION_FACTORY_BEGIN
   -- Create election factory to allow holders to create elections
   electionFactoryCid <- submit bank do
     toInterfaceContractId @Election.F <$> createCmd Election.Factory with
       provider = bank
       observers = M.fromList [("Observers", S.fromList [bob, bank])]
+  -- CREATE_ELECTION_FACTORY_END
 
-  -- Create the Election
-  let
-    counterparty = bank
-    --electedTag = "CALLED"
-    electedTag = "NOT CALLED"
-    amount = 100000.0
-    description = "election for a callable bond"
-    firstCouponDate = date 2019 May 15
+  -- CREATE_ELECTION_BEGIN
+  -- Create an Election for the first coupon date: do not call the bond.
   electionCid <- submit bank do
     exerciseCmd electionFactoryCid Election.Create with
       actors = S.singleton bank
       id = Id "election id"
-      description
-      claim = electedTag
-      electionTime = dateToDateClockTime firstCouponDate
+      description = "election for a callable bond"
+      claim = "NOT CALLED"
+      electionTime = dateToDateClockTime $ date 2019 May 15
       electorIsOwner = False
       elector = bank
-      counterparty
+      counterparty = bank
       instrument = bondInstrument
-      amount
+      amount = 100000.0
       observers = M.fromList [("Holders", S.fromList [bank, bob])]
       provider = bank
-
-  let
-    exercisableCid = coerceInterfaceContractId @Election.Exercisable lifecycleRuleCid
+  -- CREATE_ELECTION_END
 
   -- LIFECYCLE_BOND_BEGIN
   -- Apply election to generate new instrument version + effects
-  (newInstrumentKey, [effectCid]) <- submitMulti [bank] [public] do
+  (newInstrumentKey, [effectCid]) <- submit bank do
     exerciseCmd electionCid Election.Apply with
       observableCids = []
-      exercisableCid
+      exercisableCid = coerceInterfaceContractId @Election.Exercisable lifecycleRuleCid
   -- LIFECYCLE_BOND_END
 
   -- CREATE_CLAIM_RULE_BEGIN
-  -- Create the claim rule
+  -- Create a new claim rule with the bank as claimer, since it is the bank that does the election.
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submitMulti [bank, bob] [] do
     createCmd Claim.Rule with
       providers = S.fromList [bank, bob]
@@ -175,15 +166,14 @@ runCallableBond = do
       netInstructions = False
   -- CREATE_CLAIM_RULE_END
 
-  -- Claim effect
   -- CLAIM_EFFECT_BEGIN
-  result <- submitMulti [bank,bob] [public] do
+  -- Claim effect
+  result <- submit bank do
     exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
       claimer = bank
       holdingCids = [bobBondHoldingCid]
-      effectCid -- This is equivalent to writing effectCid = effectCid
+      effectCid
       batchId = Id "BondSettlement"
-
   let [bobInstructionCid, bankInstructionCid, couponInstructionCid] = result.instructionCids
   -- CLAIM_EFFECT_END
 
