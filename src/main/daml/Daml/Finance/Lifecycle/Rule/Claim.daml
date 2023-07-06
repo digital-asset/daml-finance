@@ -3,16 +3,15 @@
 
 module Daml.Finance.Lifecycle.Rule.Claim where
 
-import DA.Foldable (forA_)
 import DA.Set (member)
 import Daml.Finance.Interface.Account.Util (getCustodian, getOwner)
-import Daml.Finance.Interface.Holding.Util (getInstrument)
+import Daml.Finance.Interface.Holding.Util (getAmount, getInstrument)
 import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (Calculate(..), CalculationResult(..), GetView(..))
 import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..), ClaimResult(..), I, View(..))
 import Daml.Finance.Interface.Settlement.Factory qualified as Settlement (F, Instruct(..))
 import Daml.Finance.Interface.Settlement.RouteProvider qualified as RouteProvider (Discover(..), I)
 import Daml.Finance.Interface.Settlement.Types (Step(..))
-import Daml.Finance.Interface.Types.Common.Types (Parties)
+import Daml.Finance.Interface.Types.Common.Types (Quantity(..), Parties)
 import Daml.Finance.Lifecycle.Rule.Util
 
 -- | Type synonym for `Rule`.
@@ -46,9 +45,6 @@ template Rule
           claimer `member` this.claimers
         effectView <- exercise effectCid Effect.GetView with viewer = claimer
         holdings <- mapA fetch holdingCids
-        forA_ holdings \h ->
-          assertMsg "The provided holding does not reference the expected instrument." $
-            getInstrument h == effectView.targetInstrument
 
         -- Calculate settlement steps
         let
@@ -60,9 +56,11 @@ template Rule
               receiver = if consume then custodian else owner
             in map (\quantity -> Step with sender; receiver; quantity) quantities
 
-          calculateSteps holding holdingCid = do
+          calculateSteps holding = do
             Effect.CalculationResult{consumed; produced} <-
-              exercise effectCid Effect.Calculate with actor = claimer; holdingCid
+              exercise effectCid Effect.Calculate with
+                actor = claimer
+                quantity = Quantity with unit = getInstrument holding; amount = getAmount holding
             let
               (consumedNetted, producedNetted) =
                 if netInstructions
@@ -73,7 +71,7 @@ template Rule
             pure $ consumedSteps <> producedSteps
 
         -- Settlement steps
-        steps <- mconcat <$> sequence (zipWith calculateSteps holdings holdingCids)
+        steps <- mconcat <$> mapA calculateSteps holdings
 
         -- Discover settlement routes
         routedSteps <- exercise routeProviderCid RouteProvider.Discover with
