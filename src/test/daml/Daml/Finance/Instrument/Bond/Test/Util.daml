@@ -6,13 +6,15 @@ module Daml.Finance.Instrument.Bond.Test.Util where
 import DA.Map qualified as M (empty, fromList)
 import Daml.Finance.Instrument.Bond.Callable.Factory qualified as Callable (Factory(..))
 import Daml.Finance.Instrument.Bond.Callable.Instrument qualified as Callable (Instrument(..))
-import Daml.Finance.Instrument.Bond.FixedRate.Instrument qualified as FixedRate (Instrument(..))
+import Daml.Finance.Instrument.Bond.FixedRate.Factory qualified as FixedRate (Factory(..))
 import Daml.Finance.Instrument.Bond.FloatingRate.Instrument qualified as FloatingRate (Instrument(..))
 import Daml.Finance.Instrument.Bond.InflationLinked.Instrument qualified as InflationLinked (Instrument(..))
 import Daml.Finance.Instrument.Bond.ZeroCoupon.Instrument qualified as ZeroCoupon (Instrument(..))
 import Daml.Finance.Interface.Claims.Types (Deliverable)
 import Daml.Finance.Interface.Instrument.Bond.Callable.Factory qualified as Callable (Create(..), F(..))
 import Daml.Finance.Interface.Instrument.Bond.Callable.Types (Callable(..))
+import Daml.Finance.Interface.Instrument.Bond.FixedRate.Factory qualified as FixedRate (Create(..), F(..))
+import Daml.Finance.Interface.Instrument.Bond.FixedRate.Types (FixedRate(..))
 import Daml.Finance.Interface.Instrument.Bond.Types (FloatingRate)
 import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey(..), Parties)
 import Daml.Finance.Interface.Types.Date.Calendar (BusinessDayConventionEnum)
@@ -25,22 +27,45 @@ import Daml.Script
 
 originateFixedRateBond : Party -> Party -> Text -> Text -> [(Text, Parties)] -> Time -> Date ->
   [Text] -> Party -> Date-> Date -> DayCountConventionEnum ->
-  BusinessDayConventionEnum -> Decimal -> PeriodEnum -> Int -> InstrumentKey -> Decimal ->
+  BusinessDayConventionEnum -> Decimal -> PeriodEnum -> Int -> InstrumentKey -> Decimal -> Party ->
   Script InstrumentKey
 originateFixedRateBond depository issuer label description observers lastEventTimestamp issueDate
   holidayCalendarIds calendarDataProvider firstCouponDate maturityDate dayCountConvention
-  businessDayConvention couponRate couponPeriod couponPeriodMultiplier currency notional = do
+  businessDayConvention couponRate couponPeriod couponPeriodMultiplier currency notional publicParty
+  = do
     let
       periodicSchedule = createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds
         businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate
+
+    fixedRateBondFactoryCid <- toInterfaceContractId @FixedRate.F <$> submit issuer do
+      createCmd FixedRate.Factory with
+        provider = issuer
+        observers = M.empty
+
     -- CREATE_FIXED_RATE_BOND_INSTRUMENT_BEGIN
-    cid <- toInterfaceContractId <$> submitMulti [depository, issuer] [] do
-      createCmd FixedRate.Instrument with
-        depository; issuer; id = Id label; version = "0"; description
-        observers = M.fromList observers; lastEventTimestamp; periodicSchedule; holidayCalendarIds
-        calendarDataProvider; dayCountConvention; couponRate; currency; notional
+    let
+      instrument = InstrumentKey with
+        issuer
+        depository
+        id = Id label
+        version = "0"
+
+    cid <- submit issuer do
+      exerciseCmd fixedRateBondFactoryCid FixedRate.Create with
+        fixedRate = FixedRate with
+          instrument
+          description
+          couponRate
+          periodicSchedule
+          holidayCalendarIds
+          calendarDataProvider
+          dayCountConvention
+          currency
+          notional
+          lastEventTimestamp
+        observers = M.fromList observers
     -- CREATE_FIXED_RATE_BOND_INSTRUMENT_END
-    createReference cid depository issuer observers
+    pure instrument
 
 originateCallableBond : Party -> Party -> Text -> Text -> [(Text, Parties)] -> Time -> Date ->
   [Text] -> Party -> Date -> Date -> DayCountConventionEnum ->
