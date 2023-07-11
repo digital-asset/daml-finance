@@ -7,82 +7,177 @@ import DA.Map qualified as M (empty, fromList)
 import DA.Set qualified as S (fromList, singleton)
 import Daml.Finance.Claims.Lifecycle.Rule qualified as Lifecycle (Rule(..))
 import Daml.Finance.Data.Time.DateClock (dateToDateClockTime)
-import Daml.Finance.Instrument.Option.BarrierEuropeanCash.Instrument qualified as BarrierEuropeanCashOption (Instrument(..))
+import Daml.Finance.Instrument.Option.BarrierEuropeanCash.Factory qualified as BarrierEuropeanCash (Factory(..))
 import Daml.Finance.Instrument.Option.Dividend.Election qualified as DivOptionElection (Factory(..))
-import Daml.Finance.Instrument.Option.Dividend.Instrument qualified as DividendOption (Instrument(..))
-import Daml.Finance.Instrument.Option.EuropeanCash.Instrument qualified as EuropeanCashOption (Instrument(..))
-import Daml.Finance.Instrument.Option.EuropeanPhysical.Instrument qualified as EuropeanPhysicalOption (Instrument(..))
+import Daml.Finance.Instrument.Option.Dividend.Factory qualified as Dividend (Factory(..))
+import Daml.Finance.Instrument.Option.EuropeanCash.Factory qualified as EuropeanCash (Factory(..))
+import Daml.Finance.Instrument.Option.EuropeanPhysical.Factory qualified as EuropeanPhysical (Factory(..))
+import Daml.Finance.Interface.Instrument.Option.BarrierEuropeanCash.Factory qualified as BarrierEuropeanCash (Create(..), F(..))
+import Daml.Finance.Interface.Instrument.Option.BarrierEuropeanCash.Types (BarrierEuropean(..))
 import Daml.Finance.Interface.Instrument.Option.Dividend.Election.Factory qualified as DivOptionElection (Create(..), F)
-import Daml.Finance.Interface.Instrument.Option.Dividend.Types (ElectionTypeEnum(..))
+import Daml.Finance.Interface.Instrument.Option.Dividend.Factory qualified as Dividend (Create(..), F(..))
+import Daml.Finance.Interface.Instrument.Option.Dividend.Types (Dividend(..), ElectionTypeEnum(..))
+import Daml.Finance.Interface.Instrument.Option.EuropeanCash.Factory qualified as EuropeanCash (Create(..), F(..))
+import Daml.Finance.Interface.Instrument.Option.EuropeanCash.Types qualified as EuropeanCash (European(..))
+import Daml.Finance.Interface.Instrument.Option.EuropeanPhysical.Factory qualified as EuropeanPhysical (Create(..), F(..))
+import Daml.Finance.Interface.Instrument.Option.EuropeanPhysical.Types qualified as EuropeanPhysical (European(..))
 import Daml.Finance.Interface.Instrument.Option.Types (BarrierTypeEnum, OptionTypeEnum)
 import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (I)
-import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey, InstrumentQuantity, Parties)
-import Daml.Finance.Test.Util.Instrument (createReference)
+import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey(..), InstrumentQuantity, Parties)
 import Daml.Finance.Test.Util.Lifecycle (applyElectionAndVerify)
 import Daml.Script
 
 -- | Originate a cash-settled European option.
 originateEuropeanCashOption : Party -> Party -> Text -> Text -> [(Text, Parties)] -> Time ->
-  Date -> OptionTypeEnum -> Decimal -> InstrumentKey -> Text -> Bool -> Script InstrumentKey
+  Date -> OptionTypeEnum -> Decimal -> InstrumentKey -> Text -> Bool -> Party
+  -> Script InstrumentKey
 originateEuropeanCashOption depository issuer label description observers lastEventTimestamp
-  expiryDate optionType strike currency referenceAssetId ownerReceives = do
+  expiryDate optionType strike currency referenceAssetId ownerReceives publicParty = do
+    -- Create a cash-settled European option factory
+    europeanCashOptionFactoryCid <- toInterfaceContractId @EuropeanCash.F <$> submit issuer do
+      createCmd EuropeanCash.Factory with
+        provider = issuer
+        observers = M.empty
+
   -- CREATE_EUROPEAN_OPTION_INSTRUMENT_BEGIN
-    cid <- toInterfaceContractId <$> submitMulti [depository, issuer] [] do
-      createCmd EuropeanCashOption.Instrument with
-        depository; issuer; id = Id label; version = "0"; description
-        observers = M.fromList observers; lastEventTimestamp
-        ownerReceives; optionType; strike; expiryDate
-        referenceAssetId; currency
+    let
+      instrument = InstrumentKey with
+        issuer
+        depository
+        id = Id label
+        version = "0"
+
+    cid <- submitMulti [issuer] [publicParty] do
+      exerciseCmd europeanCashOptionFactoryCid EuropeanCash.Create with
+        european = EuropeanCash.European with
+          instrument
+          description
+          expiryDate
+          optionType
+          strike
+          referenceAssetId
+          ownerReceives
+          currency
+          lastEventTimestamp
+        observers = M.fromList observers
   -- CREATE_EUROPEAN_OPTION_INSTRUMENT_END
-    createReference cid depository issuer observers
+    pure instrument
 
 -- | Originate a cash-settled European option.
 originateBarrierEuropeanCashOption : Party -> Party -> Text -> Text -> [(Text, Parties)] -> Time ->
   Date -> OptionTypeEnum -> Decimal -> Decimal -> BarrierTypeEnum -> Date -> InstrumentKey -> Text
-  -> Bool -> Script InstrumentKey
+  -> Bool -> Party -> Script InstrumentKey
 originateBarrierEuropeanCashOption depository issuer label description observers lastEventTimestamp
   expiryDate optionType strike barrier barrierType barrierStartDate currency referenceAssetId
-  ownerReceives = do
-  -- CREATE_BARRIER_EUROPEAN_OPTION_INSTRUMENT_BEGIN
-    cid <- toInterfaceContractId <$> submitMulti [depository, issuer] [] do
-      createCmd BarrierEuropeanCashOption.Instrument with
-        depository; issuer; id = Id label; version = "0"; description
-        observers = M.fromList observers; lastEventTimestamp
-        ownerReceives; optionType; strike; barrier; barrierType; barrierStartDate; expiryDate
-        referenceAssetId; currency
+  ownerReceives publicParty = do
+    -- Create a barrier option factory
+    barrierOptionFactoryCid <- toInterfaceContractId @BarrierEuropeanCash.F <$> submit issuer do
+      createCmd BarrierEuropeanCash.Factory with
+        provider = issuer
+        observers = M.empty
+
+    -- CREATE_BARRIER_EUROPEAN_OPTION_INSTRUMENT_BEGIN
+    let
+      instrument = InstrumentKey with
+        issuer
+        depository
+        id = Id label
+        version = "0"
+
+    cid <- submitMulti [issuer] [publicParty] do
+      exerciseCmd barrierOptionFactoryCid BarrierEuropeanCash.Create with
+        barrierEuropean = BarrierEuropean with
+          instrument
+          description
+          expiryDate
+          optionType
+          strike
+          barrier
+          barrierType
+          barrierStartDate
+          referenceAssetId
+          ownerReceives
+          currency
+          lastEventTimestamp
+        observers = M.fromList observers
   -- CREATE_BARRIER_EUROPEAN_OPTION_INSTRUMENT_END
-    createReference cid depository issuer observers
+    pure instrument
 
 -- | Originate a physically settled European option.
 originateEuropeanPhysicalOption : Party -> Party -> Text -> Text -> [(Text, Parties)] -> Time ->
-  Date -> OptionTypeEnum -> Decimal -> InstrumentKey -> InstrumentKey -> Bool ->
+  Date -> OptionTypeEnum -> Decimal -> InstrumentKey -> InstrumentKey -> Bool -> Party ->
   Script InstrumentKey
 originateEuropeanPhysicalOption depository issuer label description observers lastEventTimestamp
-  expiryDate optionType strike currency referenceAsset ownerReceives = do
-  -- CREATE_EUROPEAN_PHYSICAL_OPTION_INSTRUMENT_BEGIN
-    cid <- toInterfaceContractId <$> submitMulti [depository, issuer] [] do
-      createCmd EuropeanPhysicalOption.Instrument with
-        depository; issuer; id = Id label; version = "0"; description
-        observers = M.fromList observers; lastEventTimestamp; prevEvents = []
-        ownerReceives; optionType; strike; expiryDate
-        referenceAsset; currency
+  expiryDate optionType strike currency referenceAsset ownerReceives publicParty = do
+    -- Create a cash-settled European option factory
+    europeanPhysicalOptionFactoryCid <- toInterfaceContractId @EuropeanPhysical.F <$> submit issuer
+      do
+        createCmd EuropeanPhysical.Factory with
+          provider = issuer
+          observers = M.empty
+
+    -- CREATE_EUROPEAN_PHYSICAL_OPTION_INSTRUMENT_BEGIN
+    let
+      instrument = InstrumentKey with
+        issuer
+        depository
+        id = Id label
+        version = "0"
+
+    cid <- submitMulti [issuer] [publicParty] do
+      exerciseCmd europeanPhysicalOptionFactoryCid EuropeanPhysical.Create with
+        european = EuropeanPhysical.European with
+          instrument
+          description
+          expiryDate
+          optionType
+          strike
+          referenceAsset
+          ownerReceives
+          currency
+          lastEventTimestamp
+          prevEvents = []
+        observers = M.fromList observers
   -- CREATE_EUROPEAN_PHYSICAL_OPTION_INSTRUMENT_END
-    createReference cid depository issuer observers
+    pure instrument
 
 -- | Originate a physically settled Dividend option.
 originateDividendOption : Party -> Party -> Text -> Text -> [(Text, Parties)] -> Time ->
   Date -> InstrumentQuantity -> Optional InstrumentQuantity -> Optional InstrumentQuantity
+  -> Party
   -> Script InstrumentKey
 originateDividendOption depository issuer label description observers lastEventTimestamp
-  expiryDate cashQuantity sharesQuantity fxQuantity = do
+  expiryDate cashQuantity sharesQuantity fxQuantity
+  publicParty = do
+    -- Create a dividend option factory
+    dividendOptionFactoryCid <- toInterfaceContractId @Dividend.F <$> submit issuer
+      do
+        createCmd Dividend.Factory with
+          provider = issuer
+          observers = M.empty
+
   -- CREATE_DIVIDEND_OPTION_INSTRUMENT_BEGIN
-    cid <- toInterfaceContractId <$> submitMulti [depository, issuer] [] do
-      createCmd DividendOption.Instrument with
-        depository; issuer; id = Id label; version = "0"; description
-        observers = M.fromList observers; lastEventTimestamp; prevEvents = []
-        expiryDate; cashQuantity; sharesQuantity; fxQuantity
+    let
+      instrument = InstrumentKey with
+        issuer
+        depository
+        id = Id label
+        version = "0"
+
+    cid <- submitMulti [issuer] [publicParty] do
+      exerciseCmd dividendOptionFactoryCid Dividend.Create with
+        dividend = Dividend with
+          instrument
+          description
+          expiryDate
+          cashQuantity
+          sharesQuantity
+          fxQuantity
+          lastEventTimestamp
+          prevEvents = []
+        observers = M.fromList observers
   -- CREATE_DIVIDEND_OPTION_INSTRUMENT_END
-    createReference cid depository issuer observers
+    pure instrument
 
 -- | Verify the payments of an instrument after an election (excluding settlement)
 electAndVerifyDivOptionPaymentEffects : [Party] -> Date -> Decimal -> InstrumentKey -> Party ->
