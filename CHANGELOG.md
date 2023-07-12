@@ -448,6 +448,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Settlement
 
+- Fix for `Instruction` and `IntermediatedStatic`, replaced `groupOn` by `sortAndGroupOn`.
+
 - Dependencies update
 
 - Style changes
@@ -472,6 +474,10 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Removed the `key` from the `Batch` implementation.
 
 ### Daml.Finance.Util
+
+- Added test for `sortAndGroupOn`.
+
+- Removed the custom `groupBy` as it was not being used anywhere.
 
 - Added a `Lockable` module containing the `aquireImpl` and `releaseImpl` locking utitlity
   functions.
