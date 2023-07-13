@@ -62,7 +62,7 @@ template Rule
             currentKey = BaseInstrument.getKey $ toInterface claimInstrument
             newKey = currentKey with version = sha256 $ mconcat [show v.eventTime, show remaining]
             producedInstrument = if isZero' remaining then None else Some newKey
-          tryCreateNewInstrument lifecycler dynInstrView.prevEvents v.eventTime None instrument
+          tryCreateNewInstrument lifecycler dynInstrView.prevElections v.eventTime None instrument
             newKey
           effectCid <- toInterfaceContractId <$> create Effect with
             providers = singleton currentKey.issuer
@@ -117,7 +117,7 @@ template Rule
             newKey = currentKey with version = sha256 $ mconcat [show electionTime, show remaining]
             producedInstrument = if isZero' remaining then None else Some newKey
             (otherConsumed, otherProduced) = splitPending pending
-          tryCreateNewInstrument lifecycler dynInstrView.prevEvents electionTime electionData
+          tryCreateNewInstrument lifecycler dynInstrView.prevElections electionTime electionData
             v.instrument newKey
           effectCid <- toInterfaceContractId <$>
             create ElectionEffect with
@@ -145,7 +145,7 @@ template Rule
 -- Check if an instrument for the new key already exists, otherwise create it.
 tryCreateNewInstrument : Party -> [EventData] -> Time -> Optional (Bool, Text) -> InstrumentKey ->
   InstrumentKey -> Update ()
-tryCreateNewInstrument actor prevEvents eventTime electionData oldKey
+tryCreateNewInstrument actor prevElections eventTime electionData oldKey
   newKey = do
     existingRefCidOpt <- lookupByKey @BaseInstrument.R newKey
     case existingRefCidOpt of
@@ -154,9 +154,9 @@ tryCreateNewInstrument actor prevEvents eventTime electionData oldKey
         instrumentCid <- BaseInstrument.exerciseInterfaceByKey @DynamicInstrument.I oldKey
           actor DynamicInstrument.CreateNewVersion with
             lastEventTimestamp = eventTime
-            prevEvents = case electionData of
-              None -> prevEvents ++ [timeEvent eventTime]
-              Some (electorIsOwner, claimTag) -> prevEvents ++ [newElection]
+            prevElections = case electionData of
+              None -> prevElections
+              Some (electorIsOwner, claimTag) -> prevElections ++ [newElection]
                 where
                   newElection = EventData with
                     t = eventTime
@@ -178,9 +178,16 @@ fastForwardAndLifecycle instrument observableCids eventTime lifecycler = do
   -- lifecycling as of the lastEventTimestamp.
   dynInstrView <- BaseInstrument.exerciseInterfaceByKey @DynamicInstrument.I instrument lifecycler
     DynamicInstrument.GetView with viewer = lifecycler
+  let
+    prevElections = map (\e ->
+      case e.election of
+        None -> error "election missing"
+        Some (electorIsOwner, tag) -> electionEvent e.t electorIsOwner tag)
+      dynInstrView.prevElections
+    prevEvents = prevElections <> [timeEvent dynInstrView.lastEventTimestamp]
 
   -- fast-forward the claims tree to the current version by replaying the previous events
-  let prevEvents = dynInstrView.prevEvents <> [timeEvent dynInstrView.lastEventTimestamp]
+  -- (the previous elections + the lastEventTimestamp)
   claims <- fst <$> lifecycle lifecycler observableCids claimInstrument prevEvents
 
   let acquisitionTime = Claim.getAcquisitionTime claimInstrument
