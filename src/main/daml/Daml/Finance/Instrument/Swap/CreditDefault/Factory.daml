@@ -5,6 +5,7 @@ module Daml.Finance.Instrument.Swap.CreditDefault.Factory where
 
 import DA.Set (singleton)
 import Daml.Finance.Instrument.Swap.CreditDefault.Instrument qualified as CreditDefaultSwap (Instrument(..))
+import Daml.Finance.Interface.Claims.Claim qualified as Claim (GetClaims(..), I, getClaims)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (GetCid(..), R, createReference)
 import Daml.Finance.Interface.Instrument.Swap.CreditDefault.Factory qualified as CreditDefaultSwap (Create(..), Factory, Remove(..), View(..))
 import Daml.Finance.Interface.Instrument.Swap.CreditDefault.Types (CreditDefault(..))
@@ -29,8 +30,8 @@ template Factory
         defaultProbabilityReferenceId; recoveryRateReferenceId; ownerReceivesFix; fixRate;
         periodicSchedule; holidayCalendarIds; calendarDataProvider; dayCountConvention; currency;
         lastEventTimestamp}; observers} = do
-          cid <- toInterfaceContractId <$>
-            create CreditDefaultSwap.Instrument with
+          let
+            cdsInstrument = CreditDefaultSwap.Instrument with
               depository = instrument.depository
               issuer = instrument.issuer
               ownerReceivesFix
@@ -47,7 +48,12 @@ template Factory
               currency
               lastEventTimestamp
               observers
+          cid <- toInterfaceContractId <$> create cdsInstrument
           BaseInstrument.createReference instrument.depository $ toInterfaceContractId cid
+          -- Get the claims in order to run the associated checks (e.g. verify that the schedules
+          -- are valid).
+          Claim.getClaims (toInterface @Claim.I cdsInstrument) $
+            Claim.GetClaims with actor = instrument.issuer
           pure cid
       remove CreditDefaultSwap.Remove{instrument} = do
         (refCid, ref) <- fetchByKey @BaseInstrument.R instrument
