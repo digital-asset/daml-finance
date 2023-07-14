@@ -5,6 +5,7 @@ module Daml.Finance.Instrument.Swap.Currency.Factory where
 
 import DA.Set (singleton)
 import Daml.Finance.Instrument.Swap.Currency.Instrument qualified as CurrencySwap (Instrument(..))
+import Daml.Finance.Interface.Claims.Claim qualified as Claim (GetClaims(..), I, getClaims)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (GetCid(..), R, createReference)
 import Daml.Finance.Interface.Instrument.Swap.Currency.Factory qualified as CurrencySwap (Create(..), Factory, Remove(..), View(..))
 import Daml.Finance.Interface.Instrument.Swap.Currency.Types (CurrencySwap(..))
@@ -32,8 +33,8 @@ template Factory
         ownerReceivesBase; baseRate; foreignRate; periodicSchedule; holidayCalendarIds;
         calendarDataProvider; dayCountConvention; baseCurrency; foreignCurrency; fxRate;
         lastEventTimestamp}; observers} = do
-          cid <- toInterfaceContractId <$>
-            create CurrencySwap.Instrument with
+          let
+            currencySwapInstrument = CurrencySwap.Instrument with
               depository = instrument.depository
               issuer = instrument.issuer
               ownerReceivesBase
@@ -51,12 +52,17 @@ template Factory
               lastEventTimestamp
               fxRate
               observers
-          BaseInstrument.createReference instrument.depository cid
+          cid <- toInterfaceContractId <$> create currencySwapInstrument
+          BaseInstrument.createReference instrument.depository $ toInterfaceContractId cid
+          -- Get the claims in order to run the associated checks (e.g. verify that the schedules
+          -- are valid).
+          Claim.getClaims (toInterface @Claim.I currencySwapInstrument) $
+            Claim.GetClaims with actor = instrument.issuer
           pure cid
       remove CurrencySwap.Remove{instrument} = do
         (refCid, ref) <- fetchByKey @BaseInstrument.R instrument
         instrumentCid <- exercise refCid BaseInstrument.GetCid with viewer = instrument.depository
-        archive $ fromInterfaceContractId @CurrencySwap.Instrument instrumentCid
+        archive instrumentCid
         archive refCid
 
     interface instance Disclosure.I for Factory where

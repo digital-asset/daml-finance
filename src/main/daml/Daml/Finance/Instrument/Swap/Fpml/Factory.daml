@@ -5,6 +5,7 @@ module Daml.Finance.Instrument.Swap.Fpml.Factory where
 
 import DA.Set (singleton)
 import Daml.Finance.Instrument.Swap.Fpml.Instrument qualified as Fpml (Instrument(..))
+import Daml.Finance.Interface.Claims.Claim qualified as Claim (GetClaims(..), I, getClaims)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (GetCid(..), R, createReference)
 import Daml.Finance.Interface.Instrument.Swap.Fpml.Factory qualified as FpmlSwap (Create(..), Factory, Remove(..), View(..))
 import Daml.Finance.Interface.Instrument.Swap.Fpml.Types (Fpml(..))
@@ -30,8 +31,8 @@ template Factory
       view = FpmlSwap.View with provider
       create' FpmlSwap.Create{fpml = Fpml{instrument; description; issuerPartyRef; swapStreams;
         calendarDataProvider; currencies; lastEventTimestamp}; observers} = do
-          cid <- toInterfaceContractId <$>
-            create Fpml.Instrument with
+          let
+            fpmlInstrument = Fpml.Instrument with
               depository = instrument.depository
               issuer = instrument.issuer
               id = instrument.id
@@ -43,12 +44,17 @@ template Factory
               currencies
               lastEventTimestamp
               observers
-          BaseInstrument.createReference instrument.depository cid
+          cid <- toInterfaceContractId <$> create fpmlInstrument
+          BaseInstrument.createReference instrument.depository $ toInterfaceContractId cid
+          -- Get the claims in order to run the associated checks (e.g. verify that the schedules
+          -- are valid).
+          Claim.getClaims (toInterface @Claim.I fpmlInstrument) $
+            Claim.GetClaims with actor = instrument.issuer
           pure cid
       remove FpmlSwap.Remove{instrument} = do
         (refCid, ref) <- fetchByKey @BaseInstrument.R instrument
         instrumentCid <- exercise refCid BaseInstrument.GetCid with viewer = instrument.depository
-        archive $ fromInterfaceContractId @Fpml.Instrument instrumentCid
+        archive instrumentCid
         archive refCid
 
     interface instance Disclosure.I for Factory where

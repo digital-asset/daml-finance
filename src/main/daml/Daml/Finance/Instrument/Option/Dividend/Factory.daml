@@ -5,6 +5,7 @@ module Daml.Finance.Instrument.Option.Dividend.Factory where
 
 import DA.Set (singleton)
 import Daml.Finance.Instrument.Option.Dividend.Instrument qualified as Dividend (Instrument(..))
+import Daml.Finance.Interface.Claims.Claim qualified as Claim (GetClaims(..), I, getClaims)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (GetCid(..), R, createReference)
 import Daml.Finance.Interface.Instrument.Option.Dividend.Factory qualified as DividendOption (Create(..), Factory, Remove(..), View(..))
 import Daml.Finance.Interface.Instrument.Option.Dividend.Types (Dividend(..))
@@ -31,8 +32,8 @@ template Factory
       create' DividendOption.Create{dividend = Dividend{instrument; description; expiryDate;
         cashQuantity; sharesQuantity; fxQuantity; lastEventTimestamp; prevElections}; observers} =
           do
-            cid <- toInterfaceContractId <$>
-              create Dividend.Instrument with
+            let
+              dividendInstrument = Dividend.Instrument with
                 depository = instrument.depository
                 issuer = instrument.issuer
                 id = instrument.id
@@ -45,12 +46,16 @@ template Factory
                 lastEventTimestamp
                 prevElections
                 observers
-            BaseInstrument.createReference instrument.depository cid
+            cid <- toInterfaceContractId <$> create dividendInstrument
+            BaseInstrument.createReference instrument.depository $ toInterfaceContractId cid
+            -- Get the claims in order to run the associated checks.
+            Claim.getClaims (toInterface @Claim.I dividendInstrument) $
+              Claim.GetClaims with actor = instrument.issuer
             pure cid
       remove DividendOption.Remove{instrument} = do
         (refCid, ref) <- fetchByKey @BaseInstrument.R instrument
         instrumentCid <- exercise refCid BaseInstrument.GetCid with viewer = instrument.depository
-        archive $ fromInterfaceContractId @Dividend.Instrument instrumentCid
+        archive instrumentCid
         archive refCid
 
     interface instance Disclosure.I for Factory where

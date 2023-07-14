@@ -5,6 +5,7 @@ module Daml.Finance.Instrument.Swap.InterestRate.Factory where
 
 import DA.Set (singleton)
 import Daml.Finance.Instrument.Swap.InterestRate.Instrument qualified as InterestRate (Instrument(..))
+import Daml.Finance.Interface.Claims.Claim qualified as Claim (GetClaims(..), I, getClaims)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (GetCid(..), R, createReference)
 import Daml.Finance.Interface.Instrument.Swap.InterestRate.Factory qualified as InterestRateSwap (Create(..), Factory, Remove(..), View(..))
 import Daml.Finance.Interface.Instrument.Swap.InterestRate.Types (InterestRate(..))
@@ -31,8 +32,8 @@ template Factory
       create' InterestRateSwap.Create{interestRate = InterestRate{instrument; description;
         referenceRateId; ownerReceivesFix; fixRate; periodicSchedule; holidayCalendarIds;
         calendarDataProvider; dayCountConvention; currency; lastEventTimestamp}; observers} = do
-          cid <- toInterfaceContractId <$>
-            create InterestRate.Instrument with
+          let
+            interestRateInstrument = InterestRate.Instrument with
               depository = instrument.depository
               issuer = instrument.issuer
               ownerReceivesFix
@@ -48,12 +49,17 @@ template Factory
               currency
               lastEventTimestamp
               observers
-          BaseInstrument.createReference instrument.depository cid
+          cid <- toInterfaceContractId <$> create interestRateInstrument
+          BaseInstrument.createReference instrument.depository $ toInterfaceContractId cid
+          -- Get the claims in order to run the associated checks (e.g. verify that the schedules
+          -- are valid).
+          Claim.getClaims (toInterface @Claim.I interestRateInstrument) $
+            Claim.GetClaims with actor = instrument.issuer
           pure cid
       remove InterestRateSwap.Remove{instrument} = do
         (refCid, ref) <- fetchByKey @BaseInstrument.R instrument
         instrumentCid <- exercise refCid BaseInstrument.GetCid with viewer = instrument.depository
-        archive $ fromInterfaceContractId @InterestRate.Instrument instrumentCid
+        archive instrumentCid
         archive refCid
 
     interface instance Disclosure.I for Factory where
