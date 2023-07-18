@@ -32,7 +32,7 @@ cp ${daml_root}/sdk/${sdk_version}/damlc/resources/daml-base-anchors.json ${docs
 echo -e "${boldWhite}\nGenerating Rst documentation for ${project_name}...${colour_off}"
 DAML_PROJECT=${project} daml damlc docs \
   --output=${docs_build_dir}/${project_name} \
-  --output-hoogle=${docs_build_dir}/daml-finance-hoogle.txt \
+  --output-hoogle=${docs_build_dir}/${project_name}-hoogle.txt \
   --input-format=json \
   --format=Rst \
   --exclude-instances=HasField,HasImplementation,HasFromInterface,HasToInterface,HasInterfaceView,HasExercise,HasExerciseGuarded,HasFromAnyChoice,HasToAnyChoice \

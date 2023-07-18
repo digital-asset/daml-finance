@@ -8,8 +8,15 @@ root_dir=$(cd "$(dirname $0)"; cd ..; pwd -P)
 echo "Removing .lib/ directories in all packages"
 rm -r ${root_dir}/package/*/daml/*/.lib/ 1> /dev/null 2>&1
 
+# Remove .docs directories in packages
+echo "Removing .docs/ directories in all packages"
+rm -r ${root_dir}/package/*/daml/*/.docs/ 1> /dev/null 2>&1
+
 echo "Removing .dars/ directory"
 rm -r ${root_dir}/.dars 1> /dev/null 2>&1
+
+echo "Removing .docs/ directory"
+rm -r ${root_dir}/.docs 1> /dev/null 2>&1
 
 # Clean each package defined in the package config file.
 packages_yaml=${root_dir}/package/packages.yaml
