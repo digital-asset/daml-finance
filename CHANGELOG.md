@@ -377,6 +377,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Interface.Util
 
+- Removed `mapWithIndex` as it only was used once, and applied the index in a reverse order.
+
 - Dependencies update
 
 - Makes use of `requires` to enforce the interface hierarchy (in particular the redundant
@@ -400,6 +402,9 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Add check that instruments exist for `Distribution` and `Replacement`
 
 ### Daml.Finance.Settlement
+
+- In the settlement `Factory`, the id values used for the `Instruction`s were modified to accurately
+  reflect their order within the `Batch`.
 
 - Fix for `Instruction` and `IntermediatedStatic`, replaced `groupOn` by `sortAndGroupOn`.
 
