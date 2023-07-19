@@ -1,0 +1,344 @@
+module Scripts.Internal where
+
+import DA.Map as M (empty)
+import DA.Set as S (fromList, singleton)
+import Daml.Script
+
+-- INTERFACE DEPENDENCIES --
+import Daml.Finance.Interface.Holding.Base qualified as Holding (I)
+import Daml.Finance.Interface.Instrument.Token.Factory qualified as Token (F, Create(..))
+import Daml.Finance.Interface.Instrument.Token.Types (Token(..))
+import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
+import Daml.Finance.Interface.Settlement.Factory qualified as Settlement (F, Instruct(..))
+import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.RouteProvider qualified as RouteProvider (I)
+import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), InstructionKey(..), RoutedStep(..), Step(..))
+import Daml.Finance.Interface.Types.Common.Types (AccountKey, Id(..), InstrumentKey(..))
+import Daml.Finance.Interface.Util.Common (qty)
+
+-- IMPLEMENTATION DEPENDENCIES --
+import Daml.Finance.Instrument.Token.Factory qualified as Token (Factory(..))
+import Daml.Finance.Settlement.Factory qualified as Settlement (Factory(..))
+import Daml.Finance.Settlement.RouteProvider.SingleCustodian (SingleCustodian(..))
+
+import Workflow.CreditAccount qualified as CreditAccount
+import Workflow.DvP qualified as DvP
+import Workflow.Transfer qualified as Transfer
+
+-- import Scripts.Transfer (TransferState(..), runTransfer)
+import Scripts.Setup
+
+-- | Helper container used to transfer state from one script to another.
+data SettlementState = SettlementState
+  with
+    alice : Party
+    bank : Party
+    bob : Party
+    public : Party
+    aliceAccount : AccountKey
+    bobAccount : AccountKey
+    usdInstrument : InstrumentKey
+    tokenInstrument : InstrumentKey
+    routeProviderCid : ContractId RouteProvider.I
+    settlementFactoryCid : ContractId Settlement.F
+    tokenFactoryCid : ContractId Token.F
+    aliceHoldingCid : ContractId Holding.I
+    bobHoldingCid : ContractId Holding.I
+  deriving (Eq, Show)
+
+-- | Return type of the following script.
+data SetupTransferRequest = SetupTransferRequest
+  with
+    bank : Party
+      -- ^ The party who is custodian for the sending and receiving party.
+    alice : Party
+      -- ^ The party who is sending a holding.
+    bob : Party
+      -- ^ The party who is receiving a holding.
+    requestor : Party
+      -- ^ The party who creates the transfer request, but doesn't necessarily have to authorize it.
+    transferRequestCid : ContractId Transfer.Request
+      -- ^ The concrete transfer request instance.
+  deriving (Eq, Show)
+
+
+-- | Settlement 1: Single instruction between Alice and Bob, effectively settled through a transfer.
+--
+--            Bank
+--          /      \
+--     Alice   ->   Bob
+--             T
+--
+runSettleWithTransfer : Script ()
+runSettleWithTransfer = do
+
+  -- setup
+  Setup{..} <- runSetup AccountControllers with incoming = Owner; outgoing = Owner
+
+  -- Routed steps
+  let
+    transferFromAliceToBob = RoutedStep with
+      custodian = bank; sender = alice; receiver = bob; quantity = qty 1000.0 instrument
+
+  -- setup batch and instructions
+  -- Setup a Settlement Factory facility
+  -- This is used to generate settlement instructions from a list of `RoutedStep`s
+  -- SETTLEMENT_FACTORY_BEGIN
+  settlementFactoryCid <- toInterfaceContractId @Settlement.F <$> submit bank do
+    createCmd Settlement.Factory with
+      provider = bank
+      observers = S.fromList [alice, bob, requestor]
+  -- SETTLEMENT_FACTORY_END
+
+  -- INSTRUCT_BEGIN
+  let id = Id "1"
+  (batchCid, [instructionCid]) <-
+    submit requestor do
+      exerciseCmd settlementFactoryCid Settlement.Instruct with
+        instructors = fromList [requestor]
+        settlers = singleton requestor
+        id
+        description = "Transfer from Alice to Bob with id " <> show id
+        contextId = None
+        routedSteps = [transferFromAliceToBob]
+        settlementTime = None -- i.e., immediate settlement
+  -- INSTRUCT_END
+
+  -- i. Alice allocates
+  (instructionCid, _) <- submit alice do
+    exerciseCmd instructionCid Instruction.Allocate with
+      actors = S.singleton alice
+      allocation = Pledge $ toInterfaceContractId aliceHoldingCid
+
+  -- i. Bob approves
+  instructionCid <- submit bob do
+    exerciseCmd instructionCid Instruction.Approve with
+      actors = S.singleton bob
+      approval = TakeDelivery bobAccount
+
+  -- iii. Requestor executes the settlement.
+  [bobHoldingCid] <- submit requestor do
+    exerciseCmd batchCid Batch.Settle with
+      actors = singleton requestor
+
+  pure ()
+
+
+-- | Settlement 2: Settle holding between Alice and Bob using 2 transfers and the passthrough
+-- feature.
+--
+--                Bank
+--          /      |       \
+--     Alice -> Charlie -> Bob
+--           T     ->   T
+--
+runTransferAsSettlement : Script ()
+runTransferAsSettlement = do
+
+  -- setup
+  Setup{..} <- runSetup AccountControllers with incoming = Owner; outgoing = Owner
+
+  -- Setup a Settlement Factory facility
+  -- This is used to generate settlement instructions from a list of `RoutedStep`s
+  -- SETTLEMENT_FACTORY_BEGIN
+  settlementFactoryCid <- toInterfaceContractId @Settlement.F <$> submit bank do
+    createCmd Settlement.Factory with
+      provider = bank
+      observers = S.fromList [alice, bob, requestor]
+  -- SETTLEMENT_FACTORY_END
+
+  -- Routed steps
+  let
+    batchId = Id "1"
+    aliceToCharlie = RoutedStep with
+      custodian = bank; sender = alice; receiver = charlie; quantity = qty 1000.0 instrument
+    aliceToCharlieInstructionKey = InstructionKey with
+      requestors = S.singleton requestor
+      batchId
+      id = Id "0"
+    charlieToBob = RoutedStep with
+      custodian = bank; sender = charlie; receiver = bob; quantity = qty 1000.0 instrument
+    charlieToBobInstructionKey = InstructionKey with
+      requestors = S.singleton requestor
+      batchId
+      id = Id "1"
+  -- setup batch and instructions
+
+  -- INSTRUCT_BEGIN
+  (batchCid, [instructionCid1, instructionCid2]) <-
+    submit requestor do
+      exerciseCmd settlementFactoryCid Settlement.Instruct with
+        instructors = fromList [requestor]
+        settlers = singleton requestor
+        id = batchId
+        description = "Transfer from Alice to Bob with id " <> show batchId
+        contextId = None
+        routedSteps = [aliceToCharlie, charlieToBob]
+        settlementTime = None -- i.e., immediate settlement
+  -- INSTRUCT_END
+
+  -- i. Alice allocates
+  (instructionCid1, _) <- submit alice do
+    exerciseCmd instructionCid1 Instruction.Allocate with
+      actors = S.singleton alice
+      allocation = Pledge $ toInterfaceContractId aliceHoldingCid
+
+  -- ii. Bob approves
+  instructionCid2 <- submit bob do
+    exerciseCmd instructionCid2 Instruction.Approve with
+      actors = S.singleton bob
+      approval = TakeDelivery bobAccount
+
+  -- iii. Charlie let's holding pass through
+  instructionCid1 <- submit charlie do
+    exerciseCmd instructionCid1 Instruction.Approve with
+      actors = S.singleton charlie
+      approval = PassThroughTo (charlieAccount, charlieToBobInstructionKey)
+  instructionCid2 <- submit charlie do
+    exerciseCmd instructionCid2 Instruction.Allocate with
+      actors = S.singleton charlie
+      allocation = PassThroughFrom (charlieAccount, aliceToCharlieInstructionKey)
+
+  -- iii. Requestor executes the settlement.
+  [bobHoldingCid] <- submitMulti [requestor] [] do
+    exerciseCmd batchCid Batch.Settle with
+      actors = singleton requestor
+
+  pure ()
+
+--
+--            Bank
+--     Debit ^    \  Credit
+--          /      v
+--     Alice       Bob
+--
+
+
+
+
+  -- -- Execute the `runTransfer` script. Bob now holds USD 1000 in his account.
+  -- TransferState{alice
+  --   , bank
+  --   , bob
+  --   , public
+  --   , aliceAccount
+  --   , bobAccount
+  --   , cashInstrument = usdInstrument
+  --   , holdingFactoryCid
+  --   , newHoldingCid = bobHoldingCid} <- runTransfer
+
+  -- -- Bank creates a token instrument
+  -- let
+  --   instrumentId = Id "TOKEN"
+  --   instrumentVersion = "0"
+  --   tokenInstrument = InstrumentKey with
+  --     issuer = bank
+  --     depository = bank
+  --     id = instrumentId
+  --     version = instrumentVersion
+
+  -- now <- getTime
+
+  -- tokenFactoryCid <- toInterfaceContractId @Token.F <$> submit bank do
+  --   createCmd Token.Factory with
+  --     provider = bank
+  --     observers = empty
+
+  -- submit bank do
+  --   exerciseCmd tokenFactoryCid Token.Create with
+  --     token = Token with
+  --       instrument = tokenInstrument
+  --       description = "Instrument representing units of a generic token"
+  --       validAsOf = now
+  --     observers = empty
+
+  -- -- Credit Alice's account with a token holding
+  -- aliceRequestCid <- submit alice do
+  --   createCmd CreditAccount.Request with
+  --     account = aliceAccount
+  --     instrument = tokenInstrument
+  --     amount = 10.0
+  -- aliceHoldingCid <- submit bank do exerciseCmd aliceRequestCid CreditAccount.Accept
+
+  -- -- Setup a route provider
+  -- -- This is used transform settlement `Step`s into a `RoutedStep`s using a single custodian
+  -- -- ROUTE_PROVIDER_BEGIN
+  -- routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit bank do
+  --   createCmd SingleCustodian with
+  --     provider = bank; observers = S.fromList [alice, bob]; custodian = bank
+  -- -- ROUTE_PROVIDER_END
+
+  -- -- Setup a Settlement Factory facility
+  -- -- This is used to generate settlement instructions from a list of `RoutedStep`s
+  -- -- SETTLEMENT_FACTORY_BEGIN
+  -- settlementFactoryCid <- toInterfaceContractId @Settlement.F <$> submit bank do
+  --   createCmd Settlement.Factory with
+  --     provider = bank
+  --     observers = S.fromList [alice, bob]
+  -- -- SETTLEMENT_FACTORY_END
+
+  -- -- Alice proposes an FX trade to Bob
+  -- -- DVP_PROPOSE_BEGIN
+  -- dvpProposalCid <- submit bob do
+  --   createCmd DvP.Proposal with
+  --     id = "xccy trade"
+  --     recQuantity = qty 10.0 tokenInstrument
+  --     payQuantity = qty 1000.0 usdInstrument
+  --     proposer = bob
+  --     counterparty = alice
+  --     routeProviderCid -- This is equivalent to writing routeProviderCid = routeProviderCid
+  --     settlementFactoryCid
+  -- -- DVP_PROPOSE_END
+
+  -- -- DVP_ACCEPT_BEGIN
+  -- (batchCid, recSettleInstructionCid, paySettleInstructionCid) <- submit alice do
+  --   exerciseCmd dvpProposalCid DvP.Accept
+  -- -- DVP_ACCEPT_END
+
+  -- -- Settle the DvP Trade
+
+  -- -- i. Bob allocates his asset, Alice approves by providing her account.
+  -- (allocatedPaySettleInstructionCid, _) <- submit bob do
+  --   exerciseCmd paySettleInstructionCid Instruction.Allocate with
+  --     actors = S.singleton bob
+  --     allocation = Pledge bobHoldingCid
+
+  -- approvedPaySettleInstructionCid <- submit alice do
+  --   exerciseCmd allocatedPaySettleInstructionCid Instruction.Approve with
+  --     actors = S.singleton alice
+  --     approval = TakeDelivery aliceAccount
+
+  -- -- ii. Alice allocates her asset, Bob approves by providing his account.
+  -- -- ALLOCATE_APPROVE_BEGIN
+  -- (allocatedRecSettleInstructionCid, _) <- submit alice do
+  --   exerciseCmd recSettleInstructionCid Instruction.Allocate with
+  --     actors = S.singleton alice
+  --     allocation = Pledge aliceHoldingCid
+
+  -- approvedRecSettleInstructionCid <- submit bob do
+  --   exerciseCmd allocatedRecSettleInstructionCid Instruction.Approve with
+  --     actors = S.singleton bob
+  --     approval = TakeDelivery bobAccount
+  -- -- ALLOCATE_APPROVE_END
+
+  -- -- iii. Bob executes the settlement.
+  -- -- SETTLE_BEGIN
+  -- [bobHoldingCid, aliceHoldingCid] <- submitMulti [bob] [public] do
+  --   exerciseCmd batchCid Batch.Settle with
+  --     actors = singleton bob
+  -- -- SETTLE_END
+
+  -- pure SettlementState with
+  --   alice
+  --   bank
+  --   bob
+  --   public
+  --   aliceAccount
+  --   bobAccount
+  --   usdInstrument
+  --   tokenInstrument
+  --   routeProviderCid
+  --   settlementFactoryCid
+  --   tokenFactoryCid
+  --   aliceHoldingCid = toInterfaceContractId aliceHoldingCid
+  --   bobHoldingCid = toInterfaceContractId bobHoldingCid

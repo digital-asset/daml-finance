@@ -1,0 +1,182 @@
+module Scripts.Setup where
+
+import DA.Map qualified as M (empty, fromList)
+import DA.Set qualified as S (empty, fromList, singleton, fromList)
+import Daml.Script
+
+-- INTERFACE DEPENDENCIES --
+import Daml.Finance.Interface.Account.Account qualified as Account (Controllers(..))
+import Daml.Finance.Interface.Account.Factory qualified as Account (F)
+import Daml.Finance.Interface.Holding.Factory qualified as Holding (F)
+import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (I, getKey)
+import Daml.Finance.Interface.Types.Common.Types (AccountKey(..), Id(..), InstrumentKey(..))
+
+-- IMPLEMENTATION DEPENDENCIES --
+import Daml.Finance.Account.Account qualified as Account (Factory(..))
+import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
+import Daml.Finance.Instrument.Token.Instrument (Instrument(..))
+
+import Workflow.CreateAccount qualified as CreateAccount
+import Workflow.CreditAccount qualified as CreditAccount
+
+-- | Outlines the required authorizers for an action.
+data RequiredAuthorizers
+  = Owner
+  | Custodian
+  | Both -- i.e., owner and the custodian
+  | Anyone
+  deriving (Eq, Show)
+
+-- | Describes the required authorizers for incoming and outgoing transfers.
+data AccountControllers =
+  AccountControllers with
+    incoming : RequiredAuthorizers
+    outgoing : RequiredAuthorizers
+  deriving (Eq, Show)
+
+-- | This is the type of data that the following script returns after setting up the request to
+-- transfer a holding from Alice to Bob.
+data Setup = Setup
+  with
+    bank : Party
+      -- ^ The party who is custodian for the sending and receiving party.
+    bankAccount : AccountKey
+      -- ^ Bank's account at itself.
+    instrument : InstrumentKey
+      -- ^ An instrument issued by bank.
+    alice : Party
+      -- ^ A client of the bank.
+    aliceAccount : AccountKey
+      -- ^ Alice's account at bank.
+    aliceHoldingCid : ContractId Transferable.I
+      -- ^ Alice's transferable cash holding.
+    bob : Party
+      -- ^ A client of the bank.
+    bobAccount : AccountKey
+      -- ^ Bob's account at bank.
+    charlie : Party
+      -- ^ A client of the bank.
+    charlieAccount : AccountKey
+      -- ^ Bob's account at bank.
+    requestor : Party
+      -- ^ The party who creates settlement/transfer requests, but doesn't necessarily have to
+      --   authorize it.
+  deriving (Eq, Show)
+
+-- | This setup script does several things:
+-- 1. It creates an account for Alice and Bob at the Bank, using custom account controllers
+-- 2. It sets up a cash instrument
+-- 3. It credits a cash holding to Alice's bank account
+runSetup : AccountControllers -> Script Setup
+runSetup accountControllers = do
+  -- Allocate parties
+  [bank, alice, bob, charlie, requestor] <-
+    mapA createParty ["Bank", "Alice", "Bob", "Charlie", "Requestor"]
+
+  let
+    -- Get concrete controlling parties
+    toControllers AccountControllers{incoming; outgoing} custodian owner =
+      let
+        toParties = \requiredAuthorizers -> case requiredAuthorizers of
+          Owner -> S.singleton owner
+          Custodian -> S.singleton custodian
+          Both -> S.fromList [custodian, owner]
+          Anyone -> S.empty
+      in
+        Account.Controllers with incoming = toParties incoming; outgoing = toParties outgoing
+    controllersWithOwner = toControllers accountControllers bank
+
+  -- Account Factory (it is used by the bank to create accounts)
+  accountFactoryCid <- toInterfaceContractId @Account.F <$> submit bank do
+    createCmd Account.Factory with provider = bank; observers = M.empty
+
+  -- Holding Factory (it is used by the bank to create holdings with the desired implementation)
+  holdingFactoryCid <- toInterfaceContractId @Holding.F <$> submit bank do
+    createCmd Fungible.Factory with
+      provider = bank
+      observers = M.fromList [("DisclosedToAll", S.fromList [alice, bob, charlie, requestor])]
+
+  -- Set up accounts @Bank
+  aliceRequestCid <- submit alice do
+    createCmd CreateAccount.Request with
+      custodian = bank
+      owner = alice
+      accountControllers = controllersWithOwner alice
+  aliceAccount <- submit bank do
+    exerciseCmd aliceRequestCid CreateAccount.Accept with
+      label = "Alice@Bank"
+      description = "Account of Alice at Bank"
+      accountFactoryCid
+      holdingFactoryCid
+      observers = [bob, charlie] -- disclose to all clients of the bank
+  bobRequestCid <- submit bob do
+    createCmd CreateAccount.Request with
+      custodian = bank
+      owner = bob
+      accountControllers = controllersWithOwner bob
+  bobAccount <- submit bank do
+    exerciseCmd bobRequestCid CreateAccount.Accept with
+      label = "Bob@Bank"
+      description = "Account of Bob at Bank"
+      accountFactoryCid
+      holdingFactoryCid
+      observers = [alice, charlie] -- disclose to all clients of the bank
+  charlieRequestCid <- submit charlie do
+    createCmd CreateAccount.Request with
+      custodian = bank
+      owner = charlie
+      accountControllers = controllersWithOwner charlie
+  charlieAccount <- submit bank do
+    exerciseCmd charlieRequestCid CreateAccount.Accept with
+      label = "Charlie@Bank"
+      description = "Account of Charlie at Bank"
+      accountFactoryCid
+      holdingFactoryCid
+      observers = [alice, bob]  -- disclose to all clients of the bank
+  bankRequestCid <- submit bank do
+    createCmd CreateAccount.Request with
+      custodian = bank
+      owner = bank
+      accountControllers = controllersWithOwner bank
+  bankAccount <- submit bank do
+    exerciseCmd bankRequestCid CreateAccount.Accept with
+      label = "Bank@Bank"
+      description = "Account of Bank at Bank"
+      accountFactoryCid
+      holdingFactoryCid
+      observers = [alice, bob, charlie]  -- disclose to all clients of the bank
+
+  -- Bank creates the cash instrument
+  now <- getTime
+  let
+    cashInstrument = Instrument with
+      depository = bank
+      issuer = bank
+      id = Id "USD"
+      version = "0"
+      description = "Instrument representing units of USD"
+      validAsOf = now
+      observers = M.empty
+    instrument = Instrument.getKey $ toInterface cashInstrument
+  cashInstrumentCid <- toInterfaceContractId @Instrument.I <$> submit bank do
+    createCmd cashInstrument
+
+  -- Alice deposits cash at the bank
+  aliceRequestCid <- submit alice do
+    createCmd CreditAccount.Request with
+      account = aliceAccount
+      instrument
+      amount = 1000.0
+  aliceHoldingCid <- fromInterfaceContractId @Transferable.I <$> submit bank do
+    exerciseCmd aliceRequestCid CreditAccount.Accept
+
+  pure Setup with ..
+
+-- | Creates a user + party given a hint.
+createParty : Text -> Script Party
+createParty name = do
+  party <- allocatePartyWithHint name $ PartyIdHint name
+  userId <- validateUserId name
+  createUser (User userId (Some party)) [CanActAs party]
+  pure party
