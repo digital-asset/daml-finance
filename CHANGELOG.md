@@ -450,7 +450,11 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Settlement
 
-- In the settlement `Factory`, the id values used for the `Instruction`s were modified to accurately reflect their order within the `Batch`.
+- In the `Batch`, the order of the `settledCids` were changed to match the initial order of the
+  instructions in the batch.
+
+- In the settlement `Factory`, the id values used for the `Instruction`s were modified to accurately
+  reflect their order within the `Batch`.
 
 - Fix for `Instruction` and `IntermediatedStatic`, replaced `groupOn` by `sortAndGroupOn`.
 
