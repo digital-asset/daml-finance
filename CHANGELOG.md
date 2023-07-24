@@ -406,6 +406,9 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - In the settlement `Factory`, the id values used for the `Instruction`s were modified to accurately
   reflect their order within the `Batch`.
 
+- In the `Batch`, the order of the `settledCids` were changed to match the initial order of the
+  instructions in the batch.
+
 - Fix for `Instruction` and `IntermediatedStatic`, replaced `groupOn` by `sortAndGroupOn`.
 
 - Dependencies update
