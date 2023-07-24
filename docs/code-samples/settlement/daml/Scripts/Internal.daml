@@ -7,68 +7,78 @@ import Daml.Script
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I)
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Factory qualified as Settlement (F, Instruct(..))
-import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (I, Allocate(..), Approve(..))
-import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), InstructionKey(..), RoutedStep(..))
+import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), RoutedStep(..))
 import Daml.Finance.Interface.Types.Common.Types (AccountKey, Id(..), InstrumentKey(..))
 import Daml.Finance.Interface.Util.Common (qty)
 
 -- IMPLEMENTATION DEPENDENCIES --
 import Daml.Finance.Settlement.Factory qualified as Settlement (Factory(..))
-import Daml.Finance.Settlement.Instruction qualified as Instruction (T)
 
 import Scripts.Setup
 
--- | Helper container used to transfer state from one script to another.
+-- | Return type of the setup script.
 data SetupInternalSettlement = SetupInternalSettlement
   with
     instrument : InstrumentKey
+      -- ^ An instrument.
     bank : Party
+      -- ^ A custodian.
     alice : Party
+      -- ^ The intitial owner of a holding.
     aliceAccount : AccountKey
+      -- ^ Alice's account @Bank.
     aliceHoldingCid : ContractId Transferable.I
+      -- ^ Alice's holding @Bank.
     bob : Party
+      -- ^ The receiver of a holding.
     bobAccount : AccountKey
+      -- ^ Bob's account @Bank.
     charlie : Party
+      -- ^ An intermediary.
     charlieAccount : AccountKey
+      -- ^ Charlie's account @Bank.
     requestor : Party
-    -- routeProviderCid : ContractId RouteProvider.I
+      -- ^ The party who requests/instructs settlement.
     settlementFactoryCid : ContractId Settlement.F
-      -- ^ The settlement factory used to generate settlement instructions from a list of
-      --   `RoutedStep`s
+      -- ^ Settlement factory.
+    all : [Party]
+      -- ^ A list with all the parties above.
   deriving (Eq, Show)
 
 runSetupInternalSettlement : Script (SetupInternalSettlement)
 runSetupInternalSettlement = do
-  Setup{..} <- runSetup AccountControllers with incoming = Owner; outgoing = Owner
+  Setup{bank1 = bank, ..} <- runSetup AccountControllers with incoming = Owner; outgoing = Owner
 
-  -- Setup a Settlement Factory facility
-  -- This is used to generate settlement instructions from a list of `RoutedStep`s
-  -- SETTLEMENT_FACTORY_BEGIN
-  settlementFactoryCid <- toInterfaceContractId @Settlement.F <$> submit bank do
+  -- Setup a Settlement Factory facility (used to generate settlement instructions from a list of
+  -- `RoutedStep`s).
+  settlementFactoryCid <- toInterfaceContractId @Settlement.F <$> submit requestor do
     createCmd Settlement.Factory with
-      provider = bank
-      observers = S.fromList [alice, bob, charlie, requestor]
-  -- SETTLEMENT_FACTORY_END
+      provider = requestor
+      observers = S.fromList all
 
   pure SetupInternalSettlement{..}
 
--- | Settlement 1: A debit and credit of holdings.
--- The account hiearchy where edges are accounts and the arrow heads (^v><) denote routed steps.
---            Bank
---         D ^    \ C
---          /      v
---     Alice       Bob
+-- | Settlement 1: A movement of a holding from Alice to Bob. This is achived by a debiting and
+-- crediting the accounts of Alice and Bob, respectively.
+-- The settlement process is illustrated in the following figure where the edges represent accounts,
+-- the arrow heads (^v><) routed steps, and the stars (*) holdings:
+--
+--            Bank                "Settle"           Bank
+--         D ^    \ C                =>             /    \*
+--         */      v                           Alice      Bob
+--    Alice        Bob
 --
 -- D: Debit
---    Bank approves with a DebitSender and Alice allocates with a Pledge.
+--    Bank approves by debiting the sender (DebitSender) and Alice allocates by pledging a holding
+--    (Pledge).
 -- C: Credit
---    Bank allocates with a CreditReceiver and Bob approves with a TakeDelivery.
---
+--    Bank allocates by crediting the receiver (CreditReceiver) and Bob approves with by taking
+--    delivery to his account (TakeDelivery).
 runSettlementWithDebitAndCredit : Script ()
 runSettlementWithDebitAndCredit = do
 
   -- SETUP_SETTLE_WITH_DEBIT_AND_CREDIT_BEGIN
-  -- Setup
   SetupInternalSettlement
     { instrument
     , bank
@@ -77,11 +87,12 @@ runSettlementWithDebitAndCredit = do
     , charlie, charlieAccount
     , requestor
     , settlementFactoryCid
+    , all
     } <- runSetupInternalSettlement
   -- SETUP_SETTLE_WITH_DEBIT_AND_CREDIT_END
 
+  -- Routed steps.
   -- SETTLE_WITH_DEBIT_AND_CREDIT_INSTRUCT_BEGIN
-  -- Routed steps
   let
     routedStep1 = RoutedStep with
       custodian = bank
@@ -106,19 +117,19 @@ runSettlementWithDebitAndCredit = do
   -- SETTLE_WITH_DEBIT_AND_CREDIT_INSTRUCT_END
 
   -- SETTLE_WITH_DEBIT_AND_CREDIT_SETTLE_BEGIN
-  -- i. Alice allocates
+  -- i. Alice allocates.
   (instructionCid1, _) <- submit alice do
     exerciseCmd instructionCid1 Instruction.Allocate with
       actors = S.singleton alice
       allocation = Pledge $ toInterfaceContractId aliceHoldingCid
 
-  -- ii. Bob approves
+  -- ii. Bob approves.
   instructionCid2 <- submit bob do
     exerciseCmd instructionCid2 Instruction.Approve with
       actors = S.singleton bob
       approval = TakeDelivery bobAccount
 
-  -- ii. Bank approves
+  -- iii. Bank approves and allocates.
   instructionCid1 <- submit bank do
     exerciseCmd instructionCid1 Instruction.Approve with
       actors = S.singleton bank
@@ -128,7 +139,7 @@ runSettlementWithDebitAndCredit = do
       actors = S.singleton bank
       allocation = CreditReceiver
 
-  -- iii. Requestor executes the settlement.
+  -- iv. Requestor executes the settlement.
   [bobHoldingCid] <- submit requestor do
     exerciseCmd batchCid Batch.Settle with
       actors = singleton requestor
@@ -136,22 +147,23 @@ runSettlementWithDebitAndCredit = do
 
   pure ()
 
--- | Settlement 2: A transfer of a holding.
--- The account hiearchy where edges are accounts and the arrow heads (^v><) denote routed steps.
+-- | Settlement 2: A movement of a holding from Alice to Bob. This is achieved by a transfer of the
+-- holding from Alice to Bob.
+-- The settlement process is illustrated in the following figure where the edges represent accounts,
+-- the arrow heads (^v><) routed steps, and the stars (*) holdings:
 --
---           Bank
---          /   \
---     Alice  >  Bob
+--           Bank                "Settle"              Bank
+--         */   \                   =>                 /   \*
+--     Alice  >  Bob                              Alice     Bob
 --            T
 --
 -- T: Transfer
---    Alice allocates with a Pledge and Bob approves with a TakeDelivery.
---
+--    Alice allocates by pleding her holding (Pledge) and Bob approves by taking delivery to his
+--    account (TakeDelivery).
 runSettlementWithTransfer : Script ()
 runSettlementWithTransfer = do
 
   -- SETUP_SETTLE_WITH_TRANSFER_BEGIN
-  -- Setup
   SetupInternalSettlement
     { instrument
     , bank
@@ -163,8 +175,8 @@ runSettlementWithTransfer = do
     } <- runSetupInternalSettlement
   -- SETUP_SETTLE_WITH_TRANSFER_END
 
+  -- Routed steps.
   -- SETUP_SETTLE_WITH_TRANSFER_INSTRUCT_BEGIN
-  -- Routed steps
   let
     routedStep = RoutedStep with
       custodian = bank
@@ -186,13 +198,13 @@ runSettlementWithTransfer = do
   -- SETUP_SETTLE_WITH_TRANSFER_INSTRUCT_END
 
   -- SETUP_SETTLE_WITH_TRANSFER_SETTLE_BEGIN
-  -- i. Alice allocates
+  -- i. Alice allocates.
   (instructionCid, _) <- submit alice do
     exerciseCmd instructionCid Instruction.Allocate with
       actors = S.singleton alice
       allocation = Pledge $ toInterfaceContractId aliceHoldingCid
 
-  -- i. Bob approves
+  -- ii. Bob approves.
   instructionCid <- submit bob do
     exerciseCmd instructionCid Instruction.Approve with
       actors = S.singleton bob
@@ -206,24 +218,26 @@ runSettlementWithTransfer = do
 
   pure ()
 
--- | Settlement 3: Transfer between Alice and Bob via Charlier which passes the asset through.
--- The account hiearchy where edges are accounts and the arrow heads (^v><) denote routed steps.
+-- | Settlement 3: A movement of a holding from Alice to Bob via Charlie. Charlie receives a holding
+-- from Alice which he immediately "passes through" to Bob.
+-- The settlement process is illustrated in the following figure where the edges represent accounts,
+-- the arrow heads (^v><) routed steps, and the stars (*) holdings:
+--
+--               Bank               "Settle"              Bank
+--         */     |    \               =>            /     |    \*
+--     Alice > Charlie > Bob                    Alice   Charlie  Bob
+--           T1        T2
 
---               Bank
---          /     |    \
---     Alice > Charlie > Bob
---           T+       T-
-
--- T+: Transfer with PassThroughTo
---     Alice allocated with Pledge and Charlie approves with PassThroughTo
--- T-: Transfer with PassThroughFrom
---     Charlied allocates with PassThroughFrom and Bob approves with TakeDelivery.
-
+-- T1: Transfer with PassThroughTo
+--     Alice allocates by pledging her holding (Pledge) and Charlie approves by committing to pass
+--     the holding through to Bob (PassThroughTo).
+-- T2: Transfer with PassThroughFrom
+--     Charlied allocates with the pass-through holding to be received from Alice (PassThroughFrom)
+--     and Bob approves by taking delivery to his account (TakeDelivery).
 runSettlementWithPassThrough : Script ()
 runSettlementWithPassThrough = do
 
   -- SETUP_SETTLE_WITH_PASS_THROUGH_BEGIN
-  -- Setup
   SetupInternalSettlement
     { instrument
     , bank
@@ -235,8 +249,8 @@ runSettlementWithPassThrough = do
     } <- runSetupInternalSettlement
   -- SETUP_SETTLE_WITH_PASS_THROUGH_END
 
+  -- Routed steps.
   -- SETUP_SETTLE_WITH_PASS_THROUGH_INSTRUCT_BEGIN
-  -- Routed steps
   let
     routedStep1 = RoutedStep with
       custodian = bank
@@ -261,19 +275,19 @@ runSettlementWithPassThrough = do
   -- SETUP_SETTLE_WITH_PASS_THROUGH_INSTRUCT_END
 
   -- SETUP_SETTLE_WITH_PASS_THROUGH_SETTLE_BEGIN
-  -- i. Alice allocates
+  -- i. Alice allocates.
   (instructionCid1, _) <- submit alice do
     exerciseCmd instructionCid1 Instruction.Allocate with
       actors = S.singleton alice
       allocation = Pledge $ toInterfaceContractId aliceHoldingCid
 
-  -- ii. Bob approves
+  -- ii. Bob approves.
   instructionCid2 <- submit bob do
     exerciseCmd instructionCid2 Instruction.Approve with
       actors = S.singleton bob
       approval = TakeDelivery bobAccount
 
-  -- iii. Charlie lets holding pass through
+  -- iii. Charlie approves and allocates (with pass-through).
   instructionKey2 <- retrieveKey charlie instructionCid2
   instructionCid1 <- submit charlie do
     exerciseCmd instructionCid1 Instruction.Approve with
@@ -285,16 +299,10 @@ runSettlementWithPassThrough = do
       actors = S.singleton charlie
       allocation = PassThroughFrom (charlieAccount, instructionKey1)
 
-  -- iii. Requestor executes the settlement.
+  -- iv. Requestor executes the settlement.
   [bobHoldingCid] <- submitMulti [requestor] [] do
     exerciseCmd batchCid Batch.Settle with
       actors = singleton requestor
   -- SETUP_SETTLE_WITH_PASS_THROUGH_SETTLE_END
 
   pure ()
-
--- | Utility function for retrieving the key of an instruction.
-retrieveKey : Party -> ContractId Instruction.I -> Script InstructionKey
-retrieveKey actor cid = script do
-  Some i <- queryContractId actor (fromInterfaceContractId @Instruction.T cid)
-  pure $ key i
