@@ -4,44 +4,29 @@ import Daml.Script
 
 -- INTERFACE DEPENDENCIES --
 import Daml.Finance.Interface.Holding.Base qualified as Holding (I)
-import Daml.Finance.Interface.Holding.Factory qualified as Holding (F)
+import Daml.Finance.Interface.Instrument.Token.Factory qualified as Token (F)
 import Daml.Finance.Interface.Types.Common.Types (AccountKey, InstrumentKey(..))
 
 -- IMPLEMENTATION DEPENDENCIES --
 import Workflow.Transfer qualified as Transfer
 
-import Scripts.Holding (HoldingState(..), runHolding)
+import Scripts.Holding (HoldingState(..), setupHolding)
 
--- | Helper container used to transfer state from one script to another.
-data TransferState = TransferState
-  with
-    alice : Party
-    bank : Party
-    bob : Party
-    public : Party
-    aliceAccount : AccountKey
-    bobAccount : AccountKey
-    cashInstrument : InstrumentKey
-    holdingFactoryCid : ContractId Holding.F
-    newHoldingCid : ContractId Holding.I
-  deriving (Eq, Show)
-
--- | Test script that transfers a holding from Alice to Bob
+-- | Test script that
+-- 1. executes the `setupHolding` script
+-- 2. transfers ownership of a cash holding from Alice to Bob
 runTransfer : Script TransferState
 runTransfer = do
 
-  -- Execute the `runHolding` script. Alice now holds USD 1000 in her account.
+  -- Execute the `setupHolding` script. Alice now holds USD 1000 in her account at the Bank.
   HoldingState{alice
     , bank
     , bob
-    , public
     , aliceAccount
     , bobAccount
     , cashInstrument
-    , holdingFactoryCid
-    , aliceCashHoldingCid} <- runHolding
-
-  now <- getTime
+    , tokenFactoryCid
+    , aliceCashHoldingCid} <- setupHolding
 
   -- Bob requests a cash transfer from Alice
   -- TRANSFER_BEGIN
@@ -52,7 +37,7 @@ runTransfer = do
       amount = 1000.0
       currentOwner = alice
 
-  newHoldingCid <- submitMulti [alice] [public] do
+  bobCashHoldingCid <- submit alice do
     exerciseCmd transferRequestCid Transfer.Accept with holdingCid = aliceCashHoldingCid
   -- TRANSFER_END
 
@@ -60,9 +45,28 @@ runTransfer = do
     alice
     bank
     bob
-    public
     aliceAccount
     bobAccount
-    cashInstrument
-    holdingFactoryCid
-    newHoldingCid
+    usdInstrument = cashInstrument
+    bobCashHoldingCid
+    tokenFactoryCid
+
+-- | Helper container used to transfer state to the next script.
+data TransferState = TransferState
+  with
+    alice : Party
+    bank : Party
+    bob : Party
+    aliceAccount : AccountKey
+    bobAccount : AccountKey
+    usdInstrument : InstrumentKey
+    bobCashHoldingCid : ContractId Holding.I
+    tokenFactoryCid : ContractId Token.F
+
+-- | Creates a user + party given a hint.
+createParty : Text -> Script Party
+createParty name = do
+  party <- allocatePartyWithHint name $ PartyIdHint name
+  userId <- validateUserId name
+  createUser (User userId (Some party)) [CanActAs party]
+  pure party
