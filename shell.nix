@@ -19,7 +19,7 @@ pkgs.mkShell {
     (daml { stdenv = pkgs.stdenv;
             jdk = pkgs.openjdk11_headless;
             version = damlYaml.sdk-version; })
-    (packell { pkgs = pkgs; stdenv = pkgs.stdenv; version = "0.0.2"; })
+    (packell { pkgs = pkgsGhc; stdenv = pkgsGhc.stdenv; version = "0.0.2"; })
     pkgs.bash
     pkgs.binutils # cp, grep, etc.
     pkgs.cacert
