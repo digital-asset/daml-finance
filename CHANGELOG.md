@@ -6,12 +6,13 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 | Package                                    | Released version   | Target version |
 |--------------------------------------------|--------------------|----------------|
-| ContingentClaims.Core                      | 1.0.0              | 1.0.1          |
-| ContingentClaims.Lifecycle                 | 1.0.0              | 1.0.1          |
+| ContingentClaims.Core                      | 1.0.0              | 2.0.0          |
+| ContingentClaims.Lifecycle                 | 1.0.0              | 2.0.0          |
 | Daml.Finance.Account                       | 1.0.1              | 2.0.0          |
-| Daml.Finance.Claims                        | 1.0.1              | 1.0.2          |
+| Daml.Finance.Claims                        | 1.0.1              | 2.0.0          |
 | Daml.Finance.Data                          | 1.0.1              | 2.0.0          |
 | Daml.Finance.Holding                       | 1.0.2              | 2.0.0          |
+| Daml.Finance.Instrument.Bond               | 0.2.1              | 1.0.0          |
 | Daml.Finance.Instrument.Generic            | 1.0.1              | 2.0.0          |
 | Daml.Finance.Instrument.Token              | 1.0.1              | 2.0.0          |
 | Daml.Finance.Interface.Account             | 1.0.0              | 2.0.0          |
@@ -19,27 +20,26 @@ This document tracks pending changes to packages. It is facilitating the write-u
 | Daml.Finance.Interface.Data                | 2.0.0              | 3.0.0          |
 | Daml.Finance.Interface.Holding             | 1.0.0              | 2.0.0          |
 | Daml.Finance.Interface.Instrument.Base     | 1.0.0              | 2.0.0          |
+| Daml.Finance.Interface.Instrument.Bond     | 0.2.1              | 1.0.0          |
 | Daml.Finance.Interface.Instrument.Generic  | 1.0.0              | 2.0.0          |
 | Daml.Finance.Interface.Instrument.Token    | 1.0.0              | 2.0.0          |
 | Daml.Finance.Interface.Lifecycle           | 1.0.0              | 2.0.0          |
 | Daml.Finance.Interface.Settlement          | 1.0.0              | 2.0.0          |
 | Daml.Finance.Interface.Types.Common        | 1.0.0              | 1.0.1          |
 | Daml.Finance.Interface.Types.Date          | 2.0.0              | 2.0.1          |
-| Daml.Finance.Interface.Util                | 1.0.0              | 1.0.1          |
+| Daml.Finance.Interface.Util                | 1.0.0              | 2.0.0          |
 | Daml.Finance.Lifecycle                     | 1.0.1              | 2.0.0          |
 | Daml.Finance.Settlement                    | 1.0.2              | 2.0.0          |
-| Daml.Finance.Util                          | 2.0.0              | 2.0.1          |
+| Daml.Finance.Util                          | 2.0.0              | 3.0.0          |
 
 ## Early Access Packages
 
 | Package                                    | Released version   | Target version |
 |--------------------------------------------|--------------------|----------------|
 | ContingentClaims.Valuation                 | 0.2.0              | 0.2.1          |
-| Daml.Finance.Instrument.Bond               | 0.2.1              | 0.3.0          |
 | Daml.Finance.Instrument.Equity             | 0.2.1              | 0.3.0          |
 | Daml.Finance.Instrument.Option             | 0.1.0              | 0.2.0          |
 | Daml.Finance.Instrument.Swap               | 0.2.1              | 0.3.0          |
-| Daml.Finance.Interface.Instrument.Bond     | 0.2.1              | 0.3.0          |
 | Daml.Finance.Interface.Instrument.Equity   | 0.2.0              | 0.3.0          |
 | Daml.Finance.Interface.Instrument.Option   | 0.1.0              | 0.2.0          |
 | Daml.Finance.Interface.Instrument.Swap     | 0.2.1              | 0.3.0          |
@@ -48,398 +48,332 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### ContingentClaims.Core
 
-- Dependencies update
+- Update of SDK version and dependencies
 
-- Style changes
+- Add `orList` and `andList` smart constructors
 
-- Add smart constructors: orList & andList
+- Add `ObserveAt` observation builder, used to explicitly state when an `Observation` should be observed
 
-- Add `ObserveAt` observation builder
+- Refactor `or` and `anytime` smart constructors to identify
+electable sub-trees by a textual tag
 
 ### ContingentClaims.Lifecycle
 
-- Dependencies update
+- Update of SDK version and dependencies
 
-- Style changes
+- Refactor `exercise` to identify the elected sub-tree by a textual tag rather than the actual sub-tree
 
 ### ContingentClaims.Valuation
 
-- Dependencies update
-
-- Style changes
+- Update of SDK version and dependencies
 
 ### Daml.Finance.Account
 
-- Dependencies update
+- Update of SDK version and dependencies
 
-- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`
-  implementation was removed as well as redundant `HasImplementation` instances)
+- Make use of the `requires` keyword to enforce the interface hierarchy (in particular the `asDisclosure` implementation was removed)
 
-- Uses `ensure` to ensure that the set of outgoing controllers is non-empty.
+- Use `ensure` to ensure that the set of outgoing controllers is non-empty
 
 ### Daml.Finance.Claims
 
-- Dependencies update
+- Update of SDK version and dependencies
 
-- Style changes
+- The lifecycle rule supports a combination of elections and time-based events
 
-- Add support for hybrid (election & time-based) instruments
+- Improve tagging of new instrument versions in the lifecycle rule
 
-- Create version consisting of more than hash of remaining claims: it now includes
-  `lastEventTimestamp` as well.
-
-- Create instruments even if they have a Zero claim
+- A new instrument version is created and returned by the `Evolve` choice also when the instrument expires
 
 ### Daml.Finance.Data
 
-- Unecessary `Remove` choice (implementations) were removed.
+- Update of SDK version and dependencies
 
-- Dependencies update
+- Remove implementation of `Remove` choice from factory templates
 
-- Style changes
-
-- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`,
-  `asNumericObservable`, `asTimeObservable`, and `asEvent` implementations were removed as well as
-  redundant `HasImplementation` instances)
+- Make use of the `requires` keyword to enforce the interface hierarchy (in particular the `asDisclosure`,
+  `asNumericObservable`, `asTimeObservable`, and `asEvent` implementations were removed)
 
 - Removed `key` from `DateClock`.
 
 ### Daml.Finance.Holding
 
-- Unecessary `Remove` choice (implementations) were removed.
+- Update of SDK version and dependencies
 
-- Dependencies update
+- Remove implementation of `Remove` choice from factory templates
 
-- Added default `splitImpl` and `mergeImpl` for `Fungible` to `Util.daml` (also generalized the
-  `acquireImpl` and `releaseImpl` to not rely on an attribute called "lock")
+- Added default `splitImpl` and `mergeImpl` for `Fungible` to `Util.daml`
 
-- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`,
-  `asBase`, and `asTransferable` implementations were removed as well as redundant
-  `HasImplementation` instances)
+- Generalized the `acquireImpl` and `releaseImpl` to not rely on an attribute called "lock"
 
-- Added the new owner as observer of the `Transfer` choice of the `Transferable` interface.
+- Make use of the `requires` keyword to enforce the interface hierarchy (in particular the `asDisclosure`, `asBase`, and `asTransferable` implementations were removed)
 
-- Fix for locking (don't allow an empty `lockers` set).
+- The `Transfer` choice of the `Transferable` interface now includes the new owner as a choice observer
+
+- Implementation of `Lockable` does not allow an empty `lockers` set
 
 ### Daml.Finance.Instrument.Bond
 
-- The factory create choices return the corresponding interface (instead of the base interface).
+- Update of SDK version and dependencies
 
-- Dependencies update
+- The `Create` choice on the instrument factories returns the corresponding interface (rather than the base instrument interface)
 
-- Style changes
+- Make use of the `requires` keyword to enforce the interface hierarchy (in particular the `asDisclosure` and
+  `asBaseInstrument` implementations were removed)
 
-- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
-  `asBaseInstrument` implementations were removed as well as redundant `HasImplementation`
-  instances)
+- Introduce a new callable bond instrument
 
-- Add callable bond instrument
-
-- Make notional configurable on the instrument
+- Add a `notional` field to all instruments
 
 ### Daml.Finance.Instrument.Equity
 
-- The factory create choices return the corresponding interface (instead of the base interface).
+- Update of SDK version and dependencies
 
-- Dependencies update
+- The `Create` choice on the instrument factory returns the corresponding interface (rather than the base instrument interface)
 
-- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
-  `asBaseInstrument` implementations were removed as well as redundant `HasImplementation`
-  instances)
+- Make use of the `requires` keyword to enforce the interface hierarchy (in particular the `asDisclosure` and
+  `asBaseInstrument` implementations were removed)
 
 - Rename `DeclareDividend` to `DeclareDistribution`
 
 ### Daml.Finance.Instrument.Generic
 
-- The factory create choices return the corresponding interface (instead of the base interface).
+- Update of SDK version and dependencies
 
-- Dependencies update
+- The `Create` choice on the instrument factory returns the corresponding interface (rather than the base instrument interface)
 
-- Style changes
+- Move the `Election` module to the `Lifecycle` package. Also, refactor the `Election` to identify the elected sub-tree by a textual tag rather than the actual sub-tree
 
-- Move Election logic from Generic to Lifecycle (to facilitate code reuse)
+- Make use of the `requires` keyword to enforce the interface hierarchy (in particular the `asDisclosure`,
+  `asBaseInstrument`, and `asClaim` implementations were removed)
 
-- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`,
-  `asBaseInstrument`, and `asClaim` implementations were removed as well as redundant
-  `HasImplementation` instances)
-
-- During lifeycling: create a new instrument also in case of a Zero claim (breaking change).
+- A new instrument version is created and returned by the lifecycle rule choice also when the instrument expires
 
 ### Daml.Finance.Instrument.Option
 
-- The factory create choices return the corresponding interface (instead of the base interface).
+- Update of SDK version and dependencies
 
-- Dependencies update
+- The `Create` choice on the instrument factories returns the corresponding interface (rather than the base instrument interface)
 
-- Style changes
+- Add instruments physically-settled European options, dividend options, barrier options
 
-- Add physically settled European options (EuropeanPhysical)
+- Renamed cash-settled European options to `EuropeanCash`
 
-- Renamed cash-settled European options (European -> EuropeanCash)
-
-- Add dividend options
-
-- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
-  `asBaseInstrument` implementations were removed as well as redundant `HasImplementation`
-  instances)
-
-- Add barrier options
+- Make use of the `requires` keyword to enforce the interface hierarchy (in particular the `asDisclosure` and
+  `asBaseInstrument` implementations were removed)
 
 ### Daml.Finance.Instrument.Swap
 
-- The factory create choices return the corresponding interface (instead of the base interface).
+- Update of SDK version and dependencies
 
-- Dependencies update
+- The `Create` choice on the instrument factories returns the corresponding interface (rather than the base instrument interface)
 
-- Style changes
+- Make use of the `requires` keyword to enforce the interface hierarchy (in particular the `asDisclosure` and
+  `asBaseInstrument` implementations were removed)
 
-- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
-  `asBaseInstrument` implementations were removed as well as redundant `HasImplementation`
-  instances)
-
-- Refactor using `ObserveAt`
+- `FpmlSwap` now accepts a non-zero rate fixing lag
 
 ### Daml.Finance.Instrument.Token
 
-- The factory create choices return the corresponding interface (instead of the base interface).
+- Update of SDK version and dependencies
 
-- Dependencies update
+- The `Create` choice on the instrument factory returns the corresponding interface (rather than the base instrument interface)
 
-- Makes use of `requires` to enforce the interface hierarchy (in the particular `asDisclosure` and
-  `asBaseInstrument` implementations were removed as well as redundant `HasImplementation`
-  instances)
+- Make use of the `requires` keyword to enforce the interface hierarchy (in the particular `asDisclosure` and
+  `asBaseInstrument` implementations were removed)
 
 ### Daml.Finance.Interface.Account
 
-- Dependencies update
+- Update of SDK version and dependencies
 
-- Removed `type K = AccountKey`
+- Remove type synonym for `AccountKey`
 
-- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`
-  method was removed as well as the redundant `HasImplementation` type class)
+- Make use of the `requires` keyword to enforce the interface hierarchy (in particular the `asDisclosure` method was removed)
 
 ### Daml.Finance.Interface.Claims
 
-- Dependencies update
+- Update of SDK version and dependencies
 
-- Makes use of `requires` to enforce the interface hierarchy (in particular the `asBaseInstrument`
-  method was removed as well as the redundant `HasImplementation` type class)
+- Make use of the `requires` keyword to enforce the interface hierarchy (in particular the `asBaseInstrument` method was removed)
 
 ### Daml.Finance.Interface.Data
 
-- Unecessary `Remove` choices were removed from factories.
+- Update of SDK version and dependencies
 
-- Dependencies update
+- Remove implementation of `Remove` choice from factory templates
 
-- Style changes
-
-- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`,
-  `asNumericObservable`, and `asTimeObservable` methods were removed as well as the redundant
-  `HasImplementation` type class)
+- Make use of the `requires` keyword to enforce the interface hierarchy (in particular the `asDisclosure`,
+  `asNumericObservable`, and `asTimeObservable` methods were removed)
 
 ### Daml.Finance.Interface.Holding
 
-- Unecessary `Remove` choices were removed from factories.
+- Update of SDK version and dependencies
+
+- Remove implementation of `Remove` choice from factory templates
 
 - Removed unnecessary `ArchiveFungible` choice
 
-- Dependencies update
+- Make use of the `requires` keyword to enforce the interface hierarchy (in particular the `asDisclosure`,
+  `asBase`, and `asTransferable` methods were removed)
 
-- Style changes
-
-- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`,
-  `asBase`, and `asTransferable` methods were removed as well as the redundant `HasImplementation`
-  type class)
-
-- Fix to signature of `disclose` (removed the `actor` argument).
+- Fix to signature of `disclose` (removed the `actor` argument)
 
 ### Daml.Finance.Interface.Instrument.Base
 
-- Dependencies update
+- Update of SDK version and dependencies
 
-- Style changes
+- Removed type synonym for `InstrumentKey`
 
-- Removed `type K = InstrumentKey`
-
-- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`
-  method was removed as well as the redundant `HasImplementation` type class)
+- Make use of the `requires` keyword to enforce the interface hierarchy (in particular the `asDisclosure` method was removed)
 
 ### Daml.Finance.Interface.Instrument.Bond
 
-- The factory create choices return the corresponding interface (instead of the base interface).
+- Update of SDK version and dependencies
 
-- Dependencies update
+- The `Create` choice on the instrument factories returns the corresponding interface (rather than the base instrument interface)
 
-- Added `GetView` to all instruments
+- Add `GetView` choice to all instrument interfaces
 
-- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
-  `asBaseInstrument` methods were removed as well as the redundant `HasImplementation` type
-  classes)
+- Make use of the `requires` keyword to enforce the interface hierarchy (in particular the `asDisclosure` and
+  `asBaseInstrument` methods were removed)
 
-- Add callable bond instrument
+- Introduce a new callable bond instrument
 
-- Make notional configurable on the instrument
+- Add a `notional` field to all instruments
 
 ### Daml.Finance.Interface.Instrument.Equity
 
-- The factory create choices return the corresponding interface (instead of the base interface).
+- Update of SDK version and dependencies
 
-- Dependencies update
+- The `Create` choice on the instrument factory returns the corresponding interface (rather than the base instrument interface)
 
-- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
-  `asBaseInstrument` methods were removed as well as the redundant `HasImplementation` type class)
+- Make use of the `requires` keyword to enforce the interface hierarchy (in particular the `asDisclosure` and
+  `asBaseInstrument` methods were removed)
 
 - Rename `DeclareDividend` to `DeclareDistribution`
 
 ### Daml.Finance.Interface.Instrument.Generic
 
-- The factory create choices return the corresponding interface (instead of the base interface).
+- Update of SDK version and dependencies
 
-- Dependencies update
+- The `Create` choice on the instrument factory returns the corresponding interface (rather than the base instrument interface)
 
-- Move Election logic from Generic to Lifecycle (to facilitate code reuse)
+- Move the `Election` module to the `Lifecycle` package. Also, refactor the `Election` to identify the elected sub-tree by a textual tag rather than the actual sub-tree
 
-- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`,
-  `asBaseInstrument`, and `asClaim` methods were removed as well as the redundant
-  `HasImplementation` type class)
+- Make use of the `requires` keyword to enforce the interface hierarchy (in particular the `asDisclosure`,
+  `asBaseInstrument`, and `asClaim` methods were removed)
 
 ### Daml.Finance.Interface.Instrument.Option
 
-- The factory create choices return the corresponding interface (instead of the base interface).
+- Update of SDK version and dependencies
 
-- Dependencies update
+- The `Create` choice on the instrument factories returns the corresponding interface (rather than the base instrument interface)
 
-- Add physically settled European options (EuropeanPhysical)
+- Add instruments physically-settled European options, dividend options, barrier options
 
-- Renamed cash-settled European options (European -> EuropeanCash)
+- Renamed cash-settled European options to `EuropeanCash`
 
-- Added `GetView` to all instruments
+- Added `GetView` choice to all instrument interfaces
 
-- Add dividend options
-
-- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`,
-  `asBaseInstrument`, and `asEvent` methods were removed as well as the redundant
-  `HasImplementation` type class)
-
-- Add barrier options
+- Make use of the `requires` keyword to enforce the interface hierarchy (in particular the `asDisclosure`,
+  `asBaseInstrument`, and `asEvent` methods were removed)
 
 ### Daml.Finance.Interface.Instrument.Swap
 
-- The factory create choices return the corresponding interface (instead of the base interface).
+- Update of SDK version and dependencies
 
-- Dependencies update
+- The `Create` choice on the instrument factories returns the corresponding interface (rather than the base instrument interface)
 
-- Style changes
+- Added `GetView` choice to all instrument interfaces
 
-- Added `GetView` to all instruments
-
-- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
-  `asBaseInstrument` methods were removed as well as the redundant `HasImplementation` type class)
+- Make use of the `requires` keyword to enforce the interface hierarchy (in particular the `asDisclosure` and
+  `asBaseInstrument` methods were removed)
 
 ### Daml.Finance.Interface.Instrument.Token
 
-- The factory create choices return the corresponding interface (instead of the base interface).
+- Update of SDK version and dependencies
 
-- Dependencies update
+- The `Create` choice on the instrument factory returns the corresponding interface (rather than the base instrument interface)
 
-- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
-  `asBaseInstrument` methods were removed as well as the redundant `HasImplementation` type class)
+- Make use of the `requires` keyword to enforce the interface hierarchy (in the particular `asDisclosure` and
+  `asBaseInstrument` implementations were removed)
 
 ### Daml.Finance.Interface.Lifecycle
 
-- Unecessary (as of SDK 2.6) `Remove` choices were removed from factories.
+- Update of SDK version and dependencies
 
-- Dependencies update
+- Remove implementation of `Remove` choice from factory interfaces
 
-- Style changes
+- Move the `Election` module from the `Generic` to the `Lifecycle` package
 
-- Move Election logic from Generic to Lifecycle (to facilitate code reuse)
-
-- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
-  `asEvent` methods were removed as well as the redundant `HasImplementation` type class)
+- Make use of the `requires` keyword to enforce the interface hierarchy (in particular the `asDisclosure` and
+  `asEvent` methods were removed)
 
 ### Daml.Finance.Interface.Settlement
 
-- Dependencies update
+- Update of SDK version and dependencies
 
-- Style changes
-
-- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` was
-  removed as well as the redundant `HasImplementation` type class)
+- Make use of the `requires` keyword to enforce the interface hierarchy (in particular the `asDisclosure` was removed)
 
 ### Daml.Finance.Interface.Types.Common
 
-- Dependencies update
+- Update of SDK version and dependencies
 
 ### Daml.Finance.Interface.Types.Date
 
-- Dependencies update
+- Update of SDK version and dependencies
 
 ### Daml.Finance.Interface.Util
 
-- Removed `mapWithIndex` as it only was used once, and applied the index in a reverse order.
+- Update of SDK version and dependencies
 
-- Dependencies update
+- Remove `mapWithIndex` utility function
 
-- Makes use of `requires` to enforce the interface hierarchy (in particular the redundant
-  `HasImplementation` type class was removed)
+- Remove the `HasImplementation` type class definition
 
 ### Daml.Finance.Lifecycle
 
-- Unecessary `Remove` choice (implementations) were removed.
+- Update of SDK version and dependencies
 
-- Dependencies update
+- Remove implementation of `Remove` choice from factory templates
 
-- Style changes
+- Move the `Election` module from the `Generic` to the `Lifecycle` package
 
-- Move Election logic from Generic to Lifecycle (to facilitate code reuse)
+- `Election` and `ElectionEffect` implement the `Disclosure` interface
 
-- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure` and
-  `asEvent` implementations were removed as well as redundant `HasImplementation` instances)
+- Make use of the `requires` keyword to enforce the interface hierarchy (in particular the `asDisclosure` and
+  `asEvent` implementations were removed)
 
-- Let `Election` and `ElectionEffect` implement the `Disclosure` interface.
-
-- Add check that instruments exist for `Distribution` and `Replacement`
+- The `Distribution` and `Replacement` lifecycle rules check that the target and procued instruments are active
 
 ### Daml.Finance.Settlement
 
-- In the settlement `Factory`, the id values used for the `Instruction`s were modified to accurately
-  reflect their order within the `Batch`.
+- Update of SDK version and dependencies
+
+- In the settlement `Factory`, the id values used for the `Instruction`s were modified to accurately reflect their order within the `Batch`.
 
 - In the `Batch`, the order of the `settledCids` were changed to match the initial order of the
   instructions in the batch.
 
-- Fix for `Instruction` and `IntermediatedStatic`, replaced `groupOn` by `sortAndGroupOn`.
+- Bug fix: replace `groupOn` by `sortAndGroupOn` in the `Instruction` and `IntermediatedStatic` templates
 
-- Dependencies update
+- Lock pledged holding when allocating to an `Instruction`: the pledged holding is locked to the instruction's requestors and the outgoing controllers of the sending account
 
-- Style changes
+- Make use of the `requires` keyword to enforce the interface hierarchy (in particular the `asDisclosure`
+  implementation was removed)
 
-- Added locking to the `Instruction` (pledge is locked to requestors and the outgoing controllers of
-  the sending account)
+- When an `Allocation` (resp. `Approval`) takes place, a check has been added to ensure that either the
+  `sender` or the `custodian` (resp. the `receiver` or the `custodian`) is among the choice authorizers
 
-- Makes use of `requires` to enforce the interface hierarchy (in particular the `asDisclosure`
-  implementation was removed as well as redundant `HasImplementation` instances)
+- When reallocation (resp. re-approval) occurs, it is required that the `signedSenders`
+  (resp. `signedReceivers`) of the `Instruction` are part of the authorizing set
 
-- When an `Allocation` (`Approval`) takes place, a check has been added to ensure that either the
-  `sender` or the `custodian` (`receiver` or the `custodian`) is among the authorizers.
+- Add additional checks to the pass-through allocation/approval process. Specifically, verify that the specified pass-through `Instruction` is actually part of the `Batch`. These checks detect settlement failures during the allocation/approval stage rather than waiting until settlement occurs.
 
-- When reallocation (re-approval) occurs, it is required that the `signedSenders`
-  (`signedReceivers`) of the `Instruction` are part of the authorizing set.
-
-- We have improved the pass-through allocation/approval process by adding additional checks. These
-  checks detect settlement failures during the allocation/approval stage, rather than waiting until
-  settlement occurs. Specifically, we now verify that the specified pass-through `Instruction` is
-  actually part of the `Batch`.
-
-- Removed the `key` from the `Batch` implementation.
+- Removed the `key` from the `Batch` implementation
 
 ### Daml.Finance.Util
 
-- Added test for `sortAndGroupOn`.
+- Update of SDK version and dependencies
 
-- Removed the custom `groupBy` as it was not being used anywhere.
-
-- Dependencies update
-
-- Style changes
+- Remove the `groupBy` utility function
