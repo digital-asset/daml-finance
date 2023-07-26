@@ -1,0 +1,134 @@
+module Scripts.Transfer where
+
+import DA.Set qualified as S (fromList, singleton)
+import Daml.Script
+
+import Workflow.Transfer qualified as Transfer
+
+import Scripts.Setup
+
+-- | Return type of the setup transfer request script.
+data SetupTransferRequest = SetupTransferRequest
+  with
+    bank : Party
+      -- ^ The party who is custodian for the sending and receiving party.
+    alice : Party
+      -- ^ The party who is sending a holding.
+    bob : Party
+      -- ^ The party who is receiving a holding.
+    requestor : Party
+      -- ^ The party who creates the transfer request, but doesn't necessarily have to authorize it.
+    transferRequestCid : ContractId Transfer.Request
+      -- ^ The concrete transfer request instance.
+  deriving (Eq, Show)
+
+-- | This setup script initiates a request to transfer cash from Alice to Bob using custom account
+-- controllers.
+runSetupTransferRequestWith : AccountControllers -> Script SetupTransferRequest
+runSetupTransferRequestWith accountControllers = do
+  Setup{bank1 = bank; alice; aliceHoldingCid; bob; bobAccount; requestor} <-
+    runSetup accountControllers
+
+  -- SETUP_TRANSFER_REQUEST_BEGIN
+  let
+    transferRequest = Transfer.Request with
+      requestor
+      receiverAccount = bobAccount
+      transferableCid = aliceHoldingCid
+      accepted = S.fromList []
+      observers = S.fromList [alice, bob, bank]
+  transferRequestCid <- submit requestor do createCmd transferRequest
+  -- SETUP_TRANSFER_REQUEST_END
+
+  pure SetupTransferRequest with bank; alice; bob; requestor; transferRequestCid
+
+-- Test scripts for testing various required authorizations for transfers.
+-- | 1. Dual-control transfer: Bank and Alice can jointly transfer Alice's holding to Bob.
+runDualControlTransfer : Script ()
+runDualControlTransfer = do
+  -- SETUP_DUAL_CONTROL_TRANSFER_BEGIN
+  let dualControl = AccountControllers with incoming = Anyone; outgoing = Both
+  SetupTransferRequest{bank; alice; bob; requestor; transferRequestCid} <-
+    runSetupTransferRequestWith dualControl
+  -- SETUP_DUAL_CONTROL_TRANSFER_END
+  -- The bank and the new owner can't effectuate the transfer.
+  submitMultiMustFail [bank, bob] [] do
+    exerciseCmd transferRequestCid Transfer.Effectuate with actors = S.fromList [bank, bob]
+  -- Alice and Bank can effectuate the transfer.
+  -- DUAL_CONTROL_TRANSFER_BEGIN
+  transferRequestCid <- submit bank do
+    exerciseCmd transferRequestCid Transfer.Accept with actors = S.singleton bank
+  submit alice do
+    exerciseCmd transferRequestCid Transfer.Accept with actors = S.singleton alice
+  -- DUAL_CONTROL_TRANSFER_END
+  pure ()
+
+-- | 2. Discretionary transfer: Bank can transfer Alice's holding to Bob.
+runDiscretionaryTransfer : Script ()
+runDiscretionaryTransfer = do
+  -- SETUP_DISCRETIONARY_TRANSFER_BEGIN
+  let
+    discretionary = AccountControllers
+      with
+        incoming = Custodian
+        outgoing = Custodian
+  setupState@SetupTransferRequest{bank, alice, bob, requestor, transferRequestCid} <-
+    runSetupTransferRequestWith discretionary
+  -- SETUP_DISCRETIONARY_TRANSFER_END
+  -- The bank and the new owner can't effectuate the transfer.
+  submitMultiMustFail [alice, bob] [] do
+    exerciseCmd transferRequestCid Transfer.Effectuate with actors = S.fromList [alice, bob]
+  -- The custodian can effectuate the transfer single-handedly.
+  -- DISCRETIONARY_TRANSFER_BEGIN
+  submit bank do
+    exerciseCmd transferRequestCid Transfer.Effectuate with actors = S.singleton bank
+  -- DISCRETIONARY_TRANSFER_END
+  pure ()
+
+-- | 3. Sovereign transfer: Alice and Bob can jointly transfer Alice's holding to Bob.
+runSovereignTransfer : Script ()
+runSovereignTransfer = do
+  -- SETUP_SOVEREIGN_TRANSFER_BEGIN
+  let
+    sovereign = AccountControllers
+      with
+        incoming = Owner
+        outgoing = Owner
+  SetupTransferRequest{bank; alice; bob; requestor; transferRequestCid} <-
+    runSetupTransferRequestWith sovereign
+  -- SETUP_SOVEREIGN_TRANSFER_END
+  -- Both the current owner and the new owner need to authorize the transfer.
+  submitMultiMustFail [bank, alice] [] do
+    exerciseCmd transferRequestCid Transfer.Effectuate with actors = S.fromList [bank, alice]
+  submitMultiMustFail [bank, bob] [] do
+    exerciseCmd transferRequestCid Transfer.Effectuate with actors = S.fromList [bank, bob]
+  -- Alice and Bob can authorize the transfer.
+  -- SOVEREIGN_TRANSFER_BEGIN
+  transferRequestCid <- submit bob do
+    exerciseCmd transferRequestCid Transfer.Accept with actors = S.singleton bob
+  submit alice do
+    exerciseCmd transferRequestCid Transfer.Effectuate with actors = S.singleton alice
+  -- SOVEREIGN_TRANSFER_END
+  pure ()
+
+-- | 4. Unilateral transfer: Alice can unilaterally decide to transfer her holding to Bob.
+runUnilateralTransfer : Script ()
+runUnilateralTransfer = do
+  -- SETUP_UNILATERAL_TRANSFER_BEGIN
+  let
+    unilateral = AccountControllers
+      with
+        incoming = Anyone
+        outgoing = Owner
+  SetupTransferRequest{bank; alice; bob; requestor; transferRequestCid} <-
+    runSetupTransferRequestWith unilateral
+  -- SETUP_UNILATERAL_TRANSFER_END
+  -- The bank and the new owner can't effectuate the transfer.
+  submitMultiMustFail [bank, bob] [] do
+    exerciseCmd transferRequestCid Transfer.Effectuate with actors = S.fromList [bank, bob]
+  -- The sender can unilaterally transfer their holding to the receiver.
+  -- UNILATERAL_TRANSFER_BEGIN
+  transferRequestCid <- submit alice do
+    exerciseCmd transferRequestCid Transfer.Effectuate with actors = S.singleton alice
+  -- UNILATERAL_TRANSFER_END
+  pure ()
