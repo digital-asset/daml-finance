@@ -1,47 +1,34 @@
 module Scripts.Holding where
 
 import DA.Map (empty, fromList)
-import DA.Set (singleton)
+import DA.Set qualified as S (fromList)
 import Daml.Script
 
 -- INTERFACE DEPENDENCIES --
 import Daml.Finance.Interface.Account.Factory qualified as Account (F)
 import Daml.Finance.Interface.Holding.Base qualified as Holding (I)
 import Daml.Finance.Interface.Holding.Factory qualified as Holding (F)
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (I)
+import Daml.Finance.Interface.Instrument.Token.Factory qualified as Token (F, Create(..))
+import Daml.Finance.Interface.Instrument.Token.Types (Token(..))
 import Daml.Finance.Interface.Types.Common.Types (AccountKey, Id(..), InstrumentKey(..))
 
 -- IMPLEMENTATION DEPENDENCIES --
 import Daml.Finance.Account.Account qualified as Account (Factory(..))
-import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..), Fungible(..))
-import Daml.Finance.Instrument.Token.Instrument (Instrument(..))
+import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
+import Daml.Finance.Instrument.Token.Factory qualified as Token (Factory(..))
 
 import Workflow.CreateAccount qualified as CreateAccount
 import Workflow.CreditAccount qualified as CreditAccount
 
--- | Helper container used to transfer state from one script to another.
-data HoldingState = HoldingState
-  with
-    alice : Party
-    bank : Party
-    bob : Party
-    public : Party
-    aliceAccount : AccountKey
-    bobAccount : AccountKey
-    cashInstrument : InstrumentKey
-    holdingFactoryCid : ContractId Holding.F
-    aliceCashHoldingCid : ContractId Holding.I
-  deriving (Eq, Show)
-
 -- | Test script that
--- 1. creates an account for Alice and Bob at the Bank
+-- 1. creates accounts for Alice and Bob at the Bank
 -- 2. issues a cash instrument
 -- 3. credits a cash holding to Alice in her bank account
-runHolding : Script HoldingState
-runHolding = do
+setupHolding : Script HoldingState
+setupHolding = do
 
   -- Allocate parties
-  [alice, bank, bob, public] <- mapA createParty ["Alice", "Bank", "Bob", "Public"]
+  [alice, bank, bob] <- mapA createParty ["Alice", "Bank", "Bob"]
 
   -- Account Factory (it is used by the bank to create accounts)
   -- CREATE_ACCOUNT_FACTORY_BEGIN
@@ -54,10 +41,18 @@ runHolding = do
   holdingFactoryCid <- toInterfaceContractId @Holding.F <$> submit bank do
     createCmd Fungible.Factory with
       provider = bank
-      observers = fromList [("PublicObserver", singleton public )]
+      observers = fromList [("Settlers", S.fromList [alice, bob])]
   -- CREATE_HOLDING_FACTORY_END
 
-  -- Alice and Bob setup account @Bank
+  -- Instrument Factory (it is used by the bank to create instruments with the desired implementation)
+  -- CREATE_INSTRUMENT_FACTORY_BEGIN
+  tokenFactoryCid <- toInterfaceContractId @Token.F <$> submit bank do
+    createCmd Token.Factory with
+      provider = bank
+      observers = empty
+  -- CREATE_INSTRUMENT_FACTORY_END
+
+  -- Alice sets up an account at the Bank
   -- SETUP_ALICE_ACCOUNT_BEGIN
   aliceRequestCid <- submit alice do
     createCmd CreateAccount.Request with owner = alice; custodian = bank
@@ -70,6 +65,7 @@ runHolding = do
       observers = []
   -- SETUP_ALICE_ACCOUNT_END
 
+  -- Bob sets up an account at the Bank
   bobRequestCid <- submit bob do createCmd CreateAccount.Request with owner = bob; custodian = bank
   bobAccount <- submit bank do
     exerciseCmd bobRequestCid CreateAccount.Accept with
@@ -91,29 +87,14 @@ runHolding = do
       version = instrumentVersion
   now <- getTime
 
-  cashInstrumentCid <- toInterfaceContractId @Instrument.I <$> submit bank do
-    createCmd Instrument with
-      depository = bank
-      issuer = bank
-      id = instrumentId
-      version = instrumentVersion
-      description = "Instrument representing units of USD"
-      validAsOf = now
+  submit bank do
+    exerciseCmd tokenFactoryCid Token.Create with
+      token = Token with
+        instrument = instrumentKey
+        description = "Instrument representing units of a generic token"
+        validAsOf = now
       observers = empty
   -- ISSUE_CASH_INSTRUMENT_END
-
-  -- Alice and Bank create a holding directly using the template
-  -- CREATE_ALICE_DIRECT_HOLDING_BEGIN
-  aliceHoldingRequest <- submit alice do
-    createCmd HoldingRequest with
-      instrument = instrumentKey
-      account = aliceAccount
-      amount = 1000.0
-      owner = alice
-      custodian = bank
-
-  aliceHoldingCid <- submit bank do exerciseCmd aliceHoldingRequest Accept
-  -- CREATE_ALICE_DIRECT_HOLDING_END
 
   -- Alice deposits cash at the bank
   -- CREATE_ALICE_HOLDING_BEGIN
@@ -130,12 +111,23 @@ runHolding = do
     alice
     bank
     bob
-    public
     aliceAccount
     bobAccount
     cashInstrument = instrumentKey
-    holdingFactoryCid
+    tokenFactoryCid
     aliceCashHoldingCid
+
+-- | Helper container used to transfer state to the next script.
+data HoldingState = HoldingState
+  with
+    alice : Party
+    bank : Party
+    bob: Party
+    aliceAccount : AccountKey
+    bobAccount : AccountKey
+    cashInstrument : InstrumentKey
+    tokenFactoryCid : ContractId Token.F
+    aliceCashHoldingCid : ContractId Holding.I
 
 -- | Creates a user + party given a hint.
 createParty : Text -> Script Party
@@ -144,30 +136,3 @@ createParty name = do
   userId <- validateUserId name
   createUser (User userId (Some party)) [CanActAs party]
   pure party
-
--- | Propose / Accept template to create a holding.
-template HoldingRequest
-  with
-    owner : Party
-      -- ^ Owner of the holding.
-    custodian : Party
-      -- ^ Custodian of the holding.
-    instrument : InstrumentKey
-      -- ^ The instrument of which units are held.
-    account : AccountKey
-      -- ^ The account at which the holding is held. Defines the holding's owner and custodian.
-    amount : Decimal
-      -- ^ Number of units.
-  where
-    signatory owner
-    observer custodian
-
-    choice Accept : ContractId Fungible.Fungible
-      controller custodian
-      do
-        create Fungible.Fungible with
-          instrument
-          account
-          amount
-          lock = None
-          observers = empty
