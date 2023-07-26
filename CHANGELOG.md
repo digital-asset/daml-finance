@@ -367,7 +367,10 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - When reallocation (resp. re-approval) occurs, it is required that the `signedSenders`
   (resp. `signedReceivers`) of the `Instruction` are part of the authorizing set
 
-- Add additional checks to the pass-through allocation/approval process. Specifically, verify that the specified pass-through `Instruction` is actually part of the `Batch`. These checks detect settlement failures during the allocation/approval stage rather than waiting until settlement occurs.
+- Add additional checks to the pass-through allocation/approval process. Specifically, verify that 
+the specified pass-through `Instruction` is actually part of the `Batch`. These checks detect 
+settlement failures during the allocation/approval stage rather than waiting until settlement 
+occurs.
 
 - Removed the `key` from the `Batch` implementation
 
