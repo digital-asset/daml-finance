@@ -146,7 +146,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Make use of the `requires` keyword to enforce the interface hierarchy (in particular the `asDisclosure`,
   `asBaseInstrument`, and `asClaim` implementations were removed)
 
-- A new instrument version is created and returned by the lifecycle rule choice also when the instrument expires
+- A new instrument version is also created and returned by the lifecycle rule choice when the instrument expires
 
 ### Daml.Finance.Instrument.Option
 
