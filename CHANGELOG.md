@@ -343,7 +343,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Make use of the `requires` keyword to enforce the interface hierarchy (in particular the `asDisclosure` and
   `asEvent` implementations were removed)
 
-- The `Distribution` and `Replacement` lifecycle rules check that the target and procued instruments are active
+- The `Distribution` and `Replacement` lifecycle rules check that the target and procured instruments are active
 
 ### Daml.Finance.Settlement
 
