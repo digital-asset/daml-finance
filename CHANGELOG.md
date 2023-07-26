@@ -54,8 +54,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Add `ObserveAt` observation builder, used to explicitly state when an `Observation` should be observed
 
-- Refactor `or` and `anytime` smart constructors to identify
-electable sub-trees by a textual tag
+- Refactor `or` and `anytime` smart constructors to identify electable sub-trees by a textual tag
 
 ### ContingentClaims.Lifecycle
 
