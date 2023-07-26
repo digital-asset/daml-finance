@@ -82,7 +82,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Improve tagging of new instrument versions in the lifecycle rule
 
-- A new instrument version is created and returned by the `Evolve` choice also when the instrument expires
+- A new instrument version is also created and returned by the `Evolve` choice when the instrument expires
 
 ### Daml.Finance.Data
 
