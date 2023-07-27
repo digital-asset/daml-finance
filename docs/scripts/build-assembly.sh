@@ -26,6 +26,10 @@ cp -r ${docs_dir}/code-samples/getting-started/* ${docs_dir}/.assembly/quickstar
 mkdir ${docs_dir}/.assembly/finance-lifecycling
 cp -r ${docs_dir}/code-samples/lifecycling/* ${docs_dir}/.assembly/finance-lifecycling
 
+# Copy finance-settlement code into the assembly
+mkdir ${docs_dir}/.assembly/finance-settlement
+cp -r ${docs_dir}/code-samples/settlement/* ${docs_dir}/.assembly/finance-settlement
+
 # Copy doc build output into assembly file structure
 mkdir -p ${docs_dir}/.assembly/reference/code-documentation
 cp -r ${docs_dir}/build/daml-finance-rst ${docs_dir}/.assembly/reference/code-documentation/daml-finance-rst
