@@ -46,6 +46,13 @@ data SetupInternalSettlement = SetupInternalSettlement
       -- ^ A list with all the parties above.
   deriving (Eq, Show)
 
+-- | The following setup script sets up an account hierarchy and holdings. In the following figure
+-- the edges represents accounts and the stars (*) denote holdings.
+--
+--             Bank
+--         */    |    \
+--     Alice  Charlie  Bob
+--
 runSetupInternalSettlement : Script (SetupInternalSettlement)
 runSetupInternalSettlement = do
 
@@ -70,7 +77,77 @@ runSetupInternalSettlement = do
     instrument; bank; alice; aliceAccount; aliceHoldingCid; bob; bobAccount; charlie; charlieAccount
     requestor; settlementFactoryCid; all
 
--- | Settlement 1: A movement of a holding from Alice to Bob. This is achieved by a debiting and
+-- | Settlement 1: A transfer of a holding from Alice to Bob.
+-- The settlement process is illustrated in the following figure where the edges represent accounts,
+-- the arrow heads (^v><) routed steps, and the stars (*) holdings:
+--
+--          Bank              "Settle"           Bank
+--         */   \                =>              /   \*
+--     Alice  >  Bob                        Alice     Bob
+--            T
+--
+-- T: Transfer
+--    Alice allocates by pleding her holding (Pledge) and Bob approves by taking delivery to his
+--    account (TakeDelivery).
+runWrappedTransferSettlement : Script ()
+runWrappedTransferSettlement = do
+
+  -- WRAPPED_TRANSFER_SETUP_BEGIN
+  SetupInternalSettlement
+    { instrument
+    , bank
+    , alice, aliceAccount, aliceHoldingCid
+    , bob, bobAccount
+    , charlie, charlieAccount
+    , requestor
+    , settlementFactoryCid
+    } <- runSetupInternalSettlement
+  -- WRAPPED_TRANSFER_SETUP_END
+
+  -- Routed steps.
+  -- WRAPPED_TRANSFER_INSTRUCT_BEGIN
+  let
+    routedStep = RoutedStep with
+      custodian = bank
+      sender = alice
+      receiver = bob
+      quantity = qty 1000.0 instrument
+
+  -- Generate settlement instructions from a list of `RoutedStep`s.
+  (batchCid, [instructionCid]) <-
+    submit requestor do
+      exerciseCmd settlementFactoryCid Settlement.Instruct with
+        instructors = fromList [requestor]
+        settlers = singleton requestor
+        id = Id "1"
+        description = "Transfer from Alice to Bob"
+        contextId = None
+        routedSteps = [routedStep]
+        settlementTime = None -- i.e., immediate settlement
+  -- SETUP_SETTLE_WRAPPED_TRANSFER_INSTRUCT_END
+
+  -- SETUP_SETTLE_WRAPPED_TRANSFER_SETTLE_BEGIN
+  -- i. Alice allocates.
+  (instructionCid, _) <- submit alice do
+    exerciseCmd instructionCid Instruction.Allocate with
+      actors = S.singleton alice
+      allocation = Pledge $ toInterfaceContractId aliceHoldingCid
+
+  -- ii. Bob approves.
+  instructionCid <- submit bob do
+    exerciseCmd instructionCid Instruction.Approve with
+      actors = S.singleton bob
+      approval = TakeDelivery bobAccount
+
+  -- iii. Requestor executes the settlement.
+  [bobHoldingCid] <- submit requestor do
+    exerciseCmd batchCid Batch.Settle with
+      actors = singleton requestor
+  -- WRAPPED_TRANSFER_SETUP_SETTLE_END
+
+  pure ()
+
+-- | Settlement 2: A movement of a holding from Alice to Bob. This is achieved by a debiting and
 -- crediting the accounts of Alice and Bob, respectively.
 -- The settlement process is illustrated in the following figure where the edges represent accounts,
 -- the arrow heads (^v><) routed steps, and the stars (*) holdings:
@@ -86,10 +163,10 @@ runSetupInternalSettlement = do
 -- C: Credit
 --    Bank allocates by crediting the receiver (CreditReceiver) and Bob approves with by taking
 --    delivery to his account (TakeDelivery).
-runSettlementWithDebitAndCredit : Script ()
-runSettlementWithDebitAndCredit = do
+runCreditDebitSettlement : Script ()
+runCreditDebitSettlement = do
 
-  -- SETUP_SETTLE_WITH_DEBIT_AND_CREDIT_BEGIN
+  -- CREDIT_DEBIT_SETUP_BEGIN
   SetupInternalSettlement
     { instrument
     , bank
@@ -100,10 +177,10 @@ runSettlementWithDebitAndCredit = do
     , settlementFactoryCid
     , all
     } <- runSetupInternalSettlement
-  -- SETUP_SETTLE_WITH_DEBIT_AND_CREDIT_END
+  -- CREDIT_DEBIT_SETUP_END
 
   -- Routed steps.
-  -- SETTLE_WITH_DEBIT_AND_CREDIT_INSTRUCT_BEGIN
+  -- CREDIT_DEBIT_INSTRUCT_BEGIN
   let
     routedStep1 = RoutedStep with
       custodian = bank
@@ -154,78 +231,7 @@ runSettlementWithDebitAndCredit = do
   [bobHoldingCid] <- submit requestor do
     exerciseCmd batchCid Batch.Settle with
       actors = singleton requestor
-  -- SETTLE_WITH_DEBIT_AND_CREDIT_SETTLE_END
-
-  pure ()
-
--- | Settlement 2: A movement of a holding from Alice to Bob. This is achieved by a transfer of the
--- holding from Alice to Bob.
--- The settlement process is illustrated in the following figure where the edges represent accounts,
--- the arrow heads (^v><) routed steps, and the stars (*) holdings:
---
---          Bank              "Settle"           Bank
---         */   \                =>              /   \*
---     Alice  >  Bob                        Alice     Bob
---            T
---
--- T: Transfer
---    Alice allocates by pleding her holding (Pledge) and Bob approves by taking delivery to his
---    account (TakeDelivery).
-runSettlementWithTransfer : Script ()
-runSettlementWithTransfer = do
-
-  -- SETUP_SETTLE_WITH_TRANSFER_BEGIN
-  SetupInternalSettlement
-    { instrument
-    , bank
-    , alice, aliceAccount, aliceHoldingCid
-    , bob, bobAccount
-    , charlie, charlieAccount
-    , requestor
-    , settlementFactoryCid
-    } <- runSetupInternalSettlement
-  -- SETUP_SETTLE_WITH_TRANSFER_END
-
-  -- Routed steps.
-  -- SETUP_SETTLE_WITH_TRANSFER_INSTRUCT_BEGIN
-  let
-    routedStep = RoutedStep with
-      custodian = bank
-      sender = alice
-      receiver = bob
-      quantity = qty 1000.0 instrument
-
-  -- Generate settlement instructions from a list of `RoutedStep`s.
-  (batchCid, [instructionCid]) <-
-    submit requestor do
-      exerciseCmd settlementFactoryCid Settlement.Instruct with
-        instructors = fromList [requestor]
-        settlers = singleton requestor
-        id = Id "1"
-        description = "Transfer from Alice to Bob"
-        contextId = None
-        routedSteps = [routedStep]
-        settlementTime = None -- i.e., immediate settlement
-  -- SETUP_SETTLE_WITH_TRANSFER_INSTRUCT_END
-
-  -- SETUP_SETTLE_WITH_TRANSFER_SETTLE_BEGIN
-  -- i. Alice allocates.
-  (instructionCid, _) <- submit alice do
-    exerciseCmd instructionCid Instruction.Allocate with
-      actors = S.singleton alice
-      allocation = Pledge $ toInterfaceContractId aliceHoldingCid
-
-  -- ii. Bob approves.
-  instructionCid <- submit bob do
-    exerciseCmd instructionCid Instruction.Approve with
-      actors = S.singleton bob
-      approval = TakeDelivery bobAccount
-
-  -- iii. Requestor executes the settlement.
-  [bobHoldingCid] <- submit requestor do
-    exerciseCmd batchCid Batch.Settle with
-      actors = singleton requestor
-  -- SETUP_SETTLE_WITH_TRANSFER_SETTLE_END
+  -- CREDIT_DEBIT_INSTRUCT_END
 
   pure ()
 
@@ -245,10 +251,10 @@ runSettlementWithTransfer = do
 -- T2: Transfer with PassThroughFrom
 --     Charlied allocates with the pass-through holding to be received from Alice (PassThroughFrom)
 --     and Bob approves by taking delivery to his account (TakeDelivery).
-runSettlementWithPassThrough : Script ()
-runSettlementWithPassThrough = do
+runPassThroughSettlement : Script ()
+runPassThroughSettlement = do
 
-  -- SETUP_SETTLE_WITH_PASS_THROUGH_BEGIN
+  -- PASS_THROUGH_SETUP_BEGIN
   SetupInternalSettlement
     { instrument
     , bank
@@ -258,10 +264,10 @@ runSettlementWithPassThrough = do
     , requestor
     , settlementFactoryCid
     } <- runSetupInternalSettlement
-  -- SETUP_SETTLE_WITH_PASS_THROUGH_END
+  -- PASS_THROUGH_SETUP_END
 
   -- Routed steps.
-  -- SETUP_SETTLE_WITH_PASS_THROUGH_INSTRUCT_BEGIN
+  -- PASS_THROUGH_INSTRUCT_BEGIN
   let
     routedStep1 = RoutedStep with
       custodian = bank
@@ -283,9 +289,9 @@ runSettlementWithPassThrough = do
         contextId = None
         routedSteps = [routedStep1, routedStep2]
         settlementTime = None -- i.e., immediate settlement
-  -- SETUP_SETTLE_WITH_PASS_THROUGH_INSTRUCT_END
+  -- PASS_THROUGH_INSTRUCT_END
 
-  -- SETUP_SETTLE_WITH_PASS_THROUGH_SETTLE_BEGIN
+  -- PASS_THROUGH_SETTLE_BEGIN
   -- i. Alice allocates.
   (instructionCid1, _) <- submit alice do
     exerciseCmd instructionCid1 Instruction.Allocate with
@@ -314,6 +320,6 @@ runSettlementWithPassThrough = do
   [bobHoldingCid] <- submit requestor do
     exerciseCmd batchCid Batch.Settle with
       actors = singleton requestor
-  -- SETUP_SETTLE_WITH_PASS_THROUGH_SETTLE_END
+  -- PASS_THROUGH_SETTLE_END
 
   pure ()
