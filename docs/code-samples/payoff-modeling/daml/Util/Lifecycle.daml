@@ -1,0 +1,89 @@
+module Util.Lifecycle where
+
+import DA.Action (foldlA)
+import DA.Assert ((===))
+import DA.Foldable (forA_)
+import DA.Map qualified as M (empty, fromList)
+import DA.Optional (fromSome)
+import DA.Set qualified as S (empty, singleton)
+import Daml.Finance.Data.Numeric.Observation (Observation(..))
+import Daml.Finance.Data.Time.DateClockUpdate (DateClockUpdateEvent(..))
+import Daml.Finance.Instrument.Generic.Lifecycle.Rule qualified as Lifecycle (Rule(..))
+import Daml.Finance.Interface.Lifecycle.Effect qualified as Effect (I)
+import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I)
+import Daml.Finance.Interface.Lifecycle.Observable.NumericObservable qualified as NumericObservable (I)
+import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I)
+import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey(..))
+import Daml.Script
+import Util (dateToTime)
+
+-- | Store observations on ledger.
+createObservation : Party -> Text -> [(Date, Decimal)] -> Script (ContractId NumericObservable.I)
+createObservation p name observations = do
+  toInterfaceContractId @NumericObservable.I <$> submit p do
+    createCmd Observation with
+      provider = p
+      id = Id name
+      observations = M.fromList $ map (\(d,o) -> (dateToTime d, o)) observations
+      observers = M.empty
+
+-- | Lifecycle a generic instrument as of a certain date.
+-- We are under the simplifying assumption that the intrument is single-signatory.
+-- The instrument provider takes care of lifecycling the instrument.
+lifecycle : InstrumentKey -> [ContractId NumericObservable.I] -> [Date]
+  -> Script (InstrumentKey, [ContractId Effect.I])
+lifecycle instrument observableCids dates = do
+
+  instrument.issuer === instrument.depository
+  let instrumentProvider = instrument.issuer
+
+  -- A "lifecycle rule" is a template used to evolve the instrument to the next state
+  -- and calculate lifecycle effects
+  lifecycleRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit instrumentProvider do
+    createCmd Lifecycle.Rule with
+      providers = S.singleton instrument.issuer
+      observers= M.empty
+      lifecycler = instrument.issuer
+      id = Id "LifecycleRule"
+      description = "Rule to lifecycle a generic instrument"
+
+  -- We wrap the dates into a suitable event for processing.
+  eventCids <- mapA (dateToEvent instrumentProvider) dates
+
+  -- Evolve the instrument applying the events sequentially
+  (newInstrument, effectCids) <-
+    let
+      applyEvent (instrument, effectCids) eventCid = do
+        (newInstrument, effectCid) <- submit instrumentProvider do
+          exerciseCmd lifecycleRuleCid Lifecycle.Evolve with
+            instrument
+            eventCid = eventCid
+            observableCids
+        pure if null effectCid
+          then
+             -- if no effects are created, lifecycling was a non action.
+             -- Propagate the original instrument to the next event
+            (instrument, effectCids)
+          else
+            (fromSome newInstrument, effectCids <> effectCid)
+    in
+      foldlA applyEvent (instrument, []) eventCids
+
+  -- Archive the rule and event
+  submit instrumentProvider do archiveCmd lifecycleRuleCid
+  forA_ eventCids \cid -> submit instrumentProvider do archiveCmd cid
+
+  pure (newInstrument, effectCids)
+
+-- | Wrap a `Date` into an event that can be used as an input to lifecycling.
+dateToEvent : Party -> Date -> Script (ContractId Event.I)
+dateToEvent provider date =
+  toInterfaceContractId @Event.I <$> submit provider do
+    createCmd DateClockUpdateEvent with
+      date
+      id = Id $ show date
+      providers = S.singleton provider
+      description = show date
+      observers = S.empty
+      eventTime = dateToTime date
+

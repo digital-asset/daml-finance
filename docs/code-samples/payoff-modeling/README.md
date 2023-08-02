@@ -1,6 +1,6 @@
-# Daml Finance - Settlement Tutorials
+# Daml Finance - Payoff Modeling Tutorials
 
-This project contains the source code used in the Daml Finance settlement tutorials.
+This project contains the source code used in the Daml Finance payoff modeling tutorials.
 
 Before opening Visual Studio Code you should run `./get-dependencies.sh` (or `get-dependencies.bat`
 for Windows users) to download the required Daml packages.
