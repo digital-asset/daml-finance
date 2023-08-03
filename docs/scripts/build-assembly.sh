@@ -30,6 +30,10 @@ cp -r ${docs_dir}/code-samples/lifecycling/* ${docs_dir}/.assembly/finance-lifec
 mkdir ${docs_dir}/.assembly/finance-settlement
 cp -r ${docs_dir}/code-samples/settlement/* ${docs_dir}/.assembly/finance-settlement
 
+# Copy finance-payoff-modeling code into the assembly
+mkdir ${docs_dir}/.assembly/finance-payoff-modeling
+cp -r ${docs_dir}/code-samples/payoff-modeling/* ${docs_dir}/.assembly/finance-payoff-modeling
+
 # Copy doc build output into assembly file structure
 mkdir -p ${docs_dir}/.assembly/reference/code-documentation
 cp -r ${docs_dir}/build/daml-finance-rst ${docs_dir}/.assembly/reference/code-documentation/daml-finance-rst
