@@ -1,47 +1,58 @@
 # Daml Finance - Code Samples
 
-Daml Finance has a daml `quickstarter`, which generates a template project of `Daml Finance` with
-sample code generated via the `daml new quickstart-finance` command. This code-sample is documented
-as part of the `Daml Finance` documentation in the tutorial guide. As the documentation is generated
-as part of our `Daml Finance` library, the code needs to live in this repository but the code also
-needs to also be part of the `daml` repository to enable running the `daml new quickstart-finance`
-command.
+This folder contains templates for Daml Finance projects that are integrated into the Daml SDK.
+The projects can be created using the `daml new` command, e.g.
+`daml new quickstart-finance --template quickstart-finance`.
 
-## Updating the getting-started code
+These code samples are documented and used as part of the `Daml Finance` documentation tutorials.
 
-The [getting-started](getting-started/) code that is part of this repository is fully replicated
+As the documentation assembly is generated as part of our `Daml Finance` library, the code needs to
+live in this repository but the code also needs to also be part of the `daml` repository to enable
+running the `daml new quickstart-finance` command.
+
+## Updating and testing the project templates
+
+The [getting-started](getting-started/) code and the other code samples are fully replicated
 inside the
-[daml repository](https://github.com/digital-asset/daml/tree/main/templates/quickstart-finance).
+[daml repository](https://github.com/digital-asset/daml/blob/main/templates/BUILD.bazel#L113).
 The only exception is the [daml.yaml](getting-started/daml.yaml) file, which is required for both
 local testing and for the CI and **must not** be replicated in the daml repository (this file gets
 generated based off the [daml.yaml.template](getting-started/daml.yaml.template) file when
 processing the daml command).
 
-### Updating the project
+### Updating the project templates
 
 1. Make the necessary code changes.
-2. Update the *version* in both the [daml.yaml.template](getting-started/daml.yaml.template) and
-   the [daml.yaml](getting-started/daml.yaml) files.
-3. Create a new config file in [getting-started-config](getting-started-config/) with the file name
-   being the new *version* set in step 2, with a file extension of `.conf`.
 
-    ```{}
-    getting-started-config/{version}.conf
-    ```
+2. Upgrade the project dependencies (only if the Daml Finance packages the project depends on change)
 
-4. Update the dependencies in the new configuration file as necessary. The format of the file is
+    1. Update the *version* in both the [daml.yaml.template](getting-started/daml.yaml.template) and
+    the [daml.yaml](getting-started/daml.yaml) files.
 
-    ```{}
-    <full_http_url> <dependency_path>
-    ```
+    2. Create a new config file in [tutorials-config](tutorials-config/) with the file name
+    being the new *version* set in step 1, with a file extension of `.conf`.
 
-    where `full_http_url` is the full http url to download the dependency from. `dependency_path` is
-    the path and name to install the dependency to, matching what is specified in the
+        ```{}
+        tutorials-config/{version}.conf
+        ```
+
+    3. Update the dependencies in the new configuration file as necessary. The format of the file is
+
+        ```{}
+        <full_http_url> <dependency_path>
+        ```
+
+        where `full_http_url` is the full http url to download the dependency from. `dependency_path` is
+        the path and name to install the dependency to, matching what is specified in the
     [daml.yaml.template](getting-started/daml.yaml.template) and
     [daml.yaml](getting-started/daml.yaml) files.
-5. Ensure that the code compiles (i.e., run `./get-dependencies.sh && daml build`);
-6. Push the changes to github and merge to main.
-7. In the daml repository, update the Daml Finance
+
+3. Ensure that the code compiles (i.e., run `./get-dependencies.sh && daml build`) and that it gives
+the expected results.
+
+4. Push the changes to github and merge to main.
+
+5. In the daml repository, update the Daml Finance
    [configuration](https://github.com/digital-asset/daml/tree/main/daml_finance_dep.bzl)
    with the commit containing the change on main (or a subsequent commit) into the `version` field.
    You also must set the hash of the generated tar of the specified commit. In order to get the
@@ -54,12 +65,27 @@ processing the daml command).
 
    The hash is the first column of the output from the command `sha256sum` (the second being the
    filename which was hashed).
-8. To test against the daml code base, build the daml repository by running `daml-sdk-head` in the
+
+### Testing the project templates
+
+6. To test against the daml code base, build the daml repository by running `daml-sdk-head` in the
    root of the repository (this may take a while...).
-9. Run `daml-head new quickstart-finance-test --template quickstart-finance` to generate the
+
+7. Run `daml-head new quickstart-finance-test --template quickstart-finance` to generate the
    quickstarter.
-10. Ensure that the quickstarter builds: navigate to the folder generated by the quickstarter
+
+8. Ensure that the quickstarter builds: navigate to the folder generated by the quickstarter
     (i.e., `quickstart-finance-test\`) and run `./get-dependencies.sh && daml-head build`.
-11. Remove the created quickstart directory (i.e., `quickstart-finance-test\`) once testing is
+
+9. Test the quickstarter code: run `daml-head test` as
+well as `daml-head start` to ensure the Sandbox can be started successfully.
+
+10. Remove the created quickstart directory (i.e., `quickstart-finance-test\`) once testing is
     complete.
+
+11. Repeat steps `7` to `11` for all other project templates
+
 12. Raise a PR against the `main` Daml branch and ask the daml team to approve the PR.
+
+13. If applicable, backport the PR merged in step `12` to the target release line branch.
+
