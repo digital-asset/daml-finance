@@ -32,28 +32,26 @@ import Daml.Control.Recursion
 import Prelude hiding ((<=), and, compare, or)
 import qualified Prelude ((<=))
 
--- | Type synonym for `Claim`.
+-- | HIDE
 type T = Claim
 
 -- | HIDE
 type F = ClaimF
 
--- | Smart constructor for `Zero`.
+-- | Constructs a claim without rights or obligations.
 zero : forall t x a o . Claim t x a o
 zero = Zero
 
--- | Smart constructor for `One`.
+-- | Constructs a claim that delivers one unit of `a` immediately to the bearer.
 one : a -> Claim t x a o
 one = One
 
--- | Smart constructor for `Give`.
+-- | Constructs a claim that reverses the obligations of the bearer and their counterparty.
 give : Claim t x a o -> Claim t x a o
 give = Give
 
--- | Smart constructor for `And`. Because of the explicit representation of the first two arguments
--- of an `And`, it can be cumbersome to write `And c c' []`. With this constructor, you can write
--- `c \\`and\\` c'` instead. Flattens nested `And`s and applies additive monoid identity eagerly.
--- Note this is an `O(n)` operation. For a more efficient alternative, consider `mconcat`.
+-- | Used to additively combine two claims together. In order to use this,
+-- you must import this module qualified or hide the `and` operator from `Prelude`.
 and : Claim t x a o -> Claim t x a o -> Claim t x a o
 and (And a b cs) (And d e fs) = And a b (cs ++ d :: e :: fs)
 and x Zero = x
@@ -62,46 +60,43 @@ and Zero x = x
 and claim (And a b cs) = And claim a (b :: cs)
 and claim claim' = And claim claim' []
 
--- | Smart constructor for `Or`. Because of the explicit representation of the first two arguments
--- of an `Or`, it can be cumbersome to write `Or c c' []`. With this constructor, you can write
--- `c \\`or\\` c'` instead. Flattens nested `Or`s. Unlike `and`, this does not apply a monoid
--- identity. Note this is an `O(n)` operation.
+-- | Gives the bearer the right to choose between the input claims. In order to use this,
+-- you must import this module qualified or hide the `or` operator from `Prelude`.
 or : Electable t x a o -> Electable t x a o -> Claim t x a o
 or (_, Or a b cs) (_, Or d e fs) = Or a b (cs ++ d :: e :: fs)
 or (_, Or a b cs) (tag2, claim) = Or a b (cs ++ [(tag2, claim)])
 or (tag1, claim) (_, (Or a b cs)) = Or (tag1, claim) a (b :: cs)
 or (tag1, claim) (tag2, claim') = Or (tag1, claim) (tag2, claim') []
 
--- | Smart constructor for a list of claims to which `And` should be applied.
--- Given a list of claims [c1, c2, ...] it builds
--- And [c1, c2, ...]
+-- | Used to additively combine a list of claims together. It is equivalent to
+-- applying the `and` builder recursively.
 andList : [Claim t x a o] -> Claim t x a o
 andList = mconcat
 
--- | Smart constructor for a list of claims to which `Or` should be applied.
--- Given a list of claims and the corresponding tags [(t1, c1), (t2, c2), ...] it builds
--- Or [(t1, c1), (t2, c2), ...]
+-- | Gives the bearer the right to choose between the input claims. It is equivalent to
+-- applying the `or` builder recursively.
 orList : [Electable t x a o] -> Claim t x a o
 orList (c1 :: c2 :: cs) = Or c1 c2 cs
 orList _ = error "orList: at least 2 choices required"
 
--- | Smart constructor for `Cond`.
+-- | Gives the bearer the right to the first claim if predicate is true, else the second
+-- claim.
 cond : Inequality t x o -> Claim t x a o -> Claim t x a o -> Claim t x a o
 cond = Cond
 
--- | Smart constructor for `Scale`.
+-- | Multiplies the input claim by a scaling factor (which can be non-deterministic).
 scale : Observation t x o -> Claim t x a o -> Claim t x a o
 scale = Scale
 
--- | Smart constructor for `When`.
+-- | Acquires the input claim on *the first instant* that `predicate` is true.
 when : Inequality t x o -> Claim t x a o -> Claim t x a o
 when = When
 
--- | Smart constructor for `Anytime`.
+-- | Gives the bearer the right to enter a claim at any time `predicate` is true.
 anytime : Inequality t x o -> Text -> Claim t x a o -> Claim t x a o
 anytime pred tag subTree = Anytime pred (tag, subTree)
 
--- | Smart constructor for `Until`.
+-- | Expires the input claim on the *first instant* that `predicate` is true.
 until : Inequality t x o -> Claim t x a o -> Claim t x a o
 until = Until
 
@@ -117,7 +112,9 @@ instance Monoid (Claim t x a o) where
   mconcat (c :: c' :: cs) = And c c' cs
   -- ^ A more efficient `O(1)` version of (<>) for lists.
 
--- | Replace parameters in an `Claim` with actual values.
+-- | Replaces parameters in a claims using the input mapping functions.
+-- This can be used to e.g. map the time parameter in a claim from `Date` to `Time`, or
+-- to map the asset type parameter from an abstract `Text` to a concrete `InstrumentKey`.
 mapParams :  (t -> i)
           -> (i -> t)
           -> (a -> a')
@@ -148,26 +145,23 @@ mapParams ft' ft fa fk fv =
 
 -- Inequality --
 
--- | Smart constructor for `TimeGte`.
--- This boolean predicate is `True` for time ≥ t, `False` otherwise.
+-- | Given `t`, constructs a predicate that is `True` for time ≥ `t`, `False` otherwise.
 at : t -> Inequality t x o
 at t = TimeGte t
 
--- | Observable that is true for time ≤ t.
--- This boolean predicate is `True` for time ≤ t, `False` otherwise.
+-- | Given `t`, constructs a predicate that is `True` for time ≤ `t`, `False` otherwise.
 upTo : t -> Inequality t x a
 upTo t = TimeLte t
 
 infix 4 <=
--- | Smart constructor for `Lte`.
--- `import Prelude hiding ((<=))` in order to use this.
+-- | Given observations `o1` and `o2`, constructs the predicate `o1 ≤ o2`. In order to use this,
+-- you must import this module qualified or hide the `(<=)` operator from `Prelude`.
 (<=) : Observation t x o -> Observation t x o -> Inequality t x o
 (<=) = curry Lte
 
 -- | Reify the `Inequality` into an observation function.
--- This function is used to convert an abstract inequalityvation, e.g. `S ≤ 50.0` to the actual
--- observation function `t -> m Bool`. The function is only total when the first argument is too
--- (typically it will fail on `t` > today).
+-- This function is used to convert an abstract predicate, e.g. `S ≤ 50.0` to the actual boolean
+-- observation function `t -> m Bool`.
 compare : (Ord t, Ord x, Number x, Divisible x, CanAbort m) =>
   (o -> t -> m x) -> Inequality t x o -> t -> m Bool
 compare doObserve (Lte (f, f')) t = liftA2 (Prelude.<=) (eval doObserve f t) (eval doObserve f' t)
