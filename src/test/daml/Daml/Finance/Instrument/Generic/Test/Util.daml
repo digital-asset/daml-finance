@@ -4,13 +4,13 @@
 module Daml.Finance.Instrument.Generic.Test.Util where
 
 import ContingentClaims.Core.Claim (Claim)
-import DA.Map qualified as M (fromList)
+import DA.Map (empty, fromList)
 import Daml.Finance.Claims.Util (toTime)
 import Daml.Finance.Data.Time.DateClock (dateToDateClockTime)
-import Daml.Finance.Instrument.Generic.Instrument (Instrument(..))
+import Daml.Finance.Instrument.Generic.Factory (Factory(..))
 import Daml.Finance.Interface.Claims.Types (C, Deliverable, Observable)
-import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey, Parties)
-import Daml.Finance.Test.Util.Instrument (createReference)
+import Daml.Finance.Interface.Instrument.Generic.Factory qualified as Generic (Create(..), F)
+import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey(..), Parties)
 import Daml.Script
 
 -- | Maps a `Date` claim to a `Time` claim using the rule in the `DateClock`.
@@ -22,8 +22,28 @@ originateGeneric : Party -> Party -> Text -> Text -> Time -> C -> [(Text, Partie
   Script InstrumentKey
 originateGeneric depository issuer label description acquisitionTime claims observers
   lastEventTimestamp = do
-    cid <- toInterfaceContractId <$> submitMulti [depository, issuer] [] do
-      createCmd Instrument with
-        depository; issuer; id = Id label; version = "0"; description; acquisitionTime; claims
-        observers = M.fromList observers; lastEventTimestamp
-    createReference cid depository issuer observers
+
+    -- Create a generic instrument factory
+    factoryCid <- toInterfaceContractId @Generic.F <$> submit issuer do
+      createCmd Factory with
+        provider = issuer
+        observers = empty
+
+    -- Create instrument
+    let
+      instrument = InstrumentKey with
+        issuer
+        depository
+        id = Id label
+        version = "0"
+
+    submitMulti [issuer, depository] [] do
+      exerciseCmd factoryCid Generic.Create with
+        instrument
+        description
+        claims
+        acquisitionTime
+        lastEventTimestamp
+        observers = fromList observers
+
+    pure instrument
