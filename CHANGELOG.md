@@ -71,6 +71,9 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Holding
 
+- Fix for transfer (adding check that the custodian is the same for the sending and receiving
+  account).
+
 - Dependencies update
 
 - As the locking logic from the `Holding.Base` interface was factored out to a separate interface
