@@ -42,19 +42,15 @@ template Batch
     signatory requestors
     observer settlers
 
-    let
-      (routedSteps, instructionIds) = unzip routedStepsWithInstructionId
-      buildKey instructionId = InstructionKey with requestors; batchId = id; id = instructionId
-
     interface instance Batch.I for Batch where
       view = Batch.View with
-        requestors; settlers; id; description; contextId; routedSteps; settlementTime
+        requestors; settlers; id; description; contextId; routedSteps = routedSteps this.routedStepsWithInstructionId; settlementTime
       settle Batch.Settle{actors} = do
         assertMsg "actors must intersect with settlers" $
           not $ S.null $ actors `S.intersection` settlers
         -- order instructions (such that they can be executed with passthroughs)
         orderedInstructions <-
-          orderPassThroughChains . fmap (fmap buildKey) $ routedStepsWithInstructionId
+          orderPassThroughChains . fmap (fmap (buildKey this)) $ routedStepsWithInstructionId
         assertMsg "ordering must be complete" $
           length orderedInstructions == length routedStepsWithInstructionId
         -- settle
@@ -89,7 +85,7 @@ template Batch
           orderedInstructionIdsAndSettleCids =
             zip ((.id) <$> orderedInstructions) orderedSettledCids
           settledCids = fromSomeNote "All keys must exist in the map." .
-            (`M.lookup` (M.fromList orderedInstructionIdsAndSettleCids)) <$> instructionIds
+            (`M.lookup` (M.fromList orderedInstructionIdsAndSettleCids)) <$> instructionIds this.routedStepsWithInstructionId
         pure $ catOptionals settledCids
       cancel Batch.Cancel{actors} = do
         let
@@ -100,7 +96,20 @@ template Batch
               Instruction.Cancel with actors
         allMustAuthorize requestors
         -- cancel instructions
-        catOptionals <$> mapA (cancelInstruction . buildKey . snd) routedStepsWithInstructionId
+        catOptionals <$> mapA (cancelInstruction . buildKey this . snd) routedStepsWithInstructionId
+
+-- | HIDE
+routedSteps : [(RoutedStep, Id)] -> [RoutedStep]
+routedSteps = fmap fst
+
+-- | HIDE
+instructionIds : [(RoutedStep, Id)] -> [Id]
+instructionIds = fmap snd
+
+-- | HIDE
+buildKey : Batch -> Id -> InstructionKey
+buildKey Batch {requestors; id} instructionId =
+  InstructionKey with requestors; batchId = id; id = instructionId
 
 -- | HIDE
 -- Partially order instructions, so that pass-through chains can be executed in order.
