@@ -6,32 +6,35 @@
 module Daml.Finance.Test.Util.Instrument where
 
 import DA.List (head)
-import DA.Map qualified as M (fromList)
-import Daml.Finance.Instrument.Token.Instrument (Instrument(..))
-import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (GetCid(..), GetView(..), I, R, Reference(..))
-import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey, Parties)
+import DA.Map qualified as M (empty)
+import Daml.Finance.Instrument.Token.Factory qualified as Token (Factory(..))
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (GetCid(..), R)
+import Daml.Finance.Interface.Instrument.Token.Factory qualified as Token (F, Create(..))
+import Daml.Finance.Interface.Instrument.Token.Types (Token(..))
+import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey(..), Parties)
 import Daml.Finance.Test.Util.Common (submitExerciseInterfaceByKeyCmdHelper)
 import Daml.Script
 
--- | Create a `Reference` for an instrument.
--- Note: This should only be called together with an instrument creation
-createReference : ContractId Instrument.I -> Party -> Party -> [(Text, Parties)] ->
-  Script InstrumentKey
-createReference cid depository issuer observers = do
-  instrumentView <- submitMulti [depository, issuer] [] do
-    exerciseCmd cid Instrument.GetView with viewer = issuer
-  let ref = Instrument.Reference with instrumentView; cid; observers = M.fromList observers
-  submitMulti [depository, issuer] [] do createCmd ref
-  pure $ key ref
-
--- | Originate an `Instrument`.
+-- | Originate a `Token` Instrument.
 originate : Party -> Party -> Text -> Text-> [(Text, Parties)] -> Time -> Script InstrumentKey
 originate depository issuer label description observers timestamp = do
-  cid <- toInterfaceContractId <$> submitMulti [depository, issuer] [] do
-    createCmd Instrument with
-      depository; issuer; id = Id label; version = "0"; description
-      observers = M.fromList observers; validAsOf = timestamp
-  createReference cid depository issuer observers
+  factoryCid <- toInterfaceContractId @Token.F <$> submit issuer do
+    createCmd Token.Factory with provider = issuer, observers = M.empty
+  let
+    instrumentKey = InstrumentKey with
+      depository; issuer
+      id = Id label
+      version = "0"
+    token = Token with
+      instrument = instrumentKey
+      validAsOf = timestamp
+      description
+  submitMulti [depository, issuer] [] do
+    exerciseCmd factoryCid Token.Create with
+      token
+      observers = M.empty
+  submitMulti [depository, issuer] [] do archiveCmd factoryCid
+  pure instrumentKey
 
 -- | Utility for exercising an interface by key.
 submitExerciseInterfaceByKeyCmd : forall t2 c2 b.
