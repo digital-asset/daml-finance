@@ -201,3 +201,5 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Added a `Lockable` module containing the `aquireImpl` and `releaseImpl` locking utitlity
   functions.
+
+- Fix a bug in the schedule roll-out logic
