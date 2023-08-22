@@ -1,0 +1,97 @@
+-- Copyright (c) 2023 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Test.Util.FungibleV2 where
+
+-- | Test Implementation of Fungible Holding.
+-- This module contains a copy of the code from Daml.Finance.Holding.Fungible. It is used
+-- specifically for testing purposes, allowing the instantiation of an alternate implementation of
+-- the Fungible.I interface.
+
+import DA.Set (fromList, singleton)
+import Daml.Finance.Holding.Util (mergeImpl, splitImpl, transferImpl)
+import Daml.Finance.Interface.Holding.Base qualified as Base (I, View(..))
+import Daml.Finance.Interface.Holding.Factory qualified as HoldingFactory (Create(..), F, View(..))
+import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (I, View(..))
+import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, View(..))
+import Daml.Finance.Interface.Types.Common.Types (AccountKey(..), InstrumentKey(..), PartiesMap)
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Interface.Util.Lockable qualified as Lockable (I, Lock(..), View(..), getLockers)
+import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+import Daml.Finance.Util.Lockable (acquireImpl, isValidLock, releaseImpl)
+
+-- | Type synonym for `Factory`.
+type F = Factory
+
+-- | Type synonym for `Fungible`.
+type T = Fungible
+
+-- | Implementation of a fungible holding.
+-- The `Fungible` template implements the interface `Fungible.I` (which requires `Transferable.I`,
+-- `Base.I` and `Disclosure.I` to be implemented).
+template Fungible
+  with
+    instrument : InstrumentKey
+      -- ^ The instrument of which units are held.
+    account : AccountKey
+      -- ^ The account at which the holding is held. Defines the holding's owner and custodian.
+    amount : Decimal
+      -- ^ Number of units.
+    lock : Optional Lockable.Lock
+      -- ^ An optional lock for the holding.
+    observers : PartiesMap
+      -- ^ Observers.
+  where
+    signatory account.custodian, account.owner, Lockable.getLockers this
+    observer Disclosure.flattenObservers observers
+
+    ensure amount > 0.0 && isValidLock lock
+
+    interface instance Disclosure.I for Fungible where
+      view = Disclosure.View with
+        disclosureControllers = fromList [account.owner, account.custodian]; observers
+      setObservers = setObserversImpl @_ @Disclosure.I this None
+      addObservers = addObserversImpl @_ @Disclosure.I this None
+      removeObservers = removeObserversImpl @_ @Disclosure.I this None
+
+    interface instance Lockable.I for Fungible where
+      view = Lockable.View with lock; controllers = singleton account.owner
+      acquire = acquireImpl this.lock (\lock -> this with lock)
+      release = releaseImpl this.lock (\lock -> this with lock)
+
+    interface instance Base.I for Fungible where
+      view = Base.View with instrument; account; amount
+
+    interface instance Transferable.I for Fungible where
+      view = Transferable.View {}
+      transfer = transferImpl $ toInterface this
+
+    interface instance Fungible.I for Fungible where
+      view = Fungible.View with modifiers = singleton account.owner
+      split = splitImpl (toInterface @Fungible.I this) (\amount -> this with amount)
+      merge = mergeImpl (toInterface @Fungible.I this) (.amount) (\amount -> this with amount)
+
+-- | Implementation of a factory template for fungible holdings.
+template Factory
+  with
+    provider : Party
+      -- ^ The factory's provider.
+    observers : PartiesMap
+      -- ^ The factory's observers.
+  where
+    signatory provider
+    observer Disclosure.flattenObservers observers
+
+    interface instance HoldingFactory.F for Factory
+      where
+        view = HoldingFactory.View with provider
+        create' HoldingFactory.Create{instrument; account; amount; observers} = do
+          assertMsg "amount must be positive" $ amount > 0.0
+          toInterfaceContractId <$>
+            create Fungible with instrument; account; amount; observers; lock = None
+
+    interface instance Disclosure.I for Factory where
+      view = Disclosure.View with disclosureControllers = singleton provider; observers
+      setObservers = setObserversImpl @Factory @Disclosure.I this None
+      addObservers = addObserversImpl @Factory @Disclosure.I this None
+      removeObservers = removeObserversImpl @Factory @Disclosure.I this None

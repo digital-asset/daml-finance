@@ -197,9 +197,16 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Dependencies update
 
+- The check for consistent settled holdings has changed. Now, holdings of the same instrument don't
+  need identical `templateTypeRep`. Instead, they should share the same token standard: `Fungible`,
+  `NonFungible`, or `NonTransferable` (implementation variations are allowed).
+
 ### Daml.Finance.Util
 
 - Added a `Lockable` module containing the `aquireImpl` and `releaseImpl` locking utitlity
   functions.
 
 - Fix a bug in the schedule roll-out logic
+
+- Added the `isInstanceOf` utility function which checks whether an interface instance is
+  convertible to another interface or template.
