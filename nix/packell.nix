@@ -26,10 +26,17 @@ in
     version = "$version";
     src = tarball;
     nativeBuildInputs = if stdenv.isLinux then [ pkgs.autoPatchelfHook ] else [ ];
-    buildInputs = if stdenv.isLinux then [  pkgs.gmp pkgs.libffi ] else [ ];
+    buildInputs = if stdenv.isLinux then [ pkgs.gmp pkgs.libffi ] else [ ];
     baseInputs = [ pkgs.binutils ];
     installPhase = ''
       mkdir -p $out/bin
       cp packell $out/bin
     '';
+    preFixup = if stdenv.isLinux
+      then ''
+        # Set LANG for linux environments.
+        mkdir -p $out/nix-support
+        echo export LANG=C.UTF-8 > $out/nix-support/setup-hook
+      ''
+      else "";
   }

@@ -127,13 +127,13 @@ ci-assembly:
 ci-versioning:
 	@nix-shell \
 		--pure \
-		--run 'export LANG=C.UTF-8; packell versioning validate'
+		--run 'packell versioning validate'
 
 .PHONY: ci-data-dependencies
 ci-data-dependencies:
 	@nix-shell \
 		--pure \
-		--run 'export LANG=C.UTF-8; packell data-dependencies validate'
+		--run 'packell data-dependencies validate'
 
 .PHONY: ci-local
 ci-local: clean-all ci-headers-check ci-versioning ci-data-dependencies ci-build ci-validate ci-build-java ci-build-js ci-test ci-docs
