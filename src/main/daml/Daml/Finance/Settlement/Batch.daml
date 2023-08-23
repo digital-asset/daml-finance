@@ -11,16 +11,13 @@ import DA.Optional (catOptionals, fromSomeNote, optionalToList)
 import DA.Set (Set)
 import DA.Set qualified as S (empty, fromList, insert, intersection, member, null, size, union)
 import DA.Traversable qualified as T
-import Daml.Finance.Interface.Holding.Base qualified as Base (I)
-import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (I)
-import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I)
-import Daml.Finance.Interface.Holding.Util (undisclose)
+import Daml.Finance.Interface.Holding.Util (getHoldingStandard, undisclose)
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Cancel(..), I, Settle(..), View(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Cancel(..), Execute(..), I)
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), InstructionKey(..), RoutedStep(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..), Parties)
 import Daml.Finance.Settlement.Instruction (Instruction(..), mustAuthorizeHelper)
-import Daml.Finance.Util.Common (isInstanceOf, sortAndGroupOn)
+import Daml.Finance.Util.Common (sortAndGroupOn)
 
 -- | Type synonym for `Batch`.
 type T = Batch
@@ -70,7 +67,6 @@ template Batch
             settledCid <- exercise (toInterfaceContractId @Instruction.I instructionCid)
               Instruction.Execute with actors = actors `S.union` requestors
             settledHoldingStandard <- optionalToList <$> T.mapA getHoldingStandard settledCid
-
             let
               instrumentWithHoldingStandards = (instruction.routedStep.quantity.unit, ) <$>
                 settledHoldingStandard <> pledgedHoldingStandard
@@ -101,26 +97,6 @@ template Batch
         allMustAuthorize requestors
         -- cancel instructions
         catOptionals <$> mapA (cancelInstruction . buildKey this . snd) routedStepsWithInstructionId
-
--- Type of holdings that can be settled as part of a settlement batch.
-data HoldingStandard
-  = NonTransferable
-    -- ^ Represents a holding that implements Base.I but not Transferable.I.
-  | NonFungible
-    -- ^ Represents a holding that implements Transferable.I but not Fungible.I.
-  | Fungible
-    -- ^ Represents a holding that implements Fungible.I.
-  deriving (Eq, Ord)
-
--- Returns the holding standard of a holding.
-getHoldingStandard : ContractId Base.I -> Update HoldingStandard
-getHoldingStandard cid = do
-  implementsFungible <- isInstanceOf @Fungible.I cid
-  if implementsFungible then
-    pure Fungible
-  else do
-    implementsTransferable <- isInstanceOf @Transferable.I cid
-    pure $ if implementsTransferable then NonFungible else NonTransferable
 
 -- | HIDE
 routedSteps : [(RoutedStep, Id)] -> [RoutedStep]
