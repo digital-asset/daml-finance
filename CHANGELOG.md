@@ -86,7 +86,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `mergeImpl` have been modified. For `transferImpl`, the re-entrant lock logic has been extracted
   and is now supplied as an independent template in `Daml.Finance.Holding.Test.Transfer`.
 
-- Relaxed the check for a consistent transferred holding. Now, the holding being credited and
+- Relaxed the check for a consistent transferred holding. Now, the holdings being credited and
   debited don't need identical `templateTypeRep`. Instead, they should share the same token
   standard: `Fungible`, `NonFungible`, or `NonTransferable` (implementation variations are allowed).
 
