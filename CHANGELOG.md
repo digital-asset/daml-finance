@@ -86,6 +86,10 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `mergeImpl` have been modified. For `transferImpl`, the re-entrant lock logic has been extracted
   and is now supplied as an independent template in `Daml.Finance.Holding.Test.Transfer`.
 
+- Relaxed the check for a consistent transferred holding. Now, the holding being credited and
+  debited don't need identical `templateTypeRep`. Instead, they should share the same token
+  standard: `Fungible`, `NonFungible`, or `NonTransferable` (implementation variations are allowed).
+
 ### Daml.Finance.Instrument.Bond
 
 - Dependencies update
@@ -134,6 +138,10 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Factored out the locking logic from the `Holding.Base` interface to a separate interface called
   `Lockable` of the `Daml.Finance.Interface.Util` package.
+
+- Added an enumeration data type `HoldingStandard` for referring to various holding standards:
+  `Fungible`, `NonFungible`, or `NonTransferable`. A utility function `getHoldingStandard` for
+  retrieving the holding standard of a holding was also added.
 
 ### Daml.Finance.Interface.Instrument.Base
 
@@ -185,6 +193,9 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Added a `Lockable` module containing the interface for locking (the `Acquire` and `Release`
   choices used to be part of the `Holding.Base` interface).
 
+- Added the `isInstanceOf` utility function which checks whether an interface instance is
+  convertible to another interface or template.
+
 ### Daml.Finance.Lifecycle
 
 - Dependencies update
@@ -197,7 +208,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Dependencies update
 
-- The check for consistent settled holdings has changed. Now, holdings of the same instrument don't
+- Relaxed the check for consistent settled holdings. Now, holdings of the same instrument don't
   need identical `templateTypeRep`. Instead, they should share the same token standard: `Fungible`,
   `NonFungible`, or `NonTransferable` (implementation variations are allowed).
 
@@ -207,6 +218,3 @@ This document tracks pending changes to packages. It is facilitating the write-u
   functions.
 
 - Fix a bug in the schedule roll-out logic
-
-- Added the `isInstanceOf` utility function which checks whether an interface instance is
-  convertible to another interface or template.
