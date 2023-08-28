@@ -7,14 +7,13 @@ import DA.Date (addDays, toDateUTC)
 import DA.Map qualified as M (fromList)
 import DA.Set qualified as S (empty, fromList, singleton)
 import DA.Time (time)
-import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
-import Daml.Finance.Holding.NonFungible qualified as NonFungible (Factory(..))
+import Daml.Finance.Holding.Factory qualified as Holding (Factory(..))
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.Factory qualified as Settlement (F, Instruct(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
 import Daml.Finance.Interface.Settlement.RouteProvider qualified as RouteProvider (Discover(..), I)
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), Step(..))
-import Daml.Finance.Interface.Types.Common.Types (Id(..))
+import Daml.Finance.Interface.Types.Common.Types (HoldingStandard(..), Id(..))
 import Daml.Finance.Interface.Util.Common (qty)
 import Daml.Finance.Settlement.Factory (Factory(..))
 import Daml.Finance.Settlement.Hierarchy (Hierarchy(..))
@@ -22,7 +21,7 @@ import Daml.Finance.Settlement.RouteProvider.IntermediatedStatic (IntermediatedS
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Holding qualified as Holding (createHoldingFactory, verifyNoObservers, verifyOwnerOfHolding)
-import Daml.Finance.Test.Util.HoldingDuplicates.Fungible qualified as FungibleV2 (Factory(..))
+import Daml.Finance.Test.Util.HoldingDuplicates.Factory qualified as HoldingV2 (Factory(..))
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
 import Daml.Script
 
@@ -63,57 +62,51 @@ data TestParties = TestParties
 -- |          \   /              | securities             |
 -- | Central Security Depository |                        |
 -- +-----------------------------+------------------------+
-run : Bool -> Bool -> Script ()
-run bankAllocatesWithOwnHolding bankUsesCompatibleHoldingStandard = script do
+run : Bool -> Script ()
+run bankAllocatesWithOwnHolding = script do
   -- Create parties
   TestParties{..} <- setupParties
   let pp = [("PublicParty", S.singleton publicParty)]
 
   -- Setup security accounts at CB (utilising non-fungible holdings)
   -- Create account factory
-  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory csd []
+  csdAccountFactoryCid <- toInterfaceContractId <$> Account.createFactory csd []
   -- Create holding factory
-  holdingFactory <- Holding.createHoldingFactory
-    NonFungible.Factory with provider = csd; id = Id "Factory NonFungible"; observers = M.fromList pp
+  csdHoldingFactory <- Holding.createHoldingFactory
+    Holding.Factory with provider = csd; id = Id "Holding Factory @ CSD"; observers = M.fromList pp
   -- Create accounts
   [buyerSecurityAccount, sellerSecurityAccount] <- mapA (Account.createAccount "Security Account" []
-    accountFactoryCid holdingFactory [] Account.Owner csd) [buyer, seller]
+    csdAccountFactoryCid csdHoldingFactory [] Account.Owner csd) [buyer, seller]
 
   -- Setup cash accounts at CB (utilising fungible holdings)
   -- Create account factory
-  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory cb []
+  cbAccountFactoryCid <- toInterfaceContractId <$> Account.createFactory cb []
   -- Create holding factory
-  holdingFactory <- Holding.createHoldingFactory
-    Fungible.Factory with
-      provider = cb; id = Id "Factory Fungible"; observers = M.fromList pp
+  cbHoldingFactory <- Holding.createHoldingFactory
+    Holding.Factory with
+      provider = cb; id = Id "Holding Factory @ CB"; observers = M.fromList pp
   -- Create accounts
   [buyerCashAccount, bankCashAccount] <- mapA (Account.createAccount "Cash Account" []
-    accountFactoryCid holdingFactory [] Account.Owner cb) [buyer, bank]
+    cbAccountFactoryCid cbHoldingFactory [] Account.Owner cb) [buyer, bank]
 
   -- Setup cash accounts at Bank
   -- Create account factory
-  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank []
+  bankAccountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank []
   -- Create holding factory
-  holdingFactory <-
-    if bankUsesCompatibleHoldingStandard
-    then do
-      -- use a factory for a different fungible token implementation
-      Holding.createHoldingFactory
-        FungibleV2.Factory with
-          provider = bank; id = Id "Factory FungibleV2"; observers = M.fromList pp
-    else do
-      Holding.createHoldingFactory
-        NonFungible.Factory with
-          provider = bank; id = Id "Factory NonFungible"; observers = M.fromList pp
+  bankHoldingFactory <-
+    Holding.createHoldingFactory
+      HoldingV2.Factory with
+        provider = bank; id = Id "HoldingV2 Factory @ Bank"; observers = M.fromList pp
   -- Create accounts
-  [sellerCashAccount] <- mapA (Account.createAccount "Cash Account" [] accountFactoryCid
-    holdingFactory [] Account.Owner bank) [seller]
+  [sellerCashAccount] <- mapA (Account.createAccount "Cash Account" [] bankAccountFactoryCid
+    bankHoldingFactory [] Account.Owner bank) [seller]
 
   -- Distribute assets
   now <- getTime
-  equityInstrument <- Instrument.originate csd issuer "AAPL" "Apple Inc." [] now
+  equityInstrument <- Instrument.originate csd issuer "AAPL" Fungible "Apple Inc." [] now
   equityHoldingCid <- Account.credit [] equityInstrument 1_000.0 sellerSecurityAccount
-  cashInstrument <- Instrument.originate cb cb "USD" "United States Dollar" [] now
+  cashInstrument <- Instrument.originate cb cb "USD" Fungible "United States Dollar"
+    [] now
   buyerCashHoldingCid <- Account.credit [] cashInstrument 200_000.0 buyerCashAccount
 
   -- Settlement steps
@@ -157,8 +150,8 @@ run bankAllocatesWithOwnHolding bankUsesCompatibleHoldingStandard = script do
   (cashInstruction2Cid, _) <-
     if bankAllocatesWithOwnHolding then
       do
-        ownCashAccount <- Account.createAccount "Own Cash Account" [] accountFactoryCid
-          holdingFactory [] Account.Owner bank bank
+        ownCashAccount <- Account.createAccount "Own Cash Account" [] bankAccountFactoryCid
+          bankHoldingFactory [] Account.Owner bank bank
         ownCashHoldingCid <- Account.credit [] cashInstrument 200_000.0 ownCashAccount
         submit bank do
           exerciseCmd cashInstruction2Cid
@@ -194,21 +187,16 @@ run bankAllocatesWithOwnHolding bankUsesCompatibleHoldingStandard = script do
   setTime settlementTime
 
   -- Settle batch
-  if bankUsesCompatibleHoldingStandard
-  then do
-    [bankCashHoldingCid, sellerCashHoldingCid, equityHoldingCid] <-
-      submitMulti [buyer] [publicParty] do
-        exerciseCmd batchCid Batch.Settle with actors = S.singleton buyer
-
-    -- Assert state
-    let ts = [(buyer, equityHoldingCid), (bank, bankCashHoldingCid), (seller, sellerCashHoldingCid)]
-    Holding.verifyOwnerOfHolding ts
-    Holding.verifyNoObservers ts
-
-    pure ()
-  else do
-    submitMultiMustFail [buyer] [publicParty] do
+  [bankCashHoldingCid, sellerCashHoldingCid, equityHoldingCid] <-
+    submitMulti [buyer] [publicParty] do
       exerciseCmd batchCid Batch.Settle with actors = S.singleton buyer
+
+  -- Assert state
+  let ts = [(buyer, equityHoldingCid), (bank, bankCashHoldingCid), (seller, sellerCashHoldingCid)]
+  Holding.verifyOwnerOfHolding ts
+  Holding.verifyNoObservers ts
+
+  pure ()
 
 -- Settlement where the Bank allocates its `Instruction` using an "own" holding and account, i.e.,
 -- the Bank allocates its `Instruction` (between itself and the seller) using cash which it has
@@ -216,15 +204,11 @@ run bankAllocatesWithOwnHolding bankUsesCompatibleHoldingStandard = script do
 -- an IOU to itself). Although this works, it is more efficient for the Bank to allocate using a
 -- direct credit instead (see the following script).
 run1 : Script ()
-run1 = run True True
+run1 = run True
 
 -- Settlement where the Bank allocates its `Instruction` with a direct credit to the seller.
 run2 : Script ()
-run2 = run False True
-
--- Settlement fails due to an incompatible holding standard used by the bank.
-run3 : Script ()
-run3 = run False False
+run2 = run False
 
 setupParties : Script TestParties
 setupParties = do
