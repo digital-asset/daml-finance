@@ -17,7 +17,7 @@ import Daml.Finance.Settlement.Factory (Factory(..))
 import Daml.Finance.Settlement.RouteProvider.SingleCustodian (SingleCustodian(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
 import Daml.Finance.Test.Util.Common (createParties)
-import Daml.Finance.Test.Util.Holding qualified as Holding (verifyNoObservers, verifyOwnerOfHolding)
+import Daml.Finance.Test.Util.Holding qualified as Holding (createHoldingFactoryWithReference, verifyNoObservers, verifyOwnerOfHolding)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
 import Daml.Script
 
@@ -54,13 +54,16 @@ data TestParties = TestParties
 -- +----------------+-----------------------+
 run: Bool -> Bool -> Script ()
 run settleCashOnledger bankIsRequesting = script do
+  -- Create parties
   TestParties{..} <- setupParties
+  let pp = [("PublicParty", S.singleton publicParty)]
 
-  -- Account and holding factory
+  -- Create account factory
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank []
-  holdingFactoryCid <- toInterfaceContractId <$> submit bank do
-    createCmd Fungible.Factory with
-      provider = bank; observers = M.fromList [("PublicParty", S.singleton publicParty)]
+
+  -- Create holding factory
+  holdingFactory <- Holding.createHoldingFactoryWithReference
+    Fungible.Factory with provider = bank; id = Id "Factory Fungible"; observers = M.fromList pp
 
   -- Originate instruments
   now <- getTime
@@ -69,12 +72,12 @@ run settleCashOnledger bankIsRequesting = script do
 
   -- Custody accounts
   [buyerCustodyAccount, sellerCustodyAccount] <-
-    mapA (Account.createAccount "Custody Account" [] accountFactoryCid holdingFactoryCid []
+    mapA (Account.createAccount "Custody Account" [] accountFactoryCid holdingFactory []
       Account.Owner bank) [buyer, seller]
 
   -- Cash accounts
   [buyerCashAccount, sellerCashAccount] <- mapA (Account.createAccount "Cash Account" []
-    accountFactoryCid holdingFactoryCid [] Account.Owner bank) [buyer, seller]
+    accountFactoryCid holdingFactory [] Account.Owner bank) [buyer, seller]
 
   -- Distribute equity
   equityHoldingCid <- Account.credit [] equityInstrument 1_000.0 sellerCustodyAccount
