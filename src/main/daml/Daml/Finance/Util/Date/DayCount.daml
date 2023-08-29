@@ -16,6 +16,7 @@ module Daml.Finance.Util.Date.DayCount
   ) where
 
 import DA.Date (Month(..), fromGregorian, fromMonth, isLeapYear, monthDayCount, subDate, toGregorian)
+import DA.Optional (isNone)
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum(..))
 import Daml.Finance.Interface.Types.Date.RollConvention (PeriodEnum(..))
 import Daml.Finance.Interface.Types.Date.Schedule (ScheduleFrequency(..), SchedulePeriod, StubPeriodTypeEnum(..))
@@ -38,6 +39,8 @@ calcDcf Basis30360 f t = calcDcf30360 f t
 calcDcf Basis30365 f t = calcDcf30365 f t
 calcDcf Basis1 f t = 1.0
 calcDcf Basis30360ICMA f t = calcDcf30360Icma f t
+calcDcf Basis30E2360 f t =
+  error "This call requires the knowledge of the stub period. Please, call `calcPeriodDcf` instead."
 calcDcf Basis30E3360 f t = calcDcf30E360 False f t -- i.e., 30E/360 with no maturity date adjustment
 calcDcf Basis30E360 f t = error $
   "This call requires the knowledge of the maturity date of the product. " <>
@@ -60,6 +63,11 @@ calcPeriodDcf ActActICMA p useAdjustedDates maturityDate frequency =
 calcPeriodDcf Basis30E360 p useAdjustedDates maturityDate frequency =
   calcDcf30E360
     (maturityDate == if useAdjustedDates then p.adjustedEndDate else p.unadjustedEndDate)
+    (if useAdjustedDates then p.adjustedStartDate else p.unadjustedStartDate)
+    (if useAdjustedDates then p.adjustedEndDate else p.unadjustedEndDate)
+calcPeriodDcf Basis30E3360 p useAdjustedDates maturityDate frequency =
+  calcDcf30E3360
+    (isNone p.stubType)
     (if useAdjustedDates then p.adjustedStartDate else p.unadjustedStartDate)
     (if useAdjustedDates then p.adjustedEndDate else p.unadjustedEndDate)
 calcPeriodDcf basis p useAdjustedDates _ _ =
@@ -222,6 +230,24 @@ calcDcf30E360 toDateIsMaturityDate fromDate toDate =
   where
     (y1, m1, d1) = toGregorian fromDate
     (y2, m2, d2) = toGregorian toDate
+
+-- | Calculate 30E3/360 day count fraction.
+-- Consider merging this with calcDcf30E360 (adding a parameter)
+calcDcf30E3360 : Bool -> Date -> Date -> Decimal
+calcDcf30E3360 _ fromDate toDate | fromDate > toDate =
+  error "fromDate is greater than toDate"
+calcDcf30E3360 regularPeriod fromDate toDate =
+  let
+    d1Adj = if d1 == monthDayCount y1 m1 then 30 else d1
+    d2Adj
+      | useSpecialFebruaryAdjustment = d1Adj
+      | otherwise = if d2 == 31 then 30 else d2
+  in
+    calc30360Formula (y1, m1, d1Adj) (y2, m2, d2Adj)
+  where
+    (y1, m1, d1) = toGregorian fromDate
+    (y2, m2, d2) = toGregorian toDate
+    useSpecialFebruaryAdjustment = isEndOfFebruary (y2, m2, d2) && d1 > d2 && regularPeriod
 
 -- | HIDE
 calc30360Formula : (Int, Month, Int) -> (Int, Month, Int) -> Decimal
