@@ -190,6 +190,62 @@ commands:
                     -f ref='refs/tags/'${TAG}'' \
                     -f sha=''${COMMIT}''
             EOF
+  run_bundle:
+    description: "Generate bundle of finance dars"
+    steps:
+      - run:
+          name: Run bundle generation
+          command: |
+            nix-shell \
+              --pure \
+              --keep GITHUB_TOKEN \
+              --keep CIRCLE_TAG \
+              --run bash \<<'EOF'
+                  set -euo pipefail
+
+                  while read PACKAGE_NAME PACKAGE_PATH
+                  do
+                    # The follow code performs for a given package :
+                    # 1. acquire all tags and order them descendingly
+                    # 2. Filter out snapshot versions
+                    # 3. Take the first tag and version from the filtered list
+                    read TAG VERSION \<<<$(git tag -l "${PACKAGE_NAME}/*" --sort=-v:refname \
+                      | awk -F/ '$2 ~ /^([0-9]*\.){2}[0-9]*$/ { print $0, $2 }' \
+                      | head -n 1)
+                    CONFIG="package/${PACKAGE_PATH}/daml.yaml"
+                    DAR_PREFIX=`yq e '.name' ${CONFIG}`
+                    DAR_NAME=${DAR_PREFIX}-${VERSION}.dar
+
+                    echo "Processing package '${PACKAGE_NAME}' with tag '${TAG}'"
+
+                    if [[ ! -z ${TAG} && `curl -L -o /dev/null --silent -I -w '%{http_code}' https://github.com/digital-asset/daml-finance/releases/download/${TAG}/${DAR_NAME}` == "200" ]]; then
+                        echo "Downloading ${DAR_NAME} and signature from Github repository at https://github.com/digital-asset/daml-finance/releases/download/${TAG}/${DAR_NAME}..."
+                        curl -Lf# --create-dirs \
+                          -o .bundle/${DAR_NAME} https://github.com/digital-asset/daml-finance/releases/download/${TAG}/${DAR_NAME} \
+                          -o .bundle/${DAR_NAME}.asc https://github.com/digital-asset/daml-finance/releases/download/${TAG}/${DAR_NAME}.asc
+                    else
+                      echo "Not adding ${PACKAGE_NAME} to the bundle due to missing tag or dar."
+                    fi
+                  done < <(yq e '.local.packages
+                    | to_entries
+                    | map(.value.package)
+                    | .[]
+                    | select(.path == "main*")
+                    | .name + " " + .path' package/packages.yaml)
+
+                  echo "Creating Bundle"
+                  SDK_VERSION=`echo ${CIRCLE_TAG} | cut -d / -f 2`
+                  tar czvf daml-finance-bundle-sdk-${SDK_VERSION}.tar.gz -C .bundle .
+                  gpg --armor --detach-sign daml-finance-bundle-sdk-${SDK_VERSION}.tar.gz
+
+                  echo "Creating release in GitHub"
+                  gh release create ${CIRCLE_TAG} daml-finance-bundle-sdk-${SDK_VERSION}.tar.gz* \
+                    --target main \
+                    --title ${CIRCLE_TAG} \
+                    --notes "The supported set of Daml Finance packages as per the Daml SDK ${SDK_VERSION} release."
+
+                  echo "Daml Finance bundle for SDK ${SDK_VERSION} successfully completed."
+            EOF
 
 jobs:
   build:
@@ -251,22 +307,18 @@ jobs:
       - checkout
       - setup_nix
       - run_assembly
+  bundle:
+    executor: daml-finance-executor
+    steps:
+      - checkout
+      - setup_nix
+      - import_gpg_key
+      - run_bundle
   packell_linux_x86_64:
     executor: daml-finance-executor
     steps:
       - checkout
-      - run:
-          name: Nix setup
-          command: |
-            sudo mkdir /nix
-            sudo chown circleci /nix
-            echo 'export USER=circleci' >> "$BASH_ENV"
-
-            mkdir -p ~/.config/nix
-            echo 'sandbox = false' >> ~/.config/nix/nix.conf
-
-            sh <(curl -fsSL --retry 8 https://releases.nixos.org/nix/nix-2.13.3/install) --no-daemon
-            echo '. /home/circleci/.nix-profile/etc/profile.d/nix.sh' >> "$BASH_ENV"
+      - setup_nix
       - run:
           name: Build Packell
           command: |
@@ -324,6 +376,28 @@ workflows:
             branches:
               only:
                 - /^(A|a)ssembly.*$/
+          requires:
+            - hold
+  bundle:
+    jobs:
+      - hold:
+          type: approval
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only:
+                - /^sdk\/.+$/
+      - bundle:
+          context:
+            - github-fin-eng-context
+            - npn-publish
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only:
+                - /^sdk\/.+$/
           requires:
             - hold
   packell:
