@@ -188,6 +188,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Interface.Types.Date
 
+- Added new day-count conventions: Act365NL, Basis30365 and Basis30E2360.
+
 ### Daml.Finance.Interface.Util
 
 - Added a `Lockable` module containing the interface for locking (the `Acquire` and `Release`
@@ -218,3 +220,5 @@ This document tracks pending changes to packages. It is facilitating the write-u
   functions.
 
 - Fix a bug in the schedule roll-out logic
+
+- Added new day-count conventions: Act365NL, Basis30365 and Basis30E2360.
