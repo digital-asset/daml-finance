@@ -124,6 +124,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Let the `Account` require the `Lockable` interface, effectively allowing to freeze an account.
 
+- Removed the `ContractId Holding.F` from the account view.
+
 ### Daml.Finance.Interface.Claims
 
 - Dependencies update
