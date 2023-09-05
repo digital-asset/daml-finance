@@ -106,6 +106,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Dependencies update
 
+- Removed the `Remove` choice from the option dividend election `Factory`.
+
 ### Daml.Finance.Instrument.StructuredProduct
 
 - First Release
@@ -164,6 +166,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 ### Daml.Finance.Interface.Instrument.Option
 
 - Dependencies update
+
+- Removed the `Remove` choice from the option dividend election `Factory`.
 
 ### Daml.Finance.Interface.Instrument.StructuredProduct
 
