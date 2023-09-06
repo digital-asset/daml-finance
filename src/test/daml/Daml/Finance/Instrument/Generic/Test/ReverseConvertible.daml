@@ -1,0 +1,197 @@
+-- Copyright (c) 2023 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Generic.Test.ReverseConvertible where
+
+import ContingentClaims.Core.Claim (Inequality(..), at, cond, one, scale, when)
+import ContingentClaims.Core.Observation (Observation(..))
+import DA.Assert ((===))
+import DA.Date (Month(..), date)
+import DA.Map qualified as M (empty, fromList)
+import DA.Set qualified as S (empty, fromList, singleton, toList)
+import DA.Time (time)
+import Daml.Finance.Data.Numeric.Observation (Observation(..))
+import Daml.Finance.Data.Time.DateClock (dateToDateClockTime)
+import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..), T)
+import Daml.Finance.Instrument.Generic.Lifecycle.Rule qualified as Lifecycle (Rule(..))
+import Daml.Finance.Instrument.Generic.Test.Util (originateGeneric)
+import Daml.Finance.Interface.Account.Util (getOwner)
+import Daml.Finance.Interface.Holding.Util (getAmount, getInstrument)
+import Daml.Finance.Interface.Lifecycle.Rule.Claim qualified as Claim (ClaimEffect(..), I)
+import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I)
+import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
+import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
+import Daml.Finance.Interface.Types.Common.Types (Id(..), Parties)
+import Daml.Finance.Lifecycle.Rule.Claim (Rule(..))
+import Daml.Finance.Settlement.Factory (Factory(..))
+import Daml.Finance.Settlement.RouteProvider.SingleCustodian (SingleCustodian(..))
+import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
+import Daml.Finance.Test.Util.Time (createClockUpdateEvent)
+import Daml.Script
+import Prelude hiding (and)
+
+-- | Parties involved in the test script.
+data TestParties = TestParties
+  with
+    bank : Party
+      -- ^ Acts as custodian in the respective holdings (both cash holdings and instrument
+      --   holdings). It also acts as depository in the reverse convertible instrument.
+    broker : Party
+      -- ^ Acts as issuer of the reverse convertible contract. It is also the party tasked with
+      --   lifecycling of the contract.
+    centralBankEU : Party
+      -- ^ The depository and the issuer of the EUR cash instrument.
+    centralBankUS : Party
+      -- ^ The depository and the issuer of the USD cash instrument.
+    investor : Party
+      -- ^ Owner of the reverse convertible holding.
+    settlers : Parties
+      -- ^ Any of the parties can trigger the settlement of fully allocated settlement instructions.
+    publicParty : Party
+      -- ^ The public party. Every party can readAs the public party.
+
+-- Physically-settled (inverse) reverse convertible FX trade: lifecycling and settlement
+run : Script ()
+run = script do
+  TestParties{..} <- setupParties
+
+  -- Account and holding factory
+  let pp = [("PublicParty", S.singleton publicParty)]
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank pp
+  holdingFactoryCid <- toInterfaceContractId <$> submit bank do
+    createCmd Fungible.Factory with provider = bank; observers = M.fromList pp
+
+  -- Create accounts
+  investorAccount <- Account.createAccount "Default Account" [] accountFactoryCid holdingFactoryCid
+    [] Account.Owner bank investor
+
+  -- Create FX instruments
+  now <- getTime
+  localCurrencyInstrument <- Instrument.originate bank centralBankEU "EUR" "Euro" pp now
+  foreignCurrencyInstrument <- Instrument.originate bank centralBankUS "USD" "US Dollar" pp now
+
+  -- Create and distribute a generic derivative
+  let
+    expiry = date 2021 Jun 15
+    maturity = date 2021 Jun 17
+    foreignInstrumentDeliverable = one foreignCurrencyInstrument
+    localInstrumentDeliverable = one localCurrencyInstrument
+    fxObservable = "EUR/USD"
+    couponRate = 0.0555
+    dcf = 182.0 / 360.0
+    redemptionLocal = 1.0 + couponRate * dcf
+    strike = 1.1777
+    redemptionForeign = redemptionLocal * strike
+    notExercised = scale (Const redemptionLocal) localInstrumentDeliverable
+    exercised = scale (Const redemptionForeign) foreignInstrumentDeliverable
+    autoExerciseCondition = Lte (Const strike, ObserveAt fxObservable $ dateToDateClockTime expiry)
+    claims = when (at $ dateToDateClockTime maturity)
+             $ cond autoExerciseCondition exercised notExercised
+
+  genericInstrument <- originateGeneric bank broker "RC-EURUSD" "Reverse Convertible" now claims
+    [("PublicParty", S.singleton publicParty)] now
+  investorGenericHoldingCid <- Account.credit [publicParty] genericInstrument 1_000.0
+    investorAccount
+
+  -- create clock update event
+  clockEventCid <- createClockUpdateEvent (S.singleton broker) maturity S.empty
+
+  -- Create observable
+  let observations = M.fromList [(dateToDateClockTime expiry, 1.2)]
+  observableCid <- toInterfaceContractId <$> submit broker do
+    createCmd Observation with
+      provider = broker; id = Id fxObservable; observations; observers = M.empty
+
+  -- Create lifecycle rule
+  lifecycleRuleCid <- toInterfaceContractId @Lifecycle.I <$>
+    submit bank do
+      createCmd Lifecycle.Rule with
+        providers = S.singleton bank
+        observers= M.empty
+        lifecycler = broker
+        id = Id "LifecycleRule"
+        description = "Rule to lifecycle a generic instrument"
+
+  -- Lifecycle a generic derivative
+  (Some finalInstrument, [effectCid]) <- submit broker do
+    exerciseCmd lifecycleRuleCid Lifecycle.Evolve with
+      eventCid = clockEventCid
+      observableCids = [observableCid]
+      instrument = genericInstrument
+
+  -- Create route provider
+  routeProviderCid <- toInterfaceContractId <$>
+    submit investor do
+      createCmd SingleCustodian with
+        provider = investor; observers = S.empty; custodian = bank
+
+  -- Create settlement factory
+  settlementFactoryCid <- toInterfaceContractId <$>
+    submit investor do createCmd Factory with provider = investor; observers = S.empty
+
+  -- Create claim rule
+  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$>
+    submitMulti [bank, investor] [] do
+      createCmd Rule with
+        providers = S.fromList [bank, investor]
+        claimers = S.singleton investor
+        settlers
+        routeProviderCid
+        settlementFactoryCid
+        netInstructions = False
+
+  -- Claim effect
+  result <- submitMulti [investor] [publicParty] do
+    exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
+      claimer = investor
+      holdingCids = [investorGenericHoldingCid]
+      effectCid
+      batchId = Id "ReverseConvertiblePhysicalSettlement"
+
+  let
+    [investorInstrumentInstructionCid,
+      bankEquityInstructionCid] = result.instructionCids
+
+  -- Allocate instructions
+  (investorInstrumentInstructionCid, _) <- submit investor do
+    exerciseCmd investorInstrumentInstructionCid Instruction.Allocate with
+      actors = S.singleton investor; allocation = Pledge investorGenericHoldingCid
+  (bankEquityInstructionCid, _) <- submit bank do
+    exerciseCmd bankEquityInstructionCid Instruction.Allocate with
+      actors = S.singleton bank; allocation = CreditReceiver
+
+  -- Approve instructions
+  investorInstrumentInstructionCid <- submit bank do
+    exerciseCmd investorInstrumentInstructionCid Instruction.Approve with
+      actors = S.singleton bank; approval = DebitSender
+  bankEquityInstructionCid <- submit investor do
+    exerciseCmd bankEquityInstructionCid Instruction.Approve with
+      actors = S.singleton investor; approval = TakeDelivery investorAccount
+
+  -- Set time
+  setTime $ time maturity 0 0 0
+
+  -- Settle batch
+  [investorCashHoldingCid] <-
+    submitMulti (S.toList settlers) [publicParty] do
+      exerciseCmd result.batchCid Batch.Settle with actors = settlers
+
+  -- Verify result
+  Some investorCash <-
+    queryContractId investor $ fromInterfaceContractId @Fungible.T investorCashHoldingCid
+  getAmount investorCash === 1210.7442991
+  getInstrument investorCash === foreignCurrencyInstrument
+  getOwner investorCash === investor
+
+  pure ()
+
+setupParties : Script TestParties
+setupParties = do
+  [bank, broker, centralBankEU, centralBankUS, investor, settler, publicParty] <- createParties
+    ["Bank", "Broker", "Central Bank", "Equity Issuer", "Investor", "Settler", "PublicParty"]
+  pure TestParties with
+    bank; broker; centralBankEU; centralBankUS; investor; settlers = S.singleton settler
+    publicParty
