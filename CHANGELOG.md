@@ -159,7 +159,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Dependencies update
 
-- Moved the `Remove` choice from the factory to the `Base` instrument interface.
+- Removed the `Remove` choice of the factory.
 
 ### Daml.Finance.Interface.Instrument.Bond
 
