@@ -116,6 +116,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Dependencies update
 
+- Removed the `Remove` choice of the factory.
+
 - First Release
 
 ### Daml.Finance.Instrument.Swap
