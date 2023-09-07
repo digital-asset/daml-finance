@@ -5,9 +5,10 @@ module Daml.Finance.Instrument.Bond.FloatingRate.Instrument where
 
 import DA.Date (daysSinceEpochToDate)
 import DA.Set (singleton)
-import Daml.Finance.Claims.Util.Builders (createFloatingRatePaymentClaims, createFxAdjustedPrincipalClaim)
+import Daml.Finance.Claims.Util.Builders (createFxAdjustedPrincipalClaim)
 import Daml.Finance.Data.Reference.HolidayCalendar (getHolidayCalendars, rollSchedule)
 import Daml.Finance.Data.Time.DateClock (dateToDateClockTime)
+import Daml.Finance.Instrument.Bond.Util (createGeneralFloatingRatePaymentClaims)
 import Daml.Finance.Interface.Claims.Claim qualified as Claim (GetClaims(..), I, View(..))
 import Daml.Finance.Interface.Claims.Dynamic.Instrument qualified as DynamicInstrument (CreateNewVersion(..), I, View(..))
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, View(..), createReference, disclosureUpdateReference)
@@ -18,6 +19,7 @@ import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey(..), Par
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
 import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..))
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Util.Date.Calendar (merge)
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
 
 -- | Type synonym for `Instrument`.
@@ -74,15 +76,17 @@ template Instrument
       view = Claim.View with acquisitionTime = dateToDateClockTime $ daysSinceEpochToDate 0
       getClaims Claim.GetClaims{actor} = do
         -- get the initial claims tree (as of the bond's acquisition time)
-        let getCalendars = getHolidayCalendars actor calendarDataProvider
+        let
+          getCalendars = getHolidayCalendars actor calendarDataProvider
+        fixingCals <- getHolidayCalendars issuer calendarDataProvider floatingRate.fixingDates.businessCenters
         (schedule, _) <- rollSchedule getCalendars periodicSchedule holidayCalendarIds
         let
           useAdjustedDatesForDcf = True
           ownerReceives = True
           fxAdjustment = 1.0
-          couponClaims = createFloatingRatePaymentClaims dateToDateClockTime schedule
+          couponClaims = createGeneralFloatingRatePaymentClaims dateToDateClockTime schedule
             periodicSchedule useAdjustedDatesForDcf couponSpread ownerReceives dayCountConvention
-            notional currency floatingRate.referenceRateId
+            notional currency floatingRate $ merge fixingCals
           redemptionClaim = createFxAdjustedPrincipalClaim dateToDateClockTime ownerReceives
             fxAdjustment notional currency periodicSchedule.terminationDate
         pure [couponClaims, redemptionClaim]
