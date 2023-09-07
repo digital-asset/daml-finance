@@ -15,7 +15,7 @@ import Daml.Finance.Interface.Instrument.Bond.Types
 import Daml.Finance.Interface.Types.Date.Calendar (HolidayCalendarData)
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
 import Daml.Finance.Interface.Types.Date.RollConvention (PeriodEnum(..))
-import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..), Schedule)
+import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..), Schedule, SchedulePeriod)
 import Daml.Finance.Util.Date.Calendar (addBusinessDays, adjustDate)
 import Daml.Finance.Util.Date.DayCount (calcPeriodDcf)
 import Prelude hiding ((<=), and, or)
@@ -61,8 +61,13 @@ capAndFloorRate observedFloatingRate capRate floorRate dcf notionalAmount coupon
           floorRateClaim = scale (Const floor * dcf) notionalAmount
   in rateAfterCapAndFloor
 
-calculateCoupon dayCountConvention useAdjustedDatesForDcf p periodicSchedule floatingRate couponRate
-  notionalAmount fixingCalendars capRate floorRate =
+-- | HIDE Calculate the coupon claim for a current period p out of a PeriodicSchedule
+calculateCoupon : SchedulePeriod -> DayCountConventionEnum -> Bool -> PeriodicSchedule ->
+  Optional FloatingRate -> Decimal -> C -> HolidayCalendarData -> Optional Decimal ->
+  Optional Decimal -> C
+calculateCoupon p dayCountConvention useAdjustedDatesForDcf periodicSchedule
+  floatingRate couponRate notionalAmount fixingCalendars capRate
+  floorRate =
   let
     dcf = Const $ calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf
       periodicSchedule.terminationDate periodicSchedule.frequency
@@ -128,9 +133,8 @@ createCallableBondClaims dateToTime schedule callableSchedule periodicSchedule
 
     combineTagClaim (p, callingIsPossible) notCalledClaim =
       let
-        cpn = calculateCoupon dayCountConvention useAdjustedDatesForDcf p periodicSchedule floatingRate couponRate
-          notionalAmount fixingCalendars capRate floorRate
-
+        cpn = calculateCoupon p dayCountConvention useAdjustedDatesForDcf periodicSchedule
+          floatingRate couponRate notionalAmount fixingCalendars capRate floorRate
         coupon = give cpn
         principalIncludingCoupon = when (at p.adjustedEndDate) $ and coupon principal
         notCalledClaimIncludingCoupon = when (at p.adjustedEndDate) $ and coupon notCalledClaim
@@ -158,15 +162,17 @@ createCallableBondClaims dateToTime schedule callableSchedule periodicSchedule
 -- | Calculate a floating rate amount for each payment date and create claims.
 -- This is a general function that supports both LIBOR and SOFR-COMPOUND reference rates.
 createGeneralFloatingRatePaymentClaims : (Date -> Time) -> Schedule -> PeriodicSchedule -> Bool ->
-  Decimal -> Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> FloatingRate -> HolidayCalendarData -> TaggedClaim
+  Decimal -> Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> FloatingRate ->
+  HolidayCalendarData -> TaggedClaim
 createGeneralFloatingRatePaymentClaims dateToTime schedule periodicSchedule useAdjustedDatesForDcf
-  floatingRateSpread ownerReceives dayCountConvention notional cashInstrument floatingRate fixingCalendars =
+  floatingRateSpread ownerReceives dayCountConvention notional cashInstrument floatingRate
+  fixingCalendars =
   let
     notionalAmount = scale (Const notional) $ one cashInstrument
     couponClaimAmounts = andList $ map (\p ->
         when (TimeGte p.adjustedEndDate)
-        $ calculateCoupon dayCountConvention useAdjustedDatesForDcf p periodicSchedule (Some floatingRate) floatingRateSpread
-            notionalAmount fixingCalendars None None
+        $ calculateCoupon p dayCountConvention useAdjustedDatesForDcf periodicSchedule
+            (Some floatingRate) floatingRateSpread notionalAmount fixingCalendars None None
       ) schedule
     couponClaims = if ownerReceives then couponClaimAmounts else give couponClaimAmounts
   in prepareAndTagClaims dateToTime [couponClaims] "Floating rate payment"
