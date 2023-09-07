@@ -110,7 +110,13 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Removed the `Remove` choice from the option dividend election `Factory`.
 
+- Moved the `Remove` choice from the factory to the instrument implementation.
+
 ### Daml.Finance.Instrument.StructuredProduct
+
+- Dependencies update
+
+- Removed the `Remove` choice of the factory.
 
 - First Release
 
@@ -155,17 +161,25 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Dependencies update
 
+- Removed the `Remove` choice of the factory.
+
 ### Daml.Finance.Interface.Instrument.Bond
 
 - Dependencies update
+
+- Removed the `Remove` choice of the factory.
 
 ### Daml.Finance.Interface.Instrument.Equity
 
 - Dependencies update
 
+- Removed the `Remove` choice of the factory.
+
 ### Daml.Finance.Interface.Instrument.Generic
 
 - Dependencies update
+
+- Removed the `Remove` choice of the factory.
 
 ### Daml.Finance.Interface.Instrument.Option
 
@@ -173,17 +187,25 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Removed the `Remove` choice from the option dividend election `Factory`.
 
+- Removed the `Remove` choice of the factory.
+
 ### Daml.Finance.Interface.Instrument.StructuredProduct
 
 - First release
+
+- Removed the `Remove` choice of the factory.
 
 ### Daml.Finance.Interface.Instrument.Swap
 
 - Dependencies update
 
+- Removed the `Remove` choice of the factory.
+
 ### Daml.Finance.Interface.Instrument.Token
 
 - Dependencies update
+
+- Removed the `Remove` choice of the factory.
 
 ### Daml.Finance.Interface.Lifecycle
 
