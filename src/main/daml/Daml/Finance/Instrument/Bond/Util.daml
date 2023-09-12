@@ -3,21 +3,17 @@
 
 module Daml.Finance.Instrument.Bond.Util where
 
-import ContingentClaims.Core.Claim (Claim, Inequality(..), and, andList, at, cond, give, one, or, scale, when, (<=))
+import ContingentClaims.Core.Claim (Claim, and, at, give, one, or, scale, when)
 import ContingentClaims.Core.Observation (Observation(..))
-import DA.Date (addDays)
 import DA.List (last)
 import DA.Optional (isSome)
-import Daml.Finance.Claims.Util.Builders (prepareAndTagClaims)
-import Daml.Finance.Claims.Util.Date (convertImplicitDcfToActualDcf)
+import Daml.Finance.Claims.Util.Builders (calculateFloatingPayment, prepareAndTagClaims)
 import Daml.Finance.Interface.Claims.Types (Deliverable, Observable, TaggedClaim(..))
 import Daml.Finance.Interface.Types.Date.Calendar (HolidayCalendarData)
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
 import Daml.Finance.Interface.Types.Date.FixingDates
-import Daml.Finance.Interface.Types.Date.RollConvention (PeriodEnum(..))
-import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..), Schedule, SchedulePeriod)
-import Daml.Finance.Util.Date.Calendar (addBusinessDays, adjustDate)
-import Daml.Finance.Util.Date.DayCount (calcPeriodDcf)
+import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..), Schedule)
+import Daml.Finance.Util.Date.Calendar (addBusinessDays)
 import Prelude hiding ((<=), and, or)
 import Prelude qualified as P (and)
 
@@ -28,85 +24,6 @@ type C = Claim Date Decimal Deliverable Observable
 includes : Schedule -> Schedule -> [Bool]
 includes scheduleA scheduleB =
   map (\a -> isSome $ find (\b -> b.adjustedEndDate == a.adjustedEndDate) scheduleB) scheduleA
-
--- | HIDE Calculate the fixing date by using a day shift (if applicable) and then adjusting the
--- date.
-calculateFixingDate : Date -> FixingDates -> HolidayCalendarData -> Int -> Date
-calculateFixingDate baseDate fixingDates fixingCalendars dayShift =
-  let
-    resetDateUnadjStart = case fixingDates.dayType of
-      None -> baseDate
-      Some Business -> addBusinessDays fixingCalendars dayShift baseDate
-      Some Calendar -> addDays baseDate dayShift
-  in
-    adjustDate fixingCalendars fixingDates.businessDayConvention resetDateUnadjStart
-
--- | HIDE Apply a cap and a floor to a floating rate claim.
-capAndFloorRate : O -> Optional Decimal -> Optional Decimal -> O -> C -> Decimal -> C
-capAndFloorRate observedFloatingRate capRate floorRate dcf notionalAmount couponRate =
-  let
-    regularRate = observedFloatingRate + Const couponRate
-    regularRateClaim = scale (regularRate * dcf) notionalAmount
-    rateAfterCap = case capRate of
-      None -> regularRateClaim
-      Some cap -> cond capCondition capRateClaim regularRateClaim
-        where
-          capCondition = Const cap <= regularRate
-          capRateClaim = scale (Const cap * dcf) notionalAmount
-    rateAfterCapAndFloor = case floorRate of
-      None -> rateAfterCap
-      Some floor -> cond floorCondition floorRateClaim rateAfterCap
-        where
-          floorCondition = regularRate <= Const floor
-          floorRateClaim = scale (Const floor * dcf) notionalAmount
-  in rateAfterCapAndFloor
-
--- | HIDE Calculate the coupon claim for a current period p out of a PeriodicSchedule
-calculateCoupon : SchedulePeriod -> DayCountConventionEnum -> Bool -> PeriodicSchedule ->
-  Optional FloatingRate -> Decimal -> C -> HolidayCalendarData -> Optional Decimal ->
-  Optional Decimal -> C
-calculateCoupon p dayCountConvention useAdjustedDatesForDcf periodicSchedule
-  floatingRate couponRate notionalAmount fixingCalendars capRate
-  floorRate =
-  let
-    dcf = Const $ calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf
-      periodicSchedule.terminationDate periodicSchedule.frequency
-    cpn = case floatingRate of
-      None -> scale ((Const couponRate) * dcf) notionalAmount
-      Some fr -> case fr.referenceRateType of
-        SingleFixing resetRelativeTo -> rateAfterCapAndFloor
-          where
-            baseDate = case (useAdjustedDatesForDcf, resetRelativeTo) of
-              (True, CalculationPeriodStartDate) -> p.adjustedStartDate
-              (True, CalculationPeriodEndDate) -> p.adjustedEndDate
-              (False, CalculationPeriodStartDate) -> p.unadjustedStartDate
-              (False, CalculationPeriodEndDate) -> p.unadjustedEndDate
-            resetDate = calculateFixingDate baseDate fr.fixingDates fixingCalendars dayShift
-            -- FLOATING_RATE_BOND_COUPON_CLAIMS_BEGIN
-            observedFloatingRate = ObserveAt fr.referenceRateId resetDate
-            -- FLOATING_RATE_BOND_COUPON_CLAIMS_END
-            rateAfterCapAndFloor = capAndFloorRate observedFloatingRate capRate floorRate dcf
-              notionalAmount couponRate
-        CompoundedIndex dcfConventionImpl -> rateAfterCapAndFloor
-          where
-            baseStartDate = if useAdjustedDatesForDcf then p.adjustedStartDate
-              else p.unadjustedStartDate
-            resetDateStart = calculateFixingDate baseStartDate fr.fixingDates fixingCalendars
-              dayShift
-            baseEndDate = if useAdjustedDatesForDcf then p.adjustedEndDate
-              else p.unadjustedEndDate
-            resetDateEnd = calculateFixingDate baseEndDate fr.fixingDates fixingCalendars
-              dayShift
-            compoundedFloatingRate = ObserveAt fr.referenceRateId resetDateEnd /
-              ObserveAt fr.referenceRateId resetDateStart - Const 1.0
-            dcfConversionFactor = convertImplicitDcfToActualDcf dcf p useAdjustedDatesForDcf
-              periodicSchedule dcfConventionImpl
-            rateAfterCapAndFloor = capAndFloorRate compoundedFloatingRate capRate floorRate
-              dcfConversionFactor notionalAmount couponRate
-        where
-          dayShift = if fr.fixingDates.period == D then fr.fixingDates.periodMultiplier
-            else error "Only daily periods supported"
-  in cpn
 
 -- | Calculate the claims for a callable bond with a fixed and/or floating coupon on each payment
 --   date and a redemption amount at the end (unless called by the issuer).
@@ -135,7 +52,7 @@ createCallableBondClaims dateToTime schedule callableSchedule periodicSchedule
 
     combineTagClaim (p, callingIsPossible) notCalledClaim =
       let
-        cpn = calculateCoupon p dayCountConvention useAdjustedDatesForDcf periodicSchedule
+        cpn = calculateFloatingPayment p dayCountConvention useAdjustedDatesForDcf periodicSchedule
           floatingRate couponRate notionalAmount fixingCalendars capRate floorRate
         coupon = give cpn
         principalIncludingCoupon = when (at p.adjustedEndDate) $ and coupon principal
@@ -160,21 +77,3 @@ createCallableBondClaims dateToTime schedule callableSchedule periodicSchedule
 
   in
     prepareAndTagClaims dateToTime [claims] "Callable bond payment"
-
--- | Calculate a floating rate amount for each payment date and create claims.
--- This is a general function that supports both LIBOR and SOFR-COMPOUND reference rates.
-createGeneralFloatingRatePaymentClaims : (Date -> Time) -> Schedule -> PeriodicSchedule -> Bool ->
-  Decimal -> Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> FloatingRate ->
-  HolidayCalendarData -> TaggedClaim
-createGeneralFloatingRatePaymentClaims dateToTime schedule periodicSchedule useAdjustedDatesForDcf
-  floatingRateSpread ownerReceives dayCountConvention notional cashInstrument floatingRate
-  fixingCalendars =
-  let
-    notionalAmount = scale (Const notional) $ one cashInstrument
-    couponClaimAmounts = andList $ map (\p ->
-        when (TimeGte p.adjustedEndDate)
-        $ calculateCoupon p dayCountConvention useAdjustedDatesForDcf periodicSchedule
-            (Some floatingRate) floatingRateSpread notionalAmount fixingCalendars None None
-      ) schedule
-    couponClaims = if ownerReceives then couponClaimAmounts else give couponClaimAmounts
-  in prepareAndTagClaims dateToTime [couponClaims] "Floating rate payment"
