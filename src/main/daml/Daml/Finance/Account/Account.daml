@@ -4,14 +4,13 @@
 module Daml.Finance.Account.Account where
 
 import DA.Map qualified as M (empty)
-import DA.Optional (isNone)
 import DA.Set qualified as S (fromList, null, singleton)
-import Daml.Finance.Interface.Account.Account qualified as Account (Controllers(..), Credit(..), Debit(..), I, View(..), createReference, disclosureUpdateReference)
+import Daml.Finance.Interface.Account.Account qualified as Account (Controllers(..), Credit(..), Debit(..), I, View(..), accountKey, createReference, disclosureUpdateReference)
 import Daml.Finance.Interface.Account.Factory qualified as AccountFactory (Create(..), F, View(..))
 import Daml.Finance.Interface.Holding.Factory qualified as HoldingFactory (Create(..), F)
-import Daml.Finance.Interface.Types.Common.Types (AccountKey(..), Id, PartiesMap)
+import Daml.Finance.Interface.Types.Common.Types (Id, PartiesMap)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (AddObservers(..), I, RemoveObservers(..), View(..), flattenObservers)
-import Daml.Finance.Interface.Util.Lockable qualified as Lockable (Acquire(..), I, Lock, Release(..), View(..), getLockers)
+import Daml.Finance.Interface.Util.Lockable qualified as Lockable (Acquire(..), I, Lock, Release(..), View(..), getLockers, mustNotBeLocked)
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
 import Daml.Finance.Util.Lockable (acquireImpl, isValidLock, releaseImpl)
 
@@ -46,22 +45,18 @@ template Account
 
     interface instance Account.I for Account where
       view = Account.View with custodian; id; owner; description; controllers
-      getKey = accountKey this
+      getKey = Account.accountKey this
       credit Account.Credit{quantity} = do
-        mustNotBeLocked this
+        Lockable.mustNotBeLocked this
         exercise holdingFactoryCid HoldingFactory.Create with
           instrument = quantity.unit
-          account = accountKey this
+          account = Account.accountKey this
           amount = quantity.amount
           observers = M.empty
       debit Account.Debit{holdingCid} = do
-        mustNotBeLocked this
+        Lockable.mustNotBeLocked this
         holding <- fetch holdingCid
-        let
-          vHolding = view holding
-          vLockable = view $ toInterface @Lockable.I holding
-        assertMsg "Holding must not be locked" $ isNone vLockable.lock
-        assertMsg "Accounts must match" $ vHolding.account == accountKey this
+        assertMsg "Accounts must match" $ (view holding).account == Account.accountKey this
         archive holdingCid
 
     interface instance Lockable.I for Account where
@@ -85,17 +80,12 @@ template Account
 
     interface instance Disclosure.I for Account where
       view = Disclosure.View with disclosureControllers = S.fromList [custodian, owner]; observers
-      setObservers = setObserversImpl this $ Some (Account.disclosureUpdateReference (accountKey this))
-      addObservers = addObserversImpl this $ Some (Account.disclosureUpdateReference (accountKey this))
-      removeObservers = removeObserversImpl this $ Some (Account.disclosureUpdateReference (accountKey this))
-
--- | HIDE
-accountKey : Account -> AccountKey
-accountKey Account {custodian; owner; id} = AccountKey with custodian; owner; id
-
--- | HIDE
-mustNotBeLocked : Account -> Update ()
-mustNotBeLocked Account {lock} = assertMsg @Update "Must not be locked" $ isNone lock
+      setObservers = setObserversImpl this . Some . Account.disclosureUpdateReference $
+        Account.accountKey this
+      addObservers = addObserversImpl this . Some . Account.disclosureUpdateReference $
+        Account.accountKey this
+      removeObservers = removeObserversImpl this . Some . Account.disclosureUpdateReference $
+        Account.accountKey this
 
 -- | Template used to create accounts.
 template Factory
