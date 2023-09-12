@@ -5,9 +5,10 @@ module Daml.Finance.Instrument.Swap.InterestRate.Instrument where
 
 import DA.Date (daysSinceEpochToDate)
 import DA.Set (singleton)
-import Daml.Finance.Claims.Util.Builders (createFixRatePaymentClaims, createFloatingRatePaymentClaims)
+import Daml.Finance.Claims.Util.Builders (createFixRatePaymentClaims)
 import Daml.Finance.Data.Reference.HolidayCalendar (getHolidayCalendars, rollSchedule)
 import Daml.Finance.Data.Time.DateClock (dateToDateClockTime)
+import Daml.Finance.Instrument.Swap.Util (createGeneralFloatingRatePaymentClaims)
 import Daml.Finance.Interface.Claims.Claim qualified as Claim (GetClaims(..), I, View(..))
 import Daml.Finance.Interface.Claims.Dynamic.Instrument qualified as DynamicInstrument (CreateNewVersion(..), I, View(..))
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, View(..), createReference, disclosureUpdateReference)
@@ -18,6 +19,7 @@ import Daml.Finance.Interface.Types.Common.Types (Id(..), InstrumentKey(..), Par
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
 import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..))
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Util.Date.Calendar (merge)
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
 
 -- | Type synonym for `Instrument`.
@@ -73,6 +75,8 @@ template Instrument
       getClaims Claim.GetClaims{actor} = do
         -- get the initial claims tree (as of the swap's acquisition time)
         let getCalendars = getHolidayCalendars actor calendarDataProvider
+        fixingCals <- getHolidayCalendars issuer calendarDataProvider
+          floatingRate.fixingDates.businessCenters
         schedule <- fst <$> rollSchedule getCalendars periodicSchedule holidayCalendarIds
         let
           useAdjustedDatesForDcf = True
@@ -80,9 +84,12 @@ template Instrument
           ownerReceivesFloatingLeg = not ownerReceivesFix
           fixClaims = createFixRatePaymentClaims dateToDateClockTime schedule periodicSchedule
             useAdjustedDatesForDcf fixRate ownerReceivesFix dayCountConvention notional currency
-          floatingClaims = createFloatingRatePaymentClaims dateToDateClockTime schedule
+{-           floatingClaims = createFloatingRatePaymentClaims dateToDateClockTime schedule
             periodicSchedule useAdjustedDatesForDcf 0.0 ownerReceivesFloatingLeg dayCountConvention
-            notional currency floatingRate.referenceRateId
+            notional currency floatingRate.referenceRateId -}
+          floatingClaims = createGeneralFloatingRatePaymentClaims dateToDateClockTime schedule
+            periodicSchedule useAdjustedDatesForDcf 0.0 ownerReceivesFloatingLeg dayCountConvention
+            notional currency floatingRate $ merge fixingCals
         pure [fixClaims, floatingClaims]
 
     interface instance BaseInstrument.I for Instrument where
