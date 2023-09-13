@@ -23,6 +23,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 | Daml.Finance.Interface.Instrument.Bond     | 1.0.0              | TBD            |
 | Daml.Finance.Interface.Instrument.Generic  | 2.0.0              | TBD            |
 | Daml.Finance.Interface.Instrument.Token    | 2.0.0              | TBD            |
+| Daml.Finance.Interface.Instrument.Types    |                    | TBD            |
 | Daml.Finance.Interface.Lifecycle           | 2.0.0              | TBD            |
 | Daml.Finance.Interface.Settlement          | 2.0.0              | TBD            |
 | Daml.Finance.Interface.Types.Common        | 1.0.1              | TBD            |
@@ -67,6 +68,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Dependencies update
 
+- Added builder function for SOFR style rates (via a compounded index).
+
 ### Daml.Finance.Data
 
 - Dependencies update
@@ -96,6 +99,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Dependencies update
 
+- Added support for SOFR style rates (via a compounded index) to the floating rate bond.
+
 ### Daml.Finance.Instrument.Equity
 
 - Dependencies update
@@ -123,6 +128,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 ### Daml.Finance.Instrument.Swap
 
 - Dependencies update
+
+- Added support for SOFR style rates (via a compounded index) to the interest rate swap.
 
 ### Daml.Finance.Instrument.Token
 
@@ -169,6 +176,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Removed the `Remove` choice of the factory.
 
+- Added support for SOFR style rates (via a compounded index) to the floating rate bond.
+
 ### Daml.Finance.Interface.Instrument.Equity
 
 - Dependencies update
@@ -201,11 +210,17 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Removed the `Remove` choice of the factory.
 
+- Added support for SOFR style rates (via a compounded index) to the interest rate swap.
+
 ### Daml.Finance.Interface.Instrument.Token
 
 - Dependencies update
 
 - Removed the `Remove` choice of the factory.
+
+### Daml.Finance.Interface.Instrument.Types
+
+- New package
 
 ### Daml.Finance.Interface.Lifecycle
 
