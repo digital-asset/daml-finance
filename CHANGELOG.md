@@ -173,7 +173,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
   retrieving the holding standard of a holding was also added.
 
 - Updated the `Daml.Finance.Interface.Holding.Factory` to use a key, employing a `Reference`
-  template and the `HoldingFactoryKey` data type.
+  template and the `HoldingFactoryKey` data type. Newly, it also requires the `Disclosure.I`.
 
 ### Daml.Finance.Interface.Instrument.Base
 
