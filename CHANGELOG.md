@@ -60,7 +60,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Dependencies update
 
 - Let the `Account` implement the `Lockable` interface with `custodian` as required authorizer (for
-  exercising the `Acquire` choice).
+  exercising the `Acquire` choice). Note that `Account.I` is not requiring `Lockable`, so an
+  alternative implementation which does not implement `Lockable` is also possible.
 
 - The `Remove` choice of the `Factory` was removed (and is now part of the `Account`).
 
@@ -138,8 +139,6 @@ This document tracks pending changes to packages. It is facilitating the write-u
 ### Daml.Finance.Interface.Account
 
 - Dependencies update
-
-- Let the `Account` require the `Lockable` interface, effectively allowing to freeze an account.
 
 - Removed the `ContractId Holding.F` from the account view.
 
