@@ -12,24 +12,31 @@ import Daml.Finance.Interface.Account.Factory qualified as Account (Create(..), 
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
 import Daml.Finance.Interface.Types.Common.Types (AccountKey(..), Id(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createFactory, toControllers)
+import Daml.Finance.Test.Util.Holding qualified as Holding (createHoldingFactory)
 import Daml.Script
 
--- | Verify that I cannot transfer a non-fungible holding to a fungible account.
+-- | A non-fungible holding can't be transferred to an account for fungibles.
 consistencyCheck : Script ()
 consistencyCheck = script do
   -- Create parties
   tp@TestParties{custodian; issuer; investor; publicParty} <- setupParties
+  let pp = M.fromList [("PublicParty", S.singleton publicParty)]
 
   -- Initialize state with `NonFungible.Factory`
-  let pp = M.fromList [("PublicParty", S.singleton publicParty)]
   TestInitialState {issuerAccount; issuerHoldingCid} <-
-    setupInitialState tp (NonFungible.Factory with
-      provider = custodian; observers = pp) [] Account.Owner
+    setupInitialState
+      tp
+      (NonFungible.Factory with provider = custodian; id = Id "Factory NonFungible"; observers = pp)
+      [] Account.Owner
 
-  -- Create investor account for fungible holdings
+  -- Create account factory
   accountFactoryCid <- toInterfaceContractId @Account.F <$> Account.createFactory custodian []
-  holdingFactoryCid <- toInterfaceContractId <$>
-    submit custodian do createCmd Fungible.Factory with provider = custodian; observers = pp
+
+  -- Create holding factory
+  holdingFactory <- Holding.createHoldingFactory
+    Fungible.Factory with provider = custodian; id = Id "Factory Fungible"; observers = pp
+
+  -- Create an account for investor
   let
     id = Id $ show investor <> "@" <> show custodian <> "[" <> "Fungible" <> "]"
     investorAccount = AccountKey with custodian; owner = investor; id
@@ -37,7 +44,7 @@ consistencyCheck = script do
     exerciseCmd accountFactoryCid Account.Create with
       account = investorAccount
       description = "Fungible Account"
-      holdingFactoryCid
+      holdingFactory
       controllers = Account.toControllers custodian investor Account.Owner
       observers = M.fromList [("Issuer", S.singleton issuer)]
 

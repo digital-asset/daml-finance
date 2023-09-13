@@ -7,8 +7,8 @@ import DA.Map qualified as M (empty)
 import DA.Set qualified as S (fromList, null, singleton)
 import Daml.Finance.Interface.Account.Account qualified as Account (Controllers(..), Credit(..), Debit(..), I, View(..), accountKey, createReference, disclosureUpdateReference)
 import Daml.Finance.Interface.Account.Factory qualified as AccountFactory (Create(..), F, View(..))
-import Daml.Finance.Interface.Holding.Factory qualified as HoldingFactory (Create(..), F)
-import Daml.Finance.Interface.Types.Common.Types (Id, PartiesMap)
+import Daml.Finance.Interface.Holding.Factory qualified as HoldingFactory (Create(..), F, exerciseInterfaceByKey)
+import Daml.Finance.Interface.Types.Common.Types (HoldingFactoryKey(..), Id, PartiesMap)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (AddObservers(..), I, RemoveObservers(..), View(..), flattenObservers)
 import Daml.Finance.Interface.Util.Lockable qualified as Lockable (Acquire(..), I, Lock, Release(..), View(..), getLockers, mustNotBeLocked)
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
@@ -32,7 +32,7 @@ template Account
       -- ^ Identifier of the account.
     description : Text
       -- ^ Description of the account.
-    holdingFactoryCid : ContractId HoldingFactory.F
+    holdingFactory : HoldingFactoryKey
       -- ^ Associated holding factory.
     observers : PartiesMap
       -- ^ Observers.
@@ -48,11 +48,12 @@ template Account
       getKey = Account.accountKey this
       credit Account.Credit{quantity} = do
         Lockable.mustNotBeLocked this
-        exercise holdingFactoryCid HoldingFactory.Create with
-          instrument = quantity.unit
-          account = Account.accountKey this
-          amount = quantity.amount
-          observers = M.empty
+        HoldingFactory.exerciseInterfaceByKey @HoldingFactory.F holdingFactory
+          custodian HoldingFactory.Create with
+            instrument = quantity.unit
+            account = Account.accountKey this
+            amount = quantity.amount
+            observers = M.empty
       debit Account.Debit{holdingCid} = do
         Lockable.mustNotBeLocked this
         holding <- fetch holdingCid
@@ -100,11 +101,11 @@ template Factory
 
     interface instance AccountFactory.F for Factory where
       view = AccountFactory.View with provider
-      create' AccountFactory.Create {account; holdingFactoryCid; controllers; observers;
-        description} = do
+      create' AccountFactory.Create {account; holdingFactory; controllers; observers; description} =
+        do
           cid <- toInterfaceContractId <$> create Account with
             custodian = account.custodian; owner = account.owner; lock = None; controllers
-            id = account.id; holdingFactoryCid; observers; description
+            id = account.id; holdingFactory; observers; description
           Account.createReference account.custodian cid
           pure cid
 

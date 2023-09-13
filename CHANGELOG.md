@@ -65,6 +65,9 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - The `Remove` choice of the `Factory` was removed (and is now part of the `Account`).
 
+- Updated the `Account` to reference the `Daml.Finance.Interface.Holding.Factory` using a key
+  (of type `HoldingFactoryKey`) rather than the `ContractId Daml.Finance.Interface.Holding.Factory`.
+
 ### Daml.Finance.Claims
 
 - Dependencies update
@@ -95,6 +98,9 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Relaxed the check for a consistent transferred holding. Now, the holdings being credited and
   debited don't need identical `templateTypeRep`. Instead, they should share the same token
   standard: `Fungible`, `NonFungible`, or `NonTransferable` (implementation variations are allowed).
+
+- Updated the `Factory` implementation for `Fungible`, `NonFungible`, and `NonTransferable`
+  holdings by introducing an `id : Id` field.
 
 ### Daml.Finance.Instrument.Bond
 
@@ -144,6 +150,9 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - The `Remove` choice of the `Factory` was moved to the `Account`.
 
+- Changed the `Create` choice of the account `Factory` to take a key (of type `HoldingFactoryKey`)
+  rather than a `ContractId Daml.Finance.Interface.Holding.Factory`.
+
 ### Daml.Finance.Interface.Claims
 
 - Dependencies update
@@ -162,6 +171,9 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Added an enumeration data type `HoldingStandard` for referring to various holding standards:
   `Fungible`, `NonFungible`, or `NonTransferable`. A utility function `getHoldingStandard` for
   retrieving the holding standard of a holding was also added.
+
+- Updated the `Daml.Finance.Interface.Holding.Factory` to use a key, employing a `Reference`
+  template and the `HoldingFactoryKey` data type. Newly, it also requires the `Disclosure.I`.
 
 ### Daml.Finance.Interface.Instrument.Base
 
@@ -231,6 +243,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Dependencies update
 
 ### Daml.Finance.Interface.Types.Common
+
+- Added a `HoldingFactoryKey` data type which is used to key holding factories.
 
 ### Daml.Finance.Interface.Types.Date
 
