@@ -157,6 +157,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Dependencies update
 
+- Add general support to replay previous events of different types (not only elections).
+
 ### Daml.Finance.Interface.Data
 
 - Dependencies update
