@@ -4,20 +4,17 @@
 module Daml.Finance.Settlement.Batch where
 
 import DA.Action (foldlA)
-import DA.Foldable (forA_)
-import DA.List qualified as L (singleton)
 import DA.Map qualified as M (fromList, lookup)
-import DA.Optional (catOptionals, fromSomeNote, optionalToList)
+import DA.Optional (catOptionals, fromSomeNote)
 import DA.Set (Set)
-import DA.Set qualified as S (empty, fromList, insert, intersection, member, null, size, union)
+import DA.Set qualified as S (empty, insert, intersection, member, null, union)
 import DA.Traversable qualified as T
-import Daml.Finance.Interface.Holding.Util (getHoldingStandard, undisclose)
+import Daml.Finance.Interface.Holding.Util (undisclose)
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Cancel(..), I, Settle(..), View(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Cancel(..), Execute(..), I)
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), InstructionKey(..), RoutedStep(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..), Parties)
 import Daml.Finance.Settlement.Instruction (Instruction(..), mustAuthorizeHelper)
-import Daml.Finance.Util.Common (sortAndGroupOn)
 
 -- | Type synonym for `Batch`.
 type T = Batch
@@ -61,24 +58,11 @@ template Batch
             let context = show instructionKey
             -- execute instruction and get used holding standards for the instrument
             (instructionCid, instruction) <- fetchByKey @Instruction instructionKey
-            pledgedHoldingStandard <- case instruction.allocation of
-              Pledge cid -> L.singleton <$> getHoldingStandard cid
-              _ -> pure []
             settledCid <- exercise (toInterfaceContractId @Instruction.I instructionCid)
               Instruction.Execute with actors = actors `S.union` requestors
-            settledHoldingStandard <- optionalToList <$> T.mapA getHoldingStandard settledCid
-            let
-              instrumentWithHoldingStandards = (instruction.routedStep.quantity.unit, ) <$>
-                settledHoldingStandard <> pledgedHoldingStandard
-            settledCid <- join <$> T.mapA (undisclose (context, settlers) actors) settledCid
-            pure (settledCid, instrumentWithHoldingStandards)
+            join <$> T.mapA (undisclose (context, settlers) actors) settledCid
         -- execute instructions
-        (orderedSettledCids, instrumentWithHoldingStandards) <-
-          fmap concat . unzip <$> mapA settleInstruction orderedInstructions
-        -- assert consistent holding standard for each instrument
-        forA_ (sortAndGroupOn fst instrumentWithHoldingStandards)
-          \ts -> assertMsg "Each instrument must settle with a consistent holding standard."
-            $ S.size (S.fromList ts) == 1
+        orderedSettledCids <- mapA settleInstruction orderedInstructions
         -- order returned settledCids according to the initial order of the instructions
         let
           orderedInstructionIdsAndSettleCids =

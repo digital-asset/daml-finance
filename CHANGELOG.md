@@ -95,12 +95,13 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `mergeImpl` have been modified. For `transferImpl`, the re-entrant lock logic has been extracted
   and is now supplied as an independent template in `Daml.Finance.Holding.Test.Transfer`.
 
-- Relaxed the check for a consistent transferred holding. Now, the holdings being credited and
-  debited don't need identical `templateTypeRep`. Instead, they should share the same token
-  standard: `Fungible`, `NonFungible`, or `NonTransferable` (implementation variations are allowed).
+- Removed the consistence check that credited and debited holdings must have the same
+  `templateTypeRep`. Now they must be of the same token standard but may have different
+  implementations.
 
-- Updated the `Factory` implementation for `Fungible`, `NonFungible`, and `NonTransferable`
-  holdings by introducing an `id : Id` field.
+- Added an `id : Id` field to the `Factory`.
+
+- Replaced all factories by a single `Factory` for all holding implementations.
 
 ### Daml.Finance.Instrument.Bond
 
@@ -170,9 +171,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Factored out the locking logic from the `Holding.Base` interface to a separate interface called
   `Lockable` of the `Daml.Finance.Interface.Util` package.
 
-- Added an enumeration data type `HoldingStandard` for referring to various holding standards:
-  `Fungible`, `NonFungible`, or `NonTransferable`. A utility function `getHoldingStandard` for
-  retrieving the holding standard of a holding was also added.
+- A utility function `getHoldingStandard` for retrieving the holding standard of a holding was also
+  added.
 
 - Updated the `Daml.Finance.Interface.Holding.Factory` to use a key, employing a `Reference`
   template and the `HoldingFactoryKey` data type. Newly, it also requires the `Disclosure.I`.
@@ -248,6 +248,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Added a `HoldingFactoryKey` data type which is used to key holding factories.
 
+- Added an enumeration data type `HoldingStandard` for referring to various holding standards.
+
 ### Daml.Finance.Interface.Types.Date
 
 - Added new day-count conventions: Act365NL, Basis30365 and Basis30E2360.
@@ -274,9 +276,9 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Dependencies update
 
-- Relaxed the check for consistent settled holdings. Now, holdings of the same instrument don't
-  need identical `templateTypeRep`. Instead, they should share the same token standard: `Fungible`,
-  `NonFungible`, or `NonTransferable` (implementation variations are allowed).
+- removed the check for consistent settled holdings. Now, holdings of the same instrument don't
+  need identical `templateTypeRep`. Instead, they should share the same token standard
+  (implementation variations are allowed).
 
 ### Daml.Finance.Util
 
