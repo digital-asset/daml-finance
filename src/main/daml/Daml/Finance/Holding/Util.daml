@@ -13,8 +13,9 @@ import Daml.Finance.Interface.Holding.Base qualified as Base (I)
 import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (I, Merge(..), Split(..), SplitResult(..))
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
 import Daml.Finance.Interface.Holding.Util (getHoldingStandard)
-import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey, qty, verify)
+import Daml.Finance.Interface.Util.Common (qty, verify)
 import Daml.Finance.Interface.Util.Lockable qualified as Lockable (mustNotBeLocked)
+import Daml.Finance.Interface.Util.Reference qualified as Reference (fetchInterfaceByKey)
 
 -- | Default implementation of `transfer` for the `Transferable` interface.
 transferImpl : Transferable.I -> ContractId Transferable.I -> Transferable.Transfer
@@ -23,12 +24,10 @@ transferImpl this self Transferable.Transfer{actors; newOwnerAccount} = do
   let
     baseCid = toInterfaceContractId @Base.I self
     base = toInterface @Base.I this
-  account <- fetchAccount base
-  let
-    vBase = view base
-    vAccount = view account
+  vAccount <- view <$> fetchAccount base
+  let vBase = view base
   Lockable.mustNotBeLocked this
-  vNewAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I newOwnerAccount
+  vNewAccount <- view <$> Reference.fetchInterfaceByKey @Account.R @Account.I newOwnerAccount
   -- Verify
   assertMsg "Actors must contain all transfer outgoing of the sender account"
     $ vAccount.controllers.outgoing `S.isSubsetOf` actors
@@ -53,9 +52,7 @@ splitImpl :
   , HasToInterface t Fungible.I
   ) => Fungible.I -> (Decimal -> t) -> Fungible.Split -> Update Fungible.SplitResult
 splitImpl this setAmount Fungible.Split{amounts} = do
-  let
-    base = toInterface @Base.I this
-    vBase = view base
+  let vBase = view . toInterface @Base.I $ this
   Lockable.mustNotBeLocked this
   let spawn = fmap toInterfaceContractId . create . setAmount
   splitCids <- forA amounts spawn
@@ -78,9 +75,7 @@ mergeImpl :
   -> Fungible.Merge
   -> Update (ContractId Fungible.I)
 mergeImpl this getAmount setAmount Fungible.Merge{fungibleCids} = do
-  let
-    base = toInterface @Base.I this
-    vBase = view base
+  let vBase = view . toInterface @Base.I $ this
   Lockable.mustNotBeLocked this
   assertMsg "List of fungibles must be non-empty" . not . null $ fungibleCids
   let

@@ -13,9 +13,9 @@ import Daml.Finance.Interface.Holding.Util qualified as Holding (disclose, getAm
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..), Cancel(..), Execute(..), I, View(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), InstructionKey(..), RoutedStep)
 import Daml.Finance.Interface.Types.Common.Types (AccountKey, Id(..), Parties, PartiesMap)
-import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
 import Daml.Finance.Interface.Util.Lockable qualified as Lockable (Acquire(..), I, LockType(..), Release(..))
+import Daml.Finance.Interface.Util.Reference qualified as Reference (fetchInterfaceByKey)
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
 
 -- | Type synonym for `Instruction`.
@@ -79,7 +79,8 @@ template Instruction
             baseCid <- disclosePledge this baseCid actors
             base <- fetch baseCid
             let senderAccountKey = getAccount base
-            senderAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I senderAccountKey
+            senderAccount <- view <$>
+              Reference.fetchInterfaceByKey @Account.R @Account.I senderAccountKey
             discloseAccount this senderAccountKey actors
             allMustAuthorize senderAccount.controllers.outgoing
             mustBe this Custodian senderAccount.custodian
@@ -98,7 +99,7 @@ template Instruction
           PassThroughFrom (passThroughAccountKey, fromInstructionKey) -> do
             discloseAccount this passThroughAccountKey actors
             passThroughAccount <- view <$>
-              fetchInterfaceByKey @Account.R @Account.I passThroughAccountKey
+              Reference.fetchInterfaceByKey @Account.R @Account.I passThroughAccountKey
             allMustAuthorize passThroughAccount.controllers.incoming
             allMustAuthorize passThroughAccount.controllers.outgoing
             mustBe this Custodian passThroughAccount.custodian
@@ -132,14 +133,15 @@ template Instruction
         case approval of
           TakeDelivery receiverAccountKey -> do
             discloseAccount this receiverAccountKey actors
-            receiverAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I receiverAccountKey
+            receiverAccount <- view <$>
+              Reference.fetchInterfaceByKey @Account.R @Account.I receiverAccountKey
             allMustAuthorize receiverAccount.controllers.incoming
             mustBe this Custodian receiverAccount.custodian
             mustBe this Receiver receiverAccount.owner
           PassThroughTo (passThroughAccountKey, toInstructionKey) -> do
             discloseAccount this passThroughAccountKey actors
-            passThroughAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I
-              passThroughAccountKey
+            passThroughAccount <- view <$>
+              Reference.fetchInterfaceByKey @Account.R @Account.I passThroughAccountKey
             allMustAuthorize passThroughAccount.controllers.incoming
             allMustAuthorize passThroughAccount.controllers.outgoing
             mustBe this Custodian passThroughAccount.custodian
@@ -271,23 +273,26 @@ addSignatories this parties = parties `S.union` S.fromList (signatory this)
 
 -- | HIDE
 discloseAccount : Instruction -> AccountKey -> S.Set Party -> Update (ContractId Account.I)
-discloseAccount this@Instruction {settlers} accountKey actors = discloseAccountHelper Account.disclose (context this, settlers)
-  accountKey $ addSignatories this actors
+discloseAccount this@Instruction {settlers} accountKey actors = discloseAccountHelper
+  Account.disclose (context this, settlers) accountKey $ addSignatories this actors
 
 -- | HIDE
-undiscloseAccount : Instruction -> AccountKey -> S.Set Party -> Update (Optional (ContractId Account.I))
-undiscloseAccount this@Instruction {settlers} accountKey actors = discloseAccountHelper Account.undisclose (context this,
-  settlers) accountKey $ addSignatories this actors
+undiscloseAccount : Instruction -> AccountKey -> S.Set Party ->
+  Update (Optional (ContractId Account.I))
+undiscloseAccount this@Instruction {settlers} accountKey actors =
+  discloseAccountHelper Account.undisclose (context this, settlers) accountKey $
+    addSignatories this actors
 
 -- | HIDE
 disclosePledge : Instruction -> ContractId Base.I -> S.Set Party -> Update (ContractId Base.I)
-disclosePledge this@Instruction {settlers} baseCid actors = Holding.disclose @Base.I (context this, settlers) (addSignatories this
-  actors) baseCid
+disclosePledge this@Instruction {settlers} baseCid actors = Holding.disclose @Base.I
+  (context this, settlers) (addSignatories this actors) baseCid
 
 -- | HIDE
-undisclosePledge : Instruction -> ContractId Base.I -> S.Set Party -> Update (Optional (ContractId Base.I))
-undisclosePledge this@Instruction {settlers} baseCid actors = Holding.undisclose @Base.I (context this, settlers)
-  (addSignatories this actors) baseCid
+undisclosePledge : Instruction -> ContractId Base.I -> S.Set Party ->
+  Update (Optional (ContractId Base.I))
+undisclosePledge this@Instruction {settlers} baseCid actors = Holding.undisclose @Base.I
+  (context this, settlers) (addSignatories this actors) baseCid
 
 -- | HIDE
 releasePreviousAllocation : Instruction -> Parties -> Update (Optional (ContractId Base.I))
@@ -341,5 +346,5 @@ mustAuthorizeHelper requireAllToAuthorize authorizers parties =
 discloseAccountHelper : ((Text, Parties) -> Party -> Parties -> AccountKey -> Update a) ->
   (Text, Parties) -> AccountKey -> Parties -> Update a
 discloseAccountHelper discloseAction (context, settlers) accountKey actors = do
-  account <- fetchInterfaceByKey @Account.R @Account.I accountKey
+  account <- Reference.fetchInterfaceByKey @Account.R @Account.I accountKey
   discloseAction (context, settlers) (L.head . S.toList $ actors) actors accountKey

@@ -260,6 +260,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Added the `isInstanceOf` utility function which checks whether an interface instance is
   convertible to another interface or template.
 
+- Created a `Reference` module with utility functions for keyed interfaces.
+
 ### Daml.Finance.Lifecycle
 
 - Dependencies update
