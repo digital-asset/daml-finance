@@ -14,8 +14,8 @@ import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (A
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), InstructionKey(..), RoutedStep)
 import Daml.Finance.Interface.Types.Common.Types (AccountKey, Id(..), Parties, PartiesMap)
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Interface.Util.InterfaceKey (fetchInterfaceByKey)
 import Daml.Finance.Interface.Util.Lockable qualified as Lockable (Acquire(..), I, LockType(..), Release(..))
-import Daml.Finance.Interface.Util.Reference qualified as Reference (fetchInterfaceByKey)
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
 
 -- | Type synonym for `Instruction`.
@@ -80,7 +80,7 @@ template Instruction
             base <- fetch baseCid
             let senderAccountKey = getAccount base
             senderAccount <- view <$>
-              Reference.fetchInterfaceByKey @Account.R @Account.I senderAccountKey
+              fetchInterfaceByKey @Account.R @Account.I senderAccountKey
             discloseAccount this senderAccountKey actors
             allMustAuthorize senderAccount.controllers.outgoing
             mustBe this Custodian senderAccount.custodian
@@ -99,7 +99,7 @@ template Instruction
           PassThroughFrom (passThroughAccountKey, fromInstructionKey) -> do
             discloseAccount this passThroughAccountKey actors
             passThroughAccount <- view <$>
-              Reference.fetchInterfaceByKey @Account.R @Account.I passThroughAccountKey
+              fetchInterfaceByKey @Account.R @Account.I passThroughAccountKey
             allMustAuthorize passThroughAccount.controllers.incoming
             allMustAuthorize passThroughAccount.controllers.outgoing
             mustBe this Custodian passThroughAccount.custodian
@@ -134,14 +134,14 @@ template Instruction
           TakeDelivery receiverAccountKey -> do
             discloseAccount this receiverAccountKey actors
             receiverAccount <- view <$>
-              Reference.fetchInterfaceByKey @Account.R @Account.I receiverAccountKey
+              fetchInterfaceByKey @Account.R @Account.I receiverAccountKey
             allMustAuthorize receiverAccount.controllers.incoming
             mustBe this Custodian receiverAccount.custodian
             mustBe this Receiver receiverAccount.owner
           PassThroughTo (passThroughAccountKey, toInstructionKey) -> do
             discloseAccount this passThroughAccountKey actors
             passThroughAccount <- view <$>
-              Reference.fetchInterfaceByKey @Account.R @Account.I passThroughAccountKey
+              fetchInterfaceByKey @Account.R @Account.I passThroughAccountKey
             allMustAuthorize passThroughAccount.controllers.incoming
             allMustAuthorize passThroughAccount.controllers.outgoing
             mustBe this Custodian passThroughAccount.custodian
@@ -196,7 +196,9 @@ template Instruction
                 -- disclose to settlers (such that they can get the TemplateTypeRep in the Batch)
                 Some <$> disclosePledge this newBaseCid actors
               DebitSender -> do
-                Account.exerciseInterfaceByKey @Account.I senderAccountKey routedStep.custodian
+                Account.exerciseInterfaceByKey @Account.I
+                  senderAccountKey
+                  routedStep.custodian
                   Account.Debit with holdingCid = baseCid
                 undiscloseAccount this senderAccountKey actors
                 pure None
@@ -224,8 +226,10 @@ template Instruction
             case a of
               TakeDelivery receiverAccountKey -> do
                 mustBe this Custodian routedStep.sender
-                baseCid <- Account.exerciseInterfaceByKey @Account.I receiverAccountKey
-                  routedStep.custodian Account.Credit with quantity = routedStep.quantity
+                baseCid <- Account.exerciseInterfaceByKey @Account.I
+                  receiverAccountKey
+                  routedStep.custodian
+                  Account.Credit with quantity = routedStep.quantity
                 undiscloseAccount this receiverAccountKey actors
                 -- disclose to actors (such that they can get the TemplateTypeRep in the Batch)
                 Some <$> disclosePledge this baseCid actors
@@ -346,5 +350,5 @@ mustAuthorizeHelper requireAllToAuthorize authorizers parties =
 discloseAccountHelper : ((Text, Parties) -> Party -> Parties -> AccountKey -> Update a) ->
   (Text, Parties) -> AccountKey -> Parties -> Update a
 discloseAccountHelper discloseAction (context, settlers) accountKey actors = do
-  account <- Reference.fetchInterfaceByKey @Account.R @Account.I accountKey
+  account <- fetchInterfaceByKey @Account.R @Account.I accountKey
   discloseAction (context, settlers) (L.head . S.toList $ actors) actors accountKey
