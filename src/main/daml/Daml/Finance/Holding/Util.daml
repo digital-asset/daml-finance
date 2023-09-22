@@ -13,7 +13,8 @@ import Daml.Finance.Interface.Holding.Base qualified as Base (I)
 import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (I, Merge(..), Split(..), SplitResult(..))
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
 import Daml.Finance.Interface.Holding.Util (getHoldingStandard)
-import Daml.Finance.Interface.Util.Common (fetchInterfaceByKey, qty, verify)
+import Daml.Finance.Interface.Util.Common (qty, verify)
+import Daml.Finance.Interface.Util.InterfaceKey (fetchInterfaceByKey)
 import Daml.Finance.Interface.Util.Lockable qualified as Lockable (mustNotBeLocked)
 
 -- | Default implementation of `transfer` for the `Transferable` interface.
@@ -23,10 +24,8 @@ transferImpl this self Transferable.Transfer{actors; newOwnerAccount} = do
   let
     baseCid = toInterfaceContractId @Base.I self
     base = toInterface @Base.I this
-  account <- fetchAccount base
-  let
-    vBase = view base
-    vAccount = view account
+  vAccount <- view <$> fetchAccount base
+  let vBase = view base
   Lockable.mustNotBeLocked this
   vNewAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I newOwnerAccount
   -- Verify
@@ -37,10 +36,14 @@ transferImpl this self Transferable.Transfer{actors; newOwnerAccount} = do
   assertMsg "Custodians must be the same" $ vAccount.custodian == vNewAccount.custodian
   -- Debit
   debitedHoldingStandard <- getHoldingStandard baseCid
-  Account.exerciseInterfaceByKey @Account.I vBase.account vBase.account.custodian
+  Account.exerciseInterfaceByKey @Account.I
+    vBase.account
+    vBase.account.custodian
     Account.Debit with holdingCid = baseCid
   -- Credit
-  newBaseCid <- Account.exerciseInterfaceByKey @Account.I newOwnerAccount newOwnerAccount.custodian
+  newBaseCid <- Account.exerciseInterfaceByKey @Account.I
+    newOwnerAccount
+    newOwnerAccount.custodian
     Account.Credit with quantity = qty vBase.amount vBase.instrument
   -- Consistency check
   creditedHoldingStandard <- getHoldingStandard newBaseCid
@@ -53,9 +56,7 @@ splitImpl :
   , HasToInterface t Fungible.I
   ) => Fungible.I -> (Decimal -> t) -> Fungible.Split -> Update Fungible.SplitResult
 splitImpl this setAmount Fungible.Split{amounts} = do
-  let
-    base = toInterface @Base.I this
-    vBase = view base
+  let vBase = view . toInterface @Base.I $ this
   Lockable.mustNotBeLocked this
   let spawn = fmap toInterfaceContractId . create . setAmount
   splitCids <- forA amounts spawn
@@ -78,9 +79,7 @@ mergeImpl :
   -> Fungible.Merge
   -> Update (ContractId Fungible.I)
 mergeImpl this getAmount setAmount Fungible.Merge{fungibleCids} = do
-  let
-    base = toInterface @Base.I this
-    vBase = view base
+  let vBase = view . toInterface @Base.I $ this
   Lockable.mustNotBeLocked this
   assertMsg "List of fungibles must be non-empty" . not . null $ fungibleCids
   let
