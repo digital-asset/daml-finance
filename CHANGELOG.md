@@ -96,8 +96,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   and is now supplied as an independent template in `Daml.Finance.Holding.Test.Transfer`.
 
 - Removed the consistence check that credited and debited holdings must have the same
-  `templateTypeRep`. Now they must be of the same token standard but may have different
-  implementations.
+  `templateTypeRep`. Now they should be of the same token standard but may have different
+  implementations. We rely on code vetting that the holding factories are implemented properly.
 
 - Added an `id : Id` field to the `Factory`.
 
@@ -109,13 +109,22 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Added support for SOFR style rates (via a compounded index) to the floating rate bond.
 
+- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
+  holding standards.
+
 ### Daml.Finance.Instrument.Equity
 
 - Dependencies update
 
+- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
+  holding standards.
+
 ### Daml.Finance.Instrument.Generic
 
 - Dependencies update
+
+- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
+  holding standards.
 
 ### Daml.Finance.Instrument.Option
 
@@ -125,6 +134,9 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Moved the `Remove` choice from the factory to the instrument implementation.
 
+- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
+  holding standards.
+
 ### Daml.Finance.Instrument.StructuredProduct
 
 - Dependencies update
@@ -133,15 +145,24 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - First Release
 
+- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
+  holding standards.
+
 ### Daml.Finance.Instrument.Swap
 
 - Dependencies update
 
 - Added support for SOFR style rates (via a compounded index) to the interest rate swap.
 
+- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
+  holding standards.
+
 ### Daml.Finance.Instrument.Token
 
 - Dependencies update
+
+- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
+  holding standards.
 
 ### Daml.Finance.Interface.Account
 
@@ -171,9 +192,6 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Factored out the locking logic from the `Holding.Base` interface to a separate interface called
   `Lockable` of the `Daml.Finance.Interface.Util` package.
 
-- A utility function `getHoldingStandard` for retrieving the holding standard of a holding was also
-  added.
-
 - Updated the `Daml.Finance.Interface.Holding.Factory` to use a key, employing a `Reference`
   template and the `HoldingFactoryKey` data type. Newly, it also requires the `Disclosure.I`.
 
@@ -183,6 +201,9 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Removed the `Remove` choice of the factory.
 
+- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
+  holding standards.
+
 ### Daml.Finance.Interface.Instrument.Bond
 
 - Dependencies update
@@ -191,17 +212,26 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Added support for SOFR style rates (via a compounded index) to the floating rate bond.
 
+- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
+  holding standards.
+
 ### Daml.Finance.Interface.Instrument.Equity
 
 - Dependencies update
 
 - Removed the `Remove` choice of the factory.
 
+- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
+  holding standards.
+
 ### Daml.Finance.Interface.Instrument.Generic
 
 - Dependencies update
 
 - Removed the `Remove` choice of the factory.
+
+- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
+  holding standards.
 
 ### Daml.Finance.Interface.Instrument.Option
 
@@ -211,11 +241,17 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Removed the `Remove` choice of the factory.
 
+- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
+  holding standards.
+
 ### Daml.Finance.Interface.Instrument.StructuredProduct
 
 - First release
 
 - Removed the `Remove` choice of the factory.
+
+- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
+  holding standards.
 
 ### Daml.Finance.Interface.Instrument.Swap
 
@@ -225,11 +261,17 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Added support for SOFR style rates (via a compounded index) to the interest rate swap.
 
+- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
+  holding standards.
+
 ### Daml.Finance.Interface.Instrument.Token
 
 - Dependencies update
 
 - Removed the `Remove` choice of the factory.
+
+- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
+  holding standards.
 
 ### Daml.Finance.Interface.Instrument.Types
 
@@ -248,7 +290,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Added a `HoldingFactoryKey` data type which is used to key holding factories.
 
-- Added an enumeration data type `HoldingStandard` for referring to various holding standards.
+- Added an enumeration data type `HoldingStandard` for referring to various holding standards. It
+  is newly part of the `InstrumentKey`.
 
 ### Daml.Finance.Interface.Types.Date
 
@@ -276,9 +319,10 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Dependencies update
 
-- removed the check for consistent settled holdings. Now, holdings of the same instrument don't
+- Removed the check for consistent settled holdings. Now, holdings of the same instrument don't
   need identical `templateTypeRep`. Instead, they should share the same token standard
-  (implementation variations are allowed).
+  (implementation variations are allowed). We rely on code vetting that the holding factories are
+  implemented properly.
 
 ### Daml.Finance.Util
 
