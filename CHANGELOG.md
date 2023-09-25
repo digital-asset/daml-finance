@@ -103,8 +103,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Replaced all factories by a single `Factory` for all holding implementations.
 
-- Added an implementation for a `FungibleNonTransferable`. Also renamed the `NonTransferable`
-  implementation to `NonFungibleNonTransferable`.
+- Renamed the `NonTransferable` and `Fungible` implementation to `Base` and
+  `TransferableFungible`, respectively. Also added an implementation for a `Fungible`.
 
 ### Daml.Finance.Instrument.Bond
 
