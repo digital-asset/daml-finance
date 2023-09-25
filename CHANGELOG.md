@@ -104,7 +104,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Replaced all factories by a single `Factory` for all holding implementations.
 
 - Added an implementation for a `FungibleNonTransferable`. Also renamed the `NonTransferable`
-  implementaion to `NonFungibleNonTransferable`.
+  implementation to `NonFungibleNonTransferable`.
 
 ### Daml.Finance.Instrument.Bond
 
