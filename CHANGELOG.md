@@ -197,7 +197,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `Lockable` of the `Daml.Finance.Interface.Util` package.
 
 - Updated the `Daml.Finance.Interface.Holding.Factory` to use a key, employing a `Reference`
-  template and the `HoldingFactoryKey` data type. Newly, it also requires the `Disclosure.I`.
+  template and the `HoldingFactoryKey` data type. Newly, it also requires the `Disclosure.I` and
+  has a `getKey` method and `Remove` choice.
 
 - Removed the requirement that a `Fungible.I` requires `Transferable.I`.
 
