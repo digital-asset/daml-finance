@@ -103,7 +103,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Replaced all factories by a single `Factory` for all holding implementations.
 
-- Renamed the `NonTransferable` and `Fungible` implementation to `Holding` and
+- Renamed the `NonTransferable` and `Fungible` implementation to `BaseHolding` and
   `TransferableFungible`, respectively. Also added an implementation for a `Fungible`. Added an
   `ensure` clause to make sure the desired `HoldingStandard` is used.
 
