@@ -1,23 +1,26 @@
 -- Copyright (c) 2023 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
-module Daml.Finance.Holding.NonTransferable where
+module Daml.Finance.Holding.Transferable where
 
 import DA.Set (fromList, singleton)
+import Daml.Finance.Holding.Util (transferImpl)
 import Daml.Finance.Interface.Holding.Base qualified as Base (I, View(..))
+import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, View(..))
 import Daml.Finance.Interface.Types.Common.Types (AccountKey(..), InstrumentKey(..), PartiesMap)
+import Daml.Finance.Interface.Types.Common.Types qualified as Types (HoldingStandard(..))
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
 import Daml.Finance.Interface.Util.Lockable qualified as Lockable (I, Lock(..), View(..), getLockers)
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
 import Daml.Finance.Util.Lockable (acquireImpl, isValidLock, releaseImpl)
 
--- | Type synonym for `NonTransferable`.
-type T = NonTransferable
+-- | Type synonym for `Transferable`.
+type T = Transferable
 
--- | Implementation of a non-transferable holding.
--- `NonTransferable` implements the interface `Base.I` (which requires `Disclosure.I` to be
--- implemented).
-template NonTransferable
+-- | Implementation of a transferable holding.
+-- `Transferable` implements the interface `Transferable.I` (which requires `Base.I`, `Lockable.I`,
+-- and Disclosure.I` to be implemented), but not the `Fungible.I`.
+template Transferable
   with
     instrument : InstrumentKey
       -- ^ The instrument of which units are held.
@@ -33,19 +36,23 @@ template NonTransferable
     signatory account.custodian, account.owner, Lockable.getLockers this
     observer Disclosure.flattenObservers observers
 
-    ensure amount > 0.0 && isValidLock lock
+    ensure amount > 0.0 && isValidLock lock && instrument.holdingStandard == Types.Transferable
 
-    interface instance Disclosure.I for NonTransferable where
+    interface instance Disclosure.I for Transferable where
       view = Disclosure.View with
         disclosureControllers = fromList [account.owner, account.custodian]; observers
       setObservers = setObserversImpl @_ @Disclosure.I this None
       addObservers = addObserversImpl @_ @Disclosure.I this None
       removeObservers = removeObserversImpl @_ @Disclosure.I this None
 
-    interface instance Lockable.I for NonTransferable where
+    interface instance Lockable.I for Transferable where
       view = Lockable.View with lock; controllers = singleton account.owner
       acquire = acquireImpl this.lock (\lock -> this with lock)
       release = releaseImpl this.lock (\lock -> this with lock)
 
-    interface instance Base.I for NonTransferable where
+    interface instance Base.I for Transferable where
       view = Base.View with instrument; account; amount
+
+    interface instance Transferable.I for Transferable where
+      view = Transferable.View {}
+      transfer = transferImpl $ toInterface this

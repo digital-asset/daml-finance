@@ -1,15 +1,15 @@
 -- Copyright (c) 2023 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
-module Daml.Finance.Holding.Test.Fungible where
+module Daml.Finance.Holding.Test.TransferableFungible where
 
 import DA.Assert ((===))
 import DA.Map qualified as M (fromList)
 import DA.Optional (fromSome)
 import DA.Set qualified as S (fromList, singleton)
 import Daml.Finance.Holding.Factory qualified as Holding (Factory(..))
-import Daml.Finance.Holding.Fungible qualified as Fungible (T)
 import Daml.Finance.Holding.Test.Common (TestInitialState(..), TestParties(..), setupInitialState, setupParties)
+import Daml.Finance.Holding.TransferableFungible qualified as TransferableFungible (T)
 import Daml.Finance.Holding.Util qualified as Fungible (getRestAmount)
 import Daml.Finance.Interface.Account.Account qualified as Account (Debit(..), I)
 import Daml.Finance.Interface.Holding.Base qualified as Base (I)
@@ -36,7 +36,7 @@ run = script do
       provider = custodian
       id = Id "Holding Factory"
       observers = M.fromList [("PublicParty", S.singleton publicParty)]
-    Fungible
+    TransferableFungible
     []
     Account.Owner
 
@@ -85,7 +85,7 @@ run = script do
 
   -- Fungible (before split)
   fungible <- fmap (toInterface @Fungible.I . fromSome) <$>
-    queryContractId @Fungible.T issuer $ fromInterfaceContractId fungibleCid
+    queryContractId @TransferableFungible.T issuer $ fromInterfaceContractId fungibleCid
 
   -- Split fungible
   Fungible.SplitResult [splitCid1, splitCid2] (Some restCid) <-
@@ -96,7 +96,7 @@ run = script do
   [fungible1, fungible2, rest] <- forA
     [splitCid1, splitCid2, restCid]
     \cid -> do
-      Some fungible <- queryContractId @Fungible.T issuer $ fromInterfaceContractId cid
+      Some fungible <- queryContractId @TransferableFungible.T issuer $ fromInterfaceContractId cid
       pure $ toInterface @Fungible.I fungible
 
   -- Test utility function `verifyAmountPreserving`
@@ -150,7 +150,7 @@ run = script do
     exerciseCmd restCid Fungible.Merge with fungibleCids = []
 
   -- Attempt to merge with an issuer@issuer holding fails
-  Some t <- queryContractId issuer $ fromInterfaceContractId @Fungible.T splitCid1
+  Some t <- queryContractId issuer $ fromInterfaceContractId @TransferableFungible.T splitCid1
   cid <- toInterfaceContractId @Fungible.I <$> submit issuer do
     createCmd t with account = (t.account with custodian = issuer); amount = 1_000_000.0
   submitMustFail issuer do exerciseCmd restCid Fungible.Merge with fungibleCids = [cid]
@@ -161,12 +161,15 @@ run = script do
 
   -- Fungibles (after merge)
   fungible' <- fmap (toInterface @Fungible.I . fromSome) <$>
-    queryContractId @Fungible.T issuer $ fromInterfaceContractId fungibleCid
+    queryContractId @TransferableFungible.T issuer $ fromInterfaceContractId fungibleCid
   verifyAmountPreserving [fungible] [fungible']
 
   -- Transfer
+  let
+    transferableCid =
+      fromInterfaceContractId @Transferable.I . toInterfaceContractId @Base.I $ fungibleCid
   transferableCid <- submitMulti [issuer, investor] [publicParty] do
-    exerciseCmd (toInterfaceContractId @Transferable.I fungibleCid)
+    exerciseCmd transferableCid
       Transferable.Transfer with
         actors = S.fromList [issuer, investor]; newOwnerAccount = investorAccount
 
