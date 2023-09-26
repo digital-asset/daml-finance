@@ -85,7 +85,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Dependencies update
 
-- As the locking logic from the `Holding.Base` interface was factored out to a separate interface
+- As the locking logic from the base `Holding` interface was factored out to a separate interface
   called `Lockable` of the `Daml.Finance.Interface.Util` package, the `acquireImpl` and
   `releaseImpl` moved to the `Lockable` module in the `Daml.Finance.Util` implementation package.
 
@@ -103,7 +103,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Replaced all factories by a single `Factory` for all holding implementations.
 
-- Renamed the `NonTransferable` and `Fungible` implementation to `Base` and
+- Renamed the `NonTransferable` and `Fungible` implementation to `Holding` and
   `TransferableFungible`, respectively. Also added an implementation for a `Fungible`. Added an
   `ensure` clause to make sure the desired `HoldingStandard` is used.
 
@@ -193,13 +193,15 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Dependencies update
 
-- Factored out the locking logic from the `Holding.Base` interface to a separate interface called
+- Factored out the locking logic from the base `Holding` interface to a separate interface called
   `Lockable` of the `Daml.Finance.Interface.Util` package.
 
 - Updated the `Daml.Finance.Interface.Holding.Factory` to use a key, employing a `Reference`
   template and the `HoldingFactoryKey` data type. Newly, it also requires the `Disclosure.I`.
 
 - Removed the requirement that a `Fungible.I` requires `Transferable.I`.
+
+- Renamed `Base` to `Holding`.
 
 ### Daml.Finance.Interface.Instrument.Base
 
@@ -306,7 +308,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 ### Daml.Finance.Interface.Util
 
 - Added a `Lockable` module containing the interface for locking (the `Acquire` and `Release`
-  choices used to be part of the `Holding.Base` interface).
+  choices used to be part of the base `Holding` interface).
 
 - Added the `isInstanceOf` utility function which checks whether an interface instance is
   convertible to another interface or template.
