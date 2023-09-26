@@ -9,8 +9,8 @@ import DA.Set qualified as S (fromList, isSubsetOf)
 import DA.Traversable qualified as T (forA)
 import Daml.Finance.Interface.Account.Account qualified as Account (Credit(..), Debit(..), I, R, exerciseInterfaceByKey)
 import Daml.Finance.Interface.Account.Util (fetchAccount)
-import Daml.Finance.Interface.Holding.Base qualified as Base (I)
 import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (I, Merge(..), Split(..), SplitResult(..))
+import Daml.Finance.Interface.Holding.Holding qualified as Holding (I)
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
 import Daml.Finance.Interface.Util.Common (qty, verify)
 import Daml.Finance.Interface.Util.InterfaceKey (fetchInterfaceByKey)
@@ -21,10 +21,10 @@ transferImpl : Transferable.I -> ContractId Transferable.I -> Transferable.Trans
   -> Update (ContractId Transferable.I)
 transferImpl this self Transferable.Transfer{actors; newOwnerAccount} = do
   let
-    baseCid = toInterfaceContractId @Base.I self
-    base = toInterface @Base.I this
-  vAccount <- view <$> fetchAccount base
-  let vBase = view base
+    holdingCid = toInterfaceContractId @Holding.I self
+    holding = toInterface @Holding.I this
+  vAccount <- view <$> fetchAccount holding
+  let vHolding = view holding
   Lockable.mustNotBeLocked this
   vNewAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I newOwnerAccount
   -- Verify
@@ -35,15 +35,15 @@ transferImpl this self Transferable.Transfer{actors; newOwnerAccount} = do
   assertMsg "Custodians must be the same" $ vAccount.custodian == vNewAccount.custodian
   -- Debit
   Account.exerciseInterfaceByKey @Account.I
-    vBase.account
-    vBase.account.custodian
-    Account.Debit with holdingCid = baseCid
+    vHolding.account
+    vHolding.account.custodian
+    Account.Debit with holdingCid
   -- Credit
   fromInterfaceContractId <$>
     Account.exerciseInterfaceByKey @Account.I
       newOwnerAccount
       newOwnerAccount.custodian
-      Account.Credit with quantity = qty vBase.amount vBase.instrument
+      Account.Credit with quantity = qty vHolding.amount vHolding.instrument
 
 -- | Default implementation of `split` from the `Fungible` interface.
 splitImpl :
@@ -51,11 +51,11 @@ splitImpl :
   , HasToInterface t Fungible.I
   ) => Fungible.I -> (Decimal -> t) -> Fungible.Split -> Update Fungible.SplitResult
 splitImpl this setAmount Fungible.Split{amounts} = do
-  let vBase = view . toInterface @Base.I $ this
+  let vHolding = view . toInterface @Holding.I $ this
   Lockable.mustNotBeLocked this
   let spawn = fmap toInterfaceContractId . create . setAmount
   splitCids <- forA amounts spawn
-  restAmount <- getRestAmount amounts vBase.amount
+  restAmount <- getRestAmount amounts vHolding.amount
   rest <- T.forA restAmount spawn
   pure Fungible.SplitResult with splitCids; rest
 
@@ -74,16 +74,16 @@ mergeImpl :
   -> Fungible.Merge
   -> Update (ContractId Fungible.I)
 mergeImpl this getAmount setAmount Fungible.Merge{fungibleCids} = do
-  let vBase = view . toInterface @Base.I $ this
+  let vHolding = view . toInterface @Holding.I $ this
   Lockable.mustNotBeLocked this
   assertMsg "List of fungibles must be non-empty" . not . null $ fungibleCids
   let
-    currentSignatories = S.fromList . signatory . setAmount $ vBase.amount
-    current = view . toInterface @Base.I . toInterface @Fungible.I . setAmount $ vBase.amount
+    currentSignatories = S.fromList . signatory . setAmount $ vHolding.amount
+    current = view . toInterface @Holding.I . toInterface @Fungible.I . setAmount $ vHolding.amount
     aggregate aggregatedAmount fungibleCid = do
       Some (otherHoldingCid, otherHolding) <- fetchFromInterface @t fungibleCid
       let
-        otherBase = toInterface @Base.I . toInterface @Fungible.I $ otherHolding
+        otherBase = toInterface @Holding.I . toInterface @Fungible.I $ otherHolding
         other = view otherBase
       assertMsg "Instrument must match" $ other.instrument == current.instrument
       assertMsg "Account must match" $ other.account == current.account
@@ -91,7 +91,7 @@ mergeImpl this getAmount setAmount Fungible.Merge{fungibleCids} = do
       Lockable.mustNotBeLocked otherBase
       archive otherHoldingCid
       pure $ aggregatedAmount + getAmount otherHolding
-  tot <- foldlA aggregate vBase.amount fungibleCids
+  tot <- foldlA aggregate vHolding.amount fungibleCids
   fmap toInterfaceContractId . create . setAmount $ tot
 
 -- | HIDE
