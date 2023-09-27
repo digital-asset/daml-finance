@@ -8,44 +8,44 @@ This document tracks pending changes to packages. It is facilitating the write-u
 |--------------------------------------------|--------------------|----------------|
 | ContingentClaims.Core                      | 2.0.0              | unchanged      |
 | ContingentClaims.Lifecycle                 | 2.0.0              | unchanged      |
-| Daml.Finance.Account                       | 2.0.0              | 3.0.0          |x
-| Daml.Finance.Claims                        | 2.0.0              | 2.1.0          |x
-| Daml.Finance.Data                          | 2.0.0              | 2.0.1          |x
-| Daml.Finance.Holding                       | 2.0.0              | 3.0.0          |x
-| Daml.Finance.Instrument.Bond               | 1.0.0              | 2.0.0          |x
-| Daml.Finance.Instrument.Generic            | 2.0.0              | 3.0.0          |x
-| Daml.Finance.Instrument.Token              | 2.0.0              | 3.0.0          |x
-| Daml.Finance.Interface.Account             | 2.0.0              | 3.0.0          |X
-| Daml.Finance.Interface.Claims              | 2.0.0              | 3.0.0          |X
-| Daml.Finance.Interface.Data                | 3.0.0              | 3.0.1          |x
-| Daml.Finance.Interface.Holding             | 2.0.0              | 3.0.0          |x
-| Daml.Finance.Interface.Instrument.Base     | 2.0.0              | 3.0.0          |x
-| Daml.Finance.Interface.Instrument.Bond     | 1.0.0              | 2.0.0          |x
-| Daml.Finance.Interface.Instrument.Generic  | 2.0.0              | 3.0.0          |x
-| Daml.Finance.Interface.Instrument.Token    | 2.0.0              | 3.0.0          |x
-| Daml.Finance.Interface.Instrument.Types    |                    | 1.0.0          |x
-| Daml.Finance.Interface.Lifecycle           | 2.0.0              | 3.0.0          |x
-| Daml.Finance.Interface.Settlement          | 2.0.0              | 2.0.1          |x
-| Daml.Finance.Interface.Types.Common        | 1.0.1              | 1.1.0          |x
-| Daml.Finance.Interface.Types.Date          | 2.0.1              | 2.1.0          |x
-| Daml.Finance.Interface.Util                | 2.0.0              | 2.1.0          |x
-| Daml.Finance.Lifecycle                     | 2.0.0              | 3.0.0          |x
-| Daml.Finance.Settlement                    | 2.0.0              | 2.0.1          |x
-| Daml.Finance.Util                          | 3.0.0              | 3.1.0          |x
+| Daml.Finance.Account                       | 2.0.0              | 3.0.0          |
+| Daml.Finance.Claims                        | 2.0.0              | 2.1.0          |
+| Daml.Finance.Data                          | 2.0.0              | 2.0.1          |
+| Daml.Finance.Holding                       | 2.0.0              | 3.0.0          |
+| Daml.Finance.Instrument.Bond               | 1.0.0              | 2.0.0          |
+| Daml.Finance.Instrument.Generic            | 2.0.0              | 3.0.0          |
+| Daml.Finance.Instrument.Token              | 2.0.0              | 3.0.0          |
+| Daml.Finance.Interface.Account             | 2.0.0              | 3.0.0          |
+| Daml.Finance.Interface.Claims              | 2.0.0              | 3.0.0          |
+| Daml.Finance.Interface.Data                | 3.0.0              | 3.0.1          |
+| Daml.Finance.Interface.Holding             | 2.0.0              | 3.0.0          |
+| Daml.Finance.Interface.Instrument.Base     | 2.0.0              | 3.0.0          |
+| Daml.Finance.Interface.Instrument.Bond     | 1.0.0              | 2.0.0          |
+| Daml.Finance.Interface.Instrument.Generic  | 2.0.0              | 3.0.0          |
+| Daml.Finance.Interface.Instrument.Token    | 2.0.0              | 3.0.0          |
+| Daml.Finance.Interface.Instrument.Types    |                    | 1.0.0          |
+| Daml.Finance.Interface.Lifecycle           | 2.0.0              | 3.0.0          |
+| Daml.Finance.Interface.Settlement          | 2.0.0              | 2.0.1          |
+| Daml.Finance.Interface.Types.Common        | 1.0.1              | 1.1.0          |
+| Daml.Finance.Interface.Types.Date          | 2.0.1              | 2.1.0          |
+| Daml.Finance.Interface.Util                | 2.0.0              | 2.1.0          |
+| Daml.Finance.Lifecycle                     | 2.0.0              | 3.0.0          |
+| Daml.Finance.Settlement                    | 2.0.0              | 2.0.1          |
+| Daml.Finance.Util                          | 3.0.0              | 3.1.0          |
 
 ## Early Access Packages
 
 | Package                                             | Released version   | Target version |
 |-----------------------------------------------------|--------------------|----------------|
 | ContingentClaims.Valuation                          | 0.2.1              | unchanged      |
-| Daml.Finance.Instrument.Equity                      | 0.3.0              | 0.4.0          |x
-| Daml.Finance.Instrument.Option                      | 0.2.0              | 0.3.0          |x
-| Daml.Finance.Instrument.StructuredProduct           |                    | 0.1.0          |x
-| Daml.Finance.Instrument.Swap                        | 0.3.0              | 0.4.0          |x
-| Daml.Finance.Interface.Instrument.Equity            | 0.3.0              | 0.4.0          |x
-| Daml.Finance.Interface.Instrument.Option            | 0.2.0              | 0.3.0          |x
-| Daml.Finance.Interface.Instrument.StructuredProduct |                    | 0.1.0          |x
-| Daml.Finance.Interface.Instrument.Swap              | 0.3.0              | 0.4.0          |x
+| Daml.Finance.Instrument.Equity                      | 0.3.0              | 0.4.0          |
+| Daml.Finance.Instrument.Option                      | 0.2.0              | 0.3.0          |
+| Daml.Finance.Instrument.StructuredProduct           |                    | 0.1.0          |
+| Daml.Finance.Instrument.Swap                        | 0.3.0              | 0.4.0          |
+| Daml.Finance.Interface.Instrument.Equity            | 0.3.0              | 0.4.0          |
+| Daml.Finance.Interface.Instrument.Option            | 0.2.0              | 0.3.0          |
+| Daml.Finance.Interface.Instrument.StructuredProduct |                    | 0.1.0          |
+| Daml.Finance.Interface.Instrument.Swap              | 0.3.0              | 0.4.0          |
 
 ## Pending changes
 
