@@ -18,12 +18,9 @@ cp ../tutorials-config/${version}.conf .lib/${version}.conf
 # For each dependency, download and install
 while IFS=" " read -r url out
 do
-  #printf "Downloading: %s, to: %s\n" "$url" "$out"
   darWithoutVersion=$(echo $out | cut -d "/" -f 2 | cut -d "." -f 1)
+  printf "Copying local %s\n" "$darWithoutVersion"
   cp ../../../.dars/"${darWithoutVersion}"*.dar .lib/"${darWithoutVersion}".dar
-  #dar = $(echo $out | cut -d " " -f 2)
-  #printf "$dar"
-  #curl -Lf# "${url}" -o ${out}
 done < .lib/${version}.conf
 
-echo "All dependencies successfully downloaded!"
+echo "All dependencies successfully copied!"
