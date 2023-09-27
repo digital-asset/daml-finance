@@ -6,15 +6,17 @@ import Daml.Script
 
 -- INTERFACE DEPENDENCIES --
 import Daml.Finance.Interface.Account.Factory qualified as Account (F)
+import Daml.Finance.Interface.Holding.Factory (Reference(..))
+import Daml.Finance.Interface.Holding.Factory qualified as HoldingFactory (F, toKey)
 import Daml.Finance.Interface.Holding.Holding qualified as Holding (I)
-import Daml.Finance.Interface.Holding.Factory qualified as Holding (F)
 import Daml.Finance.Interface.Instrument.Token.Factory qualified as Token (F, Create(..))
 import Daml.Finance.Interface.Instrument.Token.Types (Token(..))
-import Daml.Finance.Interface.Types.Common.Types (AccountKey, Id(..), InstrumentKey(..))
+import Daml.Finance.Interface.Types.Common.Types (AccountKey, HoldingFactoryKey, HoldingStandard(..), Id(..), InstrumentKey(..))
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I)
 
 -- IMPLEMENTATION DEPENDENCIES --
 import Daml.Finance.Account.Account qualified as Account (Factory(..))
-import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
+import Daml.Finance.Holding.Factory qualified as Holding (Factory(..))
 import Daml.Finance.Instrument.Token.Factory qualified as Token (Factory(..))
 
 import Workflow.CreateAccount qualified as CreateAccount
@@ -40,9 +42,10 @@ setupHolding = do
 
   -- Holding Factory (it is used by the bank to create holdings with the desired implementation)
   -- CREATE_HOLDING_FACTORY_BEGIN
-  holdingFactoryCid <- toInterfaceContractId @Holding.F <$> submit bank do
-    createCmd Fungible.Factory with
+  holdingFactory <- createHoldingFactory
+    Holding.Factory with
       provider = bank
+      id = Id "Holding Factory"
       observers = fromList [("Settlers", S.fromList [alice, bob])]
   -- CREATE_HOLDING_FACTORY_END
 
@@ -66,7 +69,7 @@ setupHolding = do
       label = "Alice@Bank"
       description = "Account of Alice at Bank"
       accountFactoryCid = accountFactoryCid
-      holdingFactoryCid = holdingFactoryCid
+      holdingFactory = holdingFactory
       observers = []
   -- SETUP_ALICE_ACCOUNT_END
 
@@ -77,7 +80,7 @@ setupHolding = do
       label = "Bob@Bank"
       description = "Account of Bob at Bank"
       accountFactoryCid = accountFactoryCid
-      holdingFactoryCid = holdingFactoryCid
+      holdingFactory = holdingFactory
       observers = [alice]
 
   -- Bank creates the cash instrument
@@ -90,6 +93,7 @@ setupHolding = do
       depository = bank
       id = instrumentId
       version = instrumentVersion
+      holdingStandard = TransferableFungible
   now <- getTime
 
   submit bank do
@@ -141,3 +145,24 @@ createParty name = do
   userId <- validateUserId name
   createUser (User userId (Some party)) [CanActAs party]
   pure party
+
+-- | Create a holding factory with reference.
+createHoldingFactory :
+  forall t.
+  ( HasAgreement t
+  , HasTemplateTypeRep t
+  , HasToAnyTemplate t
+  , HasFromAnyTemplate t
+  , HasToInterface t HoldingFactory.F
+  )
+  => t -> Script HoldingFactoryKey
+createHoldingFactory holdingFactory = do
+  let
+    factory = toInterface @HoldingFactory.F holdingFactory
+    factoryView = view factory
+  cid <- toInterfaceContractId @HoldingFactory.F <$> submit factoryView.provider do
+    createCmd holdingFactory
+  submit factoryView.provider do
+    createCmd Reference with
+      factoryView; cid; observers = (view $ toInterface @Disclosure.I factory).observers
+  pure $ HoldingFactory.toKey factoryView
