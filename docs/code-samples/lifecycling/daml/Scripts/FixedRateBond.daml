@@ -7,7 +7,8 @@ import Daml.Script
 
 -- INTERFACE DEPENDENCIES --
 import Daml.Finance.Interface.Account.Factory qualified as Account (F)
-import Daml.Finance.Interface.Holding.Factory qualified as Holding (F)
+import Daml.Finance.Interface.Holding.Factory (Reference(..))
+import Daml.Finance.Interface.Holding.Factory qualified as HoldingFactory (F, toKey)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as Instrument (I)
 import Daml.Finance.Interface.Instrument.Bond.FixedRate.Factory qualified as FixedRate (Create(..), F(..))
 import Daml.Finance.Interface.Instrument.Bond.FixedRate.Types (FixedRate(..))
@@ -19,11 +20,12 @@ import Daml.Finance.Interface.Settlement.Factory qualified as Settlement (F)
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
 import Daml.Finance.Interface.Settlement.RouteProvider qualified as RouteProvider (I)
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..))
-import Daml.Finance.Interface.Types.Common.Types (AccountKey, Id(..), InstrumentKey(..), Parties)
+import Daml.Finance.Interface.Types.Common.Types (AccountKey, HoldingFactoryKey, HoldingStandard(..), Id(..), InstrumentKey(..), Parties)
 import Daml.Finance.Interface.Types.Date.Calendar (BusinessDayAdjustment(..), BusinessDayConventionEnum(..), HolidayCalendarData(..))
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum(..))
 import Daml.Finance.Interface.Types.Date.RollConvention (Period(..), PeriodEnum(..), RollConventionEnum(..))
 import Daml.Finance.Interface.Types.Date.Schedule (Frequency(..), PeriodicSchedule(..), ScheduleFrequency(..))
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I)
 
 -- IMPLEMENTATION DEPENDENCIES --
 import Daml.Finance.Account.Account qualified as Account (Factory(..))
@@ -31,7 +33,7 @@ import Daml.Finance.Claims.Lifecycle.Rule (Rule(..))
 import Daml.Finance.Data.Reference.HolidayCalendar (HolidayCalendar(..))
 import Daml.Finance.Data.Time.DateClock (dateToDateClockTime)
 import Daml.Finance.Data.Time.DateClockUpdate qualified as DataTime (DateClockUpdateEvent(..))
-import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
+import Daml.Finance.Holding.Factory qualified as Holding (Factory(..))
 import Daml.Finance.Instrument.Bond.FixedRate.Factory qualified as FixedRate (Factory(..))
 import Daml.Finance.Instrument.Token.Instrument (Instrument(..))
 import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
@@ -77,10 +79,11 @@ runFixedRateBond = do
     createCmd Account.Factory with provider = bank; observers = M.empty
 
   -- Holding Factory (it is used by the bank to create holdings with the desired implementation)
-  holdingFactoryCid <- toInterfaceContractId @Holding.F <$> submit bank do
-    createCmd Fungible.Factory with
+  holdingFactory <- createHoldingFactory
+    Holding.Factory with
       provider = bank
-      observers = M.fromList [("PublicObserver", S.singleton public )]
+      id = Id "Holding Factory"
+      observers = M.fromList [("Settlers", S.fromList [bob])]
 
   -- Bob sets up account @Bank
   bobRequestCid <- submit bob do createCmd CreateAccount.Request with owner = bob; custodian = bank
@@ -89,7 +92,7 @@ runFixedRateBond = do
       label = "Bob@Bank"
       description = "Account of Bob at Bank"
       accountFactoryCid = accountFactoryCid
-      holdingFactoryCid = holdingFactoryCid
+      holdingFactory = holdingFactory
       observers = []
 
   -- Setup a route provider
@@ -114,6 +117,7 @@ runFixedRateBond = do
       depository = bank
       id = instrumentId
       version = instrumentVersion
+      holdingStandard = TransferableFungible
   now <- getTime
 
   cashInstrumentCid <- toInterfaceContractId @Instrument.I <$> submit bank do
@@ -125,6 +129,7 @@ runFixedRateBond = do
       description = "Instrument representing units of USD"
       validAsOf = now
       observers = M.empty
+      holdingStandard = TransferableFungible
 
   let pp = [("Public Party", S.singleton public)]
 
@@ -196,6 +201,7 @@ runFixedRateBond = do
       depository = bank
       id = Id "FixedRateBond"
       version = "0"
+      holdingStandard = TransferableFungible
     initialTimestamp = dateToDateClockTime issueDate
 
   -- Bank creates the bond instrument
@@ -346,3 +352,24 @@ createParty name = do
   userId <- validateUserId name
   createUser (User userId (Some party)) [CanActAs party]
   pure party
+
+-- | Create a holding factory with reference.
+createHoldingFactory :
+  forall t.
+  ( HasAgreement t
+  , HasTemplateTypeRep t
+  , HasToAnyTemplate t
+  , HasFromAnyTemplate t
+  , HasToInterface t HoldingFactory.F
+  )
+  => t -> Script HoldingFactoryKey
+createHoldingFactory holdingFactory = do
+  let
+    factory = toInterface @HoldingFactory.F holdingFactory
+    factoryView = view factory
+  cid <- toInterfaceContractId @HoldingFactory.F <$> submit factoryView.provider do
+    createCmd holdingFactory
+  submit factoryView.provider do
+    createCmd Reference with
+      factoryView; cid; observers = (view $ toInterface @Disclosure.I factory).observers
+  pure $ HoldingFactory.toKey factoryView
