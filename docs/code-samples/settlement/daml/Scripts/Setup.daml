@@ -7,16 +7,18 @@ import Daml.Script
 -- INTERFACE DEPENDENCIES --
 import Daml.Finance.Interface.Account.Account qualified as Account (Controllers(..))
 import Daml.Finance.Interface.Account.Factory qualified as Account (F)
-import Daml.Finance.Interface.Holding.Factory qualified as Holding (F)
+import Daml.Finance.Interface.Holding.Factory (Reference(..))
+import Daml.Finance.Interface.Holding.Factory qualified as HoldingFactory (F, toKey)
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I)
 import Daml.Finance.Interface.Instrument.Token.Factory qualified as Token (F, Create(..))
 import Daml.Finance.Interface.Instrument.Token.Types (Token(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (I)
-import Daml.Finance.Interface.Types.Common.Types (AccountKey(..), Id(..), InstrumentKey(..))
+import Daml.Finance.Interface.Types.Common.Types (AccountKey(..), HoldingFactoryKey, HoldingStandard(..), Id(..), InstrumentKey(..))
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I)
 
 -- IMPLEMENTATION DEPENDENCIES --
 import Daml.Finance.Account.Account qualified as Account (Factory(..))
-import Daml.Finance.Holding.Fungible qualified as Fungible (Factory(..))
+import Daml.Finance.Holding.Factory qualified as Holding (Factory(..))
 import Daml.Finance.Instrument.Token.Factory qualified as Token (Factory(..))
 import Daml.Finance.Interface.Settlement.Types (InstructionKey(..))
 import Daml.Finance.Settlement.Instruction qualified as Instruction (T)
@@ -104,9 +106,10 @@ runSetup accountControllers = do
     createCmd Account.Factory with provider = bank1; observers = M.empty
 
   -- Holding Factory (used to create holdings with the desired implementation @Bank1).
-  holdingFactoryCid <- toInterfaceContractId @Holding.F <$> submit bank1 do
-    createCmd Fungible.Factory with
+  holdingFactory <- createHoldingFactory
+    Holding.Factory with
       provider = bank1
+      id = Id "Holding Factory"
       observers = M.fromList [("DisclosedToAll", S.fromList all)]
 
   -- Set up accounts @Bank1.
@@ -121,7 +124,7 @@ runSetup accountControllers = do
       label = "Alice@Bank1"
       description = "Account of Alice at Bank1"
       accountFactoryCid
-      holdingFactoryCid
+      holdingFactory
       observers = [bob, charlie] -- disclosing to all clients of Bank1
   bobRequestCid <- submit bob do
     createCmd CreateAccount.Request with
@@ -133,7 +136,7 @@ runSetup accountControllers = do
       label = "Bob@Bank1"
       description = "Account of Bob at Bank1"
       accountFactoryCid
-      holdingFactoryCid
+      holdingFactory
       observers = [alice, charlie] -- disclosing to all clients of Bank1
   charlieRequestCid <- submit charlie do
     createCmd CreateAccount.Request with
@@ -145,7 +148,7 @@ runSetup accountControllers = do
       label = "Charlie@Bank1"
       description = "Account of Charlie at Bank1"
       accountFactoryCid
-      holdingFactoryCid
+      holdingFactory
       observers = [alice, bob]  -- disclosing to all clients of Bank1
 
   -- Central Bank creates the cash instrument using a Token factory.
@@ -160,6 +163,7 @@ runSetup accountControllers = do
       issuer = cb
       id = Id "USD"
       version = "0"
+      holdingStandard = TransferableFungible
   submit cb do
     exerciseCmd tokenFactoryCid Token.Create with
       token = Token with
@@ -194,3 +198,24 @@ retrieveKey : Party -> ContractId Instruction.I -> Script InstructionKey
 retrieveKey actor cid = script do
   Some i <- queryContractId actor (fromInterfaceContractId @Instruction.T cid)
   pure $ key i
+
+-- | Create a holding factory with reference.
+createHoldingFactory :
+  forall t.
+  ( HasAgreement t
+  , HasTemplateTypeRep t
+  , HasToAnyTemplate t
+  , HasFromAnyTemplate t
+  , HasToInterface t HoldingFactory.F
+  )
+  => t -> Script HoldingFactoryKey
+createHoldingFactory holdingFactory = do
+  let
+    factory = toInterface @HoldingFactory.F holdingFactory
+    factoryView = view factory
+  cid <- toInterfaceContractId @HoldingFactory.F <$> submit factoryView.provider do
+    createCmd holdingFactory
+  submit factoryView.provider do
+    createCmd Reference with
+      factoryView; cid; observers = (view $ toInterface @Disclosure.I factory).observers
+  pure $ HoldingFactory.toKey factoryView
