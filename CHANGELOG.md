@@ -328,6 +328,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
   to reflect the change in the `Effect.I` interface. The implementation of the `ClaimEffect` choice
   body of `Daml.Finance.Lifecycle.Rule.Claim` also changed accordingly.
 
+- Replaced `lookupByKey` by a `fetchByKey` in the `Distribution` and `Replacement` rule.
+
 ### Daml.Finance.Settlement
 
 - Dependencies update
