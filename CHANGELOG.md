@@ -212,6 +212,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Removed the `Remove` choice of the factory.
 
+- Made the `issuer` a single-maintainer of the `Instrument` key.
+
 - Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
   holding standards.
 
