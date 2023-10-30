@@ -337,7 +337,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Replaced `lookupByKey` by an `exerciseByKey` in the `Distribution` and `Replacement` rule.
 
-- Replaced `providers : Parties` with `provider : Party` in the `Claim` rule (i.e., in the implementation only).
+- Replaced `providers : Parties` with `provider : Party` in the `Claim` rule (i.e., in the
+implementation only).
 
 ### Daml.Finance.Settlement
 
