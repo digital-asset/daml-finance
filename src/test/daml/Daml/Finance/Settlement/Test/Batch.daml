@@ -4,7 +4,7 @@
 module Daml.Finance.Settlement.Test.Batch where
 
 import DA.Map qualified as M (fromList)
-import DA.Set qualified as S (fromList, singleton, toList)
+import DA.Set qualified as S (fromList, singleton)
 import Daml.Finance.Holding.Factory qualified as Holding (Factory(..))
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Cancel(..), Settle(..))
 import Daml.Finance.Interface.Settlement.Factory qualified as Settlement (F, Instruct(..))
@@ -54,7 +54,7 @@ data TestParties = TestParties
 -- |     Bank       |                       |
 -- +----------------+-----------------------+
 run: Bool -> Bool -> Script ()
-run settleCashOnledger bankIsRequesting = script do
+run settleCashOnledger bankIsInstructor = script do
   -- Create parties
   TestParties{..} <- setupParties
   let pp = [("PublicParty", S.singleton publicParty)]
@@ -107,20 +107,27 @@ run settleCashOnledger bankIsRequesting = script do
 
   -- Instruct settlement
   let
-    requestors = S.fromList $ if bankIsRequesting then [bank] else [buyer, seller]
+    instructor = if bankIsInstructor then bank else buyer
+    consenters = if bankIsInstructor then [] else [seller]
     settlers = S.fromList [buyer, seller]
-    instructCmd = submitMulti (S.toList requestors) [publicParty] do
+    instructCmd = submitMulti (instructor :: consenters) [publicParty] do
       exerciseCmd settlementFactoryCid Settlement.Instruct with
-        instructors = requestors; settlers; id = Id "APPL 1000@200.0USD"; description = "DVP"
-        contextId = None; routedSteps; settlementTime = None
+        instructor
+        consenters = S.fromList consenters
+        settlers
+        id = Id "APPL 1000@200.0USD"
+        description = "DVP"
+        contextId = None
+        routedSteps
+        settlementTime = None
 
   -- Create batch and instructions, and then cancel
   (batchCid, _) <- instructCmd
   -- seller can't cancel batch
   submitMustFail seller do exerciseCmd batchCid Batch.Cancel with actors = S.singleton seller
-  -- requestors can cancel batch
-  submitMulti (S.toList requestors) [] do
-    exerciseCmd batchCid Batch.Cancel with actors = requestors
+  -- instructor and consenters can cancel batch
+  submitMulti (instructor :: consenters) [] do
+    exerciseCmd batchCid Batch.Cancel with actors = S.fromList $ instructor :: consenters
 
   -- Create batch and instructions
   (batchCid, [equityInstructionCid, cashInstructionCid]) <- instructCmd
@@ -164,7 +171,7 @@ run settleCashOnledger bankIsRequesting = script do
   submitMustFail buyer do
     exerciseCmd cashInstructionCid Instruction.Execute with actors = S.singleton buyer
   -- the bank can't settle the batch
-  if bankIsRequesting then
+  if bankIsInstructor then
     submitMustFail bank do
       exerciseCmd batchCid Batch.Settle with actors = S.singleton bank
   else
@@ -181,18 +188,18 @@ run settleCashOnledger bankIsRequesting = script do
   pure ()
 
 -- Settle cash on-ledger
--- with bank as requestor
+-- with bank as instructor
 run1 : Script ()
 run1 = run True True
--- with buyer and seller as requestors
+-- with buyer as instructor (and seller as consenter)
 run2 : Script ()
 run2 = run True False
 
 -- Settle cash off-ledger
--- with bank as requestor
+-- with bank as instructor
 run3 : Script ()
 run3 = run False True
--- with buyer and seller as requestors
+-- with buyer as instructor (and seller as consenter)
 run4 : Script ()
 run4 = run False False
 

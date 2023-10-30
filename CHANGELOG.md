@@ -299,12 +299,19 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Dependencies update
 
+- The `requestors : Parties` was split up into a single-maintainer for the key `instructor : Party`
+  and additional signatories `consenters : Parties`. The `Batch` and `Instruction` views were
+  amended accordingly.
+
 ### Daml.Finance.Interface.Types.Common
 
 - Added a `HoldingFactoryKey` data type which is used to key holding factories.
 
 - Added an enumeration data type `HoldingStandard` for referring to various holding standards. It
   is newly part of the `InstrumentKey`.
+
+- The `requestors : Parties` field of the `InstrumentKey` was replaced by `instructor : Party` (in
+  order to get a single-maintainer of the `Instruction` key).
 
 ### Daml.Finance.Interface.Types.Date
 
@@ -330,6 +337,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Replaced `lookupByKey` by an `exerciseByKey` in the `Distribution` and `Replacement` rule.
 
+- Replaced `providers : Parties` with `provider : Party` in the `Claim` rule (i.e., in the implementation only).
+
 ### Daml.Finance.Settlement
 
 - Dependencies update
@@ -338,6 +347,10 @@ This document tracks pending changes to packages. It is facilitating the write-u
   need identical `templateTypeRep`. Instead, they should share the same token standard
   (implementation variations are allowed). We rely on code vetting that the holding factories are
   implemented properly.
+
+- The `requestors : Parties` was split up into a single-maintainer for the key `instructor : Party`
+  and additional signatories `consenters : Parties`. The `Batch` and `Instruction` templates were
+  amended accordingly.
 
 ### Daml.Finance.Util
 
