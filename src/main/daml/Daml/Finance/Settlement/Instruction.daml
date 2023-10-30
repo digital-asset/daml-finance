@@ -4,7 +4,7 @@
 module Daml.Finance.Settlement.Instruction where
 
 import DA.List qualified as L (head)
-import DA.Set qualified as S (Set, empty, fromList, intersection, isSubsetOf, null, singleton, toList, union)
+import DA.Set qualified as S (Set, empty, fromList, insert, intersection, isSubsetOf, null, singleton, toList, union)
 import Daml.Finance.Interface.Account.Account qualified as Account (Credit(..), Debit(..), I, R, disclose, exerciseInterfaceByKey, undisclose)
 import Daml.Finance.Interface.Account.Util (getAccount)
 import Daml.Finance.Interface.Holding.Holding qualified as Holding (I)
@@ -26,8 +26,10 @@ type T = Instruction
 -- - the receiver must define the receiving account
 template Instruction
   with
-    requestors : Parties
-      -- ^ Parties requesting the settlement.
+    instructor : Party
+      -- ^ Party instructing settlement (and the creation of the `Instruction`).
+    consenters : Parties
+      -- ^ Parties consenting with the creation of the `Instruction`.
     settlers : Parties
       -- ^ Any of the parties can trigger the settlement.
     batchId : Id
@@ -49,11 +51,11 @@ template Instruction
     observers : PartiesMap
       -- ^ Observers.
   where
-    signatory requestors, signedSenders, signedReceivers
+    signatory instructor, consenters, signedSenders, signedReceivers
     observer routedStep.sender, routedStep.receiver, settlers, Disclosure.flattenObservers observers
 
-    key instructionKey this : InstructionKey
-    maintainer key.requestors
+    key InstructionKey with instructor; batchId; id : InstructionKey
+    maintainer key.instructor
 
     interface instance Disclosure.I for Instruction where
       view = Disclosure.View with
@@ -64,8 +66,8 @@ template Instruction
 
     interface instance Instruction.I for Instruction where
       view = Instruction.View with
-        requestors; settlers; batchId; id; routedStep; settlementTime; signedSenders
-        signedReceivers; allocation; approval
+        instructor; consenters; settlers; batchId; id; routedStep; settlementTime
+        allocation; approval; signedSenders; signedReceivers
       allocate Instruction.Allocate{actors; allocation} = do
         let
           allMustAuthorize = mustAuthorizeHelper True actors
@@ -92,7 +94,7 @@ template Instruction
             holdingCid <- fromInterfaceContractId @Holding.I <$>
               exercise (toInterfaceContractId @Lockable.I holdingCid)
                 Lockable.Acquire with
-                  newLockers = requestors <> senderAccount.controllers.outgoing
+                  newLockers = S.singleton instructor <> senderAccount.controllers.outgoing
                   context = context this
                   lockType = Lockable.Semaphore
             pure $ Pledge holdingCid
@@ -106,7 +108,7 @@ template Instruction
             mustBe this Sender passThroughAccount.owner
             fromInstruction <- snd <$> fetchByKey @Instruction fromInstructionKey
             assertMsg ("Pass-through-from instruction must be part of the batch. " <> context this)
-              $ fromInstruction.batchId == batchId && fromInstruction.requestors == requestors
+              $ fromInstruction.batchId == batchId && fromInstruction.instructor == instructor
             mustBe this Custodian fromInstruction.routedStep.custodian
             mustBe this Sender fromInstruction.routedStep.receiver
             pure allocation
@@ -148,7 +150,7 @@ template Instruction
             mustBe this Receiver passThroughAccount.owner
             toInstruction <- snd <$> fetchByKey @Instruction toInstructionKey
             assertMsg ("Pass-through-to instruction must be part of the batch. " <> context this) $
-              toInstruction.batchId == batchId && toInstruction.requestors == requestors
+              toInstruction.batchId == batchId && toInstruction.instructor == instructor
             mustBe this Custodian toInstruction.routedStep.custodian
             mustBe this Receiver toInstruction.routedStep.sender
           DebitSender -> do
@@ -162,7 +164,7 @@ template Instruction
           signedReceivers = if approval == Unapproved then S.empty else actors
       execute Instruction.Execute{actors} = do
         let allMustAuthorize = mustAuthorizeHelper True actors
-        allMustAuthorize requestors
+        allMustAuthorize $ S.insert instructor consenters
         assertMsg ("Actors must intersect with settlers. " <> context this) $
           not $ S.null $ actors `S.intersection` settlers
         let
@@ -247,17 +249,13 @@ template Instruction
               _ -> abortOnOffledgerMix
       cancel Instruction.Cancel{actors} = do
         let allMustAuthorize = mustAuthorizeHelper True actors
-        allMustAuthorize requestors
+        allMustAuthorize $ S.insert instructor consenters
         releasePreviousApproval this actors
         releasePreviousAllocation this actors
 
 -- | HIDE
-instructionKey : Instruction -> InstructionKey
-instructionKey Instruction {requestors; batchId; id} = InstructionKey with requestors; batchId; id
-
--- | HIDE
 context : Instruction -> Text
-context = show . instructionKey
+context = show . key
 
 -- | HIDE
 mustBe : Instruction -> Role -> Party -> Update ()

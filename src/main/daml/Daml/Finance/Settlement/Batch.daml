@@ -7,7 +7,7 @@ import DA.Action (foldlA)
 import DA.Map qualified as M (fromList, lookup)
 import DA.Optional (catOptionals, fromSomeNote)
 import DA.Set (Set)
-import DA.Set qualified as S (empty, insert, intersection, member, null, union)
+import DA.Set qualified as S (empty, insert, intersection, member, null, singleton)
 import DA.Traversable qualified as T
 import Daml.Finance.Interface.Holding.Util (undisclose)
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Cancel(..), I, Settle(..), View(..))
@@ -22,8 +22,10 @@ type T = Batch
 -- | Allows you to atomically settle a set of settlement `Step`.
 template Batch
   with
-    requestors : Parties
-      -- ^ Parties requesting the settlement.
+    instructor : Party
+      -- ^ Party instructing settlement (and the creation of the `Batch`).
+    consenters : Parties
+      -- ^ Parties consenting with the creation of the `Batch`.
     settlers : Parties
       -- ^ Any of the parties can trigger the settlement.
     id : Id
@@ -37,12 +39,12 @@ template Batch
     settlementTime : Optional Time
       -- ^ Settlement time (if any).
   where
-    signatory requestors
+    signatory instructor, consenters
     observer settlers
 
     interface instance Batch.I for Batch where
       view = Batch.View with
-        requestors; settlers; id; description; contextId
+        instructor; consenters; settlers; id; description; contextId
         routedSteps = routedSteps this.routedStepsWithInstructionId; settlementTime
       settle Batch.Settle{actors} = do
         assertMsg "Actors must intersect with settlers." $
@@ -59,7 +61,7 @@ template Batch
             -- execute instruction and get used holding standards for the instrument
             (instructionCid, instruction) <- fetchByKey @Instruction instructionKey
             settledCid <- exercise (toInterfaceContractId @Instruction.I instructionCid)
-              Instruction.Execute with actors = actors `S.union` requestors
+              Instruction.Execute with actors = actors <> S.singleton instructor <> consenters
             join <$> T.mapA (undisclose (context, settlers) actors) settledCid
         -- execute instructions
         orderedSettledCids <- mapA settleInstruction orderedInstructions
@@ -78,7 +80,7 @@ template Batch
             instructionCid <- fst <$> fetchByKey @Instruction instruction
             exercise (toInterfaceContractId @Instruction.I instructionCid)
               Instruction.Cancel with actors
-        allMustAuthorize requestors
+        allMustAuthorize $ S.singleton instructor <> consenters
         -- cancel instructions
         catOptionals <$> mapA (cancelInstruction . buildKey this . snd) routedStepsWithInstructionId
 
@@ -92,8 +94,8 @@ instructionIds = fmap snd
 
 -- | HIDE
 buildKey : Batch -> Id -> InstructionKey
-buildKey Batch {requestors; id} instructionId =
-  InstructionKey with requestors; batchId = id; id = instructionId
+buildKey Batch {instructor; id} instructionId =
+  InstructionKey with instructor; batchId = id; id = instructionId
 
 -- | HIDE
 -- Partially order instructions, so that pass-through chains can be executed in order.
