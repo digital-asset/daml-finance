@@ -1,8 +1,8 @@
 module Scripts.FixedRateBond where
 
 import DA.Date (DayOfWeek(..), Month(..), date, toGregorian)
-import DA.Map qualified as M (empty, fromList)
-import DA.Set qualified as S (empty, fromList, singleton)
+import DA.Map qualified as Map (fromList)
+import DA.Set qualified as Set (singleton)
 import Daml.Script
 
 -- INTERFACE DEPENDENCIES --
@@ -37,9 +37,10 @@ import Daml.Finance.Lifecycle.Rule.Claim qualified as Claim (Rule(..))
 import Daml.Finance.Settlement.Factory qualified as Settlement (Factory(..))
 import Daml.Finance.Settlement.RouteProvider.SingleCustodian (SingleCustodian(..))
 
-import Scripts.Util
 import Workflow.CreateAccount qualified as CreateAccount
 import Workflow.CreditAccount qualified as CreditAccount
+
+import Scripts.Util (createHoldingFactory, createParty)
 
 -- | Helper container used to transfer state from one script to another.
 data FixedRateState = FixedRateState
@@ -74,14 +75,14 @@ runFixedRateBond = do
 
   -- Account Factory (it is used by the bank to create accounts)
   accountFactoryCid <- toInterfaceContractId @Account.F <$> submit bank do
-    createCmd Account.Factory with provider = bank; observers = M.empty
+    createCmd Account.Factory with provider = bank; observers = mempty
 
   -- Holding Factory (it is used by the bank to create holdings with the desired implementation)
   holdingFactory <- createHoldingFactory
     Holding.Factory with
       provider = bank
       id = Id "Holding Factory"
-      observers = M.fromList [("Settlers", S.singleton bob)]
+      observers = Map.fromList [("Settlers", Set.singleton bob)]
 
   -- Bob sets up account @Bank
   bobRequestCid <- submit bob do createCmd CreateAccount.Request with owner = bob; custodian = bank
@@ -97,14 +98,14 @@ runFixedRateBond = do
   -- This is used transform settlement `Step`s into a `RoutedStep`s using a single custodian
   routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit bank do
     createCmd SingleCustodian with
-      provider = bank; observers = S.singleton bob; custodian = bank
+      provider = bank; observers = Set.singleton bob; custodian = bank
 
   -- Setup a Settlement Factory facility
   -- This is used to generate settlement instructions from a list of `RoutedStep`s
   settlementFactoryCid <- toInterfaceContractId @Settlement.F <$> submit bank do
     createCmd Settlement.Factory with
       provider = bank
-      observers = S.singleton bob
+      observers = Set.singleton bob
 
   -- Bank creates the cash instrument
   let
@@ -126,10 +127,10 @@ runFixedRateBond = do
       version = instrumentVersion
       description = "Instrument representing units of USD"
       validAsOf = now
-      observers = M.empty
+      observers = mempty
       holdingStandard = TransferableFungible
 
-  let pp = [("Public Party", S.singleton public)]
+  let pp = [("Public Party", Set.singleton public)]
 
   -- Create and distribute bond
   -- CREATE_FIXED_RATE_BOND_VARIABLES_BEGIN
@@ -159,7 +160,7 @@ runFixedRateBond = do
     createCmd HolidayCalendar with
       provider = bank
       calendar
-      observers = M.fromList pp
+      observers = Map.fromList pp
   -- CREATE_FIXED_RATE_BOND_CALENDARS_END
 
   -- CREATE_PERIODIC_SCHEDULE_BEGIN
@@ -190,7 +191,7 @@ runFixedRateBond = do
   fixedRateBondFactoryCid <- toInterfaceContractId @FixedRate.F <$> submit bank do
     createCmd FixedRate.Factory with
       provider = bank
-      observers = M.empty
+      observers = mempty
 
   -- Define an instrument key for the bond
   let
@@ -216,7 +217,7 @@ runFixedRateBond = do
         currency = usdInstrument
         notional
         lastEventTimestamp = initialTimestamp
-      observers = M.fromList pp
+      observers = Map.fromList pp
   -- CREATE_FIXED_RATE_BOND_INSTRUMENT_END
 
   -- CREATE_FIXED_RATE_BOND_HOLDING_BEGIN
@@ -233,8 +234,8 @@ runFixedRateBond = do
   -- Create a lifecycle rule
   lifecycleRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit bank do
     createCmd Rule with
-      providers = S.singleton bank
-      observers = M.empty
+      providers = Set.singleton bank
+      observers = mempty
       lifecycler = bank
       id = Id "LifecycleRule"
       description = "Rule to lifecycle an instrument"
@@ -242,7 +243,7 @@ runFixedRateBond = do
 
   -- CREATE_CLOCK_UPDATE_EVENT_BEGIN
   -- Create a clock update event
-  firstCouponClockEventCid <- createClockUpdateEvent bank firstCouponDate S.empty
+  firstCouponClockEventCid <- createClockUpdateEvent bank firstCouponDate mempty
   -- CREATE_CLOCK_UPDATE_EVENT_END
 
   -- LIFECYCLE_BOND_BEGIN
@@ -258,9 +259,9 @@ runFixedRateBond = do
   -- Create the claim rule
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit bank do
     createCmd Claim.Rule with
-      providers = S.singleton bank
-      claimers = S.singleton bob
-      settlers = S.singleton bob
+      provider = bank
+      claimers = Set.singleton bob
+      settlers = Set.singleton bob
       routeProviderCid
       settlementFactoryCid
       netInstructions = False
@@ -281,38 +282,38 @@ runFixedRateBond = do
   -- Allocate instruction
   (bobInstructionCid, _) <- submit bob do
     exerciseCmd bobInstructionCid Instruction.Allocate with
-      actors = S.singleton bob
+      actors = Set.singleton bob
       allocation = Pledge bobBondHoldingCid
 
   (bankInstructionCid, _) <- submit bank do
     exerciseCmd bankInstructionCid Instruction.Allocate with
-      actors = S.singleton bank
+      actors = Set.singleton bank
       allocation = CreditReceiver
 
   (couponInstructionCid, _) <- submit bank do
     exerciseCmd couponInstructionCid Instruction.Allocate with
-      actors = S.singleton bank
+      actors = Set.singleton bank
       allocation = CreditReceiver
 
   -- Approve instruction
   bobInstructionCid <- submit bank do
     exerciseCmd bobInstructionCid Instruction.Approve with
-      actors = S.singleton bank
+      actors = Set.singleton bank
       approval = DebitSender
 
   bankInstructionCid <- submit bob do
     exerciseCmd bankInstructionCid Instruction.Approve with
-      actors = S.singleton bob
+      actors = Set.singleton bob
       approval = TakeDelivery bobAccount
 
   couponInstructionCid <- submit bob do
     exerciseCmd couponInstructionCid Instruction.Approve with
-      actors = S.singleton bob
+      actors = Set.singleton bob
       approval = TakeDelivery bobAccount
 
   -- Settle batch
   submitMulti [bob] [public] do
-    exerciseCmd result.batchCid Batch.Settle with actors = S.singleton bob
+    exerciseCmd result.batchCid Batch.Settle with actors = Set.singleton bob
   -- EFFECT_SETTLEMENT_END
 
   pure FixedRateState with
@@ -339,6 +340,6 @@ createClockUpdateEvent provider today observers = do
     id = Id description
   eventCid <- toInterfaceContractId <$> submit provider do
     createCmd DataTime.DateClockUpdateEvent with
-      providers = (S.singleton provider); id; description; date = today; observers
+      providers = (Set.singleton provider); id; description; date = today; observers
       eventTime = dateToDateClockTime today
   pure eventCid

@@ -32,7 +32,7 @@ within this repository.
   In case of no name clashes, use unqualified imports:
 
   ```haskell
-  import DA.Set (empty, fromList, singleton)
+  import DA.Set (fromList, singleton)
   ```
 
   and otherwise qualified imports:
