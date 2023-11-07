@@ -3,8 +3,8 @@
 
 module Daml.Finance.Instrument.Equity.Test.Merger where
 
-import DA.Map qualified as M (fromList)
-import DA.Set qualified as S (fromList, singleton)
+import DA.Map qualified as Map (fromList)
+import DA.Set qualified as Set (fromList, singleton)
 import Daml.Finance.Holding.Factory qualified as Holding (Factory(..))
 import Daml.Finance.Instrument.Equity.Test.Util (originateEquity)
 import Daml.Finance.Interface.Instrument.Equity.Instrument qualified as Equity (DeclareReplacement(..), I)
@@ -33,14 +33,15 @@ run = script do
   -- Create parties
   [merging, merged, custodian, investor, publicParty] <-
     createParties ["MergingIssuer", "MergedIssuer", "Custodian", "Investor", "PublicParty"]
-  let pp = [("PublicParty", S.singleton publicParty)]
+  let pp = [("PublicParty", Set.singleton publicParty)]
 
   -- Account factory
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory custodian pp
 
   -- Create holding factory
   holdingFactory <- createHoldingFactory
-    Holding.Factory with provider = custodian; id = Id "Holding Factory"; observers = M.fromList pp
+    Holding.Factory with
+      provider = custodian; id = Id "Holding Factory"; observers = Map.fromList pp
 
   -- Create accounts
   investorSecuritiesAccount <- Account.createAccount "Securities Account" [] accountFactoryCid
@@ -50,9 +51,9 @@ run = script do
   -- Create lifecycle rules
   replacementRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit merging do
     createCmd Replacement.Rule with
-      providers = S.singleton merging
+      providers = Set.singleton merging
       lifecycler = merging
-      observers = S.singleton publicParty
+      observers = Set.singleton publicParty
       id = Id "LifecycleRule"
       description = "Rule to lifecycle an instrument following a replacement event"
   -- CREATE_EQUITY_REPLACEMENT_RULE_END
@@ -94,14 +95,14 @@ run = script do
   -- Claim effect
   routeProviderCid <- toInterfaceContractId <$> submit custodian do
     createCmd SingleCustodian with
-      provider = custodian; observers = S.singleton publicParty; custodian
+      provider = custodian; observers = Set.singleton publicParty; custodian
   settlementFactoryCid <- toInterfaceContractId <$> submit custodian do
-    createCmd Factory with provider = custodian; observers = S.singleton publicParty
+    createCmd Factory with provider = custodian; observers = Set.singleton publicParty
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit custodian do
     createCmd Claim.Rule with
       provider = custodian
-      claimers = S.fromList [custodian, investor]
-      settlers = S.fromList [custodian, investor]
+      claimers = Set.fromList [custodian, investor]
+      settlers = Set.fromList [custodian, investor]
       routeProviderCid
       settlementFactoryCid
       netInstructions = False
@@ -117,23 +118,23 @@ run = script do
   let [consumeInstructionCid, produceInstructionCid] = result.instructionCids
   (consumeInstructionCid, _) <- submit investor do
     exerciseCmd consumeInstructionCid Instruction.Allocate with
-      actors = S.singleton investor
+      actors = Set.singleton investor
       allocation = Pledge $ fromInterfaceContractId investorEquityCid
   (produceInstructionCid, _) <- submit custodian do
     exerciseCmd produceInstructionCid Instruction.Allocate with
-      actors = S.singleton custodian; allocation = CreditReceiver
+      actors = Set.singleton custodian; allocation = CreditReceiver
 
   -- Approve instructions
   consumeInstructionCid <- submit custodian do
     exerciseCmd consumeInstructionCid Instruction.Approve with
-      actors = S.singleton custodian; approval = DebitSender
+      actors = Set.singleton custodian; approval = DebitSender
   produceInstructionCid <- submit investor do
     exerciseCmd produceInstructionCid Instruction.Approve with
-      actors = S.singleton investor; approval = TakeDelivery investorSecuritiesAccount
+      actors = Set.singleton investor; approval = TakeDelivery investorSecuritiesAccount
 
   -- Settle batch
   [investorEquityCid] <- submit custodian do
-    exerciseCmd result.batchCid Batch.Settle with actors = S.singleton custodian
+    exerciseCmd result.batchCid Batch.Settle with actors = Set.singleton custodian
 
   -- Assert state
   Holding.verifyOwnerOfHolding [(investor, investorEquityCid)]

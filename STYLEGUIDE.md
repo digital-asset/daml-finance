@@ -38,8 +38,8 @@ within this repository.
   and otherwise qualified imports:
 
   ```haskell
-  import DA.Map qualified as M (fromList)
-  import DA.Set qualified as S (fromList, null)
+  import DA.Map qualified as Map (fromList)
+  import DA.Set qualified as Set (fromList, null)
   ```
 
 ### Exports

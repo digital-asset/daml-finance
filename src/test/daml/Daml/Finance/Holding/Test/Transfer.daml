@@ -5,8 +5,8 @@ module Daml.Finance.Holding.Test.Transfer where
 
 import DA.Action (foldlA)
 import DA.Assert ((===))
-import DA.Map qualified as M (fromList)
-import DA.Set qualified as S (fromList, singleton, toList)
+import DA.Map qualified as Map (fromList)
+import DA.Set qualified as Set (fromList, singleton, toList)
 import Daml.Finance.Holding.Factory qualified as Holding (Factory(..))
 import Daml.Finance.Holding.Test.Common (TestInitialState(..), TestParties(..), setupInitialState, setupParties)
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
@@ -22,7 +22,7 @@ testTransfer useReentrantLockTransferService = script do
   tp@TestParties{custodian; issuer; investor; locker; publicParty} <- setupParties
 
   -- Initialize state
-  let pp = M.fromList [("PublicParty", S.singleton publicParty)]
+  let pp = Map.fromList [("PublicParty", Set.singleton publicParty)]
   TestInitialState {issuerAccount; issuerHoldingCid; investorAccount} <- setupInitialState
     tp
     Holding.Factory with provider = custodian; id = Id "Holding Factory"; observers = pp
@@ -33,10 +33,10 @@ testTransfer useReentrantLockTransferService = script do
   -- Lock asset (with 2 contexts)
   lockableCid <- submitMulti [issuer, locker] [] do
     exerciseCmd (toInterfaceContractId @Lockable.I issuerHoldingCid) Lockable.Acquire with
-      newLockers = S.singleton locker; context = "C1"; lockType = Lockable.Reentrant
+      newLockers = Set.singleton locker; context = "C1"; lockType = Lockable.Reentrant
   lockableCid <- submitMulti [issuer, locker] [] do
     exerciseCmd lockableCid Lockable.Acquire with
-      newLockers = S.singleton locker; context = "C2"; lockType = Lockable.Reentrant
+      newLockers = Set.singleton locker; context = "C2"; lockType = Lockable.Reentrant
 
   lockableCid <- if useReentrantLockTransferService then
     do
@@ -60,7 +60,7 @@ testTransfer useReentrantLockTransferService = script do
       -- Transfer
       submitMultiMustFail [issuer, investor, locker] [publicParty] do
         exerciseCmd (fromInterfaceContractId @Transferable.I lockableCid) Transferable.Transfer with
-          actors = S.fromList [issuer, investor, locker]; newOwnerAccount = investorAccount
+          actors = Set.fromList [issuer, investor, locker]; newOwnerAccount = investorAccount
 
       -- Unlock
       lockableCid <- submit locker do
@@ -73,21 +73,21 @@ testTransfer useReentrantLockTransferService = script do
       -- Transfer
       newTransferableCid <- submitMulti [issuer, investor] [publicParty] do
         exerciseCmd (fromInterfaceContractId @Transferable.I lockableCid) Transferable.Transfer with
-          actors = S.fromList [issuer, investor]; newOwnerAccount = investorAccount
+          actors = Set.fromList [issuer, investor]; newOwnerAccount = investorAccount
 
       -- Lock asset (using same contexts)
       lockableCid <- submitMulti [investor, locker] [] do
         exerciseCmd (toInterfaceContractId @Lockable.I newTransferableCid) Lockable.Acquire with
-          newLockers = S.singleton locker; context = "C1"; lockType = Lockable.Reentrant
+          newLockers = Set.singleton locker; context = "C1"; lockType = Lockable.Reentrant
       submitMulti [investor, locker] [] do
         exerciseCmd lockableCid Lockable.Acquire with
-          newLockers = S.singleton locker; context = "C2"; lockType = Lockable.Reentrant
+          newLockers = Set.singleton locker; context = "C2"; lockType = Lockable.Reentrant
 
   -- Verify lock is maintained
   Some lock <- (.lock) <$> submit locker do
     exerciseCmd lockableCid Lockable.GetView with viewer = locker
-  lock.lockers === S.singleton locker
-  lock.context === S.fromList ["C1", "C2"]
+  lock.lockers === Set.singleton locker
+  lock.context === Set.fromList ["C1", "C2"]
   lock.lockType === Lockable.Reentrant
 
   pure ()
@@ -115,14 +115,15 @@ template ReentrantLockTransferService
         let
           releaseAll cid lock =
             foldlA (\acc context -> exercise acc Lockable.Release with context) cid
-              (S.toList lock.context)
+              (Set.toList lock.context)
         transferableCid <- fromInterfaceContractId @Transferable.I <$>
           optional (pure lockableCid) (releaseAll lockableCid) vLockable.lock
         -- Transfer
         newLockableCid <- toInterfaceContractId @Lockable.I <$>
           exercise transferableCid
             Transferable.Transfer with
-              actors = S.fromList [sender, receiverAccount.owner]; newOwnerAccount = receiverAccount
+              actors = Set.fromList [sender, receiverAccount.owner]
+              newOwnerAccount = receiverAccount
         -- Reapply locks
         let
           reapplyLocks cid lock =
@@ -130,7 +131,7 @@ template ReentrantLockTransferService
               (\acc context -> exercise acc Lockable.Acquire with
                   newLockers = lock.lockers; context; lockType = lock.lockType
               )
-              cid (S.toList lock.context)
+              cid (Set.toList lock.context)
         fromInterfaceContractId @Transferable.I <$>
           optional (pure newLockableCid) (reapplyLocks newLockableCid) vLockable.lock
 
