@@ -7,8 +7,8 @@ import ContingentClaims.Core.Claim (Inequality(..), at, cond, one, scale, when)
 import ContingentClaims.Core.Observation (Observation(..))
 import DA.Assert ((===))
 import DA.Date (Month(..), date)
-import DA.Map qualified as M (empty, fromList)
-import DA.Set qualified as S (empty, singleton, toList)
+import DA.Map qualified as Map (fromList)
+import DA.Set qualified as Set (singleton, toList)
 import DA.Time (time)
 import Daml.Finance.Data.Numeric.Observation (Observation(..))
 import Daml.Finance.Data.Time.DateClock (dateToDateClockTime)
@@ -70,14 +70,14 @@ data TestParties = TestParties
 run : Script ()
 run = script do
   TestParties{..} <- setupParties
-  let pp = [("PublicParty", S.singleton publicParty)]
+  let pp = [("PublicParty", Set.singleton publicParty)]
 
   -- Create account factory
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank pp
 
   -- Create holding factory
   holdingFactory <- createHoldingFactory
-    Holding.Factory with provider = bank; id = Id "Holding Factory"; observers = M.fromList pp
+    Holding.Factory with provider = bank; id = Id "Holding Factory"; observers = Map.fromList pp
 
   -- Create accounts
   investorAccount <- Account.createAccount "Default Account" [] accountFactoryCid holdingFactory
@@ -109,25 +109,25 @@ run = script do
              $ cond autoExerciseCondition exercised notExercised
 
   genericInstrument <- originateGeneric bank broker "RC-EURGBP" TransferableFungible
-    "Reverse Convertible" now claims [("PublicParty", S.singleton publicParty)] now
+    "Reverse Convertible" now claims [("PublicParty", Set.singleton publicParty)] now
   investorGenericHoldingCid <- Account.credit [publicParty] genericInstrument 1_000.0
     investorAccount
 
   -- create clock update event
-  clockEventCid <- createClockUpdateEvent (S.singleton broker) maturity S.empty
+  clockEventCid <- createClockUpdateEvent (Set.singleton broker) maturity mempty
 
   -- Create observable
-  let observations = M.fromList [(dateToDateClockTime expiry, 0.91)]
+  let observations = Map.fromList [(dateToDateClockTime expiry, 0.91)]
   observableCid <- toInterfaceContractId <$> submit broker do
     createCmd Observation with
-      provider = broker; id = Id fxObservable; observations; observers = M.empty
+      provider = broker; id = Id fxObservable; observations; observers = mempty
 
   -- Create lifecycle rule
   lifecycleRuleCid <- toInterfaceContractId @Lifecycle.I <$>
     submit bank do
       createCmd Lifecycle.Rule with
-        providers = S.singleton bank
-        observers= M.empty
+        providers = Set.singleton bank
+        observers = mempty
         lifecycler = broker
         id = Id "LifecycleRule"
         description = "Rule to lifecycle a generic instrument"
@@ -143,18 +143,18 @@ run = script do
   routeProviderCid <- toInterfaceContractId <$>
     submit investor do
       createCmd SingleCustodian with
-        provider = investor; observers = S.empty; custodian = bank
+        provider = investor; observers = mempty; custodian = bank
 
   -- Create settlement factory
   settlementFactoryCid <- toInterfaceContractId <$>
-    submit investor do createCmd Factory with provider = investor; observers = S.empty
+    submit investor do createCmd Factory with provider = investor; observers = mempty
 
   -- Create claim rule
   lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$>
     submitMulti [bank, investor] [] do
       createCmd Rule with
         provider = bank
-        claimers = S.singleton investor
+        claimers = Set.singleton investor
         settlers
         routeProviderCid
         settlementFactoryCid
@@ -173,24 +173,24 @@ run = script do
   -- Allocate instructions
   (investorInstrumentInstructionCid, _) <- submit investor do
     exerciseCmd investorInstrumentInstructionCid Instruction.Allocate with
-      actors = S.singleton investor; allocation = Pledge investorGenericHoldingCid
+      actors = Set.singleton investor; allocation = Pledge investorGenericHoldingCid
   (bankEquityInstructionCid, _) <- submit bank do
     exerciseCmd bankEquityInstructionCid Instruction.Allocate with
-      actors = S.singleton bank; allocation = CreditReceiver
+      actors = Set.singleton bank; allocation = CreditReceiver
 
   -- Approve instructions
   investorInstrumentInstructionCid <- submit bank do
     exerciseCmd investorInstrumentInstructionCid Instruction.Approve with
-      actors = S.singleton bank; approval = DebitSender
+      actors = Set.singleton bank; approval = DebitSender
   bankEquityInstructionCid <- submit investor do
     exerciseCmd bankEquityInstructionCid Instruction.Approve with
-      actors = S.singleton investor; approval = TakeDelivery investorAccount
+      actors = Set.singleton investor; approval = TakeDelivery investorAccount
 
   -- Set time
   setTime $ time maturity 0 0 0
 
   -- Settle batch
-  [investorCashHoldingCid] <- submitMulti (S.toList settlers) [publicParty] do
+  [investorCashHoldingCid] <- submitMulti (Set.toList settlers) [publicParty] do
     exerciseCmd result.batchCid Batch.Settle with actors = settlers
 
   -- Verify result
@@ -207,5 +207,5 @@ setupParties = do
   [bank, broker, centralBankEU, centralBankUK, investor, settler, publicParty] <- createParties
     ["Bank", "Broker", "EU Central Bank", "UK Central Bank", "Investor", "Settler", "PublicParty"]
   pure TestParties with
-    bank; broker; centralBankEU; centralBankUK; investor; settlers = S.singleton settler
+    bank; broker; centralBankEU; centralBankUK; investor; settlers = Set.singleton settler
     publicParty

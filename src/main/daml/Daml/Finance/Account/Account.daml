@@ -3,8 +3,7 @@
 
 module Daml.Finance.Account.Account where
 
-import DA.Map qualified as M (empty)
-import DA.Set qualified as S (fromList, null, singleton)
+import DA.Set qualified as Set (fromList, null, singleton)
 import Daml.Finance.Interface.Account.Account qualified as Account (Controllers(..), Credit(..), Debit(..), I, View(..), accountKey, createReference, disclosureUpdateReference)
 import Daml.Finance.Interface.Account.Factory qualified as AccountFactory (Create(..), I, View(..))
 import Daml.Finance.Interface.Holding.Factory qualified as HoldingFactory (Create(..), I, exerciseInterfaceByKey)
@@ -41,7 +40,7 @@ template Account
     observer Disclosure.flattenObservers observers
 
     -- Outgoing controllers must be non-empty.
-    ensure isValidLock lock && (not . S.null $ controllers.outgoing)
+    ensure isValidLock lock && (not . Set.null $ controllers.outgoing)
 
     interface instance Account.I for Account where
       view = Account.View with custodian; id; owner; description; controllers
@@ -55,7 +54,7 @@ template Account
             instrument = quantity.unit
             account = Account.accountKey this
             amount = quantity.amount
-            observers = M.empty
+            observers = mempty
       debit Account.Debit{holdingCid} = do
         Lockable.mustNotBeLocked this
         holding <- fetch holdingCid
@@ -63,14 +62,14 @@ template Account
         archive holdingCid
 
     interface instance Lockable.I for Account where
-      view = Lockable.View with lock; controllers = S.singleton custodian
+      view = Lockable.View with lock; controllers = Set.singleton custodian
       acquire lockable@Lockable.Acquire{newLockers; context; lockType} = do
         newLockableCid <- toInterfaceContractId @Disclosure.I <$>
           acquireImpl this.lock (\lock -> this with lock) lockable
         -- adding lockers as observers to Account.R
         fromInterfaceContractId @Lockable.I <$>
           exercise newLockableCid Disclosure.AddObservers with
-            disclosers = S.fromList $ signatory this
+            disclosers = Set.fromList $ signatory this
             observersToAdd = (context, newLockers)
       release lockable@Lockable.Release{context} = do
         newLockableCid <- releaseImpl this.lock (\lock -> this with lock) lockable
@@ -78,11 +77,11 @@ template Account
         optional newLockableCid fromInterfaceContractId <$>
           exercise (toInterfaceContractId @Disclosure.I newLockableCid)
             Disclosure.RemoveObservers with
-              disclosers = S.fromList $ signatory this
+              disclosers = Set.fromList $ signatory this
               observersToRemove = (context, Lockable.getLockers this)
 
     interface instance Disclosure.I for Account where
-      view = Disclosure.View with disclosureControllers = S.fromList [custodian, owner]; observers
+      view = Disclosure.View with disclosureControllers = Set.fromList [custodian, owner]; observers
       setObservers = setObserversImpl this . Some . Account.disclosureUpdateReference $
         Account.accountKey this
       addObservers = addObserversImpl this . Some . Account.disclosureUpdateReference $
@@ -112,7 +111,7 @@ template Factory
           pure cid
 
     interface instance Disclosure.I for Factory where
-      view = Disclosure.View with disclosureControllers = S.singleton provider; observers
+      view = Disclosure.View with disclosureControllers = Set.singleton provider; observers
       setObservers = setObserversImpl @Factory @Disclosure.I this None
       addObservers = addObserversImpl @Factory @Disclosure.I this None
       removeObservers = removeObserversImpl @Factory @Disclosure.I this None

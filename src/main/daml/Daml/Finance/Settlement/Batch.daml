@@ -4,10 +4,10 @@
 module Daml.Finance.Settlement.Batch where
 
 import DA.Action (foldlA)
-import DA.Map qualified as M (fromList, lookup)
+import DA.Map qualified as Map (fromList, lookup)
 import DA.Optional (catOptionals, fromSomeNote)
 import DA.Set (Set)
-import DA.Set qualified as S (empty, insert, intersection, member, null, singleton)
+import DA.Set qualified as Set (insert, intersection, member, null, singleton)
 import DA.Traversable qualified as T
 import Daml.Finance.Interface.Holding.Util (undisclose)
 import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Cancel(..), I, Settle(..), View(..))
@@ -48,7 +48,7 @@ template Batch
         routedSteps = routedSteps this.routedStepsWithInstructionId; settlementTime
       settle Batch.Settle{actors} = do
         assertMsg "Actors must intersect with settlers." $
-          not $ S.null $ actors `S.intersection` settlers
+          not $ Set.null $ actors `Set.intersection` settlers
         -- order instructions (such that they can be executed with passthroughs)
         orderedInstructions <-
           orderPassThroughChains . fmap (fmap (buildKey this)) $ routedStepsWithInstructionId
@@ -61,7 +61,7 @@ template Batch
             -- execute instruction and get used holding standards for the instrument
             (instructionCid, instruction) <- fetchByKey @Instruction instructionKey
             settledCid <- exercise (toInterfaceContractId @Instruction.I instructionCid)
-              Instruction.Execute with actors = actors <> S.singleton instructor <> consenters
+              Instruction.Execute with actors = actors <> Set.singleton instructor <> consenters
             join <$> T.mapA (undisclose (context, settlers) actors) settledCid
         -- execute instructions
         orderedSettledCids <- mapA settleInstruction orderedInstructions
@@ -70,7 +70,7 @@ template Batch
           orderedInstructionIdsAndSettleCids =
             zip ((.id) <$> orderedInstructions) orderedSettledCids
           settledCids = fromSomeNote "All keys must exist in the map." .
-            (`M.lookup` (M.fromList orderedInstructionIdsAndSettleCids)) <$>
+            (`Map.lookup` (Map.fromList orderedInstructionIdsAndSettleCids)) <$>
             instructionIds this.routedStepsWithInstructionId
         pure $ catOptionals settledCids
       cancel Batch.Cancel{actors} = do
@@ -80,7 +80,7 @@ template Batch
             instructionCid <- fst <$> fetchByKey @Instruction instruction
             exercise (toInterfaceContractId @Instruction.I instructionCid)
               Instruction.Cancel with actors
-        allMustAuthorize $ S.singleton instructor <> consenters
+        allMustAuthorize $ Set.singleton instructor <> consenters
         -- cancel instructions
         catOptionals <$> mapA (cancelInstruction . buildKey this . snd) routedStepsWithInstructionId
 
@@ -103,7 +103,7 @@ orderPassThroughChains : [(RoutedStep, InstructionKey)] -> Update [InstructionKe
 orderPassThroughChains routedStepsWithInstructions =
   reverse . fst <$> foldlA
     (\(ordered, used) (routedStep, current) ->
-      if S.member current used
+      if Set.member current used
       then
         -- instruction has already been visited, do not re-insert in list
         pure (ordered, used)
@@ -112,14 +112,14 @@ orderPassThroughChains routedStepsWithInstructions =
         assertMsg "Routed step must match." $ routedStep == currentInstruction.routedStep
         let
           ordered' = current :: ordered
-          used' = S.insert current used
+          used' = Set.insert current used
         case currentInstruction.allocation of
           -- a Pledge might be the start of a pass-through chain, try to follow the chain
           Pledge _ -> collectPassThroughChain ordered' used' currentInstruction
           -- A PassThroughFrom will be visited as part of a chain, do not insert in list
           PassThroughFrom _ -> pure (ordered, used)
           _ -> pure (ordered', used')
-    ) ([], S.empty) routedStepsWithInstructions
+    ) ([], mempty) routedStepsWithInstructions
 
 -- | HIDE
 -- Follows the pass-through chain and collects the corresponding instructions in an ordered list.
@@ -132,6 +132,6 @@ collectPassThroughChain
     case currentInstruction.approval of
       PassThroughTo (_, next) -> do
         nextInstruction <- snd <$> fetchByKey @Instruction next
-        assertMsg "Next instruction must not have been used before." . not $ S.member next used
-        collectPassThroughChain (next :: ordered) (S.insert next used) nextInstruction
+        assertMsg "Next instruction must not have been used before." . not $ Set.member next used
+        collectPassThroughChain (next :: ordered) (Set.insert next used) nextInstruction
       _ -> pure (ordered, used)
