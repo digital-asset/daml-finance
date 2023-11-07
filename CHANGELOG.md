@@ -118,6 +118,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
   holding standards.
 
+- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+
 ### Daml.Finance.Instrument.Equity
 
 - Dependencies update
@@ -125,12 +127,16 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
   holding standards.
 
+- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+
 ### Daml.Finance.Instrument.Generic
 
 - Dependencies update
 
 - Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
   holding standards.
+
+- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
 
 ### Daml.Finance.Instrument.Option
 
@@ -143,6 +149,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
   holding standards.
 
+- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+
 ### Daml.Finance.Instrument.StructuredProduct
 
 - Dependencies update
@@ -154,6 +162,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
   holding standards.
 
+- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+
 ### Daml.Finance.Instrument.Swap
 
 - Dependencies update
@@ -163,12 +173,16 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
   holding standards.
 
+- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+
 ### Daml.Finance.Instrument.Token
 
 - Dependencies update
 
 - Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
   holding standards.
+
+- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
 
 ### Daml.Finance.Interface.Account
 
@@ -181,6 +195,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Changed the `Create` choice of the account `Factory` to take a key (of type `HoldingFactoryKey`)
   rather than a `ContractId Daml.Finance.Interface.Holding.Factory`.
 
+- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+
 ### Daml.Finance.Interface.Claims
 
 - Dependencies update
@@ -191,6 +207,9 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Dependencies update
 
+- Added `I` as type synonym for each `Factory` in the package (the `F` type synonyms are to be
+  deprecated).
+
 ### Daml.Finance.Interface.Holding
 
 - Dependencies update
@@ -199,12 +218,14 @@ This document tracks pending changes to packages. It is facilitating the write-u
   `Lockable` of the `Daml.Finance.Interface.Util` package.
 
 - Updated the `Daml.Finance.Interface.Holding.Factory` to use a key, employing a `Reference`
-  template and the `HoldingFactoryKey` data type. Additionally, It also requires the `Disclosure.I` and
-  has a `getKey` method and `Remove` choice.
+  template and the `HoldingFactoryKey` data type. Additionally, It also requires the `Disclosure.I`
+  and has a `getKey` method and `Remove` choice.
 
 - Removed the requirement that a `Fungible.I` requires `Transferable.I`.
 
 - Renamed `Base` to `Holding`.
+
+- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
 
 ### Daml.Finance.Interface.Instrument.Base
 
@@ -217,6 +238,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
   holding standards.
 
+- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+
 ### Daml.Finance.Interface.Instrument.Bond
 
 - Dependencies update
@@ -228,6 +251,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
   holding standards.
 
+- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+
 ### Daml.Finance.Interface.Instrument.Equity
 
 - Dependencies update
@@ -237,6 +262,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
   holding standards.
 
+- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+
 ### Daml.Finance.Interface.Instrument.Generic
 
 - Dependencies update
@@ -245,6 +272,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
   holding standards.
+
+- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
 
 ### Daml.Finance.Interface.Instrument.Option
 
@@ -257,6 +286,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
   holding standards.
 
+- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+
 ### Daml.Finance.Interface.Instrument.StructuredProduct
 
 - First release
@@ -265,6 +296,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
   holding standards.
+
+- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
 
 ### Daml.Finance.Interface.Instrument.Swap
 
@@ -277,6 +310,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
   holding standards.
 
+- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+
 ### Daml.Finance.Interface.Instrument.Token
 
 - Dependencies update
@@ -286,6 +321,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
   holding standards.
 
+- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+
 ### Daml.Finance.Interface.Instrument.Types
 
 - New package
@@ -294,6 +331,9 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Changed the `Calculate` choice of the `Effect.I` to take a quantity as argument instead of a
   `ContractId Holding` (in order to not leak information about the holding to the effect provider).
+
+- Added `I` as type synonym for each `Factory` in the package (the `F` type synonyms are to be
+  deprecated).
 
 ### Daml.Finance.Interface.Settlement
 
