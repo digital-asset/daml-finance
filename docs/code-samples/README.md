@@ -88,4 +88,3 @@ well as `daml-head start` to ensure the Sandbox can be started successfully.
 12. Raise a PR against the `main` Daml branch and ask the daml team to approve the PR.
 
 13. If applicable, backport the PR merged in step `12` to the target release line branch.
-
