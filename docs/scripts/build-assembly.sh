@@ -36,7 +36,7 @@ cp -r ${docs_dir}/code-samples/payoff-modeling/* ${docs_dir}/.assembly/finance-p
 
 # Copy upgrades code into the assembly
 mkdir ${docs_dir}/.assembly/finance-upgrades
-cp -r ${docs_dir}/code-samples/finance-upgrades/* ${docs_dir}/.assembly/finance-upgrades
+cp -r ${docs_dir}/code-samples/upgrades/* ${docs_dir}/.assembly/finance-upgrades
 
 # Copy doc build output into assembly file structure
 mkdir -p ${docs_dir}/.assembly/reference/code-documentation
