@@ -56,10 +56,8 @@ data Setup = Setup
       -- ^ An instrument.
     cb : Party
       -- ^ The central bank (and issuer of the instrument).
-    bank1 : Party
+    bank : Party
       -- ^ A custodian for holdings.
-    bank2 : Party
-      -- ^ A second custodian for holdings.
     alice : Party
       -- ^ A client of the bank.
     aliceAccount : AccountKey
@@ -74,10 +72,8 @@ data Setup = Setup
       -- ^ A client of the bank.
     charlieAccount : AccountKey
       -- ^ Bob's account at bank.
-    requestor : Party
-      -- ^ The party who requests/instructs settlement.
-    all : [Party]
-      -- ^ A list with all the parties above.
+    instructor : Party
+      -- ^ The party who instructs transfers and settlements.
   deriving (Eq, Show)
 
 -- | This setup script does several things:
@@ -87,65 +83,69 @@ data Setup = Setup
 -- The account hierarchy is illustrated in the following figure where the accounts and holdings are
 -- represented by edges and stars (*), respectively.
 --
---             Bank1
+--             Bank
 --         */    |    \
 --     Alice  Charlie  Bob
 --
 runSetup : AccountControllers -> Script Setup
 runSetup accountControllers = do
   -- Allocate parties.
-  all@[cb, bank1, bank2, alice, bob, charlie, requestor] <-
-    mapA createParty ["CentralBank", "Bank1", "Bank2", "Alice", "Bob", "Charlie", "Requestor"]
+  [cb, bank, alice, bob, charlie, instructor] <-
+    mapA createParty ["CentralBank", "Bank", "Alice", "Bob", "Charlie", "Instructor"]
+  let clients = [alice, bob, charlie]
 
-  -- Account Factory (used to create accounts @Bank1).
-  accountFactoryCid <- toInterfaceContractId @AccountFactory.I <$> submit bank1 do
-    createCmd Account.Factory with provider = bank1; observers = mempty
+  -- Account Factory (used to create accounts @Bank).
+  accountFactoryCid <- toInterfaceContractId @AccountFactory.I <$> submit bank do
+    createCmd Account.Factory with provider = bank; observers = mempty
 
-  -- Holding Factory (used to create holdings with the desired implementation @Bank1).
+  -- Holding Factory (used to create holdings with the desired implementation @Bank).
   holdingFactory <- createHoldingFactory
     Holding.Factory with
-      provider = bank1
+      provider = bank
       id = Id "Holding Factory"
-      observers = Map.fromList [("DisclosedToAll", Set.fromList all)]
+      observers = Map.fromList
+        [ ("DiscloseToSettlers", Set.singleton instructor)
+        , ("DiscloseToClients", Set.fromList clients)
+        ]
 
-  -- Set up accounts @Bank1.
-  let controllersWithOwner = toControllers accountControllers bank1
+  -- Set up accounts @Bank.
+  let controllersWithOwner = toControllers accountControllers bank
   aliceRequestCid <- submit alice do
     createCmd CreateAccount.Request with
-      custodian = bank1
+      custodian = bank
       owner = alice
       accountControllers = controllersWithOwner alice
-  aliceAccount <- submit bank1 do
+  aliceAccount <- submit bank do
     exerciseCmd aliceRequestCid CreateAccount.Accept with
-      label = "Alice@Bank1"
-      description = "Account of Alice at Bank1"
+      label = "Alice@Bank"
+      description = "Account of Alice at Bank"
       accountFactoryCid
-      holdingFactory
-      observers = [bob, charlie] -- disclosing to all clients of Bank1
+      holdingFactory -- This is equivalent to writing holdingFactory = holdingFactory
+      observers = clients -- disclosing to all clients of Bank
   bobRequestCid <- submit bob do
     createCmd CreateAccount.Request with
-      custodian = bank1
+      custodian = bank
       owner = bob
       accountControllers = controllersWithOwner bob
-  bobAccount <- submit bank1 do
+  bobAccount <- submit bank do
     exerciseCmd bobRequestCid CreateAccount.Accept with
-      label = "Bob@Bank1"
-      description = "Account of Bob at Bank1"
+      label = "Bob@Bank"
+      description = "Account of Bob at Bank"
       accountFactoryCid
       holdingFactory
-      observers = [alice, charlie] -- disclosing to all clients of Bank1
+      observers = clients -- disclosing to all clients of Bank
   charlieRequestCid <- submit charlie do
     createCmd CreateAccount.Request with
-      custodian = bank1
+      custodian = bank
       owner = charlie
       accountControllers = controllersWithOwner charlie
-  charlieAccount <- submit bank1 do
+  charlieAccount <- submit bank do
     exerciseCmd charlieRequestCid CreateAccount.Accept with
-      label = "Charlie@Bank1"
-      description = "Account of Charlie at Bank1"
+      label = "Charlie@Bank"
+      description = "Account of Charlie at Bank"
       accountFactoryCid
       holdingFactory
-      observers = [alice, bob] -- disclosing to all clients of Bank1
+      observers = clients -- disclosing to all clients of Bank
 
   -- Central Bank creates the cash instrument using a Token factory.
   now <- getTime
@@ -174,9 +174,9 @@ runSetup accountControllers = do
       account = aliceAccount
       instrument
       amount = 1000.0
-  aliceHoldingCid <- fromInterfaceContractId @Transferable.I <$> submit bank1 do
+  aliceHoldingCid <- fromInterfaceContractId @Transferable.I <$> submit bank do
     exerciseCmd aliceRequestCid CreditAccount.Accept
 
   pure Setup with
-    instrument; cb; bank1; bank2; alice; aliceAccount; aliceHoldingCid; bob; bobAccount; charlie
-    charlieAccount; requestor; all
+    instrument; cb; bank; alice; aliceAccount; aliceHoldingCid; bob; bobAccount; charlie
+    charlieAccount; instructor
