@@ -10,8 +10,10 @@ import Daml.Finance.Data.Numeric.Observation (Observation(..))
 import Daml.Finance.Data.Reference.HolidayCalendar (HolidayCalendar(..))
 import Daml.Finance.Data.Time.DateClock (dateToDateClockTime)
 import Daml.Finance.Instrument.Swap.Test.Util (originateAssetSwap)
+import Daml.Finance.Interface.Instrument.Types.FloatingRate (DateRelativeToEnum(..), FloatingRate(..), ReferenceRateTypeEnum(..))
 import Daml.Finance.Interface.Types.Common.Types (HoldingStandard(..), Id(..))
 import Daml.Finance.Interface.Types.Date.Calendar (BusinessDayConventionEnum(..), HolidayCalendarData(..))
+import Daml.Finance.Interface.Types.Date.DateOffset (DateOffset(..), DayTypeEnum(..))
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum(..))
 import Daml.Finance.Interface.Types.Date.RollConvention (PeriodEnum(..))
 import Daml.Finance.Interface.Util.Common (qty)
@@ -41,6 +43,7 @@ run = script do
     maturityDate = date 2019 May 15
     referenceAssetId = "AAPL-CLOSE-ADJ"
     ownerReceivesFix = False
+    floatingRate = None
     fixRate = 0.0201
     paymentPeriod = M
     paymentPeriodMultiplier = 3
@@ -72,8 +75,8 @@ run = script do
 
   swapInstrument <- originateAssetSwap issuer issuer "SwapTest1" BaseHolding "Asset swap" observers
     now issueDate holidayCalendarIds calendarDataProvider firstPaymentDate maturityDate
-    dayCountConvention businessDayConvention fixRate paymentPeriod paymentPeriodMultiplier
-    cashInstrument referenceAssetId ownerReceivesFix publicParty
+    dayCountConvention businessDayConvention floatingRate fixRate paymentPeriod
+    paymentPeriodMultiplier cashInstrument referenceAssetId ownerReceivesFix publicParty
 
   -- One day before the first payment date: try to lifecycle and verify that there are no lifecycle
   -- effects.
@@ -105,5 +108,114 @@ run = script do
     expectedProducedQuantities = [qty 0.0372102913 cashInstrument]
   lifecycleAndVerifyPaymentEffects [publicParty] maturityDate swapInstrumentAfterFirstPayment
     issuer [observableCid] expectedConsumedQuantities expectedProducedQuantities
+
+  pure ()
+
+-- Calculate payments on an asset swap, including lifecycling and creation of new instrument
+-- version. This example has a floating rate leg.
+runFloat : Script ()
+runFloat = script do
+  [custodian, issuer, calendarDataProvider, publicParty] <-
+    createParties ["Custodian", "Issuer", "Calendar Data Provider", "PublicParty"]
+
+  -- Distribute commercial-bank cash
+  now <- getTime
+  let observers = [("PublicParty", Set.singleton publicParty)]
+  cashInstrument <- originate custodian issuer "USD" TransferableFungible "US Dollars" observers now
+
+  -- Create and distribute swap
+  -- Equity vs fix asset swap: AAPL total return vs 2.01% p.a. payment every 3M
+  -- CREATE_ASSET_SWAP_VARIABLES_BEGIN
+  let
+    issueDate = date 2019 Jan 16
+    firstPaymentDate = date 2019 Feb 15
+    maturityDate = date 2019 May 15
+    referenceAssetId = "AAPL-CLOSE-ADJ"
+    referenceRateId = "USD/LIBOR/3M"
+    floatingRate = Some FloatingRate with
+      referenceRateId
+      referenceRateType = SingleFixing CalculationPeriodStartDate
+      fixingDates = DateOffset with
+        periodMultiplier = 0
+        period = D
+        dayType = Some Business
+        businessDayConvention = NoAdjustment
+        businessCenters = ["USD"]
+    ownerReceivesRate = False
+    fixRate = 0.0
+    paymentPeriod = M
+    paymentPeriodMultiplier = 3
+    dayCountConvention = Act360
+    businessDayConvention = ModifiedFollowing
+    -- CREATE_ASSET_SWAP_VARIABLES_END
+    observations = Map.fromList
+      [ (dateToDateClockTime $ date 2019 Jan 16, 43.54)
+      , (dateToDateClockTime $ date 2019 Feb 15, 47.03)
+      , (dateToDateClockTime $ date 2019 May 15, 48.78)
+      ]
+    rateObservations = Map.fromList
+      [ (dateToDateClockTime $ date 2019 Jan 16, 0.0027406)
+      , (dateToDateClockTime $ date 2019 Feb 15, 0.002035)
+      ]
+    calendar =
+      HolidayCalendarData with
+        id = "USD"
+        weekend = [Saturday, Sunday]
+        holidays = [date 2019 Dec 19]
+    holidayCalendarIds = [calendar.id]
+
+  -- A reference data provider publishes the holiday calendar on the ledger
+  calendarCid <- submit calendarDataProvider do
+    createCmd HolidayCalendar with
+      provider = calendarDataProvider
+      calendar
+      observers = Map.fromList observers
+
+  observableCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Observation with
+      provider = issuer; id = Id referenceAssetId; observations; observers = mempty
+
+  rateObservableCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Observation with
+      provider = issuer; id = Id referenceRateId; observations = rateObservations
+      observers = mempty
+
+  let observableCids = [observableCid, rateObservableCid]
+
+  swapInstrument <- originateAssetSwap issuer issuer "SwapTest1" BaseHolding "Asset swap" observers
+    now issueDate holidayCalendarIds calendarDataProvider firstPaymentDate maturityDate
+    dayCountConvention businessDayConvention floatingRate fixRate paymentPeriod
+    paymentPeriodMultiplier cashInstrument referenceAssetId ownerReceivesRate publicParty
+
+  -- One day before the first payment date: try to lifecycle and verify that there are no lifecycle
+  -- effects.
+  verifyNoLifecycleEffects [publicParty] (subtractDays firstPaymentDate 1) swapInstrument issuer
+    observableCids
+
+  -- First payment date: Lifecycle and verify the lifecycle effects for fix rate and asset
+  -- performance payments.
+  let
+    expectedConsumedQuantities = [qty 0.0002283833 cashInstrument]
+    expectedProducedQuantities = [qty 0.0801561782 cashInstrument]
+  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
+    firstPaymentDate swapInstrument issuer observableCids expectedConsumedQuantities
+    expectedProducedQuantities
+
+  -- One day after the first payment date: try to lifecycle and verify that there are no lifecycle
+  -- effects.
+  verifyNoLifecycleEffects [publicParty] (addDays firstPaymentDate 1)
+    swapInstrumentAfterFirstPayment issuer observableCids
+
+  -- One day before expiry: try to lifecycle and verify that there are no lifecycle effects.
+  verifyNoLifecycleEffects [publicParty] (subtractDays maturityDate 1)
+    swapInstrumentAfterFirstPayment issuer observableCids
+
+  -- Lifecycle on the second payment date, which is also the expiry date. Verify the lifecycle
+  -- effects for fix rate and asset performance payments.
+  let
+    expectedConsumedQuantities = [qty 0.0005030972 cashInstrument]
+    expectedProducedQuantities = [qty 0.0372102913 cashInstrument]
+  lifecycleAndVerifyPaymentEffects [publicParty] maturityDate swapInstrumentAfterFirstPayment
+    issuer observableCids expectedConsumedQuantities expectedProducedQuantities
 
   pure ()
