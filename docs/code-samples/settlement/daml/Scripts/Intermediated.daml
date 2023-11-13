@@ -2,7 +2,7 @@ module Scripts.Intermediated where
 
 import DA.Assert((===))
 import DA.Map qualified as Map (fromList)
-import DA.Set qualified as Set (fromList, singleton)
+import DA.Set (singleton)
 import Daml.Script
 
 -- INTERFACE DEPENDENCIES --
@@ -26,7 +26,8 @@ import Daml.Finance.Settlement.RouteProvider.IntermediatedStatic (IntermediatedS
 import Workflow.CreateAccount qualified as CreateAccount (Accept(..), Request(..))
 import Workflow.CreditAccount qualified as CreditAccount (Accept(..), Request(..))
 
-import Scripts.Setup (AccountControllers(..), RequiredAuthorizers(..), Setup(..), createHoldingFactory, retrieveKey, runSetup, toControllers)
+import Scripts.Setup (AccountControllers(..), RequiredAuthorizers(..), Setup(..), runSetup, toControllers)
+import Scripts.Util (createHoldingFactory, retrieveKey, createParty)
 
 -- | Return type of the setup intermediated settlement script.
 data SetupIntermediatedSettlement = SetupIntermediatedSettlement
@@ -47,7 +48,7 @@ data SetupIntermediatedSettlement = SetupIntermediatedSettlement
       -- ^ Bank2's account @cb.
     alice : Party
        -- ^ The initial owner of a holding.
-    aliceAccount : AccountKey
+    aliceAccount1 : AccountKey
        -- ^ Alice's account @Bank1.
     aliceHoldingCid : ContractId Transferable.I
       -- ^ Alice's holding @Bank1.
@@ -57,18 +58,16 @@ data SetupIntermediatedSettlement = SetupIntermediatedSettlement
       -- ^ Bob's account @Bank2.
     charlie : Party
       -- ^ An intermediary.
-    charlieAccount : AccountKey
+    charlieAccount1 : AccountKey
       -- ^ Charlie's account @Bank1.
     charlieAccount2 : AccountKey
       -- ^ Charlie's account @Bank2.
     charlieHoldingCid : ContractId Transferable.I
       -- ^ Charlie's holding @Bank2.
-    requestor : Party
-      -- ^ The party who instructs and thereby creates settlement requests.
+    instructor : Party
+      -- ^ The party who instructs and executes settlement.
     settlementFactoryCid : ContractId SettlementFactory.I
       -- ^ Settlement factory.
-    all : [Party]
-      -- ^ A list with all the parties above.
   deriving (Eq, Show)
 
 -- | The following setup script sets up an account hierarchy and holdings. In the following figure
@@ -86,20 +85,17 @@ runSetupIntermediatedSettlement = do
   Setup
     { instrument
     ; cb
-    ; bank1; bank2
-    ; alice; aliceAccount; aliceHoldingCid
+    ; bank = bank1
+    ; alice
+    ; aliceAccount = aliceAccount1
+    ; aliceHoldingCid
     ; bob; bobAccount
-    ; charlie; charlieAccount
-    ; requestor
-    ; all
+    ; charlie; charlieAccount = charlieAccount1
+    ; instructor
     } <- runSetup AccountControllers with incoming = Owner; outgoing = Owner
 
-  -- Setup a Settlement Factory facility.
-  -- This is used to generate settlement instructions from a list of `RoutedStep`s.
-  settlementFactoryCid <- toInterfaceContractId @SettlementFactory.I <$> submit requestor do
-    createCmd Settlement.Factory with
-      provider = requestor
-      observers = Set.fromList all
+  -- Create additional custodian
+  bank2 <- createParty "Bank2"
 
   -- Account Factory (used to create accounts @Bank2).
   accountFactoryCid <- toInterfaceContractId @AccountFactory.I <$> submit bank2 do
@@ -115,7 +111,7 @@ runSetupIntermediatedSettlement = do
     Holding.Factory with
       provider = bank2
       id = Id "Holding Factory 2"
-      observers = Map.fromList [("DisclosedToAll", Set.fromList all)]
+      observers = Map.fromList [("DiscloseToSettlers", singleton instructor)]
   bobRequestCid <- submit bob do
     createCmd CreateAccount.Request with
       custodian = bank2
@@ -125,7 +121,7 @@ runSetupIntermediatedSettlement = do
     exerciseCmd bobRequestCid CreateAccount.Accept with
       label = "Bob@Bank2"
       description = "Account of Bob at Bank2"
-      accountFactoryCid
+      accountFactoryCid -- This is equivalent to writing accountFactoryCid = accountFactoryCid
       holdingFactory
       observers = []
   charlieRequestCid <- submit charlie do
@@ -150,7 +146,7 @@ runSetupIntermediatedSettlement = do
     Holding.Factory with
       provider = cb
       id = Id "Holding Factory 3"
-      observers = Map.fromList [("DisclosedToAll", Set.fromList all)]
+      observers = Map.fromList [("DiscloseToSettlers", singleton instructor)]
   bankRequestCid <- submit bank1 do
     createCmd CreateAccount.Request with
       custodian = cb
@@ -194,16 +190,17 @@ runSetupIntermediatedSettlement = do
   bank1HoldingCid <- fromInterfaceContractId @Transferable.I <$> submit cb do
     exerciseCmd bankRequestCid CreditAccount.Accept
 
+  -- Setup a Settlement Factory facility.
+  -- This is used to generate settlement instructions from a list of `RoutedStep`s.
+  settlementFactoryCid <- toInterfaceContractId @SettlementFactory.I <$> submit instructor do
+    createCmd Settlement.Factory with
+      provider = instructor
+      observers = mempty
+
   pure SetupIntermediatedSettlement with
-    instrument; cb
-    bank1; bank1Account; bank1HoldingCid
-    bank2; bank2Account
-    alice; aliceAccount; aliceHoldingCid
-    bob; bobAccount2
-    charlie; charlieAccount; charlieAccount2; charlieHoldingCid
-    requestor
-    settlementFactoryCid
-    all
+    instrument; cb; bank1; bank1Account; bank1HoldingCid; bank2; bank2Account; alice; aliceAccount1
+    aliceHoldingCid; bob; bobAccount2; charlie; charlieAccount1; charlieAccount2; charlieHoldingCid
+    instructor; settlementFactoryCid
 
 -- | Settlement 1: Transfer from Alice to Bob via Charlie and accounts at different custodian banks.
 -- The settlement process is illustrated in the following figure where the edges represent accounts,
@@ -230,10 +227,10 @@ runWrappedTransfersSettlement = do
   SetupIntermediatedSettlement
     { instrument
     ; bank1; bank2
-    ; alice; aliceAccount; aliceHoldingCid
+    ; alice; aliceAccount1; aliceHoldingCid
     ; bob; bobAccount2
-    ; charlie; charlieAccount; charlieAccount2; charlieHoldingCid
-    ; requestor
+    ; charlie; charlieAccount1; charlieAccount2; charlieHoldingCid
+    ; instructor
     ; settlementFactoryCid
     } <- runSetupIntermediatedSettlement
   -- WRAPPED_TRANSFERS_SETUP_END
@@ -255,11 +252,11 @@ runWrappedTransfersSettlement = do
   -- Generate settlement instructions from a list of `RoutedStep`s.
   -- WRAPPED_TRANSFERS_INSTRUCT_BEGIN
   (batchCid, [instructionCid1, instructionCid2]) <-
-    submit requestor do
+    submit instructor do
       exerciseCmd settlementFactoryCid SettlementFactory.Instruct with
-        instructor = requestor
+        instructor
         consenters = mempty
-        settlers = Set.singleton requestor
+        settlers = singleton instructor
         id = Id "1"
         description = "Transfer from Alice to Bob via Charlie"
         contextId = None
@@ -271,29 +268,29 @@ runWrappedTransfersSettlement = do
   -- i. Alice allocates.
   (instructionCid1, _) <- submit alice do
     exerciseCmd instructionCid1 Instruction.Allocate with
-      actors = Set.singleton alice
+      actors = singleton alice
       allocation = Pledge $ toInterfaceContractId aliceHoldingCid
 
   -- ii. Bob approves.
   instructionCid2 <- submit bob do
     exerciseCmd instructionCid2 Instruction.Approve with
-      actors = Set.singleton bob
+      actors = singleton bob
       approval = TakeDelivery bobAccount2
 
   -- iii. Charlie approves and allocates (with pass-through).
   instructionCid1 <- submit charlie do
     exerciseCmd instructionCid1 Instruction.Approve with
-      actors = Set.singleton charlie
-      approval = TakeDelivery charlieAccount
+      actors = singleton charlie
+      approval = TakeDelivery charlieAccount1
   instructionCid2 <- submit charlie do
     exerciseCmd instructionCid2 Instruction.Allocate with
-      actors = Set.singleton charlie
+      actors = singleton charlie
       allocation = Pledge $ toInterfaceContractId charlieHoldingCid
 
-  -- iii. Requestor executes the settlement.
-  [charlieHoldingCid, bobHoldingCid] <- submit requestor do
+  -- iii. Instructor executes the settlement.
+  [charlieHoldingCid, bobHoldingCid] <- submit instructor do
     exerciseCmd batchCid Batch.Settle with
-      actors = Set.singleton requestor
+      actors = singleton instructor
   -- WRAPPED_TRANSFERS_SETTLE_END
 
   pure ()
@@ -332,10 +329,10 @@ runRouteProviderSettlement = do
     ; cb
     ; bank1; bank1Account; bank1HoldingCid
     ; bank2; bank2Account
-    ; alice; aliceAccount; aliceHoldingCid
+    ; alice; aliceAccount1; aliceHoldingCid
     ; bob; bobAccount2
-    ; charlie; charlieAccount
-    ; requestor
+    ; charlie; charlieAccount1
+    ; instructor
     ; settlementFactoryCid
     } <- runSetupIntermediatedSettlement
   -- ROUTE_PROVIDER_SETUP_END
@@ -358,32 +355,32 @@ runRouteProviderSettlement = do
             pathsToRootCustodian = [[alice, bank1], [charlie, bank1], [bob, bank2]]
         )
       ]
-  routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit requestor do
-    createCmd IntermediatedStatic with provider = requestor; paths; observers = mempty
-  routedSteps <- submit requestor do
+  routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit instructor do
+    createCmd IntermediatedStatic with provider = instructor; paths; observers = mempty
+  routedSteps <- submit instructor do
     exerciseCmd routeProviderCid RouteProvider.Discover with
-      discoverors = Set.singleton requestor; contextId = None; steps = [step1, step2]
+      discoverors = singleton instructor; contextId = None; steps = [step1, step2]
   -- Sanity check.
   let
-    routedStep1' = RoutedStep with custodian = bank1; sender = alice; receiver = charlie; quantity
-    routedStep2' = RoutedStep with custodian = bank1; sender = charlie; receiver = bank1; quantity
-    routedStep3' = RoutedStep with custodian = cb; sender = bank1; receiver = bank2; quantity
-    routedStep4' = RoutedStep with custodian = bank2; sender = bank2; receiver = bob; quantity
-  routedSteps === [routedStep1', routedStep2', routedStep3', routedStep4']
+    routedStep1 = RoutedStep with custodian = bank1; sender = alice; receiver = charlie; quantity
+    routedStep2 = RoutedStep with custodian = bank1; sender = charlie; receiver = bank1; quantity
+    routedStep3 = RoutedStep with custodian = cb; sender = bank1; receiver = bank2; quantity
+    routedStep4 = RoutedStep with custodian = bank2; sender = bank2; receiver = bob; quantity
+  routedSteps === [routedStep1, routedStep2, routedStep3, routedStep4]
   -- ROUTE_PROVIDER_DISCOVER_END
 
   -- Generate settlement instructions from a list of `RoutedStep`s.
   -- ROUTE_PROVIDER_INSTRUCT_BEGIN
   (batchCid, [instructionCid1, instructionCid2, instructionCid3, instructionCid4]) <-
-    submit requestor do
+    submit instructor do
       exerciseCmd settlementFactoryCid SettlementFactory.Instruct with
-        instructor = requestor
+        instructor
         consenters = mempty
-        settlers = Set.singleton requestor
+        settlers = singleton instructor
         id = Id "1"
         description = "Transfer from Alice to Bob via intermediaries"
         contextId = None
-        routedSteps  -- This is equivalent to writing routedSteps = routedSteps
+        routedSteps
         settlementTime = None -- i.e., immediate settlement
   -- ROUTE_PROVIDER_INSTRUCT_END
 
@@ -391,51 +388,51 @@ runRouteProviderSettlement = do
   -- i. Alice allocates
   (instructionCid1, _) <- submit alice do
     exerciseCmd instructionCid1 Instruction.Allocate with
-      actors = Set.singleton alice
+      actors = singleton alice
       allocation = Pledge $ toInterfaceContractId aliceHoldingCid
 
   -- ii. Bob approves.
   instructionCid4 <- submit bob do
     exerciseCmd instructionCid4 Instruction.Approve with
-      actors = Set.singleton bob
+      actors = singleton bob
       approval = TakeDelivery bobAccount2
 
   -- iii. Charlie approves and allocates.
   instruction2 <- retrieveKey charlie instructionCid2
   instructionCid1 <- submit charlie do
     exerciseCmd instructionCid1 Instruction.Approve with
-      actors = Set.singleton charlie
-      approval = PassThroughTo (charlieAccount, instruction2)
+      actors = singleton charlie
+      approval = PassThroughTo (charlieAccount1, instruction2)
   instruction1 <- retrieveKey charlie instructionCid1
   (instructionCid2, _) <- submit charlie do
     exerciseCmd instructionCid2 Instruction.Allocate with
-      actors = Set.singleton charlie
-      allocation = PassThroughFrom (charlieAccount, instruction1)
+      actors = singleton charlie
+      allocation = PassThroughFrom (charlieAccount1, instruction1)
 
   -- iv. Bank1 approves and allocates.
   instructionCid2 <- submit bank1 do
     exerciseCmd instructionCid2 Instruction.Approve with
-      actors = Set.singleton bank1
+      actors = singleton bank1
       approval = DebitSender
   (instructionCid3, _) <- submit bank1 do
     exerciseCmd instructionCid3 Instruction.Allocate with
-      actors = Set.singleton bank1
+      actors = singleton bank1
       allocation = Pledge $ toInterfaceContractId bank1HoldingCid
 
   -- v. Bank2 approves and allocates.
   instructionCid3 <- submit bank2 do
     exerciseCmd instructionCid3 Instruction.Approve with
-      actors = Set.singleton bank2
+      actors = singleton bank2
       approval = TakeDelivery bank2Account
   (instructionCid4, _) <- submit bank2 do
     exerciseCmd instructionCid4 Instruction.Allocate with
-      actors = Set.singleton bank2
+      actors = singleton bank2
       allocation = CreditReceiver
 
-  -- vi. Requestor executes the settlement.
-  [charlierHoldingCid, bobHoldingCid] <- submit requestor do
+  -- vi. Instructor executes the settlement.
+  [charlierHoldingCid, bobHoldingCid] <- submit instructor do
     exerciseCmd batchCid Batch.Settle with
-      actors = Set.singleton requestor
+      actors = singleton instructor
   -- ROUTE_PROVIDER_SETTLE_END
 
   pure ()
