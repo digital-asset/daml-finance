@@ -13,7 +13,7 @@ import Daml.Finance.Instrument.Equity.Test.Util (originateEquity)
 import Daml.Finance.Instrument.Swap.Test.Util (originateAssetSwap)
 import Daml.Finance.Interface.Instrument.Equity.Instrument qualified as Equity (DeclareDistribution(..), I)
 import Daml.Finance.Interface.Instrument.Types.FloatingRate (DateRelativeToEnum(..), FloatingRate(..), ReferenceRateTypeEnum(..))
-import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (I)
+import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I)
 import Daml.Finance.Interface.Types.Common.Types (HoldingStandard(..), Id(..))
 import Daml.Finance.Interface.Types.Date.Calendar (BusinessDayConventionEnum(..), HolidayCalendarData(..))
 import Daml.Finance.Interface.Types.Date.DateOffset (DateOffset(..), DayTypeEnum(..))
@@ -326,9 +326,9 @@ runDivPassthrough = script do
     swapInstrumentAfterFirstPayment issuer observableCids
 
   cumEquityInstrument <-
-    originateEquity issuer issuer "EQUITY-INST-1" "0" TransferableFungible "ABC" observers now
+    originateEquity issuer issuer "EQUITY-INST-1" "0" TransferableFungible "AAPL" observers now
   exEquityInstrument <-
-    originateEquity issuer issuer "EQUITY-INST-1" "1" TransferableFungible "ABC" [] now
+    originateEquity issuer issuer "EQUITY-INST-1" "1" TransferableFungible "AAPL" [] now
 
   -- Create cash dividend rule
   distributionRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit issuer do
@@ -343,11 +343,17 @@ runDivPassthrough = script do
   distributionEventCid <-
     Instrument.submitExerciseInterfaceByKeyCmd @Equity.I [issuer] [] cumEquityInstrument
       Equity.DeclareDistribution with
-        id = Id $ "ABC - " <> show now
+        id = Id $ "AAPL - " <> show now
         description = "Cash Dividend"
         effectiveTime = now
         newInstrument = exEquityInstrument
-        perUnitDistribution = [qty 1.0 cashInstrument]
+        perUnitDistribution = [qty (1.0/47.03) cashInstrument]
+
+  (Some exInstr, [effectCid]) <- submit issuer do
+    exerciseCmd distributionRuleCid Lifecycle.Evolve with
+      observableCids = []
+      eventCid = distributionEventCid
+      instrument = cumEquityInstrument
 
   -- Lifecycle on the second payment date, which is also the expiry date. Verify the lifecycle
   -- effects for fix rate and asset performance payments.
@@ -355,6 +361,7 @@ runDivPassthrough = script do
     expectedConsumedQuantities = [qty 0.0005030972 cashInstrument]
     expectedProducedQuantities = [qty 0.0159472677 cashInstrument]
   lifecycleAndVerifyPaymentEffects [publicParty] maturityDate swapInstrumentAfterFirstPayment
+  --lifecycleAndVerifyPaymentEffects [publicParty] maturityDate exInstr
     issuer observableCids expectedConsumedQuantities expectedProducedQuantities
 
   pure ()
