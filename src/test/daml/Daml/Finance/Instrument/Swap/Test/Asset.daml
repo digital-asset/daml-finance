@@ -9,9 +9,8 @@ import DA.Set qualified as Set (singleton)
 import Daml.Finance.Data.Numeric.Observation (Observation(..))
 import Daml.Finance.Data.Reference.HolidayCalendar (HolidayCalendar(..))
 import Daml.Finance.Data.Time.DateClock (dateToDateClockTime)
-import Daml.Finance.Instrument.Equity.Test.Util (originateEquity)
 import Daml.Finance.Instrument.Swap.Test.Util (originateAssetSwap)
-import Daml.Finance.Interface.Instrument.Equity.Instrument qualified as Equity (DeclareDistribution(..), I)
+import Daml.Finance.Interface.Claims.Dynamic.Instrument qualified as DynamicInstrument (CreateNewVersion(..), I)
 import Daml.Finance.Interface.Instrument.Types.FloatingRate (DateRelativeToEnum(..), FloatingRate(..), ReferenceRateTypeEnum(..))
 import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I)
 import Daml.Finance.Interface.Types.Common.Types (HoldingStandard(..), Id(..))
@@ -20,6 +19,7 @@ import Daml.Finance.Interface.Types.Date.DateOffset (DateOffset(..), DayTypeEnum
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum(..))
 import Daml.Finance.Interface.Types.Date.RollConvention (PeriodEnum(..))
 import Daml.Finance.Interface.Util.Common (qty)
+import Daml.Finance.Lifecycle.Event.Distribution qualified as Distribution (Event(..))
 import Daml.Finance.Lifecycle.Rule.Distribution qualified as Distribution (Rule(..))
 import Daml.Finance.Test.Util.Common (createParties)
 import Daml.Finance.Test.Util.Instrument (originate)
@@ -325,11 +325,6 @@ runDivPassthrough = script do
   verifyNoLifecycleEffects [publicParty] (subtractDays maturityDate 1)
     swapInstrumentAfterFirstPayment issuer observableCids
 
-  cumEquityInstrument <-
-    originateEquity issuer issuer "EQUITY-INST-1" "0" TransferableFungible "AAPL" observers now
-  exEquityInstrument <-
-    originateEquity issuer issuer "EQUITY-INST-1" "1" TransferableFungible "AAPL" [] now
-
   -- Create cash dividend rule
   distributionRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit issuer do
     createCmd Distribution.Rule with
@@ -339,37 +334,39 @@ runDivPassthrough = script do
       id = Id "LifecycleRule"
       description = "Rule to lifecycle an instrument following a distribution event"
 
-  -- Create cash dividend event: USD 1 per share (this also works with fractional shares)
-  distributionEventCid <-
-    --Instrument.submitExerciseInterfaceByKeyCmd @Equity.I [issuer] [] cumEquityInstrument
-    Instrument.submitExerciseInterfaceByKeyCmd @Equity.I [issuer] [] swapInstrumentAfterFirstPayment
-      Equity.DeclareDistribution with
-        id = Id $ "AAPL - " <> show now
-        description = "Cash Dividend"
-        effectiveTime = now
-        newInstrument = exEquityInstrument
-        --newInstrument = swapInstrumentAfterFirstPayment
-        perUnitDistribution = [qty (1.0/47.03) cashInstrument]
+  -- Create a new version of the asset swap instrument (after div payment)
+  let swapInstrumentAfterDiv = swapInstrumentAfterFirstPayment with version = "exDiv"
+  newVersion <- Instrument.submitExerciseInterfaceByKeyCmd @DynamicInstrument.I [issuer] []
+    swapInstrumentAfterFirstPayment
+      DynamicInstrument.CreateNewVersion with
+        lastEventTimestamp = dateToDateClockTime $ firstPaymentDate
+        prevEvents = []
+        version = swapInstrumentAfterDiv.version
 
-  -- TODO
-  -- 1. Make the above work for asset swaps instead of Equity instruments
-  -- 2. Create a newInstrument (manually, as for Equity, or as part of lifecycling?)
-  -- 3. Ensure that exInstr below can be lifecycled on the last day to get the final asset swap payment
-
+  -- Create manual distribution event
+  distributionEventCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Distribution.Event with
+      providers = Set.singleton issuer
+      id = Id "DistributionEvent"
+      description = "Distribution event for an asset swap"
+      effectiveTime = now
+      targetInstrument = swapInstrumentAfterFirstPayment
+      newInstrument = swapInstrumentAfterDiv
+      perUnitDistribution = [qty (1.0/47.03) cashInstrument]
+      observers = Set.singleton publicParty
 
   (Some exInstr, [effectCid]) <- submit issuer do
     exerciseCmd distributionRuleCid Lifecycle.Evolve with
       observableCids = []
       eventCid = distributionEventCid
-      instrument = cumEquityInstrument
+      instrument = swapInstrumentAfterFirstPayment
 
   -- Lifecycle on the second payment date, which is also the expiry date. Verify the lifecycle
   -- effects for fix rate and asset performance payments.
   let
     expectedConsumedQuantities = [qty 0.0005030972 cashInstrument]
     expectedProducedQuantities = [qty 0.0159472677 cashInstrument]
-  lifecycleAndVerifyPaymentEffects [publicParty] maturityDate swapInstrumentAfterFirstPayment
-  --lifecycleAndVerifyPaymentEffects [publicParty] maturityDate exInstr
+  lifecycleAndVerifyPaymentEffects [publicParty] maturityDate exInstr
     issuer observableCids expectedConsumedQuantities expectedProducedQuantities
 
   pure ()
