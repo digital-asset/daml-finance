@@ -227,6 +227,8 @@ runFloat = script do
 
 -- Calculate payments on an asset swap, including lifecycling and creation of new instrument
 -- version. This example has a single underlying stock with dividend passthrough.
+-- It still represents a total return swap, but the instrument only models the price performance
+-- (using an unadjusted price series). The dividends are paid using a separate distribution rule.
 runDivPassthrough : Script ()
 runDivPassthrough = script do
   [custodian, issuer, calendarDataProvider, publicParty] <-
@@ -239,7 +241,7 @@ runDivPassthrough = script do
 
   -- Create and distribute swap
   -- Equity vs rate asset swap: AAPL price return (dividends paid separately) vs floating rate
-  -- payment. payment every 3M
+  -- payment.
   -- CREATE_ASSET_SWAP_VARIABLES_BEGIN
   let
     issueDate = date 2019 Jan 16
@@ -334,16 +336,17 @@ runDivPassthrough = script do
       id = Id "LifecycleRule"
       description = "Rule to lifecycle an instrument following a distribution event"
 
-  -- Create a new version of the asset swap instrument (after div payment)
+  -- Create a new version of the asset swap instrument (used after the dividend)
   let swapInstrumentAfterDiv = swapInstrumentAfterFirstPayment with version = "exDiv"
-  newVersion <- Instrument.submitExerciseInterfaceByKeyCmd @DynamicInstrument.I [issuer] []
+  Instrument.submitExerciseInterfaceByKeyCmd @DynamicInstrument.I [issuer] []
     swapInstrumentAfterFirstPayment
       DynamicInstrument.CreateNewVersion with
         lastEventTimestamp = dateToDateClockTime $ firstPaymentDate
         prevEvents = []
         version = swapInstrumentAfterDiv.version
 
-  -- Create manual distribution event
+  -- Create a distribution event: 1 USD per APPL share, expressed as a performance return for the
+  -- asset swap.
   distributionEventCid <- toInterfaceContractId <$> submit issuer do
     createCmd Distribution.Event with
       providers = Set.singleton issuer
@@ -355,7 +358,8 @@ runDivPassthrough = script do
       perUnitDistribution = [qty (1.0/47.03) cashInstrument]
       observers = Set.singleton publicParty
 
-  (Some exInstr, [effectCid]) <- submit issuer do
+  -- Lifecycle the asset swap to create an effect for the dividend.
+  (Some swapInstrumentAfterDividend, [effectCid]) <- submit issuer do
     exerciseCmd distributionRuleCid Lifecycle.Evolve with
       observableCids = []
       eventCid = distributionEventCid
@@ -366,7 +370,7 @@ runDivPassthrough = script do
   let
     expectedConsumedQuantities = [qty 0.0005030972 cashInstrument]
     expectedProducedQuantities = [qty 0.0159472677 cashInstrument]
-  lifecycleAndVerifyPaymentEffects [publicParty] maturityDate exInstr
+  lifecycleAndVerifyPaymentEffects [publicParty] maturityDate swapInstrumentAfterDividend
     issuer observableCids expectedConsumedQuantities expectedProducedQuantities
 
   pure ()
