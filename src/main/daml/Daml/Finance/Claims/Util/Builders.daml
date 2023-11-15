@@ -16,6 +16,7 @@ import DA.Foldable (foldMap)
 import Daml.Finance.Claims.Util (toTime)
 import Daml.Finance.Claims.Util.Date (convertImplicitDcfToActualDcf)
 import Daml.Finance.Interface.Claims.Types (Deliverable, Observable, TaggedClaim(..))
+import Daml.Finance.Interface.Instrument.Swap.Asset.Types (Underlying)
 import Daml.Finance.Interface.Instrument.Types.FloatingRate (DateRelativeToEnum(..), FloatingRate, ReferenceRateTypeEnum(..))
 import Daml.Finance.Interface.Types.Common.Types (InstrumentQuantity)
 import Daml.Finance.Interface.Types.Date.Calendar (HolidayCalendarData)
@@ -207,23 +208,26 @@ createCreditEventPaymentClaims dateToTime ownerReceives notional cashInstrument
 
 -- ASSET_PERFORMANCE_CLAIMS_BEGIN
 -- | Calculate the asset performance for each payment date and create claims.
--- The performance is calculated using the reference asset from the start date to the end date of
--- each payment period. The reference asset Observable needs to contain the appropriate type of
--- fixings:
+-- The performance is calculated using the weighted performance of the basket underlyings from the
+-- start date to the end date of each payment period.
+-- The reference asset Observables need to contain the appropriate type of fixings:
 --   - unadjusted fixings in case of a price return asset swap
 --   - adjusted fixings in case of a total return asset swap
 createAssetPerformancePaymentClaims : (Date -> Time) -> Schedule -> PeriodicSchedule -> Bool ->
-  Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> Observable -> TaggedClaim
+  Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> [Underlying]
+  -> TaggedClaim
 createAssetPerformancePaymentClaims dateToTime schedule periodicSchedule useAdjustedDatesForDcf
-  ownerReceives dayCountConvention notional cashInstrument referenceAssetId =
+  ownerReceives dayCountConvention notional cashInstrument underlyings =
   let
     assetClaimAmounts = foldMap (\p ->
       let
-        performance =
-          Observe referenceAssetId / ObserveAt referenceAssetId p.adjustedStartDate - Const 1.0
+        calcBasketPerformance acc u =
+          Const u.weight * (Observe u.referenceAssetId /
+          ObserveAt u.referenceAssetId p.adjustedStartDate - Const 1.0) + acc
+        basketPerformance = foldl calcBasketPerformance (Const 0.0) underlyings
       in
         when (TimeGte p.adjustedEndDate)
-          $ scale (Const notional * performance)
+          $ scale (Const notional * basketPerformance)
           $ one cashInstrument
       ) schedule
     assetClaims = if ownerReceives then assetClaimAmounts else give assetClaimAmounts
