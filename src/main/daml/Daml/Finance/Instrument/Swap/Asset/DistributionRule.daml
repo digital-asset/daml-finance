@@ -1,0 +1,103 @@
+-- Copyright (c) 2023 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Swap.Asset.DistributionRule where
+
+import DA.List (head)
+import DA.Map(fromList)
+import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (exerciseInterfaceByKey)
+import Daml.Finance.Interface.Instrument.Swap.Asset.Factory qualified as AssetSwapFactory (Create(..), I(..))
+import Daml.Finance.Interface.Instrument.Swap.Asset.Instrument qualified as Asset (GetView(..), I)
+import Daml.Finance.Interface.Instrument.Swap.Asset.Types (Asset(..), Underlying(..))
+import Daml.Finance.Interface.Lifecycle.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I, View(..))
+import Daml.Finance.Interface.Types.Common.Types (Id(..), Parties)
+import Daml.Finance.Interface.Util.Common (scale)
+import Daml.Finance.Lifecycle.Effect (Effect(..))
+import Daml.Finance.Lifecycle.Event.Distribution qualified as Distribution (Event(..))
+
+-- | Rule contract that defines the distribution of units of an instrument for each unit of a target
+-- instrument (e.g. share or cash dividends).
+template DistributionRule
+  with
+    providers : Parties
+      -- ^ Providers of the distribution rule.
+    lifecycler : Party
+      -- ^ Party performing the lifecycling.
+    observers : Parties
+      -- ^ Observers of the distribution rule.
+    id : Id
+      -- ^ Identifier for the rule contract.
+    description : Text
+      -- ^ Textual description.
+    assetSwapFactoryCid : ContractId AssetSwapFactory.I
+    newInstrumentObservers : [(Text, Parties)]
+  where
+    signatory providers
+    observer observers, lifecycler
+
+    interface instance Lifecycle.I for DistributionRule where
+      view = Lifecycle.View with lifecycler; id; description
+      evolve Lifecycle.Evolve{eventCid; instrument} = do
+        distribution <- fetch $ fromInterfaceContractId @Distribution.Event eventCid
+
+        -- Get the instrument view
+        v <- BaseInstrument.exerciseInterfaceByKey @Asset.I
+          instrument
+          lifecycler
+          Asset.GetView with viewer = lifecycler
+        debug v
+
+        let underlying = head v.asset.underlyings
+        assertMsg "distribution asset must match underlying" $ underlying.referenceAsset == distribution.targetInstrument
+        assertMsg "only one dividend per event supported" $ length distribution.perUnitDistribution == 1
+
+        -- Calculate dividend amount (divide by initial fixing)
+        let
+          stock1Distr = head distribution.perUnitDistribution
+          initialFixing = underlying.initialPrice
+          stock1DistrAdj = scale (1.0 / initialFixing) stock1Distr
+
+        -- TODO:
+        -- x1. Add underlying variable to template
+        --    key
+        --    initialFixing
+        --    weight
+        -- x2. check here that distribution.oldInstrument matches underlying key (incl version
+        -- x3. if so, use its initialFixing)
+        -- x4. when creating the new instrument version above, change the underlying to the new key
+        --    (probably need to get the assetswap specific view instead of the dynamic instrument view)
+        let swapInstrumentAfterDiv2 = instrument with version = "exDiv2"
+        let refAsset = underlying.referenceAsset
+        let newRefAsset = distribution.newInstrument
+        let newUnderlyings = [Underlying with referenceAsset = newRefAsset; weight = 1.0; initialPrice = 43.54]
+
+        exercise assetSwapFactoryCid AssetSwapFactory.Create with
+          asset = Asset with
+            instrument = swapInstrumentAfterDiv2
+            description = v.asset.description
+            periodicSchedule = v.asset.periodicSchedule
+            holidayCalendarIds = v.asset.holidayCalendarIds
+            calendarDataProvider = v.asset.calendarDataProvider
+            dayCountConvention = v.asset.dayCountConvention
+            floatingRate = v.asset.floatingRate
+            fixRate = v.asset.fixRate
+            ownerReceivesRate = v.asset.ownerReceivesRate
+            referenceAssetId = v.asset.referenceAssetId
+            underlyings = newUnderlyings
+            currency = v.asset.currency
+            lastEventTimestamp = v.asset.lastEventTimestamp
+          observers = fromList newInstrumentObservers
+
+        -- Create lifecycle effect
+        effectCid <- toInterfaceContractId <$>
+          create Effect with
+            providers
+            id = distribution.id
+            description = distribution.description
+            targetInstrument = instrument
+            producedInstrument = Some swapInstrumentAfterDiv2
+            otherConsumed = []
+            otherProduced = [stock1DistrAdj]
+            settlementTime = Some distribution.effectiveTime
+            observers = fromList [("RuleObservers", observers)]
+        pure (Some swapInstrumentAfterDiv2, [effectCid])
