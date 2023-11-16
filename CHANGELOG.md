@@ -51,176 +51,177 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### ContingentClaims.Core
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
 ### ContingentClaims.Lifecycle
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
 ### ContingentClaims.Valuation
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
 ### Daml.Finance.Account
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
-- Let the `Account` implement the `Lockable` interface with `custodian` as required authorizer (for
-  exercising the `Acquire` choice). Note that `Account.I` is not requiring `Lockable`, so an
-  alternative implementation which does not implement `Lockable` is also possible.
+- The Account now utilizes a key (specifically, a `HoldingFactoryKey`), instead of a `ContractId`,
+  to reference its `Daml.Finance.Interface.Holding.Factory`.
 
-- The `Remove` choice of the `Factory` was removed (and is now part of the `Account`).
+- The `Remove` implementation was removed from the `Factory` (it is newly part of the `Account`
+  interface).
 
-- Updated the `Account` to reference the `Daml.Finance.Interface.Holding.Factory` using a key
-  (of type `HoldingFactoryKey`) rather than the `ContractId Daml.Finance.Interface.Holding.Factory`.
+- The `Account` has been enhanced to implement the `Lockable` interface with the `custodian`
+  as requierd authorizer for executing the `Acquire` choice (an alternative implementation that does
+  not utilize `Lockable` remains viable).
 
 ### Daml.Finance.Claims
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
 - Added builder function for SOFR style rates (via a compounded index).
 
 ### Daml.Finance.Data
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
 - Removed the key from the `LedgerTime` as it was unused.
 
 ### Daml.Finance.Holding
 
-- Dependencies update
-
-- Fix for transfer (adding check that the custodian is the same for the sending and receiving
-  account).
-
-- As the locking logic from the base `Holding` interface was factored out to a separate interface
-  called `Lockable` of the `Daml.Finance.Interface.Util` package, the `acquireImpl` and
-  `releaseImpl` moved to the `Lockable` module in the `Daml.Finance.Util` implementation package.
-
-- Prohibits the `Transfer`, `Split`, `Merge`, and `Debit` actions on holdings that are in a locked
-  state, requiring them to be unlocked first. Adjustments have been made in the corresponding
-  implementations to accommodate this change. Notably, the type signatures for `splitImpl` and
-  `mergeImpl` have been modified. For `transferImpl`, the re-entrant lock logic has been extracted
-  and is now supplied as an independent template in `Daml.Finance.Holding.Test.Transfer`.
-
-- Removed the consistence check that credited and debited holdings must have the same
-  `templateTypeRep`. Now they should be of the same token standard but may have different
-  implementations. We rely on code vetting that the holding factories are implemented properly.
+- Update of SDK version and dependencies.
 
 - Added an `id : Id` field to the `Factory`.
 
 - Replaced all factories by a single `Factory` for all holding implementations.
 
-- Renamed the `NonTransferable` and `Fungible` implementation to `BaseHolding` and
-  `TransferableFungible`, respectively. Also added an implementation for a `Fungible`. Added an
-  `ensure` clause to make sure the desired `HoldingStandard` is used.
+- Added an assert that the `custodian` remains the same for both the sending and receiving accounts.
+
+- Removed the consistence check that credited and debited holdings must have the same
+  `templateTypeRep`, newly they need to have the same `HoldingStandard` (but can have different
+  implementations).
+
+- Added a `Fungible` implementation, and renamed the `NonTransferable` and `Fungible`
+  implementations to `BaseHolding` and `TransferableFungible`, respectively.
+
+- The holding implementations newly `ensure` that its desired `HoldingStandard` is met.
+
+- The locking logic was factored out to a separate `Lockable` interface (within the
+  `Daml.Finance.Interface.Util` package), and the `acquireImpl` and `releaseImpl` utility functions
+  moved to the `Lockable` module in the `Daml.Finance.Util` implementation package.
+
+- The `Transfer`, `Split`, `Merge`, and `Debit` actions on holdings are prohibited in a locked
+  state, requiring them to be unlocked first. Notably, the type signatures for `splitImpl` and
+  `mergeImpl` have been modified, and the re-entrant lock logic of `transferImpl` removed.
 
 - Added `T` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
 
 ### Daml.Finance.Instrument.Bond
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
-- Added support for SOFR style rates (via a compounded index) to the floating rate bond.
+- Added a `HoldingStandard` field to the implementation.
 
-- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
-  holding standards.
+- The `Remove` implementation was removed from the `Factory` (it is newly part of the `Base`
+  instrument interface).
 
 - Added `T` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
 
+- Added support for SOFR style rates (via a compounded index) to the floating rate bond.
+
 ### Daml.Finance.Instrument.Equity
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
-- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
-  holding standards.
+- Added a `HoldingStandard` field to the implementation.
+
+- The `Remove` implementation was removed from the `Factory` (it is newly part of the `Base`
+  instrument interface).
 
 - Added `T` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
 
 ### Daml.Finance.Instrument.Generic
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
-- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
-  holding standards.
+- Added a `HoldingStandard` field to the implementation.
+
+- The `Remove` implementation was removed from the `Factory` (it is newly part of the `Base`
+  instrument interface).
 
 - Added `T` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
 
 ### Daml.Finance.Instrument.Option
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
-- Removed the `Remove` choice from the option dividend election `Factory`.
+- Added a `HoldingStandard` field to the implementation.
 
-- Moved the `Remove` choice from the factory to the instrument implementation.
-
-- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
-  holding standards.
+- The `Remove` implementation was removed from the `Factory` (it is newly part of the `Base`
+  instrument interface).
 
 - Added `T` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+
+- Removed the `Remove` choice from the election factory.
 
 ### Daml.Finance.Instrument.StructuredProduct
 
-- Dependencies update
-
-- Removed the `Remove` choice of the factory.
-
-- First Release
-
-- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
-  holding standards.
-
-- Added `T` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+- First release.
 
 ### Daml.Finance.Instrument.Swap
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
-- Added support for SOFR style rates (via a compounded index) to the interest rate swap.
+- Added a `HoldingStandard` field to the implementation.
 
-- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
-  holding standards.
+- The `Remove` implementation was removed from the `Factory` (it is newly part of the `Base`
+  instrument interface).
 
 - Added `T` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
 
+- Added support for SOFR style rates (via a compounded index) to the interest rate swap.
+
 ### Daml.Finance.Instrument.Token
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
-- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
-  holding standards.
+- Added a `HoldingStandard` field to the implementation.
+
+- The `Remove` implementation was removed from the `Factory` (it is newly part of the `Base`
+  instrument interface).
 
 - Added `T` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
 
 ### Daml.Finance.Interface.Account
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
-- Removed the `ContractId Holding.F` from the account view.
+- Removed the `ContractId Holding.Factory` from the account view.
 
-- The `Remove` choice of the `Factory` was moved to the `Account`.
+- The `Remove` choice, which was previously a choice of the `Factory`, has now been reassigned to
+  the `Account`.
 
-- Changed the `Create` choice of the account `Factory` to take a key (of type `HoldingFactoryKey`)
-  rather than a `ContractId Daml.Finance.Interface.Holding.Factory`.
+- The `Create` choice of the account's `Factory` has been adapted, it now takes a
+  `HoldingFactoryKey` instead of the `ContractId Daml.Finance.Interface.Holding.Factory` as input
 
 - Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
 
 ### Daml.Finance.Interface.Claims
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
 - Add general support to replay previous events of different types (not only elections).
 
 ### Daml.Finance.Interface.Data
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
 - Added `I` as type synonym for each `Factory` in the package (the `F` type synonyms are to be
   deprecated).
 
 ### Daml.Finance.Interface.Holding
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
 - Factored out the locking logic from the base `Holding` interface to a separate interface called
   `Lockable` of the `Daml.Finance.Interface.Util` package.
@@ -237,117 +238,109 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Interface.Instrument.Base
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
-- Removed the `Remove` choice of the factory.
+- The `InstrumentKey` is extended by the `HoldingStandard` field.
+
+- Moved the `Remove` choice from the `Factory` to the `Instrument`.
+
+- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
 
 - Made the `issuer` a single-maintainer of the `Instrument` key.
 
-- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
-  holding standards.
-
-- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
-
 ### Daml.Finance.Interface.Instrument.Bond
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
-- Removed the `Remove` choice of the factory.
+- The `InstrumentKey` is extended by the `HoldingStandard` field.
+
+- The `Remove` choice was removed from the `Factory` (it is newly part of the `Base` instrument
+  interface).
+
+- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
 
 - Added support for SOFR style rates (via a compounded index) to the floating rate bond.
 
-- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
-  holding standards.
-
-- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
-
 ### Daml.Finance.Interface.Instrument.Equity
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
-- Removed the `Remove` choice of the factory.
+- The `InstrumentKey` is extended by the `HoldingStandard` field.
 
-- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
-  holding standards.
+- The `Remove` choice was removed from the `Factory` (it is newly part of the `Base` instrument
+  interface).
 
 - Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
 
 ### Daml.Finance.Interface.Instrument.Generic
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
-- Removed the `Remove` choice of the factory.
+- The `InstrumentKey` is extended by the `HoldingStandard` field.
 
-- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
-  holding standards.
+- The `Remove` choice was removed from the `Factory` (it is newly part of the `Base` instrument
+  interface).
 
 - Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
 
 ### Daml.Finance.Interface.Instrument.Option
 
-- Dependencies update
+- Update of SDK version and dependencies.
+
+- The `InstrumentKey` is extended by the `HoldingStandard` field.
 
 - Removed the `Remove` choice from the option dividend election `Factory`.
 
-- Removed the `Remove` choice of the factory.
-
-- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
-  holding standards.
+- The `Remove` choice was removed from the `Factory` (it is newly part of the `Base` instrument
+  interface).
 
 - Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
 
 ### Daml.Finance.Interface.Instrument.StructuredProduct
 
-- First release
-
-- Removed the `Remove` choice of the factory.
-
-- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
-  holding standards.
-
-- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+- First release.
 
 ### Daml.Finance.Interface.Instrument.Swap
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
-- Removed the `Remove` choice of the factory.
+- The `InstrumentKey` is extended by the `HoldingStandard` field.
 
-- Added support for SOFR style rates (via a compounded index) to the interest rate swap.
-
-- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
-  holding standards.
+- The `Remove` choice was removed from the `Factory` (it is newly part of the `Base` instrument
+  interface).
 
 - Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
 
+- Added support for SOFR style rates (via a compounded index) to the interest rate swap.
+
 ### Daml.Finance.Interface.Instrument.Token
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
-- Removed the `Remove` choice of the factory.
+- The `InstrumentKey` is extended by the `HoldingStandard` field.
 
-- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
-  holding standards.
+- The `Remove` choice was removed from the `Factory` (it is newly part of the `Base` instrument
+  interface).
 
 - Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
 
 ### Daml.Finance.Interface.Instrument.Types
 
-- New package
+- First release.
 
 ### Daml.Finance.Interface.Lifecycle
 
-- Dependencies update
-
-- Changed the `Calculate` choice of the `Effect.I` to take a quantity as argument instead of a
-  `ContractId Holding` (in order to not leak information about the holding to the effect provider).
+- Update of SDK version and dependencies.
 
 - Added `I` as type synonym for each `Factory` in the package (the `F` type synonyms are to be
   deprecated).
 
+- Changed the `Calculate` choice of the `Effect.I` to take a quantity as argument instead of a
+  `ContractId Holding` (in order to not leak information about the holding to the effect provider).
+
 ### Daml.Finance.Interface.Settlement
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
 - The `requestors : Parties` was split up into a single-maintainer for the key `instructor : Party`
   and additional signatories `consenters : Parties`. The `Batch` and `Instruction` views were
@@ -355,11 +348,11 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Interface.Types.Common
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
-- Added a `HoldingFactoryKey` data type which is used to key holding factories.
+- Added a `HoldingFactoryKey` data type used to key holding factories.
 
-- Added an enumeration data type `HoldingStandard` for referring to various holding standards. It
+- Added a `HoldingStandard` enumeration data type for referring to various holding standards, it
   is newly part of the `InstrumentKey`.
 
 - The `requestors : Parties` field of the `InstrumentKey` was replaced by `instructor : Party` (in
@@ -367,25 +360,22 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Interface.Types.Date
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
 - Added new day-count conventions: Act365NL, Basis30365 and Basis30E2360.
 
 ### Daml.Finance.Interface.Util
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
 - Added a `Lockable` module containing the interface for locking (the `Acquire` and `Release`
   choices used to be part of the base `Holding` interface).
 
-- Added the `isInstanceOf` utility function which checks whether an interface instance is
-  convertible to another interface or template.
-
-- Created a `InterfaceKey` module with utility functions for keyed interfaces.
+- Created a module `InterfaceKey` with utility functions for keyed interfaces.
 
 ### Daml.Finance.Lifecycle
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
 - The `Calculate` choice of the `Effect` and `ElectionEffect` now takes a quantity as argument
   to reflect the change in the `Effect.I` interface. The implementation of the `ClaimEffect` choice
@@ -398,24 +388,23 @@ implementation only).
 
 ### Daml.Finance.Settlement
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
 - Removed the check for consistent settled holdings. Now, holdings of the same instrument don't
-  need identical `templateTypeRep`. Instead, they should share the same token standard
-  (implementation variations are allowed). We rely on code vetting that the holding factories are
-  implemented properly.
+  need identical `templateTypeRep`, instead they should share the same token standard
+  (implementation variations are allowed).
 
-- The `requestors : Parties` was split up into a single-maintainer for the key `instructor : Party`
+- Splitted up the `requestors : Parties` into a single-maintainer for the key `instructor : Party`
   and additional signatories `consenters : Parties`. The `Batch` and `Instruction` templates were
   amended accordingly.
 
 ### Daml.Finance.Util
 
-- Dependencies update
+- Update of SDK version and dependencies.
 
 - Added a `Lockable` module containing the `aquireImpl` and `releaseImpl` locking utitlity
   functions.
 
-- Fix a bug in the schedule roll-out logic
+- Fix a bug in the schedule roll-out logic.
 
 - Added new day-count conventions: Act365NL, Basis30365 and Basis30E2360.
