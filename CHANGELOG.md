@@ -114,7 +114,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
   state, requiring them to be unlocked first. Notably, the type signatures for `splitImpl` and
   `mergeImpl` have been modified, and the re-entrant lock logic of `transferImpl` removed.
 
-- Added `T` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+- Renamed the `F` type synonym to `T`.
 
 ### Daml.Finance.Instrument.Bond
 
@@ -125,7 +125,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - The `Remove` implementation was removed from the `Factory` (it is newly part of the `Base`
   instrument interface).
 
-- Added `T` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+- Renamed the `F` type synonym to `T`.
 
 - Added support for SOFR style rates (via a compounded index) to the floating rate bond.
 
@@ -138,7 +138,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - The `Remove` implementation was removed from the `Factory` (it is newly part of the `Base`
   instrument interface).
 
-- Added `T` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+- Renamed the `F` type synonym to `T`.
 
 ### Daml.Finance.Instrument.Generic
 
@@ -149,7 +149,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - The `Remove` implementation was removed from the `Factory` (it is newly part of the `Base`
   instrument interface).
 
-- Added `T` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+- Renamed the `F` type synonym to `T`.
 
 ### Daml.Finance.Instrument.Option
 
@@ -160,7 +160,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - The `Remove` implementation was removed from the `Factory` (it is newly part of the `Base`
   instrument interface).
 
-- Added `T` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+- Renamed the `F` type synonym to `T`.
 
 - Removed the `Remove` choice from the election factory.
 
@@ -177,7 +177,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - The `Remove` implementation was removed from the `Factory` (it is newly part of the `Base`
   instrument interface).
 
-- Added `T` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+- Renamed the `F` type synonym to `T`.
 
 - Added support for SOFR style rates (via a compounded index) to the interest rate swap.
 
@@ -190,7 +190,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - The `Remove` implementation was removed from the `Factory` (it is newly part of the `Base`
   instrument interface).
 
-- Added `T` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+- Renamed the `F` type synonym to `T`.
 
 ### Daml.Finance.Interface.Account
 
@@ -204,7 +204,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - The `Create` choice of the account's `Factory` has been adapted, it now takes a
   `HoldingFactoryKey` instead of the `ContractId Daml.Finance.Interface.Holding.Factory` as input
 
-- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+- Renamed the `F` type synonym to `I` .
 
 ### Daml.Finance.Interface.Claims
 
@@ -234,7 +234,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Renamed `Base` to `Holding`.
 
-- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+- Renamed the `F` type synonym to `I`.
 
 ### Daml.Finance.Interface.Instrument.Base
 
@@ -247,6 +247,11 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
 
 - Made the `issuer` a single-maintainer of the `Instrument` key.
+
+- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
+  holding standards.
+
+- Renamed the `F` type synonym to `I`.
 
 ### Daml.Finance.Interface.Instrument.Bond
 
@@ -261,6 +266,11 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Added support for SOFR style rates (via a compounded index) to the floating rate bond.
 
+- Added an enumeration data type `HoldingStandard` to the `InstrumentKey` for referring to various
+  holding standards.
+
+- Renamed the `F` type synonym to `I`.
+
 ### Daml.Finance.Interface.Instrument.Equity
 
 - Update of SDK version and dependencies.
@@ -270,7 +280,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - The `Remove` choice was removed from the `Factory` (it is newly part of the `Base` instrument
   interface).
 
-- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+- Renamed the `F` type synonym to `I`.
 
 ### Daml.Finance.Interface.Instrument.Generic
 
@@ -281,7 +291,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - The `Remove` choice was removed from the `Factory` (it is newly part of the `Base` instrument
   interface).
 
-- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+- Renamed the `F` type synonym to `I`.
 
 ### Daml.Finance.Interface.Instrument.Option
 
@@ -294,7 +304,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - The `Remove` choice was removed from the `Factory` (it is newly part of the `Base` instrument
   interface).
 
-- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+- Renamed the `F` type synonym to `I`.
 
 ### Daml.Finance.Interface.Instrument.StructuredProduct
 
@@ -309,7 +319,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - The `Remove` choice was removed from the `Factory` (it is newly part of the `Base` instrument
   interface).
 
-- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+- Renamed the `F` type synonym to `I`.
 
 - Added support for SOFR style rates (via a compounded index) to the interest rate swap.
 
@@ -322,7 +332,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - The `Remove` choice was removed from the `Factory` (it is newly part of the `Base` instrument
   interface).
 
-- Added `I` as type synonym for `Factory` (the `F` type synonym is to be deprecated).
+- Renamed the `F` type synonym to `I`.
 
 ### Daml.Finance.Interface.Instrument.Types
 
@@ -332,8 +342,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Update of SDK version and dependencies.
 
-- Added `I` as type synonym for each `Factory` in the package (the `F` type synonyms are to be
-  deprecated).
+- Renamed the `F` type synonym to `I`.
 
 - Changed the `Calculate` choice of the `Effect.I` to take a quantity as argument instead of a
   `ContractId Holding` (in order to not leak information about the holding to the effect provider).
