@@ -6,11 +6,11 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 | Package                                    | Released version   | Target version |
 |--------------------------------------------|--------------------|----------------|
-| ContingentClaims.Core                      | 2.0.0              | unchanged      |
-| ContingentClaims.Lifecycle                 | 2.0.0              | unchanged      |
+| ContingentClaims.Core                      | 2.0.0              | 2.0.1          |
+| ContingentClaims.Lifecycle                 | 2.0.0              | 2.0.1          |
 | Daml.Finance.Account                       | 2.0.0              | 3.0.0          |
 | Daml.Finance.Claims                        | 2.0.0              | 2.1.0          |
-| Daml.Finance.Data                          | 2.0.0              | 2.0.1          |
+| Daml.Finance.Data                          | 2.0.0              | 3.0.0          |
 | Daml.Finance.Holding                       | 2.0.0              | 3.0.0          |
 | Daml.Finance.Instrument.Bond               | 1.0.0              | 2.0.0          |
 | Daml.Finance.Instrument.Generic            | 2.0.0              | 3.0.0          |
@@ -25,19 +25,19 @@ This document tracks pending changes to packages. It is facilitating the write-u
 | Daml.Finance.Interface.Instrument.Token    | 2.0.0              | 3.0.0          |
 | Daml.Finance.Interface.Instrument.Types    |                    | 1.0.0          |
 | Daml.Finance.Interface.Lifecycle           | 2.0.0              | 3.0.0          |
-| Daml.Finance.Interface.Settlement          | 2.0.0              | 2.0.1          |
-| Daml.Finance.Interface.Types.Common        | 1.0.1              | 1.1.0          |
+| Daml.Finance.Interface.Settlement          | 2.0.0              | 3.0.0          |
+| Daml.Finance.Interface.Types.Common        | 1.0.1              | 2.0.0          |
 | Daml.Finance.Interface.Types.Date          | 2.0.1              | 2.1.0          |
 | Daml.Finance.Interface.Util                | 2.0.0              | 2.1.0          |
 | Daml.Finance.Lifecycle                     | 2.0.0              | 3.0.0          |
-| Daml.Finance.Settlement                    | 2.0.0              | 2.0.1          |
+| Daml.Finance.Settlement                    | 2.0.0              | 3.0.0          |
 | Daml.Finance.Util                          | 3.0.0              | 3.1.0          |
 
 ## Early Access Packages
 
 | Package                                             | Released version   | Target version |
 |-----------------------------------------------------|--------------------|----------------|
-| ContingentClaims.Valuation                          | 0.2.1              | unchanged      |
+| ContingentClaims.Valuation                          | 0.2.1              | 0.2.2          |
 | Daml.Finance.Instrument.Equity                      | 0.3.0              | 0.4.0          |
 | Daml.Finance.Instrument.Option                      | 0.2.0              | 0.3.0          |
 | Daml.Finance.Instrument.StructuredProduct           |                    | 0.1.0          |
@@ -51,9 +51,15 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### ContingentClaims.Core
 
+- Dependencies update
+
 ### ContingentClaims.Lifecycle
 
+- Dependencies update
+
 ### ContingentClaims.Valuation
+
+- Dependencies update
 
 ### Daml.Finance.Account
 
@@ -82,10 +88,10 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Holding
 
+- Dependencies update
+
 - Fix for transfer (adding check that the custodian is the same for the sending and receiving
   account).
-
-- Dependencies update
 
 - As the locking logic from the base `Holding` interface was factored out to a separate interface
   called `Lockable` of the `Daml.Finance.Interface.Util` package, the `acquireImpl` and
@@ -331,6 +337,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Interface.Lifecycle
 
+- Dependencies update
+
 - Changed the `Calculate` choice of the `Effect.I` to take a quantity as argument instead of a
   `ContractId Holding` (in order to not leak information about the holding to the effect provider).
 
@@ -347,6 +355,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Interface.Types.Common
 
+- Dependencies update
+
 - Added a `HoldingFactoryKey` data type which is used to key holding factories.
 
 - Added an enumeration data type `HoldingStandard` for referring to various holding standards. It
@@ -357,9 +367,13 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Interface.Types.Date
 
+- Dependencies update
+
 - Added new day-count conventions: Act365NL, Basis30365 and Basis30E2360.
 
 ### Daml.Finance.Interface.Util
+
+- Dependencies update
 
 - Added a `Lockable` module containing the interface for locking (the `Acquire` and `Release`
   choices used to be part of the base `Holding` interface).
@@ -396,6 +410,8 @@ implementation only).
   amended accordingly.
 
 ### Daml.Finance.Util
+
+- Dependencies update
 
 - Added a `Lockable` module containing the `aquireImpl` and `releaseImpl` locking utitlity
   functions.
