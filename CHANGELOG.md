@@ -179,7 +179,13 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Renamed the `F` type synonym to `T`.
 
-- Added support for SOFR style rates (via a compounded index) to the interest rate swap.
+- Added support for SOFR style rates (via a compounded index) to the interest rate swap and the
+  asset swap.
+
+- Extended the asset swap to support a basket of underlyings.
+
+- Added a dedicated asset swap `DistributionRule` for total return swaps that pay dividends
+  separately from the asset performance.
 
 ### Daml.Finance.Instrument.Token
 
@@ -321,7 +327,10 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Renamed the `F` type synonym to `I`.
 
-- Added support for SOFR style rates (via a compounded index) to the interest rate swap.
+- Added support for SOFR style rates (via a compounded index) to the interest rate swap and the
+  asset swap.
+
+- Extended the asset swap to support a basket of underlyings.
 
 ### Daml.Finance.Interface.Instrument.Token
 
