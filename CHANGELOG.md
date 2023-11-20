@@ -423,3 +423,80 @@ implementation only).
 - Fix a bug in the schedule roll-out logic.
 
 - Added new day-count conventions: Act365NL, Basis30365, and Basis30E2360.
+
+## Rationale Behind Breaking Changes
+
+For this release, the main driver has been to optimize Daml Finance for useability, maintainability,
+and upgradability. Along with code changes, we have added new documentation and tutorials to
+streamline the learning process for new users.
+
+Furthermore, we have broadened the library's functionality by introducing additional packages for
+new financial instruments, such as structured products, and making several usability enhancements.
+
+Additionally, certain modifications have been implemented to ease future transitions to Daml 3.0 and
+the Canton Network.
+
+This section outlines the breaking changes and the reasons behind them.
+
+### Enhanced Upgradeability and Extensibility
+
+Modifications to the core asset model (`Account`, `Holding`, and `Instrument` interfaces) have been
+made to improve extensibility and upgrade processes:
+
+1. The `Account` now uses a `HoldingFactoryKey` instead of a `ContractId` to reference its
+  `Daml.Finance.Interface.Holding.Factory`. This allows for seamless `HoldingFactory` upgrades
+  without altering `Account` contract instances, as illustrated our upgrade tutorial for `Holding`s.
+
+1. The `Fungible` interface no longer requires the `Transferable` interface. However, both
+   `Transferable` and `Fungible` continue to require the implementation of the `Holding` interface
+   (renamed from `Base` following customer feedback).
+
+1. We have introduced the `HoldingStandard`, an enumeration data type used to classify holdings into
+   four types based on the interfaces they implement: `Transferable`, `Fungible`, and `Holding`.
+   This classification influenced the renaming and structuring of holding implementations. A unified
+   `HoldingFactory` capable of instantiating any holding standard has been adopted.
+
+1. The `InstrumentKey` now includes the `HoldingStandard`, specifying the applicable holding
+   standard for an instrument. Settlement processes have been adjusted to only necessitate a
+   matching holding standard, allowing for implementation variations.
+
+### Introducing a Locking Interface
+
+The locking mechanism has been separated from the base `Holding` interface into a new `Lockable`
+interface. The `Holding` interface now requires `Lockable`. Choices like `Transfer`, `Split`,
+`Merge`, and `Debit` are disabled in locked states and require unlocking first. The `Account`
+template now also implements the `Lockable` interface, though alternative implementations without
+`Lockable` remain feasible.
+
+### Streamlining Interface Archival
+
+Previously, our factory contracts featured a `Remove` choice for archiving interface instances. With
+Daml now supporting direct archival of interface instances, these choices have been removed. To
+facilitate the simultaneous archival of `Account`, `Instrument`, and `HoldingFactory` interfaces
+with their related `Reference` contract instance, a `Remove` choice has been added to the `Account`,
+base `Instrument`, and `HoldingFactory` interfaces.
+
+### Transitioning to Single-Maintainer Keys
+
+Anticipating future integration with Daml 3.0 and the Canton Network, we've shifted to
+single-maintainer party keys:
+
+1. The `issuer : Party` of the `InstrumentKey` is now the single maintainer for the `Instrument`
+   key.
+
+1. For `Batch` and `Instruction`, the `requestors : Parties` field has been divided into a
+   single-maintainer `instructor : Party` for the `Instruction` key, alongside additional
+   signatories `consenters : Parties`. Corresponding changes have been made to the `Batch` and
+   `Instruction` views. In the `Daml.Finance.Lifecycle.Rule.Claim` implementation,
+   `providers : Parties` has been replaced with a single `provider : Party` (to facilitate assigning
+   the `provider` as a settlemetn `instructor : Party`).
+
+1. The LedgerTime key has been completely removed as it was redundant.
+
+### Additional Breaking Changes
+
+- We've updated our naming conventions: `F` for factories has been changed to `T` for factory
+  templates and `I` for factory interfaces.
+
+- The `Calculate` choice in the `Effect` interface now accepts a quantity as an argument instead of
+  a `ContractId Holding`. This change enhances privacy by minimizing unnecessary data exposure.
