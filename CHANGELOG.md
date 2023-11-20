@@ -360,9 +360,9 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Update of SDK version and dependencies.
 
-- The `requestors : Parties` was split up into a single-maintainer for the key `instructor : Party`
-  and additional signatories `consenters : Parties`. The `Batch` and `Instruction` views were
-  amended accordingly.
+- For the `Batch` and `Instruction`, the `requestors : Parties` field was split up into an
+  `instructor : Party` as maintainer of the `Instruction` key, and `consenters : Parties` as
+  additional signatories. The `Batch` and `Instruction` views were amended accordingly.
 
 ### Daml.Finance.Interface.Types.Common
 
@@ -373,14 +373,11 @@ This document tracks pending changes to packages. It is facilitating the write-u
 - Added a `HoldingStandard` enumeration data type for referring to various holding standards, it
   is newly part of the `InstrumentKey`.
 
-- The `requestors : Parties` field of the `InstrumentKey` was replaced by `instructor : Party` (in
-  order to get a single-maintainer of the `Instruction` key).
-
 ### Daml.Finance.Interface.Types.Date
 
 - Update of SDK version and dependencies.
 
-- Added new day-count conventions: Act365NL, Basis30365 and Basis30E2360.
+- Added new day-count conventions: Act365NL, Basis30365, and Basis30E2360.
 
 ### Daml.Finance.Interface.Util
 
@@ -412,9 +409,9 @@ implementation only).
   need identical `templateTypeRep`, instead they should share the same token standard
   (implementation variations are allowed).
 
-- Splitted up the `requestors : Parties` into a single-maintainer for the key `instructor : Party`
-  and additional signatories `consenters : Parties`. The `Batch` and `Instruction` templates were
-  amended accordingly.
+- For the `Batch` and `Instruction` templates, the `requestors : Parties` field got split up into an
+  `instructor : Party` as maintainer of the `Instruction` key, and `consenters : Parties` as
+  additional signatories.
 
 ### Daml.Finance.Util
 
@@ -425,4 +422,4 @@ implementation only).
 
 - Fix a bug in the schedule roll-out logic.
 
-- Added new day-count conventions: Act365NL, Basis30365 and Basis30E2360.
+- Added new day-count conventions: Act365NL, Basis30365, and Basis30E2360.
