@@ -18,7 +18,9 @@ pkgs.mkShell {
   buildInputs = [
     (daml { stdenv = pkgs.stdenv;
             jdk = pkgs.openjdk11_headless;
-            version = damlYaml.sdk-version; })
+            sdkVersion = damlYaml.sdk-version;
+            damlVersion = damlYaml.daml-version;
+             })
     (packell { pkgs = pkgsGhc; stdenv = pkgsGhc.stdenv; version = "0.0.2"; })
     pkgs.bash
     pkgs.binutils # cp, grep, etc.

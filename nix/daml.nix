@@ -1,13 +1,13 @@
-{ stdenv, jdk, version }:
+{ stdenv, jdk, sdkVersion, damlVersion }:
 let
   os = if stdenv.isDarwin then "macos" else "linux";
   tarball = fetchTarball {
-    url = "https://github.com/digital-asset/daml/releases/download/v${version}/daml-sdk-${version}-${os}.tar.gz";
+    url = "https://github.com/digital-asset/daml/releases/download/v${damlVersion}/daml-sdk-${sdkVersion}-${os}.tar.gz";
   };
 in
   stdenv.mkDerivation {
     name = "daml-sdk";
-    version = "$version";
+    version = "$sdkVersion";
     src = tarball;
     buildPhase = "patchShebangs .";
     installPhase = "DAML_HOME=$out ./install.sh";
