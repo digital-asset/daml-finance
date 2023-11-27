@@ -22,10 +22,10 @@ pkgs.mkShell {
             damlVersion = damlYaml.daml-version;
             curl = pkgs.curl;
             curl_cert = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
-            version = damlYaml.sdk-version;
             os = if pkgs.stdenv.isDarwin then "macos" else "linux";
-            hashes = { linux = "sha256-aiYGXjOtVMtAthaTMz4EIkQC0M4H68y1FH3eHZC3Hhw=";
-                       macos = "sha256-DuMQRBTd+S4T0m1Uuf+O4i5gCQz5QpJun/bkf6eqCNI="; };})
+            use_ee = true;
+            hashes = { linux = "sha256-LsziR0wtHYqs7PVKGk1FI6xs4l3LbwbCgGgfYn7p+sk";
+                       macos = "sha256-Jyfl1wfIiNtXcnOxqX94CYptzi8A4EZEA7330uItWBM="; };})
     (packell { pkgs = pkgsGhc; stdenv = pkgsGhc.stdenv; version = "0.0.2"; })
     pkgs.bash
     pkgs.binutils # cp, grep, etc.

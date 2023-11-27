@@ -1,12 +1,24 @@
-{ stdenv, jdk, curl, curl_cert, sdkVersion, damlVersion, os, hashes }:
+{ stdenv, jdk, curl, curl_cert, sdkVersion, damlVersion, os, hashes, use_ee }:
 let
-  os_tarball = fetchTarball {
-    url = "https://github.com/digital-asset/daml/releases/download/v${damlVersion}/daml-sdk-${sdkVersion}-${os}.tar.gz";
+  os_tarball = stdenv.mkDerivation {
+    pname = "daml-os-tarball";
+    version = sdkVersion;
+    buildInputs = [ curl ];
+    SSL_CERT_FILE = curl_cert;
+    buildPhase = ''
+      set -euo pipefail
+
+      curl https://github.com/digital-asset/daml/releases/download/v${damlVersion}/daml-sdk-${sdkVersion}-${os}.tar.gz \
+        > $out
+    '';
+    dontInstall = true;
+    outputHashAlgo = "sha256";
+    outputHashMode = "recursive";
+    outputHash = hashes.${os};
   };
-  tarball = stdenv.mkDerivation {
+  ee_tarball = stdenv.mkDerivation {
     pname = "daml-tarball";
-    version = version;
-    src = ./..;
+    version = sdkVersion;
     buildInputs = [ curl ];
     SSL_CERT_FILE = curl_cert;
     impureEnvVars = [ "ARTIFACTORY_USERNAME" "ARTIFACTORY_PASSWORD" ];
@@ -15,7 +27,7 @@ let
 
       if [ -n "''${ARTIFACTORY_PASSWORD:-}" ]; then
         curl -u $ARTIFACTORY_USERNAME:$ARTIFACTORY_PASSWORD \
-             https://digitalasset.jfrog.io/artifactory/assembly/daml/${version}/daml-sdk-${version}-${os}.tar.gz \
+             https://digitalasset.jfrog.io/artifactory/assembly/daml/${sdkVersion}/daml-sdk-${sdkVersion}-${os}.tar.gz \
           > $out
       else
         echo "ARTIFACTORY_USERNAME and ARTIFACTORY_PASSWORD must be set." >&2
@@ -31,7 +43,7 @@ in
   stdenv.mkDerivation {
     pname = "daml-sdk";
     version = sdkVersion;
-    src = tarball;
+    src = if use_ee then ee_tarball else os_tarball;
     dontUnpack = true;
     buildPhase = ''
       mkdir daml
