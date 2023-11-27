@@ -7,24 +7,25 @@ let
   sources = import ./nix/sources.nix;
   pkgs = import sources.nixpkgs {};
   pkgsGhc = import sources.nixpkgs-ghc8107 {};
-  daml = import ./nix/daml.nix;
+  build_daml = import ./nix/daml.nix;
   packell = import ./nix/packell.nix;
   damlYaml = builtins.fromJSON (builtins.readFile (pkgs.runCommand "daml.yaml.json" { yamlFile = ./daml.yaml; } ''
                 ${pkgs.yj}/bin/yj < "$yamlFile" > $out
               ''));
+  daml = (build_daml { stdenv = pkgs.stdenv;
+                       jdk = pkgs.openjdk11_headless;
+                       sdkVersion = damlYaml.sdk-version;
+                       damlVersion = damlYaml.daml-version;
+                       curl = pkgs.curl;
+                       curl_cert = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+                       os = if pkgs.stdenv.isDarwin then "macos" else "linux";
+                       hashes = { linux = "kNZwBNOQopz7lWMtqglZBIoYJKcOexpcv4483pX3Xsk=";
+                                  macos = "4oYjlybF2vCH8MkiFTQtouj/Gt6JsPfKsJAB5RUMBgk="; };});
 in
 pkgs.mkShell {
   SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
   buildInputs = [
-    (daml { stdenv = pkgs.stdenv;
-            jdk = pkgs.openjdk11_headless;
-            sdkVersion = damlYaml.sdk-version;
-            damlVersion = damlYaml.daml-version;
-            curl = pkgs.curl;
-            curl_cert = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
-            os = if pkgs.stdenv.isDarwin then "macos" else "linux";
-            hashes = { linux = "aDuDK8bJQXU10Y7YXO7LIMaYvtUBSCXXm6Q1/rieC9o=";
-                       macos = "lRszs1LPDYvJAtuNsT9Z2mD/DAgJQBts8Zg1TVxDVV4="; };})
+    daml
     (packell { pkgs = pkgsGhc; stdenv = pkgsGhc.stdenv; version = "0.0.2"; })
     pkgs.bash
     pkgs.binutils # cp, grep, etc.
@@ -37,6 +38,6 @@ pkgs.mkShell {
     pkgs.jq
     pkgs.python39
     pkgs.openssh
-    pkgs.yq-go]
-  ;
+    pkgs.yq-go
+  ];
 }
