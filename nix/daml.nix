@@ -1,49 +1,44 @@
-{ stdenv, jdk, curl, curl_cert, sdkVersion, damlVersion, os, hashes, use_ee }:
+{ stdenv, jdk, curl, curl_cert, sdkVersion, damlVersion, os, hashes }:
 let
-  os_tarball = stdenv.mkDerivation {
-    pname = "daml-os-tarball";
-    version = sdkVersion;
-    buildInputs = [ curl ];
-    SSL_CERT_FILE = curl_cert;
-    buildPhase = ''
-      set -euo pipefail
-
-      curl https://github.com/digital-asset/daml/releases/download/v${damlVersion}/daml-sdk-${sdkVersion}-${os}.tar.gz \
-        > $out
-    '';
-    dontInstall = true;
-    outputHashAlgo = "sha256";
-    outputHashMode = "recursive";
-    outputHash = hashes.${os};
-  };
-  ee_tarball = stdenv.mkDerivation {
+  tarball = stdenv.mkDerivation {
     pname = "daml-tarball";
     version = sdkVersion;
+    src = ../.;
     buildInputs = [ curl ];
     SSL_CERT_FILE = curl_cert;
     impureEnvVars = [ "ARTIFACTORY_USERNAME" "ARTIFACTORY_PASSWORD" ];
     buildPhase = ''
       set -euo pipefail
 
-      if [ -n "''${ARTIFACTORY_PASSWORD:-}" ]; then
-        curl -u $ARTIFACTORY_USERNAME:$ARTIFACTORY_PASSWORD \
-             https://digitalasset.jfrog.io/artifactory/assembly/daml/${sdkVersion}/daml-sdk-${sdkVersion}-${os}.tar.gz \
+      get_os() (
+        curl --location \
+             --fail \
+             https://github.com/digital-asset/daml/releases/download/v${damlVersion}/daml-sdk-${sdkVersion}-${os}.tar.gz \
           > $out
-      else
-        echo "ARTIFACTORY_USERNAME and ARTIFACTORY_PASSWORD must be set." >&2
-        exit 1
-      fi
+      )
+      get_ee() (
+        if [ -n "''${ARTIFACTORY_PASSWORD:-}" ]; then
+          curl -u $ARTIFACTORY_USERNAME:$ARTIFACTORY_PASSWORD \
+               https://digitalasset.jfrog.io/artifactory/assembly/daml/${sdkVersion}/daml-sdk-${sdkVersion}-${os}.tar.gz \
+            > $out
+        else
+          echo "ARTIFACTORY_USERNAME and ARTIFACTORY_PASSWORD must be set." >&2
+          exit 1
+        fi
+      )
+
+      get_os || get_ee
     '';
     dontInstall = true;
     outputHashAlgo = "sha256";
-    outputHashMode = "recursive";
+    outputHashMode = "flat";
     outputHash = hashes.${os};
   };
 in
   stdenv.mkDerivation {
     pname = "daml-sdk";
     version = sdkVersion;
-    src = if use_ee then ee_tarball else os_tarball;
+    src = tarball;
     dontUnpack = true;
     buildPhase = ''
       mkdir daml

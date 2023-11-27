@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+sdkVersion=$(yq .sdk-version $DIR/../daml.yaml)
+damlVersion=$(yq .daml-version $DIR/../daml.yaml)
+
+release_exists() (
+  curl -I \
+       https://github.com/digital-asset/daml/releases/tag/v$damlVersion \
+       --fail \
+    &>/dev/null
+)
+
+get_hash() (
+  os=$1
+  out=$(mktemp)
+  case $2 in
+    public)
+      curl --location \
+           --fail \
+           --silent \
+           https://github.com/digital-asset/daml/releases/download/v${damlVersion}/daml-sdk-${sdkVersion}-${os}.tar.gz \
+        > $out
+    ;;
+    private)
+      if [ -n "''${ARTIFACTORY_PASSWORD:-}" ]; then
+        curl -u $ARTIFACTORY_USERNAME:$ARTIFACTORY_PASSWORD \
+             --silent \
+             https://digitalasset.jfrog.io/artifactory/assembly/daml/${sdkVersion}/daml-sdk-${sdkVersion}-${os}.tar.gz \
+          > $out
+      else
+        echo "ARTIFACTORY_USERNAME and ARTIFACTORY_PASSWORD must be set." >&2
+        exit 1
+      fi
+    ;;
+  esac
+  nix-hash --to-base64 --type sha256 $(sha256sum $out | awk '{print $1}')
+)
+
+if release_exists; then
+  echo "Using public version $damlVersion."
+  src=public
+else
+  src=private
+fi
+
+for os in linux macos; do
+  sha=$(get_hash $os $src)
+  sed -i "s|$os = \".*\";|$os = \"$sha\";|" "$DIR/../shell.nix"
+done
