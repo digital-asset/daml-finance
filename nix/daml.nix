@@ -10,6 +10,10 @@ let
     buildPhase = ''
       set -euo pipefail
 
+      if [ -f .envrc.private ]; then
+        source .envrc.private
+      fi
+
       get_os() (
         curl --location \
              --fail \
