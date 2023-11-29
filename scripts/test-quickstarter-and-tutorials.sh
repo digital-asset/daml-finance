@@ -16,18 +16,17 @@
 # - finance-lifecycling
 # - finance-payoff-modeling
 #
-# The script is designed to be run from the user's home directory. It will create a temporary
+# The script is designed to be run from any of the user's directory. It will create a temporary
 # directory which will be removed upon completion.
 
 # Configuration
 TEMPLATES=("quickstart-finance" "finance-upgrades" "finance-settlement" "finance-lifecycling" "finance-payoff-modeling")
 FOLDER="tmp-daml-finance-test-quickstarter-and-tutorials"
+SDK_VERSION="2.8.0-snapshot.20231127.12403.0.vf5c2e6da"
+OS="macos"
 
-# Check if the current directory is your home directory
-if [ "$(pwd)" != "$HOME" ]; then
-  echo "==> This script must be run from your home directory ~/."
-  exit 1
-fi
+# Get the directory of the script
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Start testing
 echo "========================================"
@@ -51,10 +50,17 @@ cleanup() {
   rm -rf "$1"
 }
 
-# Install the latest SDK snapshot version and extract the version
-echo "==> Installing Latest SDK Snapshot Version"
-SDK_VERSION=$(daml install latest --snapshots=yes | awk '/Installing SDK version/{print $4}')
-echo "==> Downloaded SDK $SDK_VERSION"
+# Install the SDK (snapshot) version
+echo "==> Installing SDK Version"
+source "$SCRIPT_DIR/install-sdk.sh"
+install-sdk "$SDK_VERSION" "$OS"
+exit_status=$?
+if [ $exit_status -ne 0 ]; then
+  echo "Failed to download and install SDK. Exiting script."
+  exit $exit_status
+else
+  echo "==> SDK $SDK_VERSION is installed"
+fi
 
 for TEMPLATE in "${TEMPLATES[@]}"; do
   echo "==> Testing $TEMPLATE"
