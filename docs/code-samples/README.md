@@ -22,11 +22,19 @@ processing the daml command).
 
 ### Updating the project templates
 
-1. Make the necessary code changes.
+When you run the command `daml new quickstart-finance --template quickstart-finance`, the project's
+source code is retrieved from a specific commit in the daml-finance repository (typically in
+`main`). This includes a [daml.yaml.template](getting-started/daml.yaml.template) file which
+specifies a version, say `0.0.x`. The project's dependencies are drawn from the `0.0.x.conf`
+configuration file located in the daml-finance `main` branch. To upgrade a project, you need to
+update these sources as outlined in this section.
 
-2. Upgrade the project dependencies (only if the Daml Finance packages the
-   project depends on change)
+1. **Change Code**: Make the necessary code changes.
 
+2. **Update Configuration Version**: A version change requires a SDK release. Only
+   update the version if dependencies in the project's
+   [daml.yaml.template](getting-started/daml.yaml.template) file changes (i.e., excluding versions)
+   or in case of a new SDK release you want a separate configuration file for.
    1. Update the *version* in both the [daml.yaml.template](getting-started/daml.yaml.template) and
       the [daml.yaml](getting-started/daml.yaml) files.
 
@@ -37,7 +45,9 @@ processing the daml command).
       tutorials-config/{version}.conf
       ```
 
-   3. Update the dependencies in the new configuration file as necessary. The format of the file is
+3. **Update Configuration Content**
+   1. Update the dependencies in the (new) configuration file as necessary. The format of the file
+      is
 
       ```{}
       <full_http_url> <dependency_path>
@@ -48,17 +58,20 @@ processing the daml command).
       [daml.yaml.template](getting-started/daml.yaml.template) and
       [daml.yaml](getting-started/daml.yaml) files.
 
-   4. Make sure to append an empty line at the end of the configuration file. This is essential for
+   2. Make sure to append an empty line at the end of the configuration file. This is essential for
       the scripts to work properly.
 
-3. Ensure that the code compiles (i.e., run `./get-dependencies.sh && daml build`) and that it gives
-the expected results.
+4. **Update Commit**: In case the version changed in step 2.1 or the source code of the project
+   changed, update the version in the daml repository (requires a SDK release to be effective):
 
-   1. Push the changes to github and merge to main.
+   1. Ensure that the code compiles (i.e., run `./get-dependencies.sh && daml build`) and that it
+      gives the expected results.
 
-   2. In the daml repository, update the Daml Finance
+   2. Push the changes to the daml-finance repository and merge to `main`.
+
+   3. In the daml repository, update the Daml Finance
       [configuration](https://github.com/digital-asset/daml/tree/main/daml_finance_dep.bzl)
-      with the commit containing the change on main (or a subsequent commit) into the `version`
+      with the commit containing the change on `main` (or a subsequent commit) into the `version`
       field. You also must set the hash of the generated tar of the specified commit. In order to
       get the correct hash value to set in the `sha256` field, run the following commands:
 
