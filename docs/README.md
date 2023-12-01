@@ -39,7 +39,3 @@ In order to update the assembly package used on the main documentation website a
 7. In the docs.daml.com [repo](https://github.com/digital-asset/docs.daml.com), follow the
    instructions in the [README](https://github.com/digital-asset/docs.daml.com/blob/main/README.md)
    to update the `daml-finance` version.
-
-Note - the "Getting Started" code sample [here](docs/code-samples/getting-started) is part of the
-`daml` assembly build. The code samples are copied to
-[the `daml` repo](https://github.com/digital-asset/daml/tree/main/templates/quickstart-finance).
