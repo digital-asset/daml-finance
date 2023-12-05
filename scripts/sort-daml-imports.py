@@ -11,8 +11,6 @@ from collections import deque
 # 1. Items not starting with '(', sorted alphabetically with capital letters first.
 # 2. Items starting with '(', kept in their original order and placed at the end.
 # Usage: Run the script by calling 'python sort-daml-imports.py'.
-# Note: It is recommended to backup your files or ensure version control is used before running this
-# script, as it modifies the files in place.
 def sort_imports(file):
     with open(file, 'r') as f:
         lines = f.readlines()
