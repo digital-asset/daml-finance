@@ -38,6 +38,7 @@ pkgs.mkShell {
     pkgs.jq
     pkgs.python39
     pkgs.openssh
+    pkgs.unixtools.xxd
     pkgs.yq-go
   ];
 }
