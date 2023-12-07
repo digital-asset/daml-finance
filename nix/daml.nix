@@ -49,7 +49,7 @@ in
       tar xzf $src -C daml --strip-components 1
       patchShebangs .
     '';
-    installPhase = "cd daml; DAML_HOME=$out ./install.sh --allow-install-non-release=yes";
+    installPhase = "cd daml; DAML_HOME=$out ./install.sh --install-with-internal-version yes";
     propagatedBuildInputs = [ jdk ];
     preFixup = ''
       # Set DAML_HOME automatically.
