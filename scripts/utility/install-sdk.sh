@@ -48,11 +48,11 @@ install_sdk() {
   }
 
   get_ee() {
-    if [ -n "${ARTIFACTORY_PASSWORD}" ] && [-n "$ARTIFACTORY_PASSWORD"]; then
+    if [ -n "${ARTIFACTORY_USERNAME}" ] && [ -n "${ARTIFACTORY_PASSWORD}" ]; then
       curl -u "${ARTIFACTORY_USERNAME}:${ARTIFACTORY_PASSWORD}" \
           "https://digitalasset.jfrog.io/artifactory/assembly/daml/${SDK_VERSION}/daml-sdk-${SDK_VERSION}-${OS}.tar.gz" \
         > "$TMP_DIR/daml-sdk.tar.gz"
-      # curl -sSL "https://get.daml.com" | sh -s "${SDK_VERSION}"
+        # curl -sSL "https://get.daml.com" | sh -s "${SDK_VERSION}"
     else
       echo "ARTIFACTORY_USERNAME and ARTIFACTORY_PASSWORD must be set." >&2
       return 1
@@ -80,7 +80,7 @@ install_sdk() {
       cd "$TMP_DIR"
       tar xzf daml-sdk.tar.gz --strip-components 1
       echo "Extraction completed. " >&2
-      ./install.sh --allow-install-non-release=yes
+      ./install.sh --install-with-internal-version yes # Aternatively: curl -sSL https://get.daml.com/ | sh -s 2.8.0-rc2
       # Clean up
       rm -rf "$TMP_DIR"
     )
@@ -97,5 +97,5 @@ install_sdk() {
 }
 
 # Test
-# TEST=$(install_sdk "2.8.0-snapshot.20231127.12403.0.vf5c2e6da" "macos")
+# TEST=$(install_sdk "2.8.0-snapshot.20231206.12407.0.vb5eee4a3" "macos")
 # echo $TEST
