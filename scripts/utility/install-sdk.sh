@@ -26,7 +26,11 @@
 #   - Returns 0 on successful installation, 1 on failure.
 install_sdk() {
   SDK_VERSION=$1
-  OS=$2
+  DAML_VERSION=$2
+  OS=$3
+
+  echo "SDK_VERSION: $SDK_VERSION" >&2
+  echo "DAML_VERSOIN: $DAML_VERSION" >&2
 
   # Get absolute path of this file.
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -43,8 +47,9 @@ install_sdk() {
   get_os() {
     curl --location \
          --fail \
-         https://github.com/digital-asset/daml/releases/download/v${SDK_VERSION}/daml-sdk-${SDK_VERSION}-${OS}.tar.gz \
+         https://github.com/digital-asset/daml/releases/download/v${DAML_VERSION}/daml-sdk-${SDK_VERSION}-${OS}.tar.gz \
       > "$TMP_DIR/daml-sdk.tar.gz"
+      # https://github.com/digital-asset/daml/releases/download/v2.8.0-rc3/daml-sdk-2.8.0-snapshot.20231208.12408.0.v26c09db6-macos.tar.gz
   }
 
   get_ee() {
@@ -97,5 +102,5 @@ install_sdk() {
 }
 
 # Test
-# TEST=$(install_sdk "2.8.0-snapshot.20231206.12407.0.vb5eee4a3" "macos")
+# TEST=$(install_sdk "2.8.0-snapshot.20231208.12408.0.v26c09db6" "2.8.0-rc3" "macos")
 # echo $TEST
