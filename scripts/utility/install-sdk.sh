@@ -49,7 +49,6 @@ install_sdk() {
          --fail \
          https://github.com/digital-asset/daml/releases/download/v${DAML_VERSION}/daml-sdk-${SDK_VERSION}-${OS}.tar.gz \
       > "$TMP_DIR/daml-sdk.tar.gz"
-      # https://github.com/digital-asset/daml/releases/download/v2.8.0-rc3/daml-sdk-2.8.0-snapshot.20231208.12408.0.v26c09db6-macos.tar.gz
   }
 
   get_ee() {
@@ -57,7 +56,6 @@ install_sdk() {
       curl -u "${ARTIFACTORY_USERNAME}:${ARTIFACTORY_PASSWORD}" \
           "https://digitalasset.jfrog.io/artifactory/assembly/daml/${SDK_VERSION}/daml-sdk-${SDK_VERSION}-${OS}.tar.gz" \
         > "$TMP_DIR/daml-sdk.tar.gz"
-        # curl -sSL "https://get.daml.com" | sh -s "${SDK_VERSION}"
     else
       echo "ARTIFACTORY_USERNAME and ARTIFACTORY_PASSWORD must be set." >&2
       return 1
