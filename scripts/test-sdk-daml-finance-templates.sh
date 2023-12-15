@@ -72,8 +72,8 @@ ROOT_DIR="$SCRIPT_DIR/.."
 echo "==> Get \"latest\" SDK version"
 source "$SCRIPT_DIR/utility/get-latest-sdk-version.sh"
 SDK_AND_DAML_VERSION=$(get_latest_sdk_version "$require_asset_name_substring" "$exclude_asset_name_substring_if_non_empty" "$require_release_tag_name_substring" "$exclude_release_tag_name_substring_if_non_empty")
-# Set IFS to :: for splitting
-IFS="::" read -r SDK_VERSION DAML_VERSION <<< "$SDK_AND_DAML_VERSION"
+# Set IFS to : for splitting
+IFS=":" read -r SDK_VERSION DAML_VERSION <<< "$SDK_AND_DAML_VERSION"
 # Check if the command failed or if SDK_VERSION is empty
 if [ $? -ne 0 ] || [ -z "$SDK_VERSION" ]; then
   echo "Error: Failed to get the SDK version."
