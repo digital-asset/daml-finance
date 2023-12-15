@@ -98,7 +98,3 @@ install_sdk() {
 
   return 0
 }
-
-# Test
-# TEST=$(install_sdk "2.8.0" "2.8.0-rc3" "macos")
-# echo $TEST
