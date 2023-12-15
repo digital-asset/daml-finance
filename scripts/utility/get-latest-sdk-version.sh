@@ -133,5 +133,5 @@ get_latest_sdk_version() {
   echo "" >&2
 
   # Do not echo, just set the value to be captured by command substitution
-  printf "%s" "$highest_version_asset_name::$highest_version_release_name"
+  printf "%s" "$highest_version_asset_name:$highest_version_release_name"
 }
