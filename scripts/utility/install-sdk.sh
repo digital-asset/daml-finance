@@ -100,5 +100,5 @@ install_sdk() {
 }
 
 # Test
-# TEST=$(install_sdk "2.8.0-snapshot.20231208.12408.0.v26c09db6" "2.8.0-rc3" "macos")
+# TEST=$(install_sdk "2.8.0" "2.8.0-rc3" "macos")
 # echo $TEST
