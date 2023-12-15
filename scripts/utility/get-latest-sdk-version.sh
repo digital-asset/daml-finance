@@ -135,7 +135,3 @@ get_latest_sdk_version() {
   # Do not echo, just set the value to be captured by command substitution
   printf "%s" "$highest_version_asset_name::$highest_version_release_name"
 }
-
-# Test
-# SDK_VERSION=$(get_latest_sdk_version "" "2.9.0" "rc" "")
-# echo $SDK_VERSION
