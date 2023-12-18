@@ -1,0 +1,59 @@
+-- Copyright (c) 2023 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Holding.Factory where
+
+import DA.Set (singleton)
+import Daml.Finance.Holding.BaseHolding (BaseHolding(..))
+import Daml.Finance.Holding.Fungible (Fungible(..))
+import Daml.Finance.Holding.Transferable (Transferable(..))
+import Daml.Finance.Holding.TransferableFungible (TransferableFungible(..))
+import Daml.Finance.Interface.Holding.Factory qualified as HoldingFactory (Create(..), I, View(..), holdingFactoryKey)
+import Daml.Finance.Interface.Types.Common.Types (Id, PartiesMap)
+import Daml.Finance.Interface.Types.Common.Types qualified as HoldingStandard (HoldingStandard(..))
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+
+-- | Type synonym for `Factory`.
+type T = Factory
+
+-- | Implementation of a factory template for holdings.
+template Factory
+  with
+    provider : Party
+      -- ^ The factory's provider.
+    id : Id
+      -- ^ Identifier for the factory.
+    observers : PartiesMap
+      -- ^ The factory's observers.
+  where
+    signatory provider
+    observer Disclosure.flattenObservers observers
+
+    interface instance HoldingFactory.I for Factory
+      where
+        view = HoldingFactory.View with provider; id
+        getKey = HoldingFactory.holdingFactoryKey this
+        create' HoldingFactory.Create{instrument; account; amount; observers} = do
+          assertMsg "amount must be positive" $ amount > 0.0
+          case instrument.holdingStandard of
+            HoldingStandard.TransferableFungible ->
+              toInterfaceContractId <$>
+                create TransferableFungible with instrument; account; amount; observers; lock = None
+            HoldingStandard.Transferable ->
+              toInterfaceContractId <$>
+                create Transferable with instrument; account; amount; observers; lock = None
+            HoldingStandard.Fungible ->
+              toInterfaceContractId <$>
+                create Fungible with
+                  instrument; account; amount; observers; lock = None
+            HoldingStandard.BaseHolding ->
+              toInterfaceContractId <$>
+                create BaseHolding with
+                  instrument; account; amount; observers; lock = None
+
+    interface instance Disclosure.I for Factory where
+      view = Disclosure.View with disclosureControllers = singleton provider; observers
+      setObservers = setObserversImpl @Factory @Disclosure.I this None
+      addObservers = addObserversImpl @Factory @Disclosure.I this None
+      removeObservers = removeObserversImpl @Factory @Disclosure.I this None
