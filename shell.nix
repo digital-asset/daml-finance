@@ -9,7 +9,7 @@ let
   pkgsGhc = import sources.nixpkgs-ghc8107 {};
   build_daml = import ./nix/daml.nix;
   packell = import ./nix/packell.nix;
-  damlYaml = builtins.fromJSON (builtins.readFile (pkgs.runCommand "daml.yaml.json" { yamlFile = ./daml.yaml; } ''
+  damlYaml = builtins.fromJSON (builtins.readFile (pkgs.runCommand "daml.yaml.json" { yamlFile = ./multi-package.yaml; } ''
                 ${pkgs.yj}/bin/yj < "$yamlFile" > $out
               ''));
   daml = (build_daml { stdenv = pkgs.stdenv;
