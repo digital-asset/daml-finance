@@ -5,7 +5,6 @@ module Daml.Finance.Holding.Test.Transfer where
 
 import DA.Action (foldlA)
 import DA.Assert ((===))
-import DA.Map qualified as Map (fromList)
 import DA.Set qualified as Set (fromList, singleton, toList)
 import Daml.Finance.Holding.Factory qualified as Holding (Factory(..))
 import Daml.Finance.Holding.Test.Common (TestInitialState(..), TestParties(..), setupInitialState, setupParties)
@@ -19,16 +18,16 @@ import Daml.Script
 testTransfer : Bool -> Script ()
 testTransfer useReentrantLockTransferService = script do
   -- Create parties
-  tp@TestParties{custodian; issuer; investor; locker; publicParty} <- setupParties
+  tp@TestParties{custodian; issuer; investor; locker} <- setupParties
 
   -- Initialize state
-  let pp = Map.fromList [("PublicParty", Set.singleton publicParty)]
-  TestInitialState {issuerAccount; issuerHoldingCid; investorAccount} <- setupInitialState
-    tp
-    Holding.Factory with provider = custodian; id = Id "Holding Factory"; observers = pp
-    Transferable
-    []
-    Account.Owner
+  TestInitialState {issuerAccount; issuerHoldingCid; investorAccount; disclosedHoldingFactory} <-
+    setupInitialState
+      tp
+      Holding.Factory with provider = custodian; id = Id "Holding Factory"; observers = mempty
+      Transferable
+      []
+      Account.Owner
 
   -- Lock asset (with 2 contexts)
   lockableCid <- submitMulti [issuer, locker] [] do
@@ -48,17 +47,18 @@ testTransfer useReentrantLockTransferService = script do
           observers = [issuer, investor]
 
       -- Transfer with re-entrant locks
-      transferableCid <- submitMulti [issuer, investor, locker] [publicParty] do
-        exerciseCmd reentrantTransferUtilityCid TransferWithLocks with
-          sender = issuer
-          receiverAccount = investorAccount
-          transferableCid = fromInterfaceContractId @Transferable.I lockableCid
+      transferableCid <-
+        submitMultiWithDisclosures [issuer, investor, locker] [] disclosedHoldingFactory do
+          exerciseCmd reentrantTransferUtilityCid TransferWithLocks with
+            sender = issuer
+            receiverAccount = investorAccount
+            transferableCid = fromInterfaceContractId @Transferable.I lockableCid
 
       pure $ toInterfaceContractId @Lockable.I transferableCid
   else
    do
       -- Transfer
-      submitMultiMustFail [issuer, investor, locker] [publicParty] do
+      submitMultiWithDisclosuresMustFail [issuer, investor, locker] [] disclosedHoldingFactory do
         exerciseCmd (fromInterfaceContractId @Transferable.I lockableCid) Transferable.Transfer with
           actors = Set.fromList [issuer, investor, locker]; newOwnerAccount = investorAccount
 
@@ -71,9 +71,10 @@ testTransfer useReentrantLockTransferService = script do
           context = "C2"
 
       -- Transfer
-      newTransferableCid <- submitMulti [issuer, investor] [publicParty] do
-        exerciseCmd (fromInterfaceContractId @Transferable.I lockableCid) Transferable.Transfer with
-          actors = Set.fromList [issuer, investor]; newOwnerAccount = investorAccount
+      newTransferableCid <-
+        submitMultiWithDisclosures [issuer, investor] [] disclosedHoldingFactory do
+          exerciseCmd (fromInterfaceContractId @Transferable.I lockableCid) Transferable.Transfer with
+            actors = Set.fromList [issuer, investor]; newOwnerAccount = investorAccount
 
       -- Lock asset (using same contexts)
       lockableCid <- submitMulti [investor, locker] [] do

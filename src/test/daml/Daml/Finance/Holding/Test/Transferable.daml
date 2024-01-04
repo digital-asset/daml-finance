@@ -3,7 +3,6 @@
 
 module Daml.Finance.Holding.Test.Transferable where
 
-import DA.Map qualified as Map (fromList)
 import DA.Set qualified as Set (fromList, singleton)
 import Daml.Finance.Holding.Factory qualified as Holding (Factory(..))
 import Daml.Finance.Holding.Test.Common (TestInitialState(..), TestParties(..), setupInitialState, setupParties)
@@ -19,19 +18,19 @@ import Daml.Script
 run : Script ()
 run = script do
   -- Create parties
-  tp@TestParties{custodian; issuer; investor; locker; publicParty} <- setupParties
-  let observers = Map.fromList [("PublicParty", Set.singleton publicParty)]
+  tp@TestParties{custodian; issuer; investor; locker} <- setupParties
 
   -- Initialize state
-  TestInitialState {investorAccount; issuerAccount; issuerHoldingCid} <- setupInitialState
-    tp
-    Holding.Factory with provider = custodian; id = Id "Holding Factory"; observers
-    Transferable
-    []
-    Account.Owner
+  TestInitialState {investorAccount; issuerAccount; issuerHoldingCid; disclosedHoldingFactory} <-
+    setupInitialState
+      tp
+      Holding.Factory with provider = custodian; id = Id "Holding Factory"; observers = mempty
+      Transferable
+      []
+      Account.Owner
 
   -- Cannot split
-  submitMultiMustFail [issuer, investor] [] do
+  submitMultiWithDisclosuresMustFail [issuer, investor] [] disclosedHoldingFactory do
     exerciseCmd (fromInterfaceContractId @Fungible.I issuerHoldingCid)
       Fungible.Split with amounts = [100.0]
 
@@ -42,7 +41,7 @@ run = script do
         newLockers = Set.singleton locker; context = "Test Lock"; lockType = Lockable.Semaphore
 
   -- Cannot transfer
-  submitMultiMustFail [issuer, investor] [] do
+  submitMultiWithDisclosuresMustFail [issuer, investor] [] disclosedHoldingFactory do
     exerciseCmd (fromInterfaceContractId @Transferable.I lockableCid)
       Transferable.Transfer with actors = Set.singleton investor; newOwnerAccount = investorAccount
 
@@ -55,7 +54,7 @@ run = script do
     exerciseCmd lockableCid Lockable.Release with context = "Test Lock"
 
   -- Transfer
-  transferableCid <- submitMulti [issuer, investor] [publicParty] do
+  transferableCid <- submitMultiWithDisclosures [issuer, investor] [] disclosedHoldingFactory do
     exerciseCmd (fromInterfaceContractId @Transferable.I lockableCid)
       Transferable.Transfer with
         actors = Set.fromList [issuer, investor]; newOwnerAccount = investorAccount
