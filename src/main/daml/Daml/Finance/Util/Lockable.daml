@@ -3,7 +3,8 @@
 
 module Daml.Finance.Util.Lockable where
 
-import DA.Optional (isSome)
+import DA.Action (when)
+import DA.Optional (fromSomeNote)
 import DA.Set qualified as Set (delete, fromList, insert, isSubsetOf, notMember, null, singleton)
 import Daml.Finance.Interface.Util.Lockable (Acquire(..), Lock(..), LockType(..), Lockable, Release(..))
 
@@ -43,15 +44,15 @@ releaseImpl :
   , HasToInterface t Lockable
   ) => Optional Lock -> (Optional Lock -> t) -> Release -> Update (ContractId Lockable)
 releaseImpl currentLock setLock Release{context} = do
-  assertMsg "Must be locked" $ isSome currentLock
   let
-    release lock = do
-      let newContext = context `Set.delete` lock.context
-      case (lock.lockType, Set.null newContext) of
-        (Reentrant, False) -> Some lock with context = newContext
-        _ -> None
-    releasedLock = currentLock >>= release
-  fmap toInterfaceContractId . create . setLock $ releasedLock
+    lock = fromSomeNote "Must be locked" currentLock
+    newContext = context `Set.delete` lock.context
+    updatedLock =
+      if lock.lockType == Reentrant && not (Set.null newContext)
+      then Some $ lock with context = newContext
+      else None
+  when (newContext == lock.context) $ abort "Incorrect context provided"
+  fmap toInterfaceContractId . create . setLock $ updatedLock
 
 -- | Check validity of lock.
 -- The lockers field must be non-empty if set.
