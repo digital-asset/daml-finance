@@ -57,23 +57,47 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Account
 
+Dependency update (patch).
+
 ### Daml.Finance.Claims
+
+Dependency update (patch).
 
 ### Daml.Finance.Data
 
+Dependency update (patch).
+
 ### Daml.Finance.Holding
+
+Dependency update (patch).
 
 ### Daml.Finance.Instrument.Bond
 
+Dependency update (patch).
+
 ### Daml.Finance.Instrument.Equity
+
+Dependency update (patch).
 
 ### Daml.Finance.Instrument.Generic
 
+Dependency update (patch).
+
+### Daml.Finance.Instrument.Option
+
+Dependency update (patch).
+
 ### Daml.Finance.Instrument.StructuredProduct
+
+Dependency update (patch).
 
 ### Daml.Finance.Instrument.Swap
 
+Dependency update (patch).
+
 ### Daml.Finance.Instrument.Token
+
+Dependency update (patch).
 
 ### Daml.Finance.Interface.Account
 
@@ -113,6 +137,12 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### Daml.Finance.Lifecycle
 
+Dependency update (patch).
+
 ### Daml.Finance.Settlement
 
+Dependency update (patch).
+
 ### Daml.Finance.Util
+
+Only release a Semaphore lock if the provided context is recognized (minor).
