@@ -145,4 +145,4 @@ Dependency update (patch).
 
 ### Daml.Finance.Util
 
-Only release a Semaphore lock if the provided context is recognized (minor).
+Only release a Semaphore lock if the provided context is recognized (patch).
