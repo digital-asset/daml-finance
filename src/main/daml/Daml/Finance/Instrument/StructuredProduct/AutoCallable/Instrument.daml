@@ -8,6 +8,7 @@ import DA.Set (singleton)
 import Daml.Finance.Claims.Util.Builders (createBarrierEuropeanCashClaim, createFixRatePaymentClaims, createFxAdjustedPrincipalClaim)
 import Daml.Finance.Data.Reference.HolidayCalendar (getHolidayCalendars, rollSchedule)
 import Daml.Finance.Data.Time.DateClock (dateToDateClockTime)
+import Daml.Finance.Instrument.StructuredProduct.Util (createAutoCallableClaims)
 import Daml.Finance.Interface.Claims.Claim qualified as Claim (GetClaims(..), I, View(..))
 import Daml.Finance.Interface.Claims.Dynamic.Instrument qualified as DynamicInstrument (CreateNewVersion(..), I, View(..))
 import Daml.Finance.Interface.Claims.Types (EventData)
@@ -19,6 +20,7 @@ import Daml.Finance.Interface.Types.Common.Types (HoldingStandard(..), Id(..), I
 import Daml.Finance.Interface.Types.Date.DayCount (DayCountConventionEnum)
 import Daml.Finance.Interface.Types.Date.Schedule (PeriodicSchedule(..))
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Util.Date.Calendar (merge)
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
 
 -- | Type synonym for `Instrument`.
@@ -46,13 +48,17 @@ template Instrument
       -- ^ The strike price of the option.
     barrier : Decimal
       -- ^ The barrier level of the option.
-    barrierStartDate : Date
-      -- ^ The start date for barrier observations.
+    callBarrier : Decimal
+      -- ^ The barrier used to auto-call.
+    finalBarrier : Decimal
+      -- ^ The barrier used to determine the final redemption amount.
     expiryDate : Date
       -- ^ The expiry date of the instrument.
     couponRate : Decimal
       -- ^ The fixed coupon rate, per annum. For example, in case of a "3.5% p.a coupon" this should
       --   be 0.035.
+    observationSchedule : PeriodicSchedule
+      -- ^ The schedule for the observation dates.
     periodicSchedule : PeriodicSchedule
       -- ^ The schedule for the periodic coupon payments.
     holidayCalendarIds : [Text]
@@ -83,9 +89,10 @@ template Instrument
       getClaims Claim.GetClaims{actor} = do
         -- get the initial claims tree (as of the instrument's acquisition time)
 
+{-      TODO: Replace this check
         assertMsg "option expiry date must match last coupon date" $
           expiryDate == periodicSchedule.terminationDate
-
+ -}
         -- Calculate option claim
         let
           ownerReceives = False
@@ -93,6 +100,7 @@ template Instrument
           barrierType = DownAndIn
           referenceLevel = Some strike
           call = optionType == Call
+          {-
           (down, out) = case barrierType of
             UpAndOut -> (False, True)
             DownAndOut -> (True, True)
@@ -101,10 +109,21 @@ template Instrument
           optionsClaim = createBarrierEuropeanCashClaim dateToDateClockTime ownerReceives strike
             referenceAssetId currency expiryDate call barrier barrierStartDate down out
             referenceLevel notional
+ -}
           getCalendars = getHolidayCalendars actor calendarDataProvider
+          floatingRate = None
+          capRate = None
+          floorRate = None
+          fixingBusinessCenters = case floatingRate of
+            None -> []
+            Some fr -> error "floating rate not yet supported"
 
+        fixingCals <- getHolidayCalendars issuer calendarDataProvider fixingBusinessCenters
         -- Calculate bond claim
         (schedule, _) <- rollSchedule getCalendars periodicSchedule holidayCalendarIds
+        debug schedule
+        (callableSchedule, _) <- rollSchedule getCalendars observationSchedule holidayCalendarIds
+        debug callableSchedule
         let
           useAdjustedDatesForDcf = True
           ownerReceives = True
@@ -113,9 +132,14 @@ template Instrument
             useAdjustedDatesForDcf couponRate ownerReceives dayCountConvention notional currency
           redemptionClaim = createFxAdjustedPrincipalClaim dateToDateClockTime ownerReceives
             fxAdjustment notional currency periodicSchedule.terminationDate
+          callableClaims = createAutoCallableClaims dateToDateClockTime schedule callableSchedule
+            periodicSchedule useAdjustedDatesForDcf couponRate dayCountConvention notional currency
+            floatingRate capRate floorRate referenceAssetId barrier callBarrier finalBarrier strike $ merge fixingCals
 
         -- Return BRC claim as option + bond claim
-        pure [optionsClaim, couponClaims, redemptionClaim]
+        --pure [optionsClaim, couponClaims, redemptionClaim]
+        pure [callableClaims]
+
 
     interface instance BaseInstrument.I for Instrument where
       view = BaseInstrument.View with
@@ -131,9 +155,11 @@ template Instrument
           referenceAssetId
           strike
           barrier
-          barrierStartDate
+          callBarrier
+          finalBarrier
           expiryDate
           couponRate
+          observationSchedule
           periodicSchedule
           holidayCalendarIds
           calendarDataProvider

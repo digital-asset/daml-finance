@@ -37,23 +37,30 @@ run = script do
 
   -- Create and distribute option
   let
-    barrierLow = 20.0
-    strikeLow = 35.0
+    barrierHigh : Decimal = 30.0
+    strikeLow : Decimal = 35.0
+    callBarrierLow : Decimal = 38.0
+    finalBarrierHigh : Decimal = 40.0
     -- CREATE_AUTO_CALLABLE_VARIABLES_BEGIN
-    barrier = 30.0
-    barrierStartDate = date 2019 Jan 16
-    strike = 40.0
-    expiryDate = date 2019 May 15
+    barrier : Decimal = 26.0 -- TODO: separate into couponBarrier and finalBarrier
+    callBarrier = 40.0
+    strike : Decimal = 40.0 -- TODO: separate into initialValue and callValue
+    finalBarrier : Decimal = 35.0
+    expiryDate = date 2024 Sep 28
+    --barrierStartDate = expiryDate
     referenceAssetId = "AAPL-CLOSE"
-    couponRate = 0.05
-    issueDate = date 2019 Jan 16
-    firstCouponDate = date 2019 Feb 15
-    maturityDate = date 2019 May 15
+    couponRate : Decimal = 0.05
+    initialValuationDate = date 2024 Jan 10
+    issueDate = date 2024 Jan 16
+    firstRegularObervationDate = date 2024 Mar 28
+    firstCouponDate = date 2024 Apr 2
+    secondCouponDate = date 2024 Jul 2
+    maturityDate = date 2024 Oct 2
     -- CREATE_AUTO_CALLABLE_VARIABLES_END
     businessDayConvention = Following
     couponPeriod = M
     couponPeriodMultiplier = 3
-    dayCountConvention = Act360
+    dayCountConvention = Basis1
     holidayCalendarIds = ["USD"]
     calendar =
       HolidayCalendarData with
@@ -62,16 +69,19 @@ run = script do
         holidays = []
     couponSchedule = createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds
       businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate
-    notional = 1.0
+    observationSchedule = createPaymentPeriodicSchedule firstRegularObervationDate holidayCalendarIds
+      businessDayConvention couponPeriod couponPeriodMultiplier initialValuationDate expiryDate
+    notional : Decimal = 1.0
+
+  debug couponSchedule
+  debug observationSchedule
 
   -- CREATE_AUTO_CALLABLE_OBSERVATIONS_BEGIN
   let
     observations = Map.fromList
-      [ (dateToDateClockTime $ date 2019 Feb 13, 28.78)
-      , (dateToDateClockTime $ date 2019 Feb 15, 39.78)
-      , (dateToDateClockTime $ date 2019 May 15, 38.78)
-      , (dateToDateClockTime $ date 2019 May 16, 18.78)
-      , (dateToDateClockTime $ date 2019 May 17, 38.78)
+      [ (dateToDateClockTime $ date 2024 Mar 28, 28.78)
+      , (dateToDateClockTime $ date 2024 Jun 28, 39.78)
+      , (dateToDateClockTime $ date 2024 Sep 30, 36.0)
       ]
   observableCid <- toInterfaceContractId <$> submit issuer do
     createCmd Observation with
@@ -85,95 +95,91 @@ run = script do
       calendar
       observers = Map.fromList pp
 
-  -----------------------------------------
-  -- 1. AutoCallable with barrier event  --
-  -----------------------------------------
+  -----------------------------------------------------------------------
+  -- 1. AutoCallable without barrier events (and no early redemption)  --
+  -----------------------------------------------------------------------
 
-  -- Test option with barrier hit (on Feb 13). Option expires in the money.
-  brcInstrument <- originateAutoCallable issuer issuer "BRC" TransferableFungible
-    "Option" observers now expiryDate strike barrier barrierStartDate cashInstrument
-    referenceAssetId couponRate couponSchedule holidayCalendarIds dayCountConvention notional
+  brcInstrument <- originateAutoCallable issuer issuer "AC" TransferableFungible
+    "Option" observers now expiryDate strike barrier callBarrier finalBarrier cashInstrument
+    referenceAssetId couponRate observationSchedule couponSchedule holidayCalendarIds dayCountConvention notional
     calendarDataProvider publicParty
 
   let
     expectedConsumed = []
-    expectedProduced = []
-  Some brcInstrumentAfterBarrierHit <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2019 Feb 13) brcInstrument issuer [observableCid] expectedConsumed expectedProduced
-
-  let
-    expectedConsumed = []
-    expectedProduced = [qty 0.0041666667 cashInstrument]
-  Some brcInstrumentAfterCouponPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    firstCouponDate brcInstrumentAfterBarrierHit issuer [observableCid] expectedConsumed
+    expectedProduced = [qty 0.05 cashInstrument]
+  Some brcInstrumentAfterCouponDate1 <- lifecycleAndVerifyPaymentEffects [publicParty]
+    firstCouponDate brcInstrument issuer [observableCid] expectedConsumed
     expectedProduced
 
   let
-    expectedConsumed = [qty 0.0305 cashInstrument]
-    expectedProduced = [(qty 0.0123611111 cashInstrument), (qty 1.0 cashInstrument)]
-  lifecycleAndVerifyPaymentEffects [publicParty] expiryDate brcInstrumentAfterCouponPayment issuer
+    expectedConsumed = []
+    expectedProduced = [qty 0.05 cashInstrument]
+  Some brcInstrumentAfterCouponDate2 <- lifecycleAndVerifyPaymentEffects [publicParty] secondCouponDate brcInstrumentAfterCouponDate1 issuer
     [observableCid] expectedConsumed expectedProduced
 
-  -- Test option with barrier hit (on Feb 13). Option expires out of the money.
-
-  brcLowStrikeInstrument <- originateAutoCallable issuer issuer "BRCLowStrike"
-    TransferableFungible "Option" observers now expiryDate strikeLow barrier barrierStartDate
-    cashInstrument referenceAssetId couponRate couponSchedule holidayCalendarIds dayCountConvention
-    notional calendarDataProvider publicParty
-
   let
     expectedConsumed = []
-    expectedProduced = []
-  Some brcInstrumentAfterBarrierHit <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2019 Feb 13) brcLowStrikeInstrument issuer [observableCid] expectedConsumed
-    expectedProduced
-
-  let
-    expectedConsumed = []
-    expectedProduced = [qty 0.0041666667 cashInstrument]
-  Some brcInstrumentAfterCouponPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    firstCouponDate brcInstrumentAfterBarrierHit issuer [observableCid] expectedConsumed
-    expectedProduced
-
-  let
-    expectedConsumed = []
-    expectedProduced = [(qty 0.0123611111 cashInstrument), (qty 1.0 cashInstrument)]
-  lifecycleAndVerifyPaymentEffects [publicParty] expiryDate brcInstrumentAfterCouponPayment issuer
+    expectedProduced = [qty 1.05 cashInstrument]
+  lifecycleAndVerifyPaymentEffects [publicParty] maturityDate brcInstrumentAfterCouponDate2 issuer
     [observableCid] expectedConsumed expectedProduced
 
-  -----------------------------------------------------------
-  -- 2. AutoCallable without barrier event (before expiry) --
-  -----------------------------------------------------------
+  --------------------------------------------------------------------
+  -- 2. AutoCallable with barrier events (and no early redemption)  --
+  --------------------------------------------------------------------
 
-  -- Test option without barrier hit. Also test a barrier hit after expiry.
-  brcLowBarrierInstrument <- originateAutoCallable issuer issuer "DownAndInLow"
-    TransferableFungible "Option" observers now expiryDate strike barrierLow barrierStartDate
-    cashInstrument referenceAssetId couponRate couponSchedule holidayCalendarIds dayCountConvention
-    notional calendarDataProvider publicParty
+  brcInstrument <- originateAutoCallable issuer issuer "AC2" TransferableFungible
+    "Option" observers now expiryDate strike barrierHigh callBarrier finalBarrierHigh cashInstrument
+    referenceAssetId couponRate observationSchedule couponSchedule holidayCalendarIds dayCountConvention notional
+    calendarDataProvider publicParty
 
-  verifyNoLifecycleEffects [publicParty] (date 2019 Feb 13) brcLowBarrierInstrument
-    issuer [observableCid]
-
-  let
-    expectedConsumed = []
-    expectedProduced = [qty 0.0041666667 cashInstrument]
-  Some brcInstrumentAfterCouponPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    firstCouponDate brcLowBarrierInstrument issuer [observableCid] expectedConsumed expectedProduced
-
-  let
-    expectedConsumed = []
-    expectedProduced = [(qty 0.0123611111 cashInstrument), (qty 1.0 cashInstrument)]
-  Some brcInstrumentAfterExpiry <- lifecycleAndVerifyPaymentEffects [publicParty] expiryDate
-    brcInstrumentAfterCouponPayment issuer [observableCid] expectedConsumed expectedProduced
-
+  -- The first coupon is not paid because the coupon barrier is hit
   let
     expectedConsumed = []
     expectedProduced = []
-  Some brcInstrumentAfterBarrierHit <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2019 May 16) brcInstrumentAfterExpiry issuer [observableCid] expectedConsumed
+  Some brcInstrumentAfterCouponDate1 <- lifecycleAndVerifyPaymentEffects [publicParty]
+    firstCouponDate brcInstrument issuer [observableCid] expectedConsumed
     expectedProduced
 
-  verifyNoLifecycleEffects [publicParty] (date 2019 May 17) brcInstrumentAfterBarrierHit
-    issuer [observableCid]
+  -- The second coupon is paid (no barrier hit)
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.05 cashInstrument]
+  Some brcInstrumentAfterCouponDate2 <- lifecycleAndVerifyPaymentEffects [publicParty] secondCouponDate brcInstrumentAfterCouponDate1 issuer
+    [observableCid] expectedConsumed expectedProduced
+
+  -- Redemption amount is less than principal because the final barrier is hit
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.95 cashInstrument]
+  lifecycleAndVerifyPaymentEffects [publicParty] maturityDate brcInstrumentAfterCouponDate2 issuer
+    [observableCid] expectedConsumed expectedProduced
+
+  --------------------------------------------
+  -- 3. AutoCallable with early redemption  --
+  --------------------------------------------
+
+  brcInstrument <- originateAutoCallable issuer issuer "AC3" TransferableFungible
+    "Option" observers now expiryDate strike barrierHigh callBarrierLow finalBarrier cashInstrument
+    referenceAssetId couponRate observationSchedule couponSchedule holidayCalendarIds dayCountConvention notional
+    calendarDataProvider publicParty
+
+  -- The first coupon is not paid because the coupon barrier is hit
+  let
+    expectedConsumed = []
+    expectedProduced = []
+  Some brcInstrumentAfterCouponDate1 <- lifecycleAndVerifyPaymentEffects [publicParty]
+    firstCouponDate brcInstrument issuer [observableCid] expectedConsumed
+    expectedProduced
+
+  -- Auto-call on the second coupon date
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 1.05 cashInstrument]
+  Some brcInstrumentAfterCouponDate2 <- lifecycleAndVerifyPaymentEffects [publicParty] secondCouponDate brcInstrumentAfterCouponDate1 issuer
+    [observableCid] expectedConsumed expectedProduced
+
+  -- Ensure no lifecycle effects on a called instrument
+  verifyNoLifecycleEffects [publicParty] maturityDate brcInstrumentAfterCouponDate2 issuer
+    [observableCid]
 
   pure ()
