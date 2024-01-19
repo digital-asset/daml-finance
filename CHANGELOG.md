@@ -90,6 +90,7 @@ Dependency update (patch).
 ### Daml.Finance.Instrument.StructuredProduct
 
 Dependency update (patch).
+Add new AutoCallable instrument (minor).
 
 ### Daml.Finance.Instrument.Swap
 
@@ -118,6 +119,8 @@ Dependency update (patch).
 ### Daml.Finance.Interface.Instrument.Option
 
 ### Daml.Finance.Interface.Instrument.StructuredProduct
+
+Add new AutoCallable instrument (minor).
 
 ### Daml.Finance.Interface.Instrument.Swap
 
