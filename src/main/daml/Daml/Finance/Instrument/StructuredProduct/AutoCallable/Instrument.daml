@@ -5,7 +5,6 @@ module Daml.Finance.Instrument.StructuredProduct.AutoCallable.Instrument where
 
 import DA.Date (daysSinceEpochToDate)
 import DA.Set (singleton)
-import Daml.Finance.Claims.Util.Builders (createBarrierEuropeanCashClaim, createFixRatePaymentClaims, createFxAdjustedPrincipalClaim)
 import Daml.Finance.Data.Reference.HolidayCalendar (getHolidayCalendars, rollSchedule)
 import Daml.Finance.Data.Time.DateClock (dateToDateClockTime)
 import Daml.Finance.Instrument.StructuredProduct.Util (createAutoCallableClaims)
@@ -13,7 +12,6 @@ import Daml.Finance.Interface.Claims.Claim qualified as Claim (GetClaims(..), I,
 import Daml.Finance.Interface.Claims.Dynamic.Instrument qualified as DynamicInstrument (CreateNewVersion(..), I, View(..))
 import Daml.Finance.Interface.Claims.Types (EventData)
 import Daml.Finance.Interface.Instrument.Base.Instrument qualified as BaseInstrument (I, View(..), createReference, disclosureUpdateReference, instrumentKey)
-import Daml.Finance.Interface.Instrument.Option.Types (BarrierTypeEnum(..), OptionTypeEnum(..))
 import Daml.Finance.Interface.Instrument.StructuredProduct.AutoCallable.Instrument qualified as AutoCallable (I, View(..))
 import Daml.Finance.Interface.Instrument.StructuredProduct.AutoCallable.Types (AutoCallable(..))
 import Daml.Finance.Interface.Types.Common.Types (HoldingStandard(..), Id(..), InstrumentKey(..), PartiesMap)
@@ -93,23 +91,7 @@ template Instrument
         assertMsg "option expiry date must match last coupon date" $
           expiryDate == periodicSchedule.terminationDate
  -}
-        -- Calculate option claim
         let
-          ownerReceives = False
-          optionType = Put
-          barrierType = DownAndIn
-          referenceLevel = Some strike
-          call = optionType == Call
-          {-
-          (down, out) = case barrierType of
-            UpAndOut -> (False, True)
-            DownAndOut -> (True, True)
-            UpAndIn -> (False, False)
-            DownAndIn -> (True, False)
-          optionsClaim = createBarrierEuropeanCashClaim dateToDateClockTime ownerReceives strike
-            referenceAssetId currency expiryDate call barrier barrierStartDate down out
-            referenceLevel notional
- -}
           getCalendars = getHolidayCalendars actor calendarDataProvider
           floatingRate = None
           capRate = None
@@ -119,27 +101,15 @@ template Instrument
             Some fr -> error "floating rate not yet supported"
 
         fixingCals <- getHolidayCalendars issuer calendarDataProvider fixingBusinessCenters
-        -- Calculate bond claim
         (schedule, _) <- rollSchedule getCalendars periodicSchedule holidayCalendarIds
-        debug schedule
         (callableSchedule, _) <- rollSchedule getCalendars observationSchedule holidayCalendarIds
-        debug callableSchedule
         let
           useAdjustedDatesForDcf = True
-          ownerReceives = True
-          fxAdjustment = 1.0
-          couponClaims = createFixRatePaymentClaims dateToDateClockTime schedule periodicSchedule
-            useAdjustedDatesForDcf couponRate ownerReceives dayCountConvention notional currency
-          redemptionClaim = createFxAdjustedPrincipalClaim dateToDateClockTime ownerReceives
-            fxAdjustment notional currency periodicSchedule.terminationDate
           callableClaims = createAutoCallableClaims dateToDateClockTime schedule callableSchedule
             periodicSchedule useAdjustedDatesForDcf couponRate dayCountConvention notional currency
             floatingRate capRate floorRate referenceAssetId barrier callBarrier finalBarrier strike $ merge fixingCals
 
-        -- Return BRC claim as option + bond claim
-        --pure [optionsClaim, couponClaims, redemptionClaim]
         pure [callableClaims]
-
 
     interface instance BaseInstrument.I for Instrument where
       view = BaseInstrument.View with
