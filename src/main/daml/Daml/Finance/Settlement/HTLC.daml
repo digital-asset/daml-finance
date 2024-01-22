@@ -1,0 +1,101 @@
+-- Copyright (c) 2023 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Settlement.HTLC where
+
+import DA.Text (sha256)
+import Daml.Finance.Interface.Types.Common.Types (Id(..), Parties)
+
+-- | Represents the state of a Hash Time Lock Contract (HTLC) in a financial settlement system.
+data HTLCState
+  = Open
+    -- ^ The 'Open' state indicates that the HTLC is available for allocating and approving
+    -- instructions. In this state, parties involved can allocate and approve instructions.
+  | Locked
+    -- ^ The 'Locked' state signifies that the HTLC is no longer open for new allocations
+    -- or approvals. It implies that all necessary instructions have been allocated and approved,
+    -- and the HTLC is now waiting the secret to be revealed.
+  | Revealed Text
+    -- ^ The 'Revealed' state occurs when the secret associated with the HTLC has been disclosed.
+    -- Once the HTLC enters this state, it indicates that all conditions for the contract's
+    -- execution have been met, and the associated financial transactions can be settled.
+  deriving (Eq, Show)
+
+-- Type synonym for HTLC key.
+type HTLCKey = (Party, Id)
+
+-- | Hash time lock contract.
+template HTLC
+  with
+    batchId : Id
+      -- ^ Batch identifier.
+    instructor : Party
+      -- ^ Instructor.
+    consenters : Parties
+      -- ^ Consenters.
+    settlers : Parties
+     -- ^ Settlers.
+    observers : Parties
+      -- ^ Observers.
+    expiry : Time
+      -- ^ Lock expiry.
+    hash : Text
+      -- ^ Hash of the secret.
+    state : HTLCState
+      -- ^ HTLC state.
+  where
+    signatory instructor, consenters
+    observer settlers, observers
+
+    ensure case state of
+      Revealed secret -> sha256 secret == hash
+      _ -> True
+
+    key (instructor, batchId) : HTLCKey
+    maintainer key._1
+
+    -- Allows locking the HTLC, transitioning its state to 'Locked'.
+    choice Lock : ContractId HTLC
+      controller instructor
+      do
+        -- Additional checks for instructions can be added here.
+        verifyAnyState Open $ Right this
+        create this with state = Locked
+
+    -- Allows anyone to reveal the secret, transitioning the HTLC's state to 'Revealed'.
+    choice Reveal : ContractId HTLC
+      with
+        actor : Party
+        secret : Text
+      controller actor
+      do
+        verifyAnyState Locked $ Right this
+        create this with state = Revealed secret
+
+-- | Verifies if the HTLC is open for allocation and approvals.
+verifyAnyState : HTLCState -> Either HTLCKey HTLC -> Update ()
+verifyAnyState expectedState input = do
+  htlc <- getHTLC input
+  verifyExpirationStatus False (Right htlc)
+  assertMsg ("HTLC must be " <> show expectedState) $ htlc.state == expectedState
+
+-- | Verifies if the secret has been revealed for settlement.
+verifyRevealedState : Either HTLCKey HTLC -> Update ()
+verifyRevealedState input = do
+  htlc <- getHTLC input
+  verifyExpirationStatus False (Right htlc)
+  assertMsg "HTLC must be Revealed." case htlc.state of Revealed _ -> True; _ -> False
+
+-- | Verify if expiration status is as expected.
+verifyExpirationStatus : Bool -> Either HTLCKey HTLC -> Update ()
+verifyExpirationStatus shouldBeExpired input = do
+  htlc <- getHTLC input
+  now <- getTime
+  let hasExpired = now > htlc.expiry
+  assertMsg ("Expiration status must be " <> show shouldBeExpired) $ hasExpired == shouldBeExpired
+
+-- | Get HTLC.
+getHTLC : Either HTLCKey HTLC -> Update HTLC
+getHTLC input = case input of
+  Left htlcKey -> snd <$> fetchByKey @HTLC htlcKey
+  Right htlc -> pure htlc

@@ -1,0 +1,194 @@
+-- Copyright (c) 2023 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Settlement.Test.TransferWithHTLC where
+
+import DA.Map qualified as Map (fromList)
+import DA.Optional (isSome)
+import DA.Set qualified as Set (fromList, singleton, toList)
+import DA.Text (sha256)
+import DA.Time (addRelTime, hours)
+import Daml.Finance.Holding.Factory qualified as Holding (Factory(..))
+import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
+import Daml.Finance.Interface.Settlement.Factory qualified as SettlementFactory (I, Instruct(..))
+import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.RouteProvider qualified as RouteProvider (Discover(..), I)
+import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), RoutedStep(..), Step(..))
+import Daml.Finance.Interface.Types.Common.Types (HoldingStandard(..), Id(..))
+import Daml.Finance.Interface.Util.Common (qty)
+import Daml.Finance.Interface.Util.Lockable qualified as Lockable (I)
+import Daml.Finance.Settlement.Factory qualified as Settlement (FactoryWithHTLC(..))
+import Daml.Finance.Settlement.HTLC (HTLC(..))
+import Daml.Finance.Settlement.HTLC qualified as HTLC (HTLCState(..), Lock(..), Reveal(..))
+import Daml.Finance.Settlement.RouteProvider.SingleCustodian (SingleCustodian(..))
+import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.Holding qualified as Holding (verifyNoObservers, verifyOwnerOfHolding)
+import Daml.Finance.Test.Util.HoldingFactory (createHoldingFactory)
+import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
+import Daml.Script
+
+-- | Parties involved in the test script.
+data TestParties = TestParties
+  with
+    bank : Party
+      -- ^ Acts as custodian in the respective holdings and provider of the holding factories.
+    cb : Party
+      -- ^ Depository and issuer of the cash instrument.
+    sender : Party
+      -- ^ Sends units of cash to receiver.
+    receiver : Party
+      -- ^ Receives units of cash from sender.
+    ccp : Party
+      -- ^ Central counterparty. Passes through cash from the sender to the receiver.
+    settler : Party
+      -- ^ Executes the settlement of the batch.
+
+-- Transfer of cash between two parties (sender -> receiver) facilitated by an intermediary (bank)
+-- using HTLC module.
+-- +------------------------------------------+
+-- | Accounts                                 |
+-- +------------------+-----------------------+
+-- | structure:       | used for:             |
+-- +------------------+-----------------------+
+-- |      Bank        |                       |
+-- |      /  \        | commercial bank money |
+-- | Sender  Receiver |                       |
+-- +------------------+-----------------------+
+run : Script ()
+run = script do
+  -- Create parties
+  TestParties{..} <- setupParties
+  let
+    observers = Set.fromList [sender, receiver]
+    observersWithContext = [("Observers", observers)]
+
+  -- Create account factory
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank mempty
+
+  -- Create holding factory
+  holdingFactory <- createHoldingFactory
+    Holding.Factory with
+      provider = bank
+      id = Id "Holding Factory"
+      observers = Map.fromList observersWithContext
+
+  -- Create accounts
+  [senderAccount, receiverAccount] <- mapA (Account.createAccount "Cash Account" []
+    accountFactoryCid holdingFactory [] Account.Owner bank) [sender, receiver]
+
+  -- Distribute asset
+  now <- getTime
+  cashInstrument <- Instrument.originate cb cb "USD" Transferable "United States Dollar" [] now
+  holdingCid <- Account.credit [] cashInstrument 200_000.0 senderAccount
+
+  -- Create settlement factory
+  settlementFactoryCid <- toInterfaceContractId @SettlementFactory.I <$>
+    submit bank do createCmd Settlement.FactoryWithHTLC with provider = bank; observers
+
+  -- Routes settlement step
+  let
+    routedSteps = [RoutedStep with
+      custodian = bank
+      sender
+      receiver
+      quantity = qty 200_000.0 cashInstrument]
+
+  -- 1. Instruct
+  -- (i.e., the sender chooses secret and instructs)
+  now <- getTime
+  let
+    secret = "dfgrhtdnni46rhf"
+    expiry = addRelTime now $ hours 12
+    hash = sha256 secret
+    batchId = Id "transfer abc"
+    instructor = sender
+    consenters = mempty
+    settlers = Set.singleton receiver
+  (batchCid, [cashInstructionCid]) <- submit instructor do
+    exerciseCmd settlementFactoryCid SettlementFactory.Instruct with
+      instructor
+      consenters
+      settlers
+      id = batchId
+      description = "transfer of USD 200000.0 payment"
+      contextId = None
+      routedSteps
+      settlementTime = None
+  -- Create associated HTLC
+  htlcCid <- submit sender do
+    createCmd HTLC with
+      batchId
+      instructor
+      consenters
+      settlers
+      observers = mempty
+      expiry
+      hash
+      state = HTLC.Open
+
+  -- 2. Allocate and Approve
+  -- Allocate instruction
+  (cashInstructionCid, _) <- submit sender do
+    exerciseCmd cashInstructionCid Instruction.Allocate with
+      actors = Set.singleton sender; allocation = Pledge holdingCid
+  -- Holding is locked
+  Some cashInstruction <- queryInterfaceContractId sender cashInstructionCid
+  let Pledge holdingCid = cashInstruction.allocation
+  Some lockable <- queryInterfaceContractId sender (toInterfaceContractId @Lockable.I holdingCid)
+  assertMsg "holding is locked" $ isSome lockable.lock
+  -- Approve instruction
+  cashInstructionCid <- submit receiver do
+    exerciseCmd cashInstructionCid Instruction.Approve with
+      actors = Set.singleton receiver; approval = TakeDelivery receiverAccount
+  -- Receiver can unapprove
+  cashInstructionCid <- submit receiver do
+    exerciseCmd cashInstructionCid Instruction.Approve with
+      actors = Set.singleton receiver; approval = Unapproved
+  -- Approve instruction
+  cashInstructionCid <- submit receiver do
+    exerciseCmd cashInstructionCid Instruction.Approve with
+      actors = Set.singleton receiver; approval = TakeDelivery receiverAccount
+
+  -- 3. Lock Batch and Instructions
+  -- Lock Batch and Instructions (such that they can't be backed out of)
+  htlcCid <- submit instructor do
+    exerciseCmd htlcCid HTLC.Lock
+  -- Receiver can't unapprove (as locked)
+  submitMustFail receiver do
+    exerciseCmd cashInstructionCid Instruction.Approve with
+      actors = Set.singleton receiver; approval = Unapproved
+  -- Sender can no longer unallocate (as locked)
+  submitMustFail sender do
+    exerciseCmd cashInstructionCid Instruction.Allocate with
+      actors = Set.singleton sender; allocation = Unallocated
+  -- Settler can't settle (as locked)
+  submitMustFail receiver do
+    exerciseCmd batchCid Batch.Settle with actors = Set.singleton receiver
+
+  -- 4. Lock on second chain
+  -- (i.e., the sender locks asset/cash on second chain)
+
+  -- 5. Settle on second chain
+  -- (i.e., the sender claims asset/cash on the second chain by revealing the secret)
+
+  -- 6. Reveal secret
+  submit receiver do
+    exerciseCmd htlcCid HTLC.Reveal with actor = receiver; secret
+
+  -- 7. Settle
+  [cashHoldingCid] <- submit receiver do
+    exerciseCmd batchCid Batch.Settle with actors = Set.singleton receiver
+
+  -- Assert state
+  let ts = [(receiver, cashHoldingCid)]
+  Holding.verifyOwnerOfHolding ts
+  Holding.verifyNoObservers ts
+
+  pure ()
+
+setupParties : Script TestParties
+setupParties = do
+  [cb, bank, sender, receiver, ccp, settler] <-
+    createParties ["CentralBank", "Bank", "Sender", "Receiver", "CCP", "Settler"]
+  pure TestParties with cb; bank; sender; receiver; ccp; settler
