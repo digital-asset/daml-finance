@@ -5,7 +5,7 @@ module Daml.Finance.Instrument.StructuredProduct.Util where
 
 import ContingentClaims.Core.Claim (Claim, Inequality(..), and, at, cond, one, scale, when, zero)
 import ContingentClaims.Core.Observation (Observation(..))
-import DA.List (last)
+import DA.List (head, last)
 import DA.Optional (isSome)
 import Daml.Finance.Claims.Util.Builders (calculateRatePayment, prepareAndTagClaims)
 import Daml.Finance.Interface.Claims.Types (Deliverable, Observable, TaggedClaim(..))
@@ -31,12 +31,13 @@ createAutoCallableClaims : (Date -> Time) -> Schedule -> Schedule -> PeriodicSch
   -> HolidayCalendarData -> TaggedClaim
 createAutoCallableClaims dateToTime paymentSchedule callableSchedule periodicSchedule
   useAdjustedDatesForDcf couponRate dayCountConvention notional cashInstrument floatingRate
-  capRate floorRate spot couponBarrier callBarrier finalBarrier initialFixing
+  capRate floorRate spot couponBarrier callBarrier finalBarrier initialFixingPercentage
   fixingCalendars =
   let
     notionalAmount = scale (Const notional) $ one cashInstrument
 
     principal = notionalAmount
+    initialObservationDate = (.adjustedStartDate) $ head callableSchedule
 
     combineTagClaim (couponPeriod, callPeriod) notCalledClaim =
       let
@@ -46,11 +47,13 @@ createAutoCallableClaims dateToTime paymentSchedule callableSchedule periodicSch
           then error "each call date must be before or at the corresponding payment date"
           else (callPeriod.adjustedEndDate, couponPeriod.adjustedEndDate)
         spotOnObservationDate = ObserveAt spot callDate
-        couponBarrierHit = Lte (spotOnObservationDate, Const couponBarrier)
+        couponBarrierLevel = Const couponBarrier * ObserveAt spot initialObservationDate
+        couponBarrierHit = Lte (spotOnObservationDate, couponBarrierLevel)
         coupon = cond couponBarrierHit zero cpn
         called = when (at paymentDate) $ and coupon principal
         notCalled = when (at paymentDate) $ and coupon notCalledClaim
-        autoExerciseCondition = Lte (Const callBarrier, spotOnObservationDate)
+        callBarrierLevel = Const callBarrier * ObserveAt spot initialObservationDate
+        autoExerciseCondition = Lte (callBarrierLevel, spotOnObservationDate)
         tailClaim = when (at callDate) $ cond autoExerciseCondition called notCalled
       in
         tailClaim
@@ -58,8 +61,10 @@ createAutoCallableClaims dateToTime paymentSchedule callableSchedule periodicSch
     finalCouponDate = (.adjustedEndDate) $ last paymentSchedule
     finalObservationDate = (.adjustedEndDate) $ last callableSchedule
     spotOnObservationDate = ObserveAt spot finalObservationDate
-    barrierHit = Lte (spotOnObservationDate, Const finalBarrier)
-    perf = spotOnObservationDate / Const initialFixing
+    finalBarrierLevel = Const finalBarrier * ObserveAt spot initialObservationDate
+    barrierHit = Lte (spotOnObservationDate, finalBarrierLevel)
+    initialFixing = Const initialFixingPercentage * ObserveAt spot initialObservationDate
+    perf = spotOnObservationDate / initialFixing
     perfomanceScaledPrincipal = scale perf notionalAmount
     redemptionPayment = cond barrierHit perfomanceScaledPrincipal principal
     notCalledFinal = when (at finalCouponDate) redemptionPayment
