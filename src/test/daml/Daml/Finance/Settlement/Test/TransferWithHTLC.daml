@@ -9,7 +9,7 @@ import DA.Set qualified as Set (fromList, singleton)
 import DA.Text (sha256)
 import DA.Time (addRelTime, hours)
 import Daml.Finance.Holding.Factory qualified as Holding (Factory(..))
-import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Settle(..))
+import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Cancel(..), Settle(..))
 import Daml.Finance.Interface.Settlement.Factory qualified as SettlementFactory (I, Instruct(..))
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..))
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), RoutedStep(..))
@@ -31,14 +31,17 @@ data TestParties = TestParties
   with
     bank : Party
       -- ^ Acts as custodian in the respective holdings and provider of the holding factories.
+      --   Acts as issuer and repository of the security instrument. 
     cb : Party
       -- ^ Depository and issuer of the cash instrument.
     sender : Party
-      -- ^ Sends units of cash to receiver.
+      -- ^ Sends units of security to receiver.
     receiver : Party
+      -- ^ Receives units of security from sender.
+    cashSender : Party
+      -- ^ Sends units of cash to receiver.
+    cashReceiver : Party
       -- ^ Receives units of cash from sender.
-    ccp : Party
-      -- ^ Central counterparty. Passes through cash from the sender to the receiver.
     settler : Party
       -- ^ Executes the settlement of the batch.
 
@@ -50,16 +53,18 @@ data TestParties = TestParties
 -- | structure:       | used for:             |
 -- +------------------+-----------------------+
 -- |      Bank        |                       |
--- |      /  \        | commercial bank money |
+-- |      /  \        | securities            |
 -- | Sender  Receiver |                       |
 -- +------------------+-----------------------+
-run : Script ()
-run = script do
+run : Bool -> Script ()
+run isHappyPath = script do
   -- Create parties
   TestParties{..} <- setupParties
   let
     observers = Set.fromList [sender, receiver]
     observersWithContext = [("Observers", observers)]
+
+  -- 0. SETUP
 
   -- Create account factory
   accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank mempty
@@ -72,121 +77,139 @@ run = script do
       observers = Map.fromList observersWithContext
 
   -- Create accounts
-  [senderAccount, receiverAccount] <- mapA (Account.createAccount "Cash Account" []
+  [senderAccount, receiverAccount] <- mapA (Account.createAccount "Security Account" []
     accountFactoryCid holdingFactory [] Account.Owner bank) [sender, receiver]
 
   -- Distribute asset
   now <- getTime
   cashInstrument <- Instrument.originate cb cb "USD" Transferable "United States Dollar" [] now
-  holdingCid <- Account.credit [] cashInstrument 200_000.0 senderAccount
+  securityInstrument <- Instrument.originate bank bank "SECURITY" Transferable "A Security" [] now
+
+  securityCid <- Account.credit [] securityInstrument 1000.0 senderAccount
 
   -- Create settlement factory
   settlementFactoryCid <- toInterfaceContractId @SettlementFactory.I <$>
     submit bank do createCmd Settlement.FactoryWithHTLC with provider = bank; observers
 
-  -- Routes settlement step
-  let
-    routedSteps = [RoutedStep with
-      custodian = bank
-      sender
-      receiver
-      quantity = qty 200_000.0 cashInstrument]
 
-  -- 1. Instruct
-  -- (i.e., the sender chooses secret and instructs)
-  now <- getTime
+  -- Settlement step
+  let
+    routedSteps =
+      [ RoutedStep with sender; receiver; custodian = bank; quantity = qty 1_000.0 securityInstrument
+      ]
+
+  let batchId = Id "transfer abc"
+
+  (batchCid, [securityInstructionCid]) <- submit bank do
+    exerciseCmd settlementFactoryCid SettlementFactory.Instruct with
+      instructor = bank
+      consenters = mempty
+      settlers = Set.singleton bank
+      id = batchId
+      description = "transfer of 1000 units of security conditional on 200000 units of cash"
+      contextId = None
+      routedSteps
+      settlementTime = None
+
+
   let
     secret = "dfgrhtdnni46rhf"
     expiry = addRelTime now $ hours 12
     hash = sha256 secret
-    batchId = Id "transfer abc"
-    instructor = sender
-    consenters = mempty
-    settlers = Set.singleton receiver
-  (batchCid, [cashInstructionCid]) <- submit instructor do
-    exerciseCmd settlementFactoryCid SettlementFactory.Instruct with
-      instructor
-      consenters
-      settlers
-      id = batchId
-      description = "transfer of USD 200000.0 payment"
-      contextId = None
-      routedSteps
-      settlementTime = None
-  -- Create associated HTLC
-  htlcCid <- submit sender do
+
+  htlcCid <- submit bank do
     createCmd HTLC with
       batchId
-      instructor
-      consenters
-      settlers
-      observers = mempty
+      instructor = bank
+      consenters = mempty
+      settlers = Set.singleton bank -- do we validate this against the batch?
+      observers = Set.fromList [sender, receiver, cashSender, cashReceiver, settler]
       expiry
       hash
       state = HTLC.Open
 
-  -- 2. Allocate and Approve
-  -- Allocate instruction
-  (cashInstructionCid, _) <- submit sender do
-    exerciseCmd cashInstructionCid Instruction.Allocate with
-      actors = Set.singleton sender; allocation = Pledge holdingCid
-  -- Holding is locked
-  Some cashInstruction <- queryInterfaceContractId sender cashInstructionCid
-  let Pledge holdingCid = cashInstruction.allocation
+
+  -- Allocate instruction and lock the holding
+  (securityInstructionCid, _) <- submit sender do
+    exerciseCmd securityInstructionCid Instruction.Allocate with
+      actors = Set.singleton sender; allocation = Pledge securityCid
+
+  Some securityInstruction <- queryInterfaceContractId sender securityInstructionCid
+
+  let Pledge holdingCid = securityInstruction.allocation
   Some lockable <- queryInterfaceContractId sender (toInterfaceContractId @Lockable.I holdingCid)
   assertMsg "holding is locked" $ isSome lockable.lock
+
+
   -- Approve instruction
-  cashInstructionCid <- submit receiver do
-    exerciseCmd cashInstructionCid Instruction.Approve with
-      actors = Set.singleton receiver; approval = TakeDelivery receiverAccount
-  -- Receiver can unapprove
-  cashInstructionCid <- submit receiver do
-    exerciseCmd cashInstructionCid Instruction.Approve with
-      actors = Set.singleton receiver; approval = Unapproved
-  -- Approve instruction
-  cashInstructionCid <- submit receiver do
-    exerciseCmd cashInstructionCid Instruction.Approve with
+  securityInstructionCid <- submit receiver do
+    exerciseCmd securityInstructionCid Instruction.Approve with
       actors = Set.singleton receiver; approval = TakeDelivery receiverAccount
 
-  -- 3. Lock Batch and Instructions
+
   -- Lock Batch and Instructions (such that they can't be backed out of)
-  htlcCid <- submit instructor do
+  htlcCid <- submit bank do
     exerciseCmd htlcCid HTLC.Lock
+
   -- Receiver can't unapprove (as locked)
   submitMustFail receiver do
-    exerciseCmd cashInstructionCid Instruction.Approve with
+    exerciseCmd securityInstructionCid Instruction.Approve with
       actors = Set.singleton receiver; approval = Unapproved
+
   -- Sender can no longer unallocate (as locked)
   submitMustFail sender do
-    exerciseCmd cashInstructionCid Instruction.Allocate with
+    exerciseCmd securityInstructionCid Instruction.Allocate with
       actors = Set.singleton sender; allocation = Unallocated
+
   -- Settler can't settle (as locked)
   submitMustFail receiver do
     exerciseCmd batchCid Batch.Settle with actors = Set.singleton receiver
 
-  -- 4. Lock on second chain
-  -- (i.e., the sender locks asset/cash on second chain)
 
-  -- 5. Settle on second chain
-  -- (i.e., the sender claims asset/cash on the second chain by revealing the secret)
 
-  -- 6. Reveal secret
-  submit receiver do
-    exerciseCmd htlcCid HTLC.Reveal with actor = receiver; secret
+  if isHappyPath
+    then do
+      -- HAPPY PATH
 
-  -- 7. Settle
-  [cashHoldingCid] <- submit receiver do
-    exerciseCmd batchCid Batch.Settle with actors = Set.singleton receiver
 
-  -- Assert state
-  let ts = [(receiver, cashHoldingCid)]
-  Holding.verifyOwnerOfHolding ts
-  Holding.verifyNoObservers ts
+      submit cashSender do
+        exerciseCmd htlcCid HTLC.Reveal with actor = cashSender; secret
 
-  pure ()
+      [securityHoldingCid] <- submit bank do
+        exerciseCmd batchCid Batch.Settle with actors = Set.singleton bank
+
+      -- Assert state
+      let ts = [(receiver, securityHoldingCid)]
+      Holding.verifyOwnerOfHolding ts
+      Holding.verifyNoObservers ts
+      pure ()
+    else do
+      -- FAILURE PATH
+
+      -- cannot cancel before expiry
+      submitMultiMustFail [bank, sender, receiver] [] do
+        exerciseCmd batchCid Batch.Cancel with actors = Set.fromList [bank, sender, receiver]
+
+      -- wait for expiry
+      setTime $ addRelTime expiry $ hours 1
+
+      [securityHoldingCid] <- submitMulti [bank, sender, receiver] [] do
+        exerciseCmd batchCid Batch.Cancel with actors = Set.fromList [bank, sender, receiver]
+
+      -- Assert state
+      let ts = [(sender, securityHoldingCid)]
+      Holding.verifyOwnerOfHolding ts
+      Holding.verifyNoObservers ts
+      pure ()
+
+runHappyPath : Script ()
+runHappyPath = run True
+
+runFailurePath : Script ()
+runFailurePath = run False
 
 setupParties : Script TestParties
 setupParties = do
-  [cb, bank, sender, receiver, ccp, settler] <-
-    createParties ["CentralBank", "Bank", "Sender", "Receiver", "CCP", "Settler"]
-  pure TestParties with cb; bank; sender; receiver; ccp; settler
+  [cb, bank, sender, receiver, cashSender, cashReceiver, settler] <-
+    createParties ["CentralBank", "Bank", "Sender", "Receiver", "CashSender", "CashReceiver", "Settler"]
+  pure TestParties with cb; bank; sender; receiver; cashSender; cashReceiver; settler
