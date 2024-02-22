@@ -37,7 +37,7 @@ installation.
 To build the library:
 
 ```script
-make
+make build-all
 ```
 
 This will produce individual DAR files for each package in the `.dars` directory.
