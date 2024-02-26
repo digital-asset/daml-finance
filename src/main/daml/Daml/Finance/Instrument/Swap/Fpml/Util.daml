@@ -5,10 +5,11 @@ module Daml.Finance.Instrument.Swap.Fpml.Util where
 
 import ContingentClaims.Core.Claim (Claim, Inequality(..), andList, give, one, scale, when)
 import ContingentClaims.Core.Observation (Observation(..))
-import DA.BigNumeric qualified as BN
 import DA.Date (addDays, subDate)
 import DA.Foldable (foldMap)
 import DA.List (dedup, head, init, last, sortOn, tail)
+import DA.Math (logBase, (**))
+import DA.Numeric (div)
 import DA.Optional (fromOptional, fromSome, fromSomeNote, isNone, isSome, whenSome)
 import Daml.Finance.Claims.Util.Builders (prepareAndTagClaims)
 import Daml.Finance.Claims.Util.Date (convertImplicitDcfToActualDcf)
@@ -407,12 +408,17 @@ calculatePrincipalExchangePaymentClaims paymentScheduleAligned issuerPaysLeg cur
 -- https://www.fpml.org/spec/fpml-5-11-3-lcwd-1/html/confirmation/schemaDocumentation/schemas/fpml-shared-5-11_xsd/complexTypes/FloatingRateCalculation/finalRateRounding.html
 roundRate : Decimal -> Rounding -> Decimal
 roundRate rate rounding =
-  fromBigNumeric $ BN.round rounding.precision roundingMode (fromNumeric rate)
-    where
-      roundingMode = case rounding.roundingDirection of
-        Up -> RoundingCeiling
-        Down -> RoundingFloor
-        Nearest -> RoundingHalfUp
+  let exponent : Int = truncate $ logBase 10.0 rate
+      characteristic : Decimal = 10.0 ** intToDecimal exponent
+      mantissa = rate `div` characteristic
+      _ =  if mantissa * characteristic == rate then () else error "fatal: rounding error"
+      roundMantissa : (Decimal -> Int) -> Decimal
+      roundMantissa r = intToDecimal $ r (mantissa * 10.0 ** (intToDecimal (exponent + rounding.precision)))
+  in case rounding.roundingDirection of
+            Up ->  roundMantissa ceiling * (10.0 ** (- (intToDecimal rounding.precision)))
+            Down -> roundMantissa floor * (10.0 ** (- (intToDecimal rounding.precision)))
+            Nearest -> roundMantissa round * (10.0 ** (- (intToDecimal rounding.precision)))
+
 
 -- | HIDE
 -- Get the floating rate to be used for a period, taking stub periods into account.
