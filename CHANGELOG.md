@@ -106,6 +106,8 @@ Dependency update (patch).
 
 ### Daml.Finance.Interface.Data
 
+Dependency update (patch).
+
 ### Daml.Finance.Interface.Holding
 
 ### Daml.Finance.Interface.Instrument.Base
@@ -114,9 +116,13 @@ Dependency update (patch).
 
 ### Daml.Finance.Interface.Instrument.Equity
 
+Dependency update (patch).
+
 ### Daml.Finance.Interface.Instrument.Generic
 
 ### Daml.Finance.Interface.Instrument.Option
+
+Dependency update (patch).
 
 ### Daml.Finance.Interface.Instrument.StructuredProduct
 
@@ -129,6 +135,8 @@ Add new AutoCallable instrument (minor).
 ### Daml.Finance.Interface.Instrument.Types
 
 ### Daml.Finance.Interface.Lifecycle
+
+Update a comment (this should generally not trigger a version bump, but packell is unhappy as I effectively removed a comment line, which forces the package bump).
 
 ### Daml.Finance.Interface.Settlement
 
