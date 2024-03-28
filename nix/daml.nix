@@ -23,7 +23,7 @@ let
       get_ee() (
         if [ -n "''${ARTIFACTORY_PASSWORD:-}" ]; then
           curl -u $ARTIFACTORY_USERNAME:$ARTIFACTORY_PASSWORD \
-               https://digitalasset.jfrog.io/artifactory/assembly/daml/${sdkVersion}/daml-sdk-${sdkVersion}-${os}.tar.gz \
+               https://digitalasset.jfrog.io/artifactory/assembly/daml/${sdkVersion}/daml-sdk-${sdkVersion}-${os}-intel.tar.gz \
             > $out
         else
           echo "ARTIFACTORY_USERNAME and ARTIFACTORY_PASSWORD must be set." >&2
