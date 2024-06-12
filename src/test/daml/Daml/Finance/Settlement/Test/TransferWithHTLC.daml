@@ -1,0 +1,226 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Settlement.Test.TransferWithHTLC where
+
+import DA.Assert ((===))
+import DA.Map qualified as Map (fromList)
+import DA.Optional (isSome)
+import DA.Set qualified as Set (fromList, singleton)
+import DA.Text (sha256)
+import DA.Time (addRelTime, hours, subTime)
+import Daml.Finance.Holding.Factory qualified as Holding (Factory(..))
+import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Cancel(..), I, Settle(..))
+import Daml.Finance.Interface.Settlement.Factory qualified as SettlementFactory (I, Instruct(..))
+import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Allocate(..), Approve(..), I)
+import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), RoutedStep(..))
+import Daml.Finance.Interface.Types.Common.Types (HoldingStandard(..), Id(..))
+import Daml.Finance.Interface.Util.Common (qty)
+import Daml.Finance.Interface.Util.Lockable qualified as Lockable (I)
+import Daml.Finance.Settlement.Factory qualified as Settlement (FactoryWithHTLC(..))
+import Daml.Finance.Settlement.HTLC (HTLC(..))
+import Daml.Finance.Settlement.HTLC qualified as HTLC (HTLCState(..), Lock(..), Reveal(..))
+import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.Holding qualified as Holding (verifyNoObservers, verifyOwnerOfHolding)
+import Daml.Finance.Test.Util.HoldingFactory (createHoldingFactory)
+import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
+import Daml.Script
+
+-- | Parties involved in the test script.
+data TestParties = TestParties
+  with
+    bank : Party
+      -- ^ Acts as custodian of the holdings, provider of the holding factories, instructor of the
+      -- batch, and settler of the batch.
+    sender : Party
+      -- ^ Sends units of security to receiver.
+    receiver : Party
+      -- ^ Receives units of security from sender.
+
+-- Scenario test for transferring a security between two parties (sender -> receiver), facilitated
+-- by an intermediary (bank), using the HTLC module. Cash could be transferred in the opposite
+-- direction on a separate ledger.
+-- +------------------------------------------+
+-- | Accounts                                 |
+-- +------------------+-----------------------+
+-- | structure:       | used for:             |
+-- +------------------+-----------------------+
+-- |      Bank        |                       |
+-- |      /  \        | securities            |
+-- | Sender  Receiver |                       |
+-- +------------------+-----------------------+
+
+-- | Allocate and approve the instruction.
+runAllocateAndApprove : Script (TestParties, (Text, Time, ContractId HTLC),
+  (ContractId Batch.I, ContractId Instruction.I))
+runAllocateAndApprove = do
+  -- Create parties
+  TestParties{..} <- setupParties
+  let
+    observers = Set.fromList [sender, receiver]
+    observersWithContext = [("Observers", observers)]
+
+  -- Create account factory
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank mempty
+
+  -- Create holding factory
+  holdingFactory <- createHoldingFactory
+    Holding.Factory with
+      provider = bank
+      id = Id "Holding Factory"
+      observers = Map.fromList observersWithContext
+
+  -- Create accounts
+  [senderAccount, receiverAccount] <- mapA (Account.createAccount "Security Account" []
+    accountFactoryCid holdingFactory [] Account.Owner bank) [sender, receiver]
+
+  -- Distribute asset
+  now <- getTime
+  securityInstrument <- Instrument.originate bank bank "SECURITY" Transferable "A Security" [] now
+  securityCid <- Account.credit [] securityInstrument 1000.0 senderAccount
+
+  -- Create settlement factory
+  settlementFactoryCid <- toInterfaceContractId @SettlementFactory.I <$>
+    submit bank do createCmd Settlement.FactoryWithHTLC with provider = bank; observers
+
+  -- Create batch
+  let batchId = Id "transfer abc"
+  (batchCid, [securityInstructionCid]) <- submit bank do
+    exerciseCmd settlementFactoryCid SettlementFactory.Instruct with
+      instructor = bank
+      consenters = mempty
+      settlers = Set.singleton bank
+      id = batchId
+      description = "transfer of 1000 units of security conditional on 200000 units of cash"
+      contextId = None
+      routedSteps =
+        [ RoutedStep with
+            sender; receiver; custodian = bank; quantity = qty 1_000.0 securityInstrument
+        ]
+      settlementTime = None
+
+  -- Create HTLC
+  let
+    secret = "dfgrhtdnni46rhf"
+    expiry = addRelTime now $ hours 12
+    hash = sha256 secret
+  htlcCid <- submit bank do
+    createCmd HTLC with
+      batchId
+      instructor = bank
+      consenters = mempty
+      settlers = Set.singleton bank
+      observers = Set.fromList [sender, receiver]
+      expiry
+      hash
+      state = HTLC.Open
+
+  -- Allocate instruction
+  (securityInstructionCid, _) <- submit sender do
+    exerciseCmd securityInstructionCid Instruction.Allocate with
+      actors = Set.singleton sender; allocation = Pledge securityCid
+
+  -- Sanity check
+  Some securityInstruction <- queryInterfaceContractId sender securityInstructionCid
+  let Pledge holdingCid = securityInstruction.allocation
+  Some lockable <- queryInterfaceContractId sender (toInterfaceContractId @Lockable.I holdingCid)
+  assertMsg "holding is locked" $ isSome lockable.lock
+
+  -- Approve instruction
+  securityInstructionCid <- submit receiver do
+    exerciseCmd securityInstructionCid Instruction.Approve with
+      actors = Set.singleton receiver; approval = TakeDelivery receiverAccount
+
+  pure (TestParties{..}, (secret, expiry, htlcCid), (batchCid, securityInstructionCid))
+
+-- | Cancel a batch when Open.
+cancelOpenBatch : Script ()
+cancelOpenBatch = do
+  -- Allocate and approve
+  (TestParties{..}, (secret, expiry, htlcCid), (batchCid, securityInstructionCid))
+    <- runAllocateAndApprove
+
+  -- Cancel the batch
+  [securityHoldingCid] <-
+    submit bank do exerciseCmd batchCid Batch.Cancel with actors = Set.singleton bank
+
+  -- Sanity check
+  let ts = [(sender, securityHoldingCid)]
+  Holding.verifyOwnerOfHolding ts
+  Holding.verifyNoObservers ts
+  Some holding <- queryInterfaceContractId @Lockable.I sender
+    $ toInterfaceContractId securityHoldingCid
+  holding.lock === None
+
+-- | Cancel a batch after expiry.
+cancelLockedBatchAfterExpiry : Script ()
+cancelLockedBatchAfterExpiry = do
+  -- Allocate and approve
+  (TestParties{..}, (secret, expiry, htlcCid), (batchCid, _)) <- runAllocateAndApprove
+
+  -- Lock Batch and Instructions (such that they can't be backed out of)
+  htlcCid <- submit bank do exerciseCmd htlcCid HTLC.Lock
+
+  -- Can not cancel (as Batch is Locked and has not expired)
+  submitMustFail bank do exerciseCmd batchCid Batch.Cancel with actors = Set.singleton bank
+
+  -- Wait for expiry
+  now <- getTime
+  passTime (subTime (addRelTime expiry (hours 1)) now)
+
+  -- Cancel the batch
+  [securityHoldingCid] <-
+    submit bank do exerciseCmd batchCid Batch.Cancel with actors = Set.singleton bank
+
+  -- Sanity check
+  let ts = [(sender, securityHoldingCid)]
+  Holding.verifyOwnerOfHolding ts
+  Holding.verifyNoObservers ts
+  Some holding <- queryInterfaceContractId @Lockable.I sender
+    $ toInterfaceContractId securityHoldingCid
+  holding.lock === None
+
+-- | Settle the batch.
+settleBatch : Script ()
+settleBatch = do
+  -- Allocate and approve
+  (TestParties{..}, (secret, _, htlcCid), (batchCid, securityInstructionCid))
+    <- runAllocateAndApprove
+
+  -- Lock Batch and Instructions (such that they can't be backed out of)
+  htlcCid <- submit bank do
+    exerciseCmd htlcCid HTLC.Lock
+
+  -- Receiver can't unapprove (as locked)
+  submitMustFail receiver do
+    exerciseCmd securityInstructionCid Instruction.Approve with
+      actors = Set.singleton receiver; approval = Unapproved
+
+  -- Sender can no longer unallocate (as locked)
+  submitMustFail sender do
+    exerciseCmd securityInstructionCid Instruction.Allocate with
+      actors = Set.singleton sender; allocation = Unallocated
+
+  -- Bank can't settle (as locked)
+  submitMustFail bank do
+    exerciseCmd batchCid Batch.Settle with actors = Set.singleton bank
+
+  -- Reveal secret
+  submit receiver do exerciseCmd htlcCid HTLC.Reveal with actor = receiver; secret
+
+  -- Settle the batch
+  [securityHoldingCid] <- submit bank do
+    exerciseCmd batchCid Batch.Settle with actors = Set.singleton bank
+
+  -- Assert state
+  let ts = [(receiver, securityHoldingCid)]
+  Holding.verifyOwnerOfHolding ts
+  Holding.verifyNoObservers ts
+
+  pure ()
+
+setupParties : Script TestParties
+setupParties = do
+  [bank, sender, receiver] <- createParties ["Bank", "Sender", "Receiver"]
+  pure TestParties with bank; sender; receiver
