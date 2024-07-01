@@ -19,13 +19,13 @@ let
                        curl = pkgs.curl;
                        curl_cert = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
                        os = if pkgs.stdenv.isDarwin then "macos" else "linux";
-                       hashes = { linux = "ZJe3XoxRnXLhWafI+VwuDCJ1iAUAzJ3WQiT94+AqSQ8=";
-                                  macos = "kHbvAObgbV8qEMS0l+MvzZIUAdgDVDQJ/hsLl23jvXo="; };});
+                       hashes = { linux = "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=";
+                                  macos = "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU="; };});
 in
 pkgs.mkShell {
   SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
   buildInputs = [
-    daml
+    #daml
     (packell { pkgs = pkgsGhc; stdenv = pkgsGhc.stdenv; version = "0.0.2"; })
     pkgs.bash
     pkgs.binutils # cp, grep, etc.
