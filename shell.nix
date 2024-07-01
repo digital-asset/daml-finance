@@ -25,7 +25,7 @@ in
 pkgs.mkShell {
   SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
   buildInputs = [
-    #daml
+    daml
     (packell { pkgs = pkgsGhc; stdenv = pkgsGhc.stdenv; version = "0.0.2"; })
     pkgs.bash
     pkgs.binutils # cp, grep, etc.
