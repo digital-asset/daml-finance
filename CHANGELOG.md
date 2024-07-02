@@ -51,9 +51,15 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 ### ContingentClaims.Core
 
+Dependency update (patch).
+
 ### ContingentClaims.Lifecycle
 
+Dependency update (patch).
+
 ### ContingentClaims.Valuation
+
+Dependency update (patch).
 
 ### Daml.Finance.Account
 
@@ -104,6 +110,8 @@ Dependency update (patch).
 
 ### Daml.Finance.Interface.Claims
 
+Dependency update (patch).
+
 ### Daml.Finance.Interface.Data
 
 Dependency update (patch).
@@ -114,11 +122,15 @@ Dependency update (patch).
 
 ### Daml.Finance.Interface.Instrument.Bond
 
+Dependency update (patch).
+
 ### Daml.Finance.Interface.Instrument.Equity
 
 Dependency update (patch).
 
 ### Daml.Finance.Interface.Instrument.Generic
+
+Dependency update (patch).
 
 ### Daml.Finance.Interface.Instrument.Option
 
