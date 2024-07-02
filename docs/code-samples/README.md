@@ -14,7 +14,7 @@ running the `daml new quickstart-finance` command.
 
 The [getting-started](getting-started/) code and the other code samples are fully replicated
 inside the
-[daml repository](https://github.com/digital-asset/daml/blob/main/templates/BUILD.bazel#L113).
+[daml repository](https://github.com/digital-asset/daml/blob/main/sdk/templates/BUILD.bazel).
 The only exception is the [daml.yaml](getting-started/daml.yaml) file, which is required for both
 local testing and for the CI and **must not** be replicated in the daml repository (this file gets
 generated based off the [daml.yaml.template](getting-started/daml.yaml.template) file when
@@ -70,7 +70,7 @@ update these sources as outlined in this section.
    2. Push the changes to the daml-finance repository and merge to `main`.
 
    3. In the daml repository, update the Daml Finance
-      [configuration](https://github.com/digital-asset/daml/tree/main/daml_finance_dep.bzl)
+      [configuration](https://github.com/digital-asset/daml/blob/main/sdk/daml_finance_dep.bzl)
       with the commit containing the change on `main` (or a subsequent commit) into the `version`
       field. You also must set the hash of the generated tar of the specified commit. In order to
       get the correct hash value to set in the `sha256` field, run the following commands:
