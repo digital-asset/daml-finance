@@ -17,13 +17,13 @@ let
       get_os() (
         curl --location \
              --fail \
-             https://github.com/digital-asset/daml/releases/download/v${damlVersion}/daml-sdk-${sdkVersion}-${os}.tar.gz \
+             https://github.com/digital-asset/daml/releases/download/v${damlVersion}/daml-sdk-2.9.0-snapshot.20240619.12850.0.v0cfddd39-${os}.tar.gz \
           > $out
       )
       get_ee() (
         if [ -n "''${ARTIFACTORY_PASSWORD:-}" ]; then
           curl -u $ARTIFACTORY_USERNAME:$ARTIFACTORY_PASSWORD \
-               https://digitalasset.jfrog.io/artifactory/assembly/daml/${sdkVersion}/daml-sdk-${sdkVersion}-${os}.tar.gz \
+               https://digitalasset.jfrog.io/artifactory/assembly/daml/${sdkVersion}/daml-sdk-2.9.0-snapshot.20240619.12850.0.v0cfddd39-${os}.tar.gz \
             > $out
         else
           echo "ARTIFACTORY_USERNAME and ARTIFACTORY_PASSWORD must be set." >&2
@@ -49,7 +49,7 @@ in
       tar xzf $src -C daml --strip-components 1
       patchShebangs .
     '';
-    installPhase = "cd daml; DAML_HOME=$out ./install.sh --install-with-internal-version yes";
+    installPhase = "cd daml; DAML_HOME=$out ./install.sh";
     propagatedBuildInputs = [ jdk ];
     preFixup = ''
       # Set DAML_HOME automatically.
