@@ -20,7 +20,7 @@ let
                        curl_cert = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
                        os = if pkgs.stdenv.isDarwin then "macos" else "linux";
                        hashes = { linux = "1y+AixwC6+yLBk7M2igPsDy3gf+F1ZtvesFFyLQ+V84=";
-                                  macos = "kHbvAObgbV8qEMS0l+MvzZIUAdgDVDQJ/hsLl23jvXo="; };});
+                                  macos = "hZ7NQp1nu1JMn/B8kC7lsQE9p2yTd9QB3q2M5kKDgFQ="; };});
 in
 pkgs.mkShell {
   SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
