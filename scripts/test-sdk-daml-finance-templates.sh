@@ -46,8 +46,8 @@
 TEMPLATES=("quickstart-finance" "finance-upgrades" "finance-settlement" "finance-lifecycling" "finance-payoff-modeling")
 
 # Filters for finding "latest" SDK version (from the daml GitHub releases page)
-require_asset_name_substring=""                    # e.g. "2.8.0"
-exclude_asset_name_substring_if_non_empty="2.9.0"  # e.g. "2.9.0"
+require_asset_name_substring="2.9.0"               # e.g. "2.8.0"
+exclude_asset_name_substring_if_non_empty=""       # e.g. "2.9.0"
 require_release_tag_name_substring="rc"            # e.g. "rc"
 exclude_release_tag_name_substring_if_non_empty="" # e.g. "snapshot"
 
