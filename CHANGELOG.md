@@ -108,6 +108,8 @@ Dependency update (patch).
 
 ### Daml.Finance.Interface.Account
 
+Dependency update (patch).
+
 ### Daml.Finance.Interface.Claims
 
 Dependency update (patch).
@@ -118,7 +120,11 @@ Dependency update (patch).
 
 ### Daml.Finance.Interface.Holding
 
+Dependency update (patch).
+
 ### Daml.Finance.Interface.Instrument.Base
+
+Dependency update (patch).
 
 ### Daml.Finance.Interface.Instrument.Bond
 
@@ -142,9 +148,15 @@ Add new AutoCallable instrument (minor).
 
 ### Daml.Finance.Interface.Instrument.Swap
 
+Dependency update (patch).
+
 ### Daml.Finance.Interface.Instrument.Token
 
+Dependency update (patch).
+
 ### Daml.Finance.Interface.Instrument.Types
+
+Dependency update (patch).
 
 ### Daml.Finance.Interface.Lifecycle
 
@@ -152,11 +164,19 @@ Update a comment (this should generally not trigger a version bump, but packell 
 
 ### Daml.Finance.Interface.Settlement
 
+Dependency update (patch).
+
 ### Daml.Finance.Interface.Types.Common
+
+Dependency update (patch).
 
 ### Daml.Finance.Interface.Types.Date
 
+Dependency update (patch).
+
 ### Daml.Finance.Interface.Util
+
+Dependency update (patch).
 
 ### Daml.Finance.Lifecycle
 
