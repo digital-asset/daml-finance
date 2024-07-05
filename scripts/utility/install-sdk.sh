@@ -30,7 +30,7 @@ install_sdk() {
   OS=$3
 
   echo "SDK_VERSION: $SDK_VERSION" >&2
-  echo "DAML_VERSOIN: $DAML_VERSION" >&2
+  echo "DAML_VERSION: $DAML_VERSION" >&2
 
   # Get absolute path of this file.
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -83,7 +83,7 @@ install_sdk() {
       cd "$TMP_DIR"
       tar xzf daml-sdk.tar.gz --strip-components 1
       echo "Extraction completed. " >&2
-      ./install.sh --install-with-internal-version yes # Aternatively: curl -sSL https://get.daml.com/ | sh -s 2.8.0-rc2
+      ./install.sh # Aternatively: curl -sSL https://get.daml.com/ | sh -s 2.8.0-rc2
       # Clean up
       rm -rf "$TMP_DIR"
     )
