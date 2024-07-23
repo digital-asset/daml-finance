@@ -15,12 +15,14 @@ let
       fi
 
       get_os() (
+        echo "Downloading SDK from GitHub..."
         curl --location \
              --fail \
-             https://github.com/digital-asset/daml/releases/download/v${damlVersion}/daml-sdk-${sdkVersion}-${os}.tar.gz \
+             https://github.com/digital-asset/daml/releases/download/v${sdkVersion}/daml-sdk-${damlVersion}-${os}.tar.gz \
           > $out
       )
       get_ee() (
+        echo "Downloading SDK from Artifactory..."
         if [ -n "''${ARTIFACTORY_PASSWORD:-}" ]; then
           curl -u $ARTIFACTORY_USERNAME:$ARTIFACTORY_PASSWORD \
                https://digitalasset.jfrog.io/artifactory/assembly/daml/${sdkVersion}/daml-sdk-${sdkVersion}-${os}.tar.gz \
@@ -49,7 +51,7 @@ in
       tar xzf $src -C daml --strip-components 1
       patchShebangs .
     '';
-    installPhase = "cd daml; DAML_HOME=$out ./install.sh --install-with-internal-version yes";
+    installPhase = "cd daml; DAML_HOME=$out ./install.sh";
     propagatedBuildInputs = [ jdk ];
     preFixup = ''
       # Set DAML_HOME automatically.
