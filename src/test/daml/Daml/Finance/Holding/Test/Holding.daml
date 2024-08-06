@@ -4,17 +4,21 @@
 module Daml.Finance.Holding.Test.Holding where
 
 import DA.Assert ((===))
+import DA.Map qualified as Map (fromList)
 import DA.Set (fromList, singleton)
 import Daml.Finance.Account.Account qualified as Account (T)
 import Daml.Finance.Holding.Factory qualified as Holding (Factory(..))
 import Daml.Finance.Holding.Test.Common (TestInitialState(..), TestParties(..), setupInitialState, setupParties)
 import Daml.Finance.Interface.Account.Account qualified as Account (Debit(..), I)
+import Daml.Finance.Interface.Holding.Factory qualified as HoldingFactory (R)
 import Daml.Finance.Interface.Holding.Fungible qualified as Fungible (I, Split(..))
 import Daml.Finance.Interface.Holding.Holding qualified as Holding (I)
 import Daml.Finance.Interface.Holding.Transferable qualified as Transferable (I, Transfer(..))
 import Daml.Finance.Interface.Types.Common.Types (HoldingStandard(..), Id(..))
+import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (AddObservers(..), I, RemoveObservers(..))
 import Daml.Finance.Interface.Util.Lockable qualified as Lockable (Acquire(..), I, LockType(..), Release(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), submitExerciseInterfaceByKeyCmd, submitMustFailExerciseInterfaceByKeyCmd)
+import Daml.Finance.Test.Util.HoldingFactory qualified as HoldingFactory (submitExerciseInterfaceByKeyCmd)
 import Daml.Script
 
 run : Script ()
@@ -23,12 +27,36 @@ run = script do
   tp@TestParties{custodian; issuer; investor; locker; locker2} <- setupParties
 
   -- Initialize state
-  TestInitialState {investorAccount; issuerAccount; issuerHoldingCid} <- setupInitialState
-    tp
-    Holding.Factory with provider = custodian; id = Id "Holding Factory"; observers = mempty
-    BaseHolding
-    []
-    Account.Owner
+  TestInitialState {investorAccount; issuerAccount; issuerHoldingCid; holdingFactory} <-
+    setupInitialState
+      tp
+      Holding.Factory with provider = custodian; id = Id "Holding Factory"; observers = mempty
+      BaseHolding
+      []
+      Account.Owner
+
+  -- Can disclose holding factory
+  let
+    getReference = queryFilter @HoldingFactory.R custodian  (\hf -> key hf == holdingFactory)
+    observers = ("test", singleton investor)
+  cid <- HoldingFactory.submitExerciseInterfaceByKeyCmd @Disclosure.I [custodian] [] holdingFactory $
+    Disclosure.AddObservers  with
+      disclosers = singleton custodian
+      observersToAdd = observers
+  Some disclosure <- queryInterfaceContractId @Disclosure.I custodian cid
+  disclosure.observers === Map.fromList [observers]
+  [(_, ref)] <- getReference
+  ref.observers === Map.fromList [observers]
+
+  -- Can undisclose holding factory
+  Some cid <- HoldingFactory.submitExerciseInterfaceByKeyCmd @Disclosure.I [custodian] []
+    holdingFactory $ Disclosure.RemoveObservers  with
+      disclosers = singleton custodian
+      observersToRemove = observers
+  Some disclosure <- queryInterfaceContractId @Disclosure.I custodian cid
+  disclosure.observers === mempty
+  [(_, ref)] <- getReference
+  ref.observers === mempty
 
   -- Cannot split
   submitMultiMustFail [issuer, investor] [] do

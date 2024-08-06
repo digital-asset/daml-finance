@@ -77,6 +77,8 @@ Dependency update (patch).
 
 Dependency update (patch).
 
+Applied fix for holding factory observers.
+
 ### Daml.Finance.Instrument.Bond
 
 Dependency update (patch).
