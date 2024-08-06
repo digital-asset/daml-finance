@@ -116,6 +116,8 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 - Renamed the `F` type synonym to `T`.
 
+Applied fix for holding factory observers.
+
 ### Daml.Finance.Instrument.Bond
 
 - Update of SDK version and dependencies.
