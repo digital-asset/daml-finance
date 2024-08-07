@@ -53,13 +53,19 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 Dependency update (patch).
 
+Bumps `daml-ctl` to `2.4.1`.
+
 ### ContingentClaims.Lifecycle
 
 Dependency update (patch).
 
+Bumps `daml-ctl` to `2.4.1`.
+
 ### ContingentClaims.Valuation
 
 Dependency update (patch).
+
+Bumps `daml-ctl` to `2.4.1`.
 
 ### Daml.Finance.Account
 
@@ -98,6 +104,7 @@ Dependency update (patch).
 ### Daml.Finance.Instrument.StructuredProduct
 
 Dependency update (patch).
+
 Add new AutoCallable instrument (minor).
 
 ### Daml.Finance.Instrument.Swap
@@ -162,7 +169,8 @@ Dependency update (patch).
 
 ### Daml.Finance.Interface.Lifecycle
 
-Update a comment (this should generally not trigger a version bump, but packell is unhappy as I effectively removed a comment line, which forces the package bump).
+Update a comment (this should generally not trigger a version bump, but packell is unhappy as I
+effectively removed a comment line, which forces the package bump).
 
 ### Daml.Finance.Interface.Settlement
 
