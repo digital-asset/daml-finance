@@ -11,7 +11,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 | Daml.Finance.Account                       | 3.0.0              |                |
 | Daml.Finance.Claims                        | 2.1.0              |                |
 | Daml.Finance.Data                          | 3.0.0              |                |
-| Daml.Finance.Holding                       | 3.0.0              |                |
+| Daml.Finance.Holding                       | 3.0.0              | 3.0.1          |
 | Daml.Finance.Instrument.Bond               | 2.0.0              |                |
 | Daml.Finance.Instrument.Generic            | 3.0.0              |                |
 | Daml.Finance.Instrument.Token              | 3.0.0              |                |
