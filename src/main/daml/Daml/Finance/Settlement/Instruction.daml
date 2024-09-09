@@ -3,6 +3,7 @@
 
 module Daml.Finance.Settlement.Instruction where
 
+import DA.Action (when)
 import DA.List qualified as L (head)
 import DA.Set (Set)
 import DA.Set qualified as Set (fromList, insert, intersection, isSubsetOf, null, singleton, toList, union)
@@ -17,6 +18,7 @@ import Daml.Finance.Interface.Types.Common.Types (AccountKey, Id(..), Parties, P
 import Daml.Finance.Interface.Util.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
 import Daml.Finance.Interface.Util.InterfaceKey (fetchInterfaceByKey)
 import Daml.Finance.Interface.Util.Lockable qualified as Lockable (Acquire(..), I, LockType(..), Release(..))
+import Daml.Finance.Settlement.HTLC qualified as HTLC (HTLCState(..), verifyAnyState, verifyCanCancel, verifyRevealedState)
 import Daml.Finance.Util.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
 
 -- | Type synonym for `Instruction`.
@@ -27,6 +29,8 @@ type T = Instruction
 -- - the receiver must define the receiving account
 template Instruction
   with
+    useHTLC : Bool
+      -- ^ Whether to use HTLCs for the settlement.
     instructor : Party
       -- ^ Party instructing settlement (and the creation of the `Instruction`).
     consenters : Parties
@@ -70,12 +74,13 @@ template Instruction
         instructor; consenters; settlers; batchId; id; routedStep; settlementTime
         allocation; approval; signedSenders; signedReceivers
       allocate Instruction.Allocate{actors; allocation} = do
+        when useHTLC do HTLC.verifyAnyState HTLC.Open $ Left (instructor, batchId)
         let
           allMustAuthorize = mustAuthorizeHelper True actors
           atLeastOneMustAuthorize = mustAuthorizeHelper False actors
         atLeastOneMustAuthorize $ Set.fromList [routedStep.custodian, routedStep.sender]
         assertMsg ("Allocation must be new. " <> context this) $ allocation /= this.allocation
-        releasedCid <- releasePreviousAllocation this actors
+        releasedCid <- releasePreviousAllocation this actors True
         -- allocate
         newAllocation <- case allocation of
           Pledge holdingCid -> do
@@ -126,12 +131,13 @@ template Instruction
           signedSenders = if newAllocation == Unallocated then mempty else actors
         pure (newInstructionCid, releasedCid)
       approve Instruction.Approve{actors; approval} = do
+        when useHTLC do HTLC.verifyAnyState HTLC.Open $ Left (instructor, batchId)
         let
           allMustAuthorize = mustAuthorizeHelper True actors
           atLeastOneMustAuthorize = mustAuthorizeHelper False actors
         atLeastOneMustAuthorize $ Set.fromList [routedStep.custodian, routedStep.receiver]
         assertMsg ("Approval must be new. " <> context this) $ approval /= this.approval
-        releasePreviousApproval this actors
+        releasePreviousApproval this actors True
         -- approve
         case approval of
           TakeDelivery receiverAccountKey -> do
@@ -164,6 +170,7 @@ template Instruction
           approval
           signedReceivers = if approval == Unapproved then mempty else actors
       execute Instruction.Execute{actors} = do
+        when useHTLC do HTLC.verifyRevealedState $ Left (instructor, batchId)
         let allMustAuthorize = mustAuthorizeHelper True actors
         allMustAuthorize $ Set.insert instructor consenters
         assertMsg ("Actors must intersect with settlers. " <> context this) $
@@ -249,10 +256,11 @@ template Instruction
               SettleOffledgerAcknowledge -> pure None
               _ -> abortOnOffledgerMix
       cancel Instruction.Cancel{actors} = do
+        when useHTLC do HTLC.verifyCanCancel $ Left (instructor, batchId)
         let allMustAuthorize = mustAuthorizeHelper True actors
         allMustAuthorize $ Set.insert instructor consenters
-        releasePreviousApproval this actors
-        releasePreviousAllocation this actors
+        releasePreviousApproval this actors False
+        releasePreviousAllocation this actors False
 
 -- | HIDE
 context : Instruction -> Text
@@ -298,11 +306,10 @@ undisclosePledge this@Instruction {settlers} holdingCid actors = Holding.undiscl
   (context this, settlers) (addSignatories this actors) holdingCid
 
 -- | HIDE
-releasePreviousAllocation : Instruction -> Parties -> Update (Optional (ContractId Holding.I))
-releasePreviousAllocation this@Instruction {allocation; signedSenders} actors = do
+releasePreviousAllocation : Instruction -> Parties -> Bool -> Update (Optional (ContractId Holding.I))
+releasePreviousAllocation this@Instruction{allocation; signedSenders} actors signedSendersMustAuthorize = do
   let allMustAuthorize = mustAuthorizeHelper True actors
-  -- signed senders must agree to release previous allocation
-  allMustAuthorize signedSenders
+  when signedSendersMustAuthorize $ allMustAuthorize signedSenders
   case allocation of
     Pledge holdingCid -> do
       holdingCid <- fromInterfaceContractId @Holding.I <$>
@@ -318,11 +325,10 @@ releasePreviousAllocation this@Instruction {allocation; signedSenders} actors = 
     _ -> pure None
 
 -- | HIDE
-releasePreviousApproval : Instruction -> Parties -> Update (Optional (ContractId Account.I))
-releasePreviousApproval this@Instruction {approval; signedReceivers} actors = do
+releasePreviousApproval : Instruction -> Parties -> Bool -> Update (Optional (ContractId Account.I))
+releasePreviousApproval this@Instruction{approval; signedReceivers} actors signedReceiversMustAuthorize = do
   let allMustAuthorize = mustAuthorizeHelper True actors
-  -- signed receivers must authorize to release previous approval
-  allMustAuthorize signedReceivers
+  when signedReceiversMustAuthorize $ allMustAuthorize signedReceivers
   case approval of
     TakeDelivery receiverAccountKey -> undiscloseAccount this receiverAccountKey actors
     PassThroughTo (passThroughAccountKey, _) -> undiscloseAccount this passThroughAccountKey actors

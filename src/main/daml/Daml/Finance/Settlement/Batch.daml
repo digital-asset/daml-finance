@@ -3,7 +3,7 @@
 
 module Daml.Finance.Settlement.Batch where
 
-import DA.Action (foldlA)
+import DA.Action (foldlA, when)
 import DA.Map qualified as Map (fromList, lookup)
 import DA.Optional (catOptionals, fromSomeNote)
 import DA.Set (Set)
@@ -14,6 +14,7 @@ import Daml.Finance.Interface.Settlement.Batch qualified as Batch (Cancel(..), I
 import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction (Cancel(..), Execute(..), I)
 import Daml.Finance.Interface.Settlement.Types (Allocation(..), Approval(..), InstructionKey(..), RoutedStep(..))
 import Daml.Finance.Interface.Types.Common.Types (Id(..), Parties)
+import Daml.Finance.Settlement.HTLC qualified as HTLC (verifyCanCancel, verifyRevealedState)
 import Daml.Finance.Settlement.Instruction (Instruction(..), mustAuthorizeHelper)
 
 -- | Type synonym for `Batch`.
@@ -22,6 +23,8 @@ type T = Batch
 -- | Allows you to atomically settle a set of settlement `Step`.
 template Batch
   with
+    useHTLC : Bool
+      -- ^ Whether to use HTLCs for the settlement.
     instructor : Party
       -- ^ Party instructing settlement (and the creation of the `Batch`).
     consenters : Parties
@@ -47,6 +50,7 @@ template Batch
         instructor; consenters; settlers; id; description; contextId
         routedSteps = routedSteps this.routedStepsWithInstructionId; settlementTime
       settle Batch.Settle{actors} = do
+        when useHTLC do HTLC.verifyRevealedState $ Left (instructor, id)
         assertMsg "Actors must intersect with settlers." $
           not $ Set.null $ actors `Set.intersection` settlers
         -- order instructions (such that they can be executed with passthroughs)
@@ -74,6 +78,7 @@ template Batch
             instructionIds this.routedStepsWithInstructionId
         pure $ catOptionals settledCids
       cancel Batch.Cancel{actors} = do
+        when useHTLC do HTLC.verifyCanCancel $ Left (instructor, id)
         let
           allMustAuthorize = mustAuthorizeHelper True actors
           cancelInstruction instruction = do
