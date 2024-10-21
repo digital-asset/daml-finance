@@ -51,7 +51,11 @@ in
       tar xzf $src -C daml --strip-components 1
       patchShebangs .
     '';
-    installPhase = "cd daml; DAML_HOME=$out ./install.sh";
+    installPhase = ''
+      cd daml
+      export DAML_HOME=$out
+      ./daml/daml install --install-assistant yes --install-with-internal-version yes $src
+    '';
     propagatedBuildInputs = [ jdk ];
     preFixup = ''
       # Set DAML_HOME automatically.
