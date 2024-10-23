@@ -23,9 +23,25 @@ let
       )
       get_ee() (
         echo "Downloading SDK from Artifactory..."
+
+        if [[ "$os" == "linux" ]]; then
+          # Detect system architecture
+          arch=$(uname -m)
+          if [[ "$arch" == "x86_64" ]]; then
+            osUsed="linux-intel"
+          elif [[ "$arch" == "arm64" || "$arch" == "aarch64" ]]; then
+            osUsed="linux-arm"
+          else
+            echo "Unsupported architecture: $arch" >&2
+            exit 1
+          fi
+        else
+          osUsed="$os"
+        fi
+
         if [ -n "''${ARTIFACTORY_PASSWORD:-}" ]; then
           curl -u $ARTIFACTORY_USERNAME:$ARTIFACTORY_PASSWORD \
-               https://digitalasset.jfrog.io/artifactory/assembly/daml/${sdkVersion}/daml-sdk-${sdkVersion}-${os}.tar.gz \
+               https://digitalasset.jfrog.io/artifactory/assembly/daml/${sdkVersion}/daml-sdk-${sdkVersion}-${osUsed}.tar.gz \
             > $out
         else
           echo "ARTIFACTORY_USERNAME and ARTIFACTORY_PASSWORD must be set." >&2
@@ -33,7 +49,8 @@ let
         fi
       )
 
-      get_os || get_ee
+      # get_os || get_ee
+      get_ee
     '';
     dontInstall = true;
     outputHashAlgo = "sha256";
