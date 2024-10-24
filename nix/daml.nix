@@ -1,4 +1,4 @@
-{ stdenv, jdk, curl, curl_cert, sdkVersion, damlVersion, os, hashes }:
+{ stdenv, jdk, curl, curl_cert, sdkVersion, damlVersion, os, osJFrog, hashes }:
 let
   tarball = stdenv.mkDerivation {
     pname = "daml-tarball";
@@ -25,7 +25,7 @@ let
         echo "Downloading SDK from Artifactory..."
         if [ -n "''${ARTIFACTORY_PASSWORD:-}" ]; then
           curl -u $ARTIFACTORY_USERNAME:$ARTIFACTORY_PASSWORD \
-               https://digitalasset.jfrog.io/artifactory/assembly/daml/${sdkVersion}/daml-sdk-${sdkVersion}-${os}.tar.gz \
+               https://digitalasset.jfrog.io/artifactory/assembly/daml/${sdkVersion}/daml-sdk-${sdkVersion}-${osJFrog}.tar.gz \
             > $out
         else
           echo "ARTIFACTORY_USERNAME and ARTIFACTORY_PASSWORD must be set." >&2
@@ -51,7 +51,11 @@ in
       tar xzf $src -C daml --strip-components 1
       patchShebangs .
     '';
-    installPhase = "cd daml; DAML_HOME=$out ./install.sh";
+    installPhase = ''
+      cd daml
+      export DAML_HOME=$out
+      ./daml/daml install --install-assistant yes --install-with-internal-version yes $src
+    '';
     propagatedBuildInputs = [ jdk ];
     preFixup = ''
       # Set DAML_HOME automatically.
