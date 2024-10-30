@@ -1,5 +1,6 @@
-{ stdenv, jdk, curl, curl_cert, sdkVersion, damlVersion, os, osJFrog, hashes }:
+{ stdenv, jdk, curl, curl_cert, sdkVersion, damlVersion, tarPath, os, osJFrog, hashes }:
 let
+  nixTarPath = if tarPath == null then null else /. + tarPath;
   tarball = stdenv.mkDerivation {
     pname = "daml-tarball";
     version = sdkVersion;
@@ -14,6 +15,17 @@ let
         source .envrc.private
       fi
 
+      get_local() (
+        tar_path="${if nixTarPath == null then "" else nixTarPath}"
+        if [ -z $tar_path ]; then
+          echo "No explict tar set, attempting to download"
+          exit 1
+        else
+          echo "Using explicit tar $tar_path $out"
+          cp $tar_path $out
+          chmod -x $out
+        fi
+      )
       get_os() (
         echo "Downloading SDK from GitHub..."
         curl --location \
@@ -33,7 +45,7 @@ let
         fi
       )
 
-      get_os || get_ee
+      get_local || get_os || get_ee
     '';
     dontInstall = true;
     outputHashAlgo = "sha256";
