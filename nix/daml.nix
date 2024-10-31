@@ -21,7 +21,7 @@ let
           echo "No explict tar set, attempting to download"
           exit 1
         else
-          echo "Using explicit tar $tar_path $out"
+          echo "Using explicit tar"
           cp $tar_path $out
           chmod -x $out
         fi
