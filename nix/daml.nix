@@ -66,7 +66,7 @@ in
     installPhase = ''
       cd daml
       export DAML_HOME=$out
-      ./daml/daml install --install-assistant yes --install-with-internal-version yes $src
+      ./daml/daml install --install-assistant yes --install-with-custom-version $version $src
     '';
     propagatedBuildInputs = [ jdk ];
     preFixup = ''
