@@ -16,6 +16,7 @@ let
                        jdk = pkgs.openjdk11_headless;
                        sdkVersion = damlYaml.sdk-version;
                        damlVersion = damlYaml.daml-version;
+                       tarPath = damlYaml.daml-tar-path or null;
                        curl = pkgs.curl;
                        curl_cert = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
                        os = if pkgs.stdenv.isDarwin then "macos" else "linux";
