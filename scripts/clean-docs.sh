@@ -4,8 +4,11 @@
 
 root_dir=$(cd "$(dirname $0)"; cd ..; pwd -P)
 
-# Remove docs/build directory
-echo "Removing docs build directory"
-if [[ -d ${root_dir}/docs/build ]]; then
-  rm -rf ${root_dir}/docs/build
+# Remove docs/build directory if it exists
+echo "Removing docs build directory if any"
+if [ -d "${root_dir}/docs/build" ]; then
+  rm -rf "${root_dir}/docs/build"
+  echo "Removed ${root_dir}/docs/build"
+else
+  echo "${root_dir}/docs/build does not exist"
 fi
