@@ -1,0 +1,75 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Interface.Lifecycle.V4.Rule.Claim where
+
+import Daml.Finance.Interface.Holding.V4.Holding qualified as Holding (I)
+import Daml.Finance.Interface.Lifecycle.V4.Effect qualified as Effect (I)
+import Daml.Finance.Interface.Settlement.V4.Batch qualified as Batch (I)
+import Daml.Finance.Interface.Settlement.V4.Factory qualified as SettlementFactory (I)
+import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (I)
+import Daml.Finance.Interface.Settlement.V4.RouteProvider qualified as RouteProvider (I)
+import Daml.Finance.Interface.Types.Common.V3.Types (Id, Parties)
+
+-- | Type synonym for `Claim`.
+type I = Claim
+
+-- | Type synonym for `View`.
+type V = View
+
+-- | View for `Settlement`.
+data View = View
+  with
+    providers : Parties
+      -- ^ Providers of the claim rule. Together with the actors of the `ClaimEffect` choice the
+      --   authorization requirements to upgrade the holdings being claimed have to be met.
+    claimers : Parties
+      -- ^ Any of the parties can claim an effect.
+    settlers : Parties
+      -- ^ Any of the parties can trigger settlement of the resulting batch.
+    routeProviderCid : ContractId RouteProvider.I
+      -- ^ RouteProvider contract used to discover settlement routes.
+    settlementFactoryCid : ContractId SettlementFactory.I
+      -- ^ Settlement factory contract used to create a `Batch` of `Instruction`\s.
+  deriving (Eq, Show)
+
+-- | Data type wrapping the results of `Claim`ing an `Effect`.
+data ClaimResult = ClaimResult
+  with
+    batchCid : ContractId Batch.I
+      -- ^ Batch used to batch-settle settlement instructions.
+    instructionCids : [ContractId Instruction.I]
+      -- ^ Settlement instructions to settle all effect consequences.
+  deriving (Eq, Show)
+
+-- | Interface for contracts that allow holders to claim an `Effect` and generate
+-- `SettlementInstruction`\s.
+interface Claim where
+  viewtype V
+
+  claimEffect : ClaimEffect -> Update ClaimResult
+    -- ^ Implementation of the `ClaimEffect` choice.
+
+  nonconsuming choice GetView : View
+    -- ^ Retrieves the interface view.
+    with
+      viewer : Party
+        -- ^ The party retrieving the view.
+    controller viewer
+    do
+      pure $ view this
+
+  nonconsuming choice ClaimEffect : ClaimResult
+    -- ^ Claim an effect and generate corresponding settlement instructions.
+    with
+      claimer : Party
+        -- ^ The party claiming the effect.
+      holdingCids : [ContractId Holding.I]
+        -- ^ The holdings to process.
+      effectCid : ContractId Effect.I
+        -- ^ The effect to process.
+      batchId : Id
+        -- ^ Identifier used for the generated settlement batch.
+    controller claimer
+    do
+      claimEffect this arg

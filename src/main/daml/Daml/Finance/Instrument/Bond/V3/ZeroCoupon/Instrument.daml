@@ -1,0 +1,100 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Bond.V3.ZeroCoupon.Instrument where
+
+import DA.Date (daysSinceEpochToDate)
+import DA.Set (singleton)
+import Daml.Finance.Claims.V3.Util.Builders (createFxAdjustedPrincipalClaim)
+import Daml.Finance.Data.V4.Time.DateClock (dateToDateClockTime)
+import Daml.Finance.Interface.Claims.V4.Claim qualified as Claim (GetClaims(..), I, View(..))
+import Daml.Finance.Interface.Claims.V4.Dynamic.Instrument qualified as DynamicInstrument (CreateNewVersion(..), I, View(..))
+import Daml.Finance.Interface.Instrument.Base.V4.Instrument qualified as BaseInstrument (I, View(..), createReference, disclosureUpdateReference, instrumentKey)
+import Daml.Finance.Interface.Instrument.Bond.V3.ZeroCoupon.Instrument qualified as ZeroCoupon (I, View(..))
+import Daml.Finance.Interface.Instrument.Bond.V3.ZeroCoupon.Types (ZeroCoupon(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id, InstrumentKey(..), PartiesMap)
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+
+-- | Type synonym for `Instrument`.
+type T = Instrument
+
+-- | This template models a zero coupon bond.
+-- It does not pay any coupons, only the redemption amount at maturity.
+template Instrument
+  with
+    depository : Party
+      -- ^ The depository of the instrument.
+    issuer : Party
+      -- ^ The issuer of the instrument.
+    id : Id
+      -- ^ An identifier of the instrument.
+    version : Text
+      -- ^ The instrument's version.
+    holdingStandard : HoldingStandard
+      -- ^ The holding standard for holdings referencing this instrument.
+    description : Text
+      -- ^ A description of the instrument.
+    issueDate : Date
+      -- ^ The date when the bond was issued.
+    maturityDate : Date
+      -- ^ The redemption date of the bond.
+    currency : InstrumentKey
+      -- ^ The currency of the bond. For example, if the bond pays in USD this should be a USD cash
+      -- instrument.
+    notional : Decimal
+      -- ^ The notional of the bond. This is the face value corresponding to one unit of the bond
+      --   instrument. For example, if one bond unit corresponds to 1000 USD, this should be 1000.0.
+    observers : PartiesMap
+      -- ^ The observers of the instrument.
+    lastEventTimestamp : Time
+      -- ^ (Market) time of the last recorded lifecycle event. If no event has occurred yet, the
+      -- time of creation should be used.
+  where
+    signatory depository, issuer
+    observer Disclosure.flattenObservers observers
+
+    interface instance Claim.I for Instrument where
+      view = Claim.View with acquisitionTime = dateToDateClockTime $ daysSinceEpochToDate 0
+      getClaims Claim.GetClaims{} =
+        -- get the initial claims tree (as of the bond's acquisition time)
+        let
+          ownerReceives = True
+          fxAdjustment = 1.0
+          redemptionClaim = createFxAdjustedPrincipalClaim dateToDateClockTime ownerReceives
+            fxAdjustment notional currency maturityDate
+        in
+          pure [redemptionClaim]
+
+    interface instance BaseInstrument.I for Instrument where
+      view = BaseInstrument.View with
+        depository; issuer; id; version; holdingStandard; description
+        validAsOf = lastEventTimestamp
+      getKey = BaseInstrument.instrumentKey this
+
+    interface instance ZeroCoupon.I for Instrument where
+      view = ZeroCoupon.View with
+        zeroCoupon = ZeroCoupon with
+          instrument = BaseInstrument.instrumentKey this
+          description
+          issueDate
+          maturityDate
+          currency
+          notional
+          lastEventTimestamp
+
+    interface instance DynamicInstrument.I for Instrument where
+      view = DynamicInstrument.View with lifecycler = issuer; lastEventTimestamp; prevEvents = []
+      createNewVersion DynamicInstrument.CreateNewVersion{version; lastEventTimestamp} = do
+        cid <- create this with version; lastEventTimestamp
+        BaseInstrument.createReference issuer $ toInterfaceContractId cid
+        pure $ toInterfaceContractId cid
+
+    interface instance Disclosure.I for Instrument where
+      view = Disclosure.View with disclosureControllers = singleton issuer; observers
+      setObservers = setObserversImpl this . Some . BaseInstrument.disclosureUpdateReference $
+        BaseInstrument.instrumentKey this
+      addObservers = addObserversImpl this $ Some . BaseInstrument.disclosureUpdateReference $
+        BaseInstrument.instrumentKey this
+      removeObservers = removeObserversImpl this . Some . BaseInstrument.disclosureUpdateReference $
+        BaseInstrument.instrumentKey this

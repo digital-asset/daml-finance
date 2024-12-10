@@ -134,7 +134,7 @@ within this repository.
   ```
 
 - In consuming code, use qualified imports to refer to interfaces and view typs, e.g.,
-  `import Daml.Finance.Interface.Holding qualified as Holding (I, V)`.
+  `import Daml.Finance.Interface.Holding.V4 qualified as Holding (I, V)`.
 
 - For interface choices with empty implemenations
 

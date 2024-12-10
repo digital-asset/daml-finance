@@ -1,0 +1,79 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Bond.V3.Util where
+
+import ContingentClaims.Core.V3.Claim (Claim, and, at, give, one, or, scale, when)
+import ContingentClaims.Core.V3.Observation (Observation(..))
+import DA.List (last)
+import DA.Optional (isSome)
+import Daml.Finance.Claims.V3.Util.Builders (calculateRatePayment, prepareAndTagClaims)
+import Daml.Finance.Interface.Claims.V4.Types (Deliverable, Observable, TaggedClaim(..))
+import Daml.Finance.Interface.Instrument.Types.V2.FloatingRate (FloatingRate)
+import Daml.Finance.Interface.Types.Date.V3.Calendar (HolidayCalendarData)
+import Daml.Finance.Interface.Types.Date.V3.DayCount (DayCountConventionEnum)
+import Daml.Finance.Interface.Types.Date.V3.Schedule (PeriodicSchedule(..), Schedule)
+import Daml.Finance.Util.V4.Date.Calendar (addBusinessDays)
+import Prelude hiding (and, or, (<=))
+import Prelude qualified as P (and)
+
+type O = Observation Date Decimal Observable
+type C = Claim Date Decimal Deliverable Observable
+
+-- | Find out which schedule periods of scheduleA exist in scheduleB.
+includes : Schedule -> Schedule -> [Bool]
+includes scheduleA scheduleB =
+  map (\a -> isSome $ find (\b -> b.adjustedEndDate == a.adjustedEndDate) scheduleB) scheduleA
+
+-- | Calculate the claims for a callable bond with a fixed and/or floating coupon on each payment
+--   date and a redemption amount at the end (unless called by the issuer).
+createCallableBondClaims : (Date -> Time) -> Schedule -> Schedule -> PeriodicSchedule
+  -> Bool -> Decimal -> DayCountConventionEnum -> Decimal -> Deliverable -> Optional FloatingRate
+  -> Optional Decimal -> Optional Decimal -> Int -> HolidayCalendarData
+  -> TaggedClaim
+createCallableBondClaims dateToTime schedule callableSchedule periodicSchedule
+  useAdjustedDatesForDcf couponRate dayCountConvention notional cashInstrument floatingRate
+  capRate floorRate noticeDays fixingCalendars =
+  let
+    notionalAmount = scale (Const notional) $ one cashInstrument
+
+    -- Coupons and principal have a give node in front, to undo the give required in the main
+    -- claim (in front of the or node, see explanation below).
+    principal = give notionalAmount
+
+    -- Find out on which coupon dates it is possible to call the bond.
+    callPossibleInit = includes schedule callableSchedule
+
+    -- Also search in the other direction, to ensure that no intended call dates are ignored.
+    potentialCallDatesFound = includes callableSchedule schedule
+
+    callPossible = if P.and potentialCallDatesFound then callPossibleInit
+      else error "All dates in the call schedule must exist in the coupon schedule"
+
+    combineTagClaim (p, callingIsPossible) notCalledClaim =
+      let
+        cpn = calculateRatePayment p dayCountConvention useAdjustedDatesForDcf periodicSchedule
+          floatingRate couponRate notionalAmount fixingCalendars capRate floorRate
+        coupon = give cpn
+        principalIncludingCoupon = when (at p.adjustedEndDate) $ and coupon principal
+        notCalledClaimIncludingCoupon = when (at p.adjustedEndDate) $ and coupon notCalledClaim
+        called = ("CALLED", principalIncludingCoupon)
+        notCalled = ("NOT CALLED", notCalledClaimIncludingCoupon)
+        callDate = addBusinessDays fixingCalendars (-noticeDays) p.adjustedEndDate
+        tailClaim = if callingIsPossible then when (at callDate) $ or called notCalled
+          else notCalledClaimIncludingCoupon
+      in
+        tailClaim
+
+    finalCouponDate = (.adjustedEndDate) $ last schedule
+    notCalledFinal = when (at finalCouponDate) principal
+    claimAmount = foldr (\p acc -> combineTagClaim p acc) notCalledFinal $ zip schedule callPossible
+
+    -- For a callable bond, it is the holding custodian that has the right to call. This is
+    -- indicated by a give node, which applies to all sub-nodes of the claims branch. However, the
+    -- coupons and the principal belong to the holding owner, which is why another give node is
+    -- required to undo the first give.
+    claims = give claimAmount
+
+  in
+    prepareAndTagClaims dateToTime [claims] "Callable bond payment"

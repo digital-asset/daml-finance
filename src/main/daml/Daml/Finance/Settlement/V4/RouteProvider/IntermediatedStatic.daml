@@ -1,0 +1,44 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Settlement.V4.RouteProvider.IntermediatedStatic where
+
+import DA.List (head)
+import DA.Map (Map)
+import DA.Map as Map (lookup)
+import DA.Optional (fromSomeNote)
+import Daml.Finance.Interface.Settlement.V4.RouteProvider qualified as RouteProvider (Discover(..), I, View(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (Parties)
+import Daml.Finance.Settlement.V4.Hierarchy (Hierarchy(..), unfoldStep)
+import Daml.Finance.Util.V4.Common (sortAndGroupOn)
+
+-- | Template which implements the `RouteProvider` interface.
+-- It is used to discover the settlement route for each settlement `Step`, i.e., `RoutedSteps`\s.
+-- For each instrument to settle as part of the batch, a hierarchy of intermediaries is specified
+-- in `paths`. This hierarchy is used to generate the `RoutedStep`\s.
+template IntermediatedStatic
+  with
+    provider : Party
+      -- ^ Party providing the facility.
+    observers : Parties
+      -- ^ Observers.
+    paths : Map Text Hierarchy
+      -- ^ Hierarchical paths used to settle holding transfers. A path is specified for each
+      --   instrument label.
+  where
+    signatory provider
+    observer observers
+
+    interface instance RouteProvider.I for IntermediatedStatic where
+      view = RouteProvider.View with provider; observers
+      discover RouteProvider.Discover{discoverors; contextId; steps} =
+        let
+          -- Group steps by instrument. For each group, lookup corresponding paths and expand steps
+          -- according to the corresponding settlement route.
+          routedSteps = mconcat $ fromSomeNote "Could not find path or route." $ mapA (\steps -> do
+            let k = show (head steps).quantity.unit.id
+            route <- Map.lookup k paths
+            mconcat <$> mapA (unfoldStep route) steps
+            ) $ sortAndGroupOn (.quantity.unit) steps
+        in
+          pure routedSteps

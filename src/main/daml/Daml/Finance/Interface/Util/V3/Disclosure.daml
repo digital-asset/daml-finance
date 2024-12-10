@@ -1,0 +1,96 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Interface.Util.V3.Disclosure where
+
+import DA.Map (values)
+import Daml.Finance.Interface.Types.Common.V3.Types (Parties, PartiesMap)
+
+-- | Type synonym for `Disclosure`.
+type I = Disclosure
+
+-- | Type synonym for `View`.
+type V = View
+
+-- | View for `Disclosure`.
+data View = View
+  with
+    disclosureControllers : Parties
+      -- ^ Disjunction choice controllers.
+    observers : PartiesMap
+      -- ^ Observers with context.
+      -- The parties are mapped by a specific key.
+      -- The textual key is the "observation context" of the disclosure.
+      -- This allows processes to add/remove parties for their specific purpose, without affecting
+      -- others.
+  deriving (Eq, Show)
+
+-- | An interface for managing the visibility of contracts for non-authorizing parties.
+interface Disclosure where
+  viewtype V
+
+  setObservers : SetObservers -> Update (ContractId Disclosure)
+    -- ^ Implementation of the `SetObservers` choice.
+  addObservers : AddObservers -> Update (ContractId Disclosure)
+    -- ^ Implementation of the `AddObservers` choice.
+  removeObservers : ContractId Disclosure -> RemoveObservers -> Update (Optional (
+    ContractId Disclosure))
+    -- ^ Implementation of the `RemoveObservers` choice.
+
+  nonconsuming choice GetView : View
+    -- ^ Retrieves the interface view.
+    with
+      viewer : Party
+        -- ^ The party retrieving the view.
+    controller viewer
+    do
+      pure $ view this
+
+  choice SetObservers : ContractId Disclosure
+    -- ^ Set the observers for a contract.
+    with
+      disclosers : Parties
+        -- ^ Party calling this choice.
+      newObservers : PartiesMap
+        -- ^ Observers to set for this contract. This overrides the existing observers.
+        -- The parties are mapped by a specific key.
+        -- The textual key is the "observation context" of the disclosure.
+        -- This allows processes to add/remove parties for their specific purpose, without affecting
+        -- others.
+    controller disclosers
+    do
+      setObservers this arg
+
+  choice AddObservers : ContractId Disclosure
+    -- ^ Add a single new observer context to the existing observers.
+    with
+      disclosers : Parties
+        -- ^ Party calling this choice.
+      observersToAdd : (Text, Parties)
+        -- ^ Parties to add as observers to the contract and the corresponding observer context.
+        -- If the observer context already exists, the new set of parties is added to the old one.
+    controller disclosers
+    do
+      addObservers this arg
+
+  nonconsuming choice RemoveObservers : Optional (ContractId Disclosure)
+    -- ^ Remove observers from a context.
+    -- None is returned if no update is needed. Parties for a context can be removed if any
+    -- of the disclosers are part of the observers to be removed or the disclosureControllers.
+    with
+      disclosers : Parties
+        -- ^ Parties calling this choice.
+      observersToRemove : (Text, Parties)
+        -- ^ Parties to be removed from the contract observers and the corresponding observer
+        -- context.
+    controller disclosers
+    do
+      removeObservers this self arg
+
+-- | Flattens observers which use the `PartiesMap` into a `Set Party` for usage in template
+-- definitions. For example:
+-- ```
+-- observer $ flattenObservers observers
+-- ```
+flattenObservers : PartiesMap -> Parties
+flattenObservers = mconcat . values
