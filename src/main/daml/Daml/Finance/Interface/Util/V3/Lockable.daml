@@ -1,0 +1,92 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Interface.Util.V3.Lockable where
+
+import DA.Optional (isNone)
+import DA.Set (Set)
+import Daml.Finance.Interface.Types.Common.V3.Types (Parties)
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I)
+
+-- | Type synonym for `Lockable`.
+type I = Lockable
+
+-- | Type synonym for `View`.
+type V = View
+
+-- | Type of lock held.
+data LockType
+  = Semaphore
+    -- ^ A one time only lock.
+  | Reentrant
+    -- ^ A mutual exclusion lock where the same lockers may lock a contract multiple times.
+  deriving (Eq, Show)
+
+-- | Locking details.
+data Lock = Lock
+  with
+    lockers : Parties
+      -- ^ Parties which are locking the contract.
+    context : Set Text
+      -- ^ Context of the lock, explaining why this lock is held by the locking parties. If the lock
+      --   is reentrant, there may be more than one locking context for the set of lockers.
+    lockType : LockType
+      -- ^ The type of lock applied.
+  deriving (Eq, Show)
+
+-- | View for `Lockable`.
+data View = View
+  with
+    lock : Optional Lock
+      -- ^ An optional lock, indicating if it is locked or not.
+    controllers : Parties
+      -- ^ All parties whose authorization is required to acquire a lock.
+  deriving (Eq, Show)
+
+-- | An interface for managing locking of contracts. Locking is a mechanism to temporarily encumber
+-- contracts by adding third-party lockers as additional signatories.
+interface Lockable requires Disclosure.I where
+  viewtype V
+
+  acquire : Acquire -> Update (ContractId Lockable)
+    -- ^ Implementation of the `Acquire` choice.
+  release : Release -> Update (ContractId Lockable)
+    -- ^ Implementation of the `Release` choice.
+
+  nonconsuming choice GetView : V
+    -- ^ Retrieves the interface view.
+    with
+      viewer : Party
+       -- ^ The party retrieving the view.
+    controller viewer
+    do
+      pure $ view this
+
+  choice Acquire : ContractId Lockable
+    -- ^ Lock a contract.
+    with
+      newLockers : Parties
+        -- ^ Parties which restrain the contract's ability to perform specified actions.
+      context : Text
+        -- ^ Reason for acquiring a lock.
+      lockType : LockType
+        -- ^ Type of lock to acquire.
+    controller (view this).controllers, newLockers
+    do
+      acquire this arg
+
+  choice Release : ContractId Lockable
+    -- ^ Unlock a locked contract.
+    with
+      context : Text
+    controller getLockers this
+    do
+      release this arg
+
+-- | Retrieves the lockers of a `Lockable`.
+getLockers : HasToInterface t Lockable => t -> Parties
+getLockers lockable = optional mempty (.lockers) (view $ toInterface @Lockable lockable).lock
+
+-- | Asserts that a lockable is not locked.
+mustNotBeLocked : (HasToInterface i Lockable) => i -> Update ()
+mustNotBeLocked = assertMsg "Must not be locked" . isNone . (.lock) . view . toInterface @Lockable

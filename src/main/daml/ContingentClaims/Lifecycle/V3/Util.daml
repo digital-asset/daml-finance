@@ -1,0 +1,83 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+-- | This module defines a set of utility functions to extract information from claim trees.
+module ContingentClaims.Lifecycle.V3.Util (
+    expiry
+  , fixings
+  , isZero
+  , payoffs
+  , pruneZeros
+  , pruneZeros'
+) where
+
+import ContingentClaims.Core.V3.Internal.Claim (Claim(..), ClaimF(..), Inequality(..))
+import ContingentClaims.Core.V3.Observation (Observation)
+import DA.Bifunctor (first)
+import DA.Foldable (all, fold, maximum)
+import Daml.Control.Recursion (Corecursive(..), Recursive(..))
+import Prelude hiding (all, mapA, sequence, sum)
+
+-- | Return the fixing dates of a claim. This does not discriminate between optional dates which
+-- *may* result from a condition, and outright fixings. It also does not correctly account for
+-- malformed trees, where subtrees are orphaned due to impossible `When` statements, e.g.,
+-- `When (t > 1) ((When t < 1) _)`.
+fixings : Claim t x a o -> [t]
+fixings = cata fixings'
+
+-- | Algebra for `fixings`.
+fixings' : ClaimF t x a o [t] -> [t]
+fixings' (WhenF (TimeGte t) ts) = t :: ts
+fixings' claim = fold claim
+
+-- | Return the time after which the claim is worthless, i.e., value = 0, if such a time exists.
+-- Also known as 'maturity' or 'horizon' in the Eber/Jones paper.
+expiry : Ord t => Claim t x a o -> Optional t
+expiry c = case fixings c of
+  [] -> None
+  ts -> Some . maximum $ ts
+
+-- | Return a list of possible scale-factor/payoff pairs.
+-- This does not discriminate between conditional and outright payoffs.
+payoffs : (Eq t, Eq x, Eq o, Multiplicative x) => Claim t x a o -> [(Observation t x o, a)]
+payoffs = fmap (first ($ munit)) . cata payoffs'
+
+-- | Algebra for `payoffs`. This also applies 'multiplication by one' identity,
+payoffs' : (Eq t, Eq x, Eq o, Multiplicative x) =>
+  ClaimF t x a o [(Observation t x o -> Observation t x o, a)] ->
+  [(Observation t x o -> Observation t x o, a)]
+payoffs' ZeroF = []
+payoffs' (OneF a) = [(identity, a)]
+payoffs' (ScaleF k fs) = first multK <$> fs where
+  multK f x | x == munit = f k -- prune unit
+  multK f x = f (x * k)
+payoffs' other = fold other
+
+-- | Prunes sub-trees which are `Zero`.
+pruneZeros : Claim t x a o -> Claim t x a o
+pruneZeros = cata pruneZeros'
+
+-- | HIDE
+-- Algebra for `pruneZeros`. N.b. the `Or` case : we only reduce the case when all elements are
+-- `Zero`. It's incorrect to remove a single `Or` (as this would remove a choice for 'inaction' from
+-- the bearer - think option lapse). However, we don't handle the case for `Or > 1`, as this can be
+-- unintuitive (although semantically correct); this may change in the future, so don't rely on this
+-- behaviour.
+pruneZeros' : ClaimF t x a o (Claim t x a o) -> Claim t x a o
+pruneZeros' (ScaleF _ Zero) = Zero
+pruneZeros' (GiveF Zero) = Zero
+pruneZeros' (AndF c c' cs) = case filter (not . isZero) (c :: c' :: cs) of
+  [] -> Zero
+  [c] -> c
+  c :: c' :: cs -> And c c' cs
+pruneZeros' (WhenF _ Zero) = Zero
+pruneZeros' (CondF _ Zero Zero) = Zero
+pruneZeros' ors@OrF{} | isZero `all` ors = Zero
+pruneZeros' (UntilF _ Zero) = Zero
+pruneZeros' (AnytimeF _ (_, Zero)) = Zero
+pruneZeros' other = embed other
+
+-- | Checks if a claim is the `Zero` claim.
+-- This avoids requiring the equality type constraint on `a`.
+isZero Zero = True
+isZero _ = False

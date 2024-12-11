@@ -1,0 +1,60 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Holding.V4.Fungible where
+
+import DA.Set (fromList, singleton)
+import Daml.Finance.Holding.V4.Util (mergeImpl, splitImpl)
+import Daml.Finance.Interface.Holding.V4.Fungible qualified as Fungible (I, View(..))
+import Daml.Finance.Interface.Holding.V4.Holding qualified as Holding (I, View(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (AccountKey(..), InstrumentKey(..), PartiesMap)
+import Daml.Finance.Interface.Types.Common.V3.Types qualified as HoldingStandard (HoldingStandard(..))
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Interface.Util.V3.Lockable qualified as Lockable (I, Lock(..), View(..), getLockers)
+import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+import Daml.Finance.Util.V4.Lockable (acquireImpl, isValidLock, releaseImpl)
+
+-- | Type synonym for `Fungible`.
+type T = Fungible
+
+-- | Implementation of a fungible holding.
+-- The `Fungible` template implements the interface `Fungible.I` (which requires
+-- `Holding.I`, `Lockable.I`, and `Disclosure.I` to be implemented), but not the `Transferable.I`.
+template Fungible
+  with
+    instrument : InstrumentKey
+      -- ^ The instrument of which units are held.
+    account : AccountKey
+      -- ^ The account at which the holding is held. Defines the holding's owner and custodian.
+    amount : Decimal
+      -- ^ Number of units.
+    lock : Optional Lockable.Lock
+      -- ^ An optional lock for the holding.
+    observers : PartiesMap
+      -- ^ Observers.
+  where
+    signatory account.custodian, account.owner, Lockable.getLockers this
+    observer Disclosure.flattenObservers observers
+
+    ensure
+      amount > 0.0 && isValidLock lock && instrument.holdingStandard == HoldingStandard.Fungible
+
+    interface instance Disclosure.I for Fungible where
+      view = Disclosure.View with
+        disclosureControllers = fromList [account.owner, account.custodian]; observers
+      setObservers = setObserversImpl @_ @Disclosure.I this None
+      addObservers = addObserversImpl @_ @Disclosure.I this None
+      removeObservers = removeObserversImpl @_ @Disclosure.I this None
+
+    interface instance Lockable.I for Fungible where
+      view = Lockable.View with lock; controllers = singleton account.owner
+      acquire = acquireImpl this.lock (\lock -> this with lock)
+      release = releaseImpl this.lock (\lock -> this with lock)
+
+    interface instance Holding.I for Fungible where
+      view = Holding.View with instrument; account; amount
+
+    interface instance Fungible.I for Fungible where
+      view = Fungible.View with modifiers = singleton account.owner
+      split = splitImpl (toInterface @Fungible.I this) (\amount -> this with amount)
+      merge = mergeImpl (toInterface @Fungible.I this) (.amount) (\amount -> this with amount)
