@@ -1,0 +1,92 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Lifecycle.V4.Rule.Claim where
+
+import DA.Set (member, singleton)
+import Daml.Finance.Interface.Account.V4.Util (getCustodian, getOwner)
+import Daml.Finance.Interface.Holding.V4.Util (getAmount, getInstrument)
+import Daml.Finance.Interface.Lifecycle.V4.Effect qualified as Effect (Calculate(..), CalculationResult(..), GetView(..))
+import Daml.Finance.Interface.Lifecycle.V4.Rule.Claim qualified as Claim (ClaimEffect(..), ClaimResult(..), I, View(..))
+import Daml.Finance.Interface.Settlement.V4.Factory qualified as SettlementFactory (I, Instruct(..))
+import Daml.Finance.Interface.Settlement.V4.RouteProvider qualified as RouteProvider (Discover(..), I)
+import Daml.Finance.Interface.Settlement.V4.Types (Step(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (Parties, Quantity(..))
+import Daml.Finance.Lifecycle.V4.Rule.Util
+
+-- | Type synonym for `Rule`.
+type T = Rule
+
+-- | Rule contract that allows an actor to claim effects, returning settlement instructions.
+template Rule
+  with
+    provider : Party
+      -- ^ Provider of the claim rule. Together with the actors of the `ClaimEffect` choice the
+      --   authorization requirements to upgrade the holdings being claimed have to be met.
+    claimers : Parties
+      -- ^ Any of the parties can claim an effect.
+    settlers : Parties
+      -- ^ Any of the parties can trigger settlement of the resulting batch.
+    routeProviderCid : ContractId RouteProvider.I
+      -- ^ RouteProvider used to discover settlement routes.
+    settlementFactoryCid : ContractId SettlementFactory.I
+      -- ^ Settlement factory contract used to create a `Batch` of `Instruction`\s.
+    netInstructions : Bool
+      -- ^ Configure whether netting should be enabled for quantities having the same (instrument,
+      --   sender, receiver).
+  where
+    signatory provider
+    observer claimers
+
+    interface instance Claim.I for Rule where
+      view = Claim.View with
+        providers = singleton provider; claimers; settlers; routeProviderCid; settlementFactoryCid
+      claimEffect Claim.ClaimEffect{claimer; holdingCids; effectCid; batchId} = do
+        assertMsg "Effect can only be claimed by authorized parties." $
+          claimer `member` this.claimers
+        effectView <- exercise effectCid Effect.GetView with viewer = claimer
+        holdings <- mapA fetch holdingCids
+
+        -- Calculate settlement steps
+        let
+          createSteps consume quantities holding =
+            let
+              owner = getOwner holding
+              custodian = getCustodian holding
+              sender = if consume then owner else custodian
+              receiver = if consume then custodian else owner
+            in map (\quantity -> Step with sender; receiver; quantity) quantities
+
+          calculateSteps holding = do
+            Effect.CalculationResult{consumed; produced} <-
+              exercise effectCid Effect.Calculate with
+                actor = claimer
+                quantity = Quantity with unit = getInstrument holding; amount = getAmount holding
+            let
+              (consumedNetted, producedNetted) =
+                if netInstructions
+                then splitPending . net $ mergeConsumedAndProduced consumed produced
+                else (consumed, produced)
+              consumedSteps = createSteps True consumedNetted holding
+              producedSteps = createSteps False producedNetted holding
+            pure $ consumedSteps <> producedSteps
+
+        -- Settlement steps
+        steps <- mconcat <$> mapA calculateSteps holdings
+
+        -- Discover settlement routes
+        routedSteps <- exercise routeProviderCid RouteProvider.Discover with
+          discoverors = singleton provider; contextId = None; steps
+
+        -- Generate settlement instructions for other instruments
+        (batchCid, instructionCids) <- exercise settlementFactoryCid SettlementFactory.Instruct with
+          instructor = provider
+          consenters = mempty
+          settlers
+          id = batchId
+          description = effectView.description
+          contextId = Some effectView.id
+          routedSteps
+          settlementTime = effectView.settlementTime
+
+        pure Claim.ClaimResult with batchCid; instructionCids

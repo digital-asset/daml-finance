@@ -1,0 +1,169 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module ContingentClaims.Core.V3.Claim
+  ( Claim
+  , F
+  , Inequality(..)
+  , T
+  , (<=)
+  , and
+  , andList
+  , anytime
+  , at
+  , compare
+  , cond
+  , give
+  , mapParams
+  , one
+  , or
+  , orList
+  , scale
+  , until
+  , upTo
+  , when
+  , zero
+  ) where
+
+import ContingentClaims.Core.V3.Internal.Claim (Claim(..), ClaimF(..), Electable, Inequality(..))
+import ContingentClaims.Core.V3.Observation (Observation, eval)
+import ContingentClaims.Core.V3.Observation qualified as Observation (mapParams)
+import Daml.Control.Recursion
+import Prelude hiding (and, compare, or, zero, (<=))
+import qualified Prelude ((<=))
+
+-- | HIDE
+type T = Claim
+
+-- | HIDE
+type F = ClaimF
+
+-- | Constructs a claim without rights or obligations.
+zero : forall t x a o . Claim t x a o
+zero = Zero
+
+-- | Constructs a claim that delivers one unit of `a` immediately to the bearer.
+one : a -> Claim t x a o
+one = One
+
+-- | Constructs a claim that reverses the obligations of the bearer and their counterparty.
+give : Claim t x a o -> Claim t x a o
+give = Give
+
+-- | Used to additively combine two claims together. In order to use this,
+-- you must import this module qualified or hide the `and` operator from `Prelude`.
+and : Claim t x a o -> Claim t x a o -> Claim t x a o
+and (And a b cs) (And d e fs) = And a b (cs ++ d :: e :: fs)
+and x Zero = x
+and (And a b cs) claim = And a b (cs ++ [claim])
+and Zero x = x
+and claim (And a b cs) = And claim a (b :: cs)
+and claim claim' = And claim claim' []
+
+-- | Gives the bearer the right to choose between the input claims. In order to use this,
+-- you must import this module qualified or hide the `or` operator from `Prelude`.
+or : Electable t x a o -> Electable t x a o -> Claim t x a o
+or (_, Or a b cs) (_, Or d e fs) = Or a b (cs ++ d :: e :: fs)
+or (_, Or a b cs) (tag2, claim) = Or a b (cs ++ [(tag2, claim)])
+or (tag1, claim) (_, (Or a b cs)) = Or (tag1, claim) a (b :: cs)
+or (tag1, claim) (tag2, claim') = Or (tag1, claim) (tag2, claim') []
+
+-- | Used to additively combine a list of claims together. It is equivalent to
+-- applying the `and` builder recursively.
+andList : [Claim t x a o] -> Claim t x a o
+andList = mconcat
+
+-- | Gives the bearer the right to choose between the input claims. It is equivalent to
+-- applying the `or` builder recursively.
+orList : [Electable t x a o] -> Claim t x a o
+orList (c1 :: c2 :: cs) = Or c1 c2 cs
+orList _ = error "orList: at least 2 choices required"
+
+-- | Gives the bearer the right to the first claim if predicate is true, else the second
+-- claim.
+cond : Inequality t x o -> Claim t x a o -> Claim t x a o -> Claim t x a o
+cond = Cond
+
+-- | Multiplies the input claim by a scaling factor (which can be non-deterministic).
+scale : Observation t x o -> Claim t x a o -> Claim t x a o
+scale = Scale
+
+-- | Acquires the input claim on *the first instant* that `predicate` is true.
+when : Inequality t x o -> Claim t x a o -> Claim t x a o
+when = When
+
+-- | Gives the bearer the right to enter a claim at any time `predicate` is true.
+anytime : Inequality t x o -> Text -> Claim t x a o -> Claim t x a o
+anytime pred tag subTree = Anytime pred (tag, subTree)
+
+-- | Expires the input claim on the *first instant* that `predicate` is true.
+until : Inequality t x o -> Claim t x a o -> Claim t x a o
+until = Until
+
+-- | `Claim` semigroup under `And`.
+instance Semigroup (Claim t x a o) where
+  (<>) = and
+
+-- | `Claim` monoid under `And`.
+instance Monoid (Claim t x a o) where
+  mempty = Zero
+  mconcat [] = mempty
+  mconcat [c] = c
+  mconcat (c :: c' :: cs) = And c c' cs
+  -- ^ A more efficient `O(1)` version of (<>) for lists.
+
+-- | Replaces parameters in a claims using the input mapping functions.
+-- This can be used to e.g. map the time parameter in a claim from `Date` to `Time`, or
+-- to map the asset type parameter from an abstract `Text` to a concrete `InstrumentKey`.
+mapParams :  (t -> i)
+          -> (i -> t)
+          -> (a -> a')
+          -> (o -> o')
+          -> (x -> x')
+          -> Claim i x a o -> Claim t x' a' o'
+mapParams ft' ft fa fk fv =
+  let f = Observation.mapParams ft fk fv
+  in cata \case
+    ZeroF -> Zero
+    OneF a -> One $ fa a
+    GiveF c -> Give c
+    AndF c c' cs -> And c c' cs
+    OrF c c' cs -> Or c c' cs
+    CondF (Lte (x, x')) c c' -> Cond (Lte(f x, f x')) c c'
+    CondF (TimeGte t) c c' -> Cond (TimeGte (ft t)) c c'
+    CondF (TimeLte t) c c' -> Cond (TimeLte (ft t)) c c'
+    ScaleF k c -> Scale (f k) c
+    WhenF (Lte (x, x')) c -> When (Lte (f x, f x')) c
+    WhenF (TimeGte t) c -> When (TimeGte (ft t)) c
+    WhenF (TimeLte t) c -> When (TimeLte (ft t)) c
+    AnytimeF (Lte (x, x')) e -> Anytime (Lte (f x, f x')) e
+    AnytimeF (TimeGte t) e -> Anytime (TimeGte (ft t)) e
+    AnytimeF (TimeLte t) e -> Anytime (TimeLte (ft t)) e
+    UntilF (Lte (x, x')) c -> Until (Lte (f x, f x')) c
+    UntilF (TimeGte t) c -> Until (TimeGte (ft t)) c
+    UntilF (TimeLte t) c -> Until (TimeLte (ft t)) c
+
+-- Inequality --
+
+-- | Given `t`, constructs a predicate that is `True` for time ≥ `t`, `False` otherwise.
+at : t -> Inequality t x o
+at t = TimeGte t
+
+-- | Given `t`, constructs a predicate that is `True` for time ≤ `t`, `False` otherwise.
+upTo : t -> Inequality t x a
+upTo t = TimeLte t
+
+infix 4 <=
+-- | Given observations `o1` and `o2`, constructs the predicate `o1 ≤ o2`. In order to use this,
+-- you must import this module qualified or hide the `(<=)` operator from `Prelude`.
+(<=) : Observation t x o -> Observation t x o -> Inequality t x o
+(<=) = curry Lte
+
+-- | Reify the `Inequality` into an observation function.
+-- This function is used to convert an abstract predicate, e.g. `S ≤ 50.0` to the actual boolean
+-- observation function `t -> m Bool`.
+compare : (Ord t, Ord x, Number x, Divisible x, CanAbort m) =>
+  (o -> t -> m x) -> Inequality t x o -> t -> m Bool
+compare doObserve (Lte (f, f')) t = liftA2 (Prelude.<=) (eval doObserve f t) (eval doObserve f' t)
+compare _ (TimeGte s) t = pure $ t >= s
+compare _ (TimeLte s) t = pure $ s >= t

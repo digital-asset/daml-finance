@@ -1,0 +1,156 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module ContingentClaims.Core.V3.Internal.Claim
+  ( Claim(..)
+  , ClaimF(..)
+  , Electable
+  , Inequality(..)
+  ) where
+
+import ContingentClaims.Core.V3.Observation (Observation)
+import DA.Foldable (Foldable(..))
+import DA.Text (intercalate, unwords)
+import DA.Traversable (Traversable(..))
+import Daml.Control.Recursion (Corecursive(..), Recursive(..))
+import Prelude hiding (mapA, sequence)
+
+-- | Core data type used to model cashflows of instruments.
+-- In the reference paper from Peyton-Jones this is called 'Contract'.
+-- We renamed it to avoid ambiguity.
+-- * `t` corresponds to the time parameter.
+-- * `x` corresponds to the `Observation` output type. An observation is a function from `t` to `x`.
+--    A common choice is to use `Time` and `Decimal`, respectively.
+-- * `a` is the representation of a deliverable asset, e.g. a `Text` ISIN code or
+--    an `InstrumentKey`.
+-- * `o` is the representation of an observable, e.g. a `Text`.
+--
+-- You should build the `Claim` using the smart constructors (e.g. `zero`, `and`) instead of using
+-- the data constructors directly (`Zero`, `And`).
+data Claim t x a o
+  = Zero
+      -- ^ Represents an absence of claims. Monoid `And` identity.
+  | One a
+      -- ^ The bearer acquires one unit of `a` *immediately*.
+  | Give (Claim t x a o)
+      -- ^ The obligations of the bearer and the counterparty are reversed.
+  | And with a1: Claim t x a o, a2: Claim t x a o, as: [Claim t x a o]
+      -- ^ Used to combine multiple rights together.
+  | Or with or1: Electable t x a o, or2: Electable t x a o, ors: [Electable t x a o]
+      -- ^ Gives the bearer the right to choose between several claims.
+  | Cond with predicate: Inequality t x o, success: Claim t x a o, failure: Claim t x a o
+      -- ^ Gives the bearer the right to the first claim if `predicate` is true, else the second
+      --   claim.
+  | Scale with k: Observation t x o, claim: Claim t x a o
+      -- ^ Multiplies the `claim` by `k` (which can be non-deterministic).
+  | When with predicate: Inequality t x o, claim: Claim t x a o
+      -- ^ Defers the acquisition of `claim` until *the first instant* that `predicate` is true.
+  | Anytime with predicate: Inequality t x o, electable: Electable t x a o
+      -- ^ Gives the bearer the right to enter a claim at any time the predicate is true.
+  | Until with predicate: Inequality t x o, claim: Claim t x a o
+      -- ^ Expires said claim on the *first instant* that `predicate` is true.
+  deriving (Eq)
+
+-- | Type synonym for sub-trees that can be elected in an `Or` or `Anytime` node.
+-- The textual tag is used to identify each sub-tree when an election is made.
+type Electable t x a o = (Text, Claim t x a o)
+
+-- | HIDE
+-- Unfixed version of `Claim`, for use with `Daml.Control.Recursion`.
+data ClaimF t x a o b
+  = ZeroF
+  | OneF a
+  | GiveF b
+  | AndF with a1: b, a2: b, as : [b]
+  | OrF with or1: ElectableF b, or2: ElectableF b, ors : [ElectableF b]
+  | CondF with predicate: Inequality t x o, success: b, failure: b
+  | ScaleF with k: Observation t x o, claim: b
+  | WhenF with predicate: Inequality t x o, claim: b
+  | AnytimeF with predicate: Inequality t x o, electable: ElectableF b
+  | UntilF with predicate: Inequality t x o, claim: b
+  deriving (Functor)
+
+-- | HIDE Unfixed version of `Electable`.
+type ElectableF b = (Text, b)
+
+instance Recursive (Claim t x a o) (ClaimF t x a o) where
+  project Zero = ZeroF
+  project (One a) = OneF a
+  project (Give c) = GiveF c
+  project (And c1 c2 cs) = AndF c1 c2 cs
+  project (Or c1 c2 cs) = (OrF c1 c2 cs)
+  project (Cond p c c') = CondF p c c'
+  project (Scale k c) = ScaleF k c
+  project (When p c) = WhenF p c
+  project (Anytime p e) = AnytimeF p e
+  project (Until p c) = UntilF p c
+
+instance Corecursive (Claim t x a o) (ClaimF t x a o) where
+  embed ZeroF = Zero
+  embed (OneF x) = One x
+  embed (GiveF a) = Give a
+  embed (AndF c c' cs) = And c c' cs
+  embed (OrF c c' cs) = (Or c c' cs)
+  embed (CondF p c c') = Cond p c c'
+  embed (ScaleF k c) = Scale k c
+  embed (WhenF p c) = When p c
+  embed (AnytimeF p e) = Anytime p e
+  embed (UntilF p c) = Until p c
+
+instance Foldable (ClaimF t x a o) where
+  foldr _ seed ZeroF = seed
+  foldr _ seed (OneF _) = seed
+  foldr f seed (GiveF c) = f c seed
+  foldr f seed (WhenF _ c) = f c seed
+  foldr f seed (ScaleF _ c) = f c seed
+  foldr f seed (AndF c c' cs) = Prelude.foldr f seed $ c :: c' :: cs
+  foldr f seed (OrF c c' cs) = Prelude.foldr f seed $ snd c :: snd c' :: fmap snd cs
+  foldr f seed (CondF _ c c') = f c $ f c' seed
+  foldr f seed (AnytimeF _ (_, c)) = f c seed
+  foldr f seed (UntilF _ c) = f c seed
+
+instance Traversable (ClaimF t x a o) where
+  sequence ZeroF = pure ZeroF
+  sequence (OneF asset) = pure $ OneF asset
+  sequence (GiveF fa) = GiveF <$> fa
+  sequence (WhenF p fa) = WhenF p <$> fa
+  sequence (ScaleF p fa) = ScaleF p <$> fa
+  sequence (AndF fa fa' fas) = AndF <$> fa <*> fa' <*> sequence fas
+  sequence (OrF (ta, fa) (ta', fa') fas) =
+    OrF <$> sequence (ta, fa) <*> sequence (ta', fa') <*> mapA sequence fas
+  sequence (CondF p fa fa') = CondF p <$> fa <*> fa'
+  sequence (AnytimeF p fa) = AnytimeF p <$> sequence fa
+  sequence (UntilF p fa) = UntilF p <$> fa
+
+instance (Show t, Show x, Show a, Show o) => Show (Claim t x a o) where
+  show = cata \case
+    ZeroF -> "Zero"
+    OneF a -> unwords ["One", show a]
+    GiveF s -> unwords ["Give", bracket s]
+    AndF s s' cs -> print3 "And" s s' cs
+    OrF s s' cs -> print3 "Or" (printElectable s) (printElectable s') $ fmap printElectable cs
+    CondF b s s' -> unwords ["Cond", bracket (show b), bracket s, bracket s']
+    ScaleF x s -> print2 "Scale" x s
+    WhenF b s -> print2 "When" b s
+    AnytimeF b e -> print2 "Anytime" b $ printElectable e
+    UntilF b s -> print2 "Until" b s
+    where
+      printElectable (t, s) = t <> ": " <> s
+      print3 c s s' cs = unwords [c, bracket s, bracket s', "[" <> intercalate ", " cs <> "]"]
+      print2 c x s = unwords [c, bracket (show x), bracket s]
+      bracket "Zero" = "Zero"
+      bracket s = "(" <> s <> ")"
+
+-- Inequality --
+
+-- | Data type for boolean predicates supported by the library.
+-- A boolean predicate is a generic function with signature `t -> Bool`. However, a limited
+-- set of predicates is currently supported.
+data Inequality t x o
+  = TimeGte t
+      -- ^ `True` when `time ≥ t`, `False` otherwise.
+  | TimeLte t
+      -- ^ `True` when `time ≤ t`, `False` otherwise.
+  | Lte (Observation t x o, Observation t x o)
+      -- ^ `True` when `o(t) ≤ o'(t)`, `False` otherwise, for a pair of observations `o`, `o'`.
+  deriving (Eq, Show)

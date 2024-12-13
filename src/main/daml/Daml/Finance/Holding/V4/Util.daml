@@ -1,0 +1,109 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Holding.V4.Util where
+
+import DA.Action (foldlA)
+import DA.Foldable qualified as F (all)
+import DA.Set (fromList, isSubsetOf)
+import DA.Traversable qualified as T (forA)
+import Daml.Finance.Interface.Account.V4.Account qualified as Account (Credit(..), Debit(..), I, R, exerciseInterfaceByKey)
+import Daml.Finance.Interface.Account.V4.Util (fetchAccount)
+import Daml.Finance.Interface.Holding.V4.Fungible qualified as Fungible (I, Merge(..), Split(..), SplitResult(..))
+import Daml.Finance.Interface.Holding.V4.Holding qualified as Holding (I)
+import Daml.Finance.Interface.Holding.V4.Transferable qualified as Transferable (I, Transfer(..))
+import Daml.Finance.Interface.Util.V3.Common (qty, verify)
+import Daml.Finance.Interface.Util.V3.InterfaceKey (fetchInterfaceByKey)
+import Daml.Finance.Interface.Util.V3.Lockable qualified as Lockable (mustNotBeLocked)
+
+-- | Default implementation of `transfer` for the `Transferable` interface.
+transferImpl : Transferable.I -> ContractId Transferable.I -> Transferable.Transfer
+  -> Update (ContractId Transferable.I)
+transferImpl this self Transferable.Transfer{actors; newOwnerAccount} = do
+  let
+    holdingCid = toInterfaceContractId @Holding.I self
+    holding = toInterface @Holding.I this
+  vAccount <- view <$> fetchAccount holding
+  let vHolding = view holding
+  Lockable.mustNotBeLocked this
+  vNewAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I newOwnerAccount
+  -- Verify
+  assertMsg "Actors must contain all transfer outgoing of the sender account"
+    $ vAccount.controllers.outgoing `isSubsetOf` actors
+  assertMsg "Actors must contain all transfer incoming of the receiving account"
+    $ vNewAccount.controllers.incoming `isSubsetOf` actors
+  assertMsg "Custodians must be the same" $ vAccount.custodian == vNewAccount.custodian
+  -- Debit
+  Account.exerciseInterfaceByKey @Account.I
+    vHolding.account
+    vHolding.account.custodian
+    Account.Debit with holdingCid
+  -- Credit
+  fromInterfaceContractId <$>
+    Account.exerciseInterfaceByKey @Account.I
+      newOwnerAccount
+      newOwnerAccount.custodian
+      Account.Credit with quantity = qty vHolding.amount vHolding.instrument
+
+-- | Default implementation of `split` from the `Fungible` interface.
+splitImpl :
+  ( HasCreate t
+  , HasToInterface t Fungible.I
+  ) => Fungible.I -> (Decimal -> t) -> Fungible.Split -> Update Fungible.SplitResult
+splitImpl this setAmount Fungible.Split{amounts} = do
+  let vHolding = view . toInterface @Holding.I $ this
+  Lockable.mustNotBeLocked this
+  let spawn = fmap toInterfaceContractId . create . setAmount
+  splitCids <- forA amounts spawn
+  restAmount <- getRestAmount amounts vHolding.amount
+  rest <- T.forA restAmount spawn
+  pure Fungible.SplitResult with splitCids; rest
+
+-- | Default implementation of `merge` from the `Fungible` interface.
+mergeImpl :
+  forall t.
+  ( HasCreate t
+  , HasArchive t
+  , HasSignatory t
+  , HasFromInterface t Fungible.I
+  , HasToInterface t Fungible.I
+  )
+  => Fungible.I
+  -> (t -> Decimal)
+  -> (Decimal -> t)
+  -> Fungible.Merge
+  -> Update (ContractId Fungible.I)
+mergeImpl this getAmount setAmount Fungible.Merge{fungibleCids} = do
+  let vHolding = view . toInterface @Holding.I $ this
+  Lockable.mustNotBeLocked this
+  assertMsg "List of fungibles must be non-empty" . not . null $ fungibleCids
+  let
+    currentSignatories = fromList . signatory . setAmount $ vHolding.amount
+    current = view . toInterface @Holding.I . toInterface @Fungible.I . setAmount $ vHolding.amount
+    aggregate aggregatedAmount fungibleCid = do
+      Some (otherHoldingCid, otherHolding) <- fetchFromInterface @t fungibleCid
+      let
+        otherBase = toInterface @Holding.I . toInterface @Fungible.I $ otherHolding
+        other = view otherBase
+      assertMsg "Instrument must match" $ other.instrument == current.instrument
+      assertMsg "Account must match" $ other.account == current.account
+      assertMsg "Signatories must match" $ fromList (signatory otherHolding) == currentSignatories
+      Lockable.mustNotBeLocked otherBase
+      archive otherHoldingCid
+      pure $ aggregatedAmount + getAmount otherHolding
+  tot <- foldlA aggregate vHolding.amount fungibleCids
+  fmap toInterfaceContractId . create . setAmount $ tot
+
+-- | HIDE
+-- Gets the rest amount of a split (if any) and verifies that split amounts are strictly positive
+-- and don't exceed the current amount.
+getRestAmount : CanAssert m => [Decimal] -> Decimal -> m (Optional Decimal)
+getRestAmount amounts currentAmount = do
+  let splitAmountSum = sum amounts
+  verify (splitAmountSum <= currentAmount && F.all (> 0.0) amounts && amounts /= []) $ "Fungible::"
+    <> "verifySplit - Amounts must be non-empty, strictly positive, and not exceed current amount. "
+    <> "amounts=" <> show amounts
+    <> ", splitAmountSum=" <> show splitAmountSum
+    <> ", currentAmount=" <> show currentAmount
+  let rest = currentAmount - splitAmountSum
+  pure $ if rest == 0.0 then None else Some rest

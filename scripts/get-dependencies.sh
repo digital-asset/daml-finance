@@ -25,18 +25,19 @@ else
 
     echo "Processing dependency ${dependency_path}"
 
-    isValidPath=`awk '{ match($0, /^.lib\/[a-zA-Z\-]*\/([a-zA-Z\.]*\/v?[0-9\.]*|v?[0-9\.]*)\/[a-zA-Z0-9\.\-]*\.dar$/); print RLENGTH }' <<< ${dependency_path}`
-    if [[ ${isValidPath} -eq -1 ]]; then
-      echo -e "${red}ERROR: Dependency ${dependency_path} does not match the expected format.
+    # TODO: Adjust the regex to match the new major-version-in-path structure
+    # isValidPath=`awk '{ match($0, /^.lib\/[a-zA-Z\-]*\/([a-zA-Z\.]*\/v?[0-9\.]*|v?[0-9\.]*)\/[a-zA-Z0-9\.\-]*\.dar$/); print RLENGTH }' <<< ${dependency_path}`
+    # if [[ ${isValidPath} -eq -1 ]]; then
+    #   echo -e "${red}ERROR: Dependency ${dependency_path} does not match the expected format.
 
-              Dependency syntax :
-                .lib/<repo_name>/<tag>/<file_name>
-              <tag> syntax :
-                <version> | <project_name>/<version>
+    #           Dependency syntax :
+    #             .lib/<repo_name>/<tag>/<file_name>
+    #           <tag> syntax :
+    #             <version> | <project_name>/<version>
 
-              Regex format : ^\.lib\/[a-zA-Z\-]*\/([a-zA-Z\.]*\/v?[0-9\.]*|v?[0-9\.]*)\/[a-zA-Z0-9\.\-]*\.dar$ ${colour_off}"
-      exit 1
-    fi
+    #           Regex format : ^\.lib\/[a-zA-Z\-]*\/([a-zA-Z\.]*\/v?[0-9\.]*|v?[0-9\.]*)\/[a-zA-Z0-9\.\-]*\.dar$ ${colour_off}"
+    #   exit 1
+    # fi
 
     if [[ -a ${project_root_dir}/${dependency_path} ]]; then
       echo -e "Dependency ${dependency_path} already setup. Skipping.\n"

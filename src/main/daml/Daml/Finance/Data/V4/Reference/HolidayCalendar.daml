@@ -1,0 +1,103 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Data.V4.Reference.HolidayCalendar where
+
+import DA.Set (singleton)
+import Daml.Finance.Interface.Data.V4.Reference.HolidayCalendar qualified as HolidayCalendar (I, View(..))
+import Daml.Finance.Interface.Data.V4.Reference.HolidayCalendar.Factory qualified as HolidayCalendarFactory
+import Daml.Finance.Interface.Types.Common.V3.Types (PartiesMap)
+import Daml.Finance.Interface.Types.Date.V3.Calendar (HolidayCalendarData)
+import Daml.Finance.Interface.Types.Date.V3.Schedule (PeriodicSchedule(..), Schedule)
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Util.V4.Date.Schedule (createSchedule)
+import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+
+-- | Key used to look up the holiday calendar of an entity, as defined by a reference data provider.
+data HolidayCalendarKey = HolidayCalendarKey
+  with
+    provider : Party
+      -- ^ The party maintaining the `HolidayCalendar`.
+    id : Text
+      -- ^ A textual label identifying the calendar (e.g. "NYSE" for the New York Stock Exchange
+      --   holiday calendar).
+  deriving (Eq, Show)
+
+-- | Holiday calendar of an entity (typically an exchange or a currency).
+-- It is maintained by a reference data provider.
+template HolidayCalendar
+  with
+    calendar : HolidayCalendarData
+      -- ^ Holiday Calendar Data used to define holidays.
+    observers : PartiesMap
+      -- ^ Observers.
+    provider : Party
+      -- ^ The party maintaining the `HolidayCalendar`.
+  where
+    signatory provider
+    observer Disclosure.flattenObservers observers
+
+    key (HolidayCalendarKey with provider; id = calendar.id) : HolidayCalendarKey
+    maintainer key.provider
+
+    interface instance Disclosure.I for HolidayCalendar where
+      view = Disclosure.View with disclosureControllers = singleton provider; observers
+      setObservers = setObserversImpl @HolidayCalendar @Disclosure.I this None
+      addObservers = addObserversImpl @HolidayCalendar @Disclosure.I this None
+      removeObservers = removeObserversImpl @HolidayCalendar @Disclosure.I this None
+
+    interface instance HolidayCalendar.I for HolidayCalendar where
+      view = HolidayCalendar.View with calendar; provider
+      updateCalendar arg = toInterfaceContractId <$> create this with calendar = arg.newCalendar
+
+    nonconsuming choice GetCalendar : HolidayCalendarData
+      -- ^ Returns the calendar's `HolidayCalendarData`.
+      with
+        viewer : Party
+          -- ^ The party fetching the calendar.
+      controller viewer
+      do
+        pure calendar
+
+-- | Implementation of the corresponding HolidayCalendar Factory.
+template Factory
+  with
+    provider : Party
+      -- ^ The factory's provider.
+    observers : PartiesMap
+      -- ^ The factory's observers.
+  where
+    signatory provider
+    observer Disclosure.flattenObservers observers
+
+    interface instance HolidayCalendarFactory.I for Factory
+      where
+        view = HolidayCalendarFactory.View with provider
+        create' HolidayCalendarFactory.Create{calendar; observers; provider} =
+          toInterfaceContractId <$> create HolidayCalendar with calendar; observers; provider
+
+    interface instance Disclosure.I for Factory where
+      view = Disclosure.View with disclosureControllers = singleton provider; observers
+      setObservers = setObserversImpl @Factory @Disclosure.I this None
+      addObservers = addObserversImpl @Factory @Disclosure.I this None
+      removeObservers = removeObserversImpl @Factory @Disclosure.I this None
+
+-- | Retrieve holiday calendar(s) from the ledger.
+getHolidayCalendars : Party -> Party -> [Text] -> Update [HolidayCalendarData]
+getHolidayCalendars actor provider holidayCalendarIds =
+  let
+    -- get a holiday calendar from the ledger
+    getCalendar id = do
+      exerciseByKey @HolidayCalendar holCalKey GetCalendar with viewer = actor where
+        holCalKey = HolidayCalendarKey with provider; id
+  in
+    -- get the holiday calendars
+    mapA getCalendar holidayCalendarIds
+
+-- | Retrieve holiday calendar(s) from the ledger and roll out a schedule.
+-- Returns the rolled schedule and the required calendars.
+rollSchedule : ([Text] -> Update [HolidayCalendarData]) -> PeriodicSchedule -> [Text] ->
+  Update (Schedule, [HolidayCalendarData])
+rollSchedule getHolidayCalendars periodicSchedule holidayCalendarIds = do
+  cals <- getHolidayCalendars holidayCalendarIds
+  pure (createSchedule cals periodicSchedule, cals)

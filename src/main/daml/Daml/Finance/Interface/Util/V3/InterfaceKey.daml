@@ -1,0 +1,97 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
+module Daml.Finance.Interface.Util.V3.InterfaceKey where
+
+import Daml.Finance.Interface.Types.Common.V3.Types (PartiesMap)
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (GetView(..), I)
+
+-- | Fetch an interface by key.
+fetchInterfaceByKey : forall ref i2 k i1.
+  ( HasInterfaceTypeRep i1
+  , HasInterfaceTypeRep i2
+  , HasFetchByKey ref k
+  , HasField "cid" ref (ContractId i1)
+  , HasFetch i2
+  )
+  => k -> Update i2
+fetchInterfaceByKey k = do
+  d <- snd <$> fetchByKey @ref k
+  fetch $ coerceInterfaceContractId @i2 d.cid
+
+-- | HIDE
+-- Type class used for interface keys.
+class
+  ( HasInterfaceTypeRep i
+  , HasCreate ref
+  , HasExerciseByKey ref k c1 (ContractId i)
+  , HasExerciseByKey ref k c2 (ContractId ref)
+  , HasExerciseByKey ref k c3 (ContractId ref)
+  , HasExercise i c4 v
+  , HasInterfaceView i v
+  , HasKey ref k
+  )
+  =>
+  HasInterfaceKey
+    i   -- Type of the keyed interface.
+    v   -- View associated with the interface i.
+    k   -- Key type used for the interface i.
+    ref -- Template that holds reference information.
+    c1  -- Choice on the reference template to retrieve the interface instance.
+    c2  -- Choice on the reference template to set the interface instance.
+    c3  -- Choice on the reference template to set observers.
+    c4  -- Choice on the interface to get a view.
+  where
+    createReference : v -> ContractId i -> PartiesMap -> ref
+    getCid : Party -> c1
+    setCid : ContractId i -> c2
+    setObservers : PartiesMap -> c3
+    getView : Party -> c4
+
+-- | HIDE
+-- Helper function for exercising an interface by key.
+exerciseInterfaceByKeyHelper : forall ref c1 c2 c3 c4 it ct rt i v k.
+  ( HasInterfaceKey i v k ref c1 c2 c3 c4
+  , HasInterfaceTypeRep it
+  , HasExercise it ct rt
+  )
+  => k          -- ^ The key.
+  -> Party      -- ^ The actor exercising the choice by key.
+  -> ct         -- ^ The choice arguments.
+  -> Update rt
+exerciseInterfaceByKeyHelper k actor arg = do
+  cid <- exerciseByKey @ref k $ getCid @i @v @k @ref @c1 @c2 @c3 @c4 actor
+  exercise (coerceInterfaceContractId @it cid) arg
+
+-- | HIDE
+-- Helper function for creating a reference for an interface.
+createReferenceHelper : forall ref c1 c2 c3 c4 i v k.
+  ( HasInterfaceKey i v k ref c1 c2 c3 c4
+  , HasToInterface i Disclosure.I
+  )
+  => Party
+  -> ContractId i
+  -> Update (ContractId ref)
+createReferenceHelper actor cid = do
+  view <- exercise cid $ getView @i @v @k @ref @c1 @c2 @c3 @c4 actor
+  disclosureView <- exercise
+    (toInterfaceContractId @Disclosure.I cid)
+    Disclosure.GetView with viewer = actor
+  create $ createReference @i @v @k @ref @c1 @c2 @c3 @c4 view cid disclosureView.observers
+
+-- | HIDE
+-- Helper function for updating the reference once observers are added to the referred to instance.
+disclosureUpdateReferenceHelper : forall ref c1 c2 c3 c4 i v k.
+  ( HasInterfaceKey i v k ref c1 c2 c3 c4
+  , HasToInterface i Disclosure.I
+  )
+  => k
+  -> PartiesMap
+  -> ContractId i
+  -> Update (ContractId Disclosure.I)
+disclosureUpdateReferenceHelper k newObservers iCid = do
+  exerciseByKey @ref k $ setCid @i @v @k @ref @c1 @c2 @c3 @c4 iCid
+  exerciseByKey @ref k $ setObservers @i @v @k @ref @c1 @c2 @c3 @c4 newObservers
+  pure $ toInterfaceContractId iCid

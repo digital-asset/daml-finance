@@ -1,0 +1,137 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Settlement.V4.Batch where
+
+import DA.Action (foldlA)
+import DA.Map qualified as Map (fromList, lookup)
+import DA.Optional (catOptionals, fromSomeNote)
+import DA.Set (Set)
+import DA.Set qualified as Set (insert, intersection, member, null, singleton)
+import DA.Traversable qualified as T
+import Daml.Finance.Interface.Holding.V4.Util (undisclose)
+import Daml.Finance.Interface.Settlement.V4.Batch qualified as Batch (Cancel(..), I, Settle(..), View(..))
+import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (Cancel(..), Execute(..), I)
+import Daml.Finance.Interface.Settlement.V4.Types (Allocation(..), Approval(..), InstructionKey(..), RoutedStep(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (Id(..), Parties)
+import Daml.Finance.Settlement.V4.Instruction (Instruction(..), mustAuthorizeHelper)
+
+-- | Type synonym for `Batch`.
+type T = Batch
+
+-- | Allows you to atomically settle a set of settlement `Step`.
+template Batch
+  with
+    instructor : Party
+      -- ^ Party instructing settlement (and the creation of the `Batch`).
+    consenters : Parties
+      -- ^ Parties consenting with the creation of the `Batch`.
+    settlers : Parties
+      -- ^ Any of the parties can trigger the settlement.
+    id : Id
+      -- ^ Batch identifier.
+    description : Text
+      -- ^ Batch description.
+    contextId : Optional Id
+      -- ^ Identifier to link a batch to a context (e.g. the `Effect` it originated from).
+    routedStepsWithInstructionId : [(RoutedStep, Id)]
+      -- ^ The settlement `RoutedStep`\s and the identifiers of the corresponding `Instruction`\s.
+    settlementTime : Optional Time
+      -- ^ Settlement time (if any).
+  where
+    signatory instructor, consenters
+    observer settlers
+
+    interface instance Batch.I for Batch where
+      view = Batch.View with
+        instructor; consenters; settlers; id; description; contextId
+        routedSteps = routedSteps this.routedStepsWithInstructionId; settlementTime
+      settle Batch.Settle{actors} = do
+        assertMsg "Actors must intersect with settlers." $
+          not $ Set.null $ actors `Set.intersection` settlers
+        -- order instructions (such that they can be executed with passthroughs)
+        orderedInstructions <-
+          orderPassThroughChains . fmap (fmap (buildKey this)) $ routedStepsWithInstructionId
+        assertMsg "Ordering must be complete." $
+          length orderedInstructions == length routedStepsWithInstructionId
+        -- settle
+        let
+          settleInstruction instructionKey = do
+            let context = show instructionKey
+            -- execute instruction and get used holding standards for the instrument
+            (instructionCid, instruction) <- fetchByKey @Instruction instructionKey
+            settledCid <- exercise (toInterfaceContractId @Instruction.I instructionCid)
+              Instruction.Execute with actors = actors <> Set.singleton instructor <> consenters
+            join <$> T.mapA (undisclose (context, settlers) actors) settledCid
+        -- execute instructions
+        orderedSettledCids <- mapA settleInstruction orderedInstructions
+        -- order returned settledCids according to the initial order of the instructions
+        let
+          orderedInstructionIdsAndSettleCids =
+            zip ((.id) <$> orderedInstructions) orderedSettledCids
+          settledCids = fromSomeNote "All keys must exist in the map." .
+            (`Map.lookup` (Map.fromList orderedInstructionIdsAndSettleCids)) <$>
+            instructionIds this.routedStepsWithInstructionId
+        pure $ catOptionals settledCids
+      cancel Batch.Cancel{actors} = do
+        let
+          allMustAuthorize = mustAuthorizeHelper True actors
+          cancelInstruction instruction = do
+            instructionCid <- fst <$> fetchByKey @Instruction instruction
+            exercise (toInterfaceContractId @Instruction.I instructionCid)
+              Instruction.Cancel with actors
+        allMustAuthorize $ Set.singleton instructor <> consenters
+        -- cancel instructions
+        catOptionals <$> mapA (cancelInstruction . buildKey this . snd) routedStepsWithInstructionId
+
+-- | HIDE
+routedSteps : [(RoutedStep, Id)] -> [RoutedStep]
+routedSteps = fmap fst
+
+-- | HIDE
+instructionIds : [(RoutedStep, Id)] -> [Id]
+instructionIds = fmap snd
+
+-- | HIDE
+buildKey : Batch -> Id -> InstructionKey
+buildKey Batch {instructor; id} instructionId =
+  InstructionKey with instructor; batchId = id; id = instructionId
+
+-- | HIDE
+-- Partially order instructions, so that pass-through chains can be executed in order.
+orderPassThroughChains : [(RoutedStep, InstructionKey)] -> Update [InstructionKey]
+orderPassThroughChains routedStepsWithInstructions =
+  reverse . fst <$> foldlA
+    (\(ordered, used) (routedStep, current) ->
+      if Set.member current used
+      then
+        -- instruction has already been visited, do not re-insert in list
+        pure (ordered, used)
+      else do
+        currentInstruction <- snd <$> fetchByKey @Instruction current
+        assertMsg "Routed step must match." $ routedStep == currentInstruction.routedStep
+        let
+          ordered' = current :: ordered
+          used' = Set.insert current used
+        case currentInstruction.allocation of
+          -- a Pledge might be the start of a pass-through chain, try to follow the chain
+          Pledge _ -> collectPassThroughChain ordered' used' currentInstruction
+          -- A PassThroughFrom will be visited as part of a chain, do not insert in list
+          PassThroughFrom _ -> pure (ordered, used)
+          _ -> pure (ordered', used')
+    ) ([], mempty) routedStepsWithInstructions
+
+-- | HIDE
+-- Follows the pass-through chain and collects the corresponding instructions in an ordered list.
+collectPassThroughChain : [InstructionKey] -> Set InstructionKey -> Instruction ->
+    Update ([InstructionKey], Set InstructionKey)
+collectPassThroughChain
+  ordered              -- i.e., previously-ordered instructions
+  used                 -- i.e., instructions that have already been visited
+  currentInstruction = -- i.e., first instruction of the chain
+    case currentInstruction.approval of
+      PassThroughTo (_, next) -> do
+        nextInstruction <- snd <$> fetchByKey @Instruction next
+        assertMsg "Next instruction must not have been used before." . not $ Set.member next used
+        collectPassThroughChain (next :: ordered) (Set.insert next used) nextInstruction
+      _ -> pure (ordered, used)

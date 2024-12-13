@@ -1,0 +1,60 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Util.V4.Lockable where
+
+import DA.Action (when)
+import DA.Optional (fromSomeNote)
+import DA.Set qualified as Set (delete, fromList, insert, isSubsetOf, notMember, null, singleton)
+import Daml.Finance.Interface.Util.V3.Lockable (Acquire(..), Lock(..), LockType(..), Lockable, Release(..))
+
+-- | Default implementation of `acquire` from the `Lockable` interface.
+acquireImpl :
+  ( HasCreate t
+  , HasSignatory t
+  , HasFromInterface t Lockable
+  , HasToInterface t Lockable
+  ) => Optional Lock -> (Optional Lock -> t) -> Acquire ->  Update (ContractId Lockable)
+acquireImpl currentLock setLock Acquire{newLockers; context; lockType} = do
+  assertMsg "New lockers must be non-empty" (not $ Set.null newLockers)
+  newLock <- Some <$> case currentLock of
+    None -> pure Lock with lockers = newLockers; context = Set.singleton context; lockType
+    Some existingLock -> do
+      case lockType of
+        Reentrant -> do
+          assertMsg "New lockers must match the existing lockers"
+            $ existingLock.lockers == newLockers
+          assertMsg "New lock type must match the existing lock type"
+            $ existingLock.lockType == lockType
+          assertMsg "Contract must not be already locked for the provided context"
+            $ Set.notMember context existingLock.context
+          pure existingLock with
+            context = context `Set.insert` existingLock.context
+        Semaphore ->
+          abort "A Semaphore lock can not be locked multiple times."
+  let newLockable = setLock newLock
+  assertMsg "New lockers must be signatories of the new lockable"
+    $ newLockers `Set.isSubsetOf` Set.fromList (signatory newLockable)
+  toInterfaceContractId <$> create newLockable
+
+-- | Default implementation of `release` from the `Lockable` interface.
+releaseImpl :
+  ( HasCreate t
+  , HasFromInterface t Lockable
+  , HasToInterface t Lockable
+  ) => Optional Lock -> (Optional Lock -> t) -> Release -> Update (ContractId Lockable)
+releaseImpl currentLock setLock Release{context} = do
+  let
+    lock = fromSomeNote "Must be locked" currentLock
+    newContext = context `Set.delete` lock.context
+    updatedLock =
+      if lock.lockType == Reentrant && not (Set.null newContext)
+      then Some $ lock with context = newContext
+      else None
+  when (newContext == lock.context) $ abort "Incorrect context provided"
+  fmap toInterfaceContractId . create . setLock $ updatedLock
+
+-- | Check validity of lock.
+-- The lockers field must be non-empty if set.
+isValidLock : Optional Lock -> Bool
+isValidLock lock = optional True (not . Set.null . (.lockers)) lock
