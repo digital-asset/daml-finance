@@ -1,0 +1,147 @@
+module Daml.Finance.Asset.Test.IbericoPig where 
+
+
+import ContingentClaims.Claim (Claim(..), one, scale)
+import ContingentClaims.Observation (Observation(..))
+import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (I, View(..), disclosureUpdateReference)
+import Daml.Finance.Interface.Asset.Types (Id(..), InstrumentKey(..))
+import Daml.Finance.Interface.Common.Classes (toUTCTime)
+import Daml.Finance.Interface.Common.Disclosure qualified as Disclosure (I, SetObservers(..), View(..))
+import Daml.Finance.Interface.Common.Types (Observers)
+import Daml.Finance.Interface.Derivative.Types (Deliverable, TaggedClaim, C, taggedClaim)
+import Daml.Finance.Interface.Common.Util (flattenObservers)
+import Daml.Finance.Interface.Lifecycle.Lifecyclable qualified as Lifecyclable (I, Lifecycle(..), View(..))
+import Daml.Finance.RefData.Time.DateClock (Unit(..))
+import Daml.Finance.Interface.Derivative.Util.Claims.Lifecycle qualified as Lifecycle (lifecycle, splitPending, timeEvent)
+import Daml.Finance.Interface.Derivative.Util.Claims(toTime')
+import Daml.Finance.Interface.Derivative.HasClaims qualified as HasClaims (I, View(..))
+import Daml.Finance.Lifecycle.Effect (Effect(..))
+import Daml.Finance.Interface.Lifecycle.Event qualified as Event (I, View(..), getEventTime)
+import DA.Set (singleton)
+import DA.Text (sha256)
+import DA.Date (toDateUTC)
+
+data State = Pig 
+  | Butchered 
+  | Salted 
+  | Aged -- todo add age with int different int will have diff price 
+  | Restaurant 
+  | Eaten
+  deriving (Show, Eq)
+
+template StateTransitionEvent 
+  with 
+    currentOwner: Party
+    newOwner: Party
+    eventTime: Time
+    currentState: State
+  where
+    signatory currentOwner, newOwner
+
+    implements Event.I where
+      view = Event.View with eventTime
+
+
+template IbericoPig 
+  with 
+    farmer: Party
+    -- ^ The farmer that raised the pig
+    id: Id
+    -- ^ An identifier of the pig as an instrument 
+    -- (version will be the hash of the state that this pig is currently in
+    observers: Observers
+    -- ^ observers of the Iberico Pig, visible to public
+    state: State
+    -- ^ Current state of the pig, need to be in sequence
+
+    matureDate: Date
+    -- ^ Date that the farmer deemed the the pig has mature
+
+    cashInstrumentCid : Deliverable
+      -- ^ The cash instrument used to pay for one unit of pig.
+
+  where
+    signatory farmer -- for simplicity we will use single signatory in this example
+    observer flattenObservers observers
+
+    let 
+      instrumentKey = InstrumentKey with depository = farmer; issuer = farmer; id
+      
+      getClaimFromState: State -> Claim Date Decimal Deliverable Text -- todo I don't really need time/date
+      getClaimFromState targetState = 
+        scale (Observe (show targetState)) $ one cashInstrumentCid -- todo as it turn out I cannot put target as Observable
+
+      -- getRemainingClaims: [Claim Date Decimal Deliverable Text] -- todo how have all claims for remaining state in pig
+      -- getRemainingClaims = 
+      --   let remainingStates = case state of 
+      --                         Pig -> [Pig, Butchered, Aged, Restaurant]
+      --                         Butchered -> [Aged, Restaurant]
+      --                         Salted -> [Aged, Restaurant]
+      --                         Aged -> [Restaurant]
+      --                         Restaurant -> [Restaurant]
+      --                         _ -> [] in
+      --   map getClaimFromState remainingStates
+      nextState: State
+      nextState = 
+        case state of 
+          Pig -> Butchered
+          Butchered -> Salted
+          Salted -> Aged
+          Aged -> Restaurant
+          Restaurant -> Eaten
+          Eaten -> Eaten -- way to abort and remove this
+    
+    implements HasClaims.I where
+      view = HasClaims.View with acquisitionTime = (toUTCTime . Unit) matureDate
+      getClaims = do
+        prepareAndTagClaims [getClaimFromState state] (show state)
+
+    implements Instrument.I where 
+      asDisclosure = toInterface @Disclosure.I this
+      view = Instrument.View with issuer = farmer; depository = farmer; id; validAsOf = (toUTCTime . Unit) matureDate
+      getKey = instrumentKey
+
+    implements Lifecyclable.I where
+      view = Lifecyclable.View with lifecycler = farmer -- should not be farmer
+      lifecycle Lifecyclable.Lifecycle{ruleName; settler; eventCid; clockCid; observableCids} self = do
+        t <- Event.getEventTime <$> fetch eventCid
+        let 
+          claimPig = toInterface @HasClaims.I this
+        (remaining, pending) <- Lifecycle.lifecycle observableCids claimPig [Lifecycle.timeEvent t]
+        let 
+         (consumed, produced) = Lifecycle.splitPending pending
+         newKey = instrumentKey with id.version = sha256 $ show remaining
+        Some event <- fromInterface @StateTransitionEvent <$> fetch eventCid
+        newInstrumentCid <- create this with id = newKey.id; state = nextState
+        let 
+          settlementDate = toDateUTC event.eventTime
+        effectCid <- toInterfaceContractId <$> create Effect with 
+          provider = farmer
+          settler
+          targetInstrument = instrumentKey
+          producedInstrument = Some newKey
+          consumed
+          produced
+          settlementDate
+          id = id.label <> "-" <> show settlementDate
+          observers = (.observers) . _view $ toInterface @Disclosure.I this
+        pure (toInterfaceContractId newInstrumentCid, [effectCid])
+
+    implements Disclosure.I where
+      view = Disclosure.View with disclosureControllers = singleton $ singleton farmer; observers
+      setObservers Disclosure.SetObservers{newObservers} = do
+        cid <- toInterfaceContractId <$> create this with observers = newObservers
+        Instrument.disclosureUpdateReference newObservers instrumentKey cid
+      archive' self = archive (coerceContractId self : ContractId IbericoPig)
+
+
+prepareAndTagClaims : Applicative f => [Claim Date Decimal Deliverable Text] -> Text -> f [TaggedClaim]
+prepareAndTagClaims claim tag = do
+  let
+    claims = mapClaimToUTCTime $ mconcat claim
+  pure [taggedClaim tag claims]
+
+
+mapClaimToUTCTime : Claim Date Decimal Deliverable Text -> C
+mapClaimToUTCTime = -- todo can I get rid of this time conversion, don't think i need this 
+  let dateToTime = toUTCTime . Unit in toTime' dateToTime
