@@ -36,7 +36,7 @@ This document tracks pending changes to packages. It is facilitating the write-u
 ## Early Access Packages
 
 | Package                                             | Released | Target version |
-|-----------------------------------------------------|---------------------------|
+|-----------------------------------------------------|----------|----------------|
 | ContingentClaims.Valuation                          | 0.2.2    | 1.0.0          |
 | Daml.Finance.Instrument.Equity                      | 0.4.0    | 1.0.0          |
 | Daml.Finance.Instrument.Option                      | 0.3.0    | 1.0.0          |
