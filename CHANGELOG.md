@@ -37,15 +37,15 @@ This document tracks pending changes to packages. It is facilitating the write-u
 
 | Package                                             | Released | Target version |
 |-----------------------------------------------------|----------|----------------|
-| ContingentClaims.Valuation                          | 0.2.2    | 1.0.0          |
-| Daml.Finance.Instrument.Equity                      | 0.4.0    | 1.0.0          |
-| Daml.Finance.Instrument.Option                      | 0.3.0    | 1.0.0          |
-| Daml.Finance.Instrument.StructuredProduct           | 0.1.0    | 1.0.0          |
-| Daml.Finance.Instrument.Swap                        | 0.4.0    | 1.0.0          |
-| Daml.Finance.Interface.Instrument.Equity            | 0.4.0    | 1.0.0          |
-| Daml.Finance.Interface.Instrument.Option            | 0.3.0    | 1.0.0          |
-| Daml.Finance.Interface.Instrument.StructuredProduct | 0.1.0    | 1.0.0          |
-| Daml.Finance.Interface.Instrument.Swap              | 0.4.0    | 1.0.0          |
+| ContingentClaims.Valuation                          | 0.2.2    | 0.3.0          |
+| Daml.Finance.Instrument.Equity                      | 0.4.0    | 0.5.0          |
+| Daml.Finance.Instrument.Option                      | 0.3.0    | 0.4.0          |
+| Daml.Finance.Instrument.StructuredProduct           | 0.1.0    | 0.2.0          |
+| Daml.Finance.Instrument.Swap                        | 0.4.0    | 0.5.0          |
+| Daml.Finance.Interface.Instrument.Equity            | 0.4.0    | 0.5.0          |
+| Daml.Finance.Interface.Instrument.Option            | 0.3.0    | 0.4.0          |
+| Daml.Finance.Interface.Instrument.StructuredProduct | 0.1.0    | 0.2.0          |
+| Daml.Finance.Interface.Instrument.Swap              | 0.4.0    | 0.5.0          |
 
 ## Pending changes
 

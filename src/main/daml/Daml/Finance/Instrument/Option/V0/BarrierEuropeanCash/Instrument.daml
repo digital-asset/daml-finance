@@ -1,0 +1,122 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Option.V0.BarrierEuropeanCash.Instrument where
+
+import DA.Date (daysSinceEpochToDate)
+import DA.Set (singleton)
+import Daml.Finance.Claims.V3.Util.Builders (createBarrierEuropeanCashClaim)
+import Daml.Finance.Data.V4.Time.DateClock (dateToDateClockTime)
+import Daml.Finance.Interface.Claims.V4.Claim qualified as Claim (GetClaims(..), I, View(..))
+import Daml.Finance.Interface.Claims.V4.Dynamic.Instrument qualified as DynamicInstrument (CreateNewVersion(..), I, View(..))
+import Daml.Finance.Interface.Instrument.Base.V4.Instrument qualified as BaseInstrument (I, View(..), createReference, disclosureUpdateReference, instrumentKey)
+import Daml.Finance.Interface.Instrument.Option.V0.BarrierEuropeanCash.Instrument qualified as BarrierEuropeanOption (I, View(..))
+import Daml.Finance.Interface.Instrument.Option.V0.BarrierEuropeanCash.Types (BarrierEuropean(..))
+import Daml.Finance.Interface.Instrument.Option.V0.Types (BarrierTypeEnum(..), OptionTypeEnum(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..), InstrumentKey(..), PartiesMap)
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+
+-- | Type synonym for `Instrument`.
+type T = Instrument
+
+-- | This template models a cash settled, automatically excercised barrier option with European
+-- exercise.
+template Instrument
+  with
+    depository : Party
+      -- ^ The depository of the instrument.
+    issuer : Party
+      -- ^ The issuer of the instrument.
+    id : Id
+      -- ^ An identifier of the instrument.
+    version : Text
+      -- ^ The instrument's version.
+    holdingStandard : HoldingStandard
+      -- ^ The holding standard for holdings referencing this instrument.
+    description : Text
+      -- ^ A description of the instrument.
+    referenceAssetId : Text
+      -- ^ The reference asset ID. For example, in case of an option on AAPL this should be a valid
+      --   reference to the AAPL fixings to be used for the payoff calculation.
+    ownerReceives : Bool
+      -- ^ Indicate whether a holding owner of this instrument receives option payoff.
+    optionType : OptionTypeEnum
+      -- ^ Indicate whether the option is a call or a put.
+    strike : Decimal
+      -- ^ The strike price of the option.
+    barrier : Decimal
+      -- ^ The barrier level of the option.
+    barrierType : BarrierTypeEnum
+      -- ^ The type of barrier.
+    barrierStartDate : Date
+      -- ^ The start date for barrier observations.
+    expiryDate : Date
+      -- ^ The expiry date of the option.
+    currency : InstrumentKey
+      -- ^ The currency of the option. For example, if the option pays in USD this should be a USD
+      --   cash instrument.
+    observers : PartiesMap
+      -- ^ The observers of the instrument.
+    lastEventTimestamp : Time
+      -- ^ (Market) time of the last recorded lifecycle event. If no event has occurred yet, the
+      --   time of creation should be used.
+  where
+    signatory depository, issuer
+    observer Disclosure.flattenObservers observers
+
+    interface instance Claim.I for Instrument where
+      view = Claim.View with acquisitionTime = dateToDateClockTime $ daysSinceEpochToDate 0
+      getClaims Claim.GetClaims{actor} = do
+        -- get the initial claims tree (as of the instrument's acquisition time)
+        let
+          call = optionType == Call
+          (down, out) = case barrierType of
+            UpAndOut -> (False, True)
+            DownAndOut -> (True, True)
+            UpAndIn -> (False, False)
+            DownAndIn -> (True, False)
+          referenceLevel = None
+          notionalMultiplier = 1.0
+          optionsClaim = createBarrierEuropeanCashClaim dateToDateClockTime ownerReceives strike
+            referenceAssetId currency expiryDate call barrier barrierStartDate down out
+            referenceLevel notionalMultiplier
+        pure [optionsClaim]
+
+    interface instance BaseInstrument.I for Instrument where
+      view = BaseInstrument.View with
+        depository; issuer; id; version; holdingStandard; description
+        validAsOf = lastEventTimestamp
+      getKey = BaseInstrument.instrumentKey this
+
+    interface instance BarrierEuropeanOption.I for Instrument where
+      view = BarrierEuropeanOption.View with
+        barrierEuropean = BarrierEuropean with
+          instrument = BaseInstrument.instrumentKey this
+          description
+          referenceAssetId
+          ownerReceives
+          optionType
+          strike
+          barrier
+          barrierType
+          barrierStartDate
+          expiryDate
+          currency
+          lastEventTimestamp
+
+    interface instance DynamicInstrument.I for Instrument where
+      view = DynamicInstrument.View with lifecycler = issuer; lastEventTimestamp; prevEvents = []
+      createNewVersion DynamicInstrument.CreateNewVersion{version; lastEventTimestamp} = do
+        cid <- create this with version; lastEventTimestamp
+        BaseInstrument.createReference issuer $ toInterfaceContractId cid
+        pure $ toInterfaceContractId cid
+
+    interface instance Disclosure.I for Instrument where
+      view = Disclosure.View with disclosureControllers = singleton issuer; observers
+      setObservers = setObserversImpl @Instrument this $
+        Some . BaseInstrument.disclosureUpdateReference $ BaseInstrument.instrumentKey this
+      addObservers = addObserversImpl @Instrument this $
+        Some . BaseInstrument.disclosureUpdateReference $ BaseInstrument.instrumentKey this
+      removeObservers = removeObserversImpl this .
+        Some . BaseInstrument.disclosureUpdateReference $ BaseInstrument.instrumentKey this

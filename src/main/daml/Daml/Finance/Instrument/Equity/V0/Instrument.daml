@@ -1,0 +1,100 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Equity.V0.Instrument where
+
+import DA.Set (fromList, singleton)
+import Daml.Finance.Interface.Instrument.Base.V4.Instrument qualified as BaseInstrument (I, View(..), disclosureUpdateReference, instrumentKey)
+import Daml.Finance.Interface.Instrument.Equity.V0.Instrument qualified as Equity (DeclareDistribution(..), DeclareReplacement(..), DeclareStockSplit(..), I, View(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id, PartiesMap)
+import Daml.Finance.Interface.Util.V3.Common (qty)
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Lifecycle.V4.Event.Distribution qualified as Distribution (Event(..))
+import Daml.Finance.Lifecycle.V4.Event.Replacement qualified as Replacement (Event(..))
+import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+
+-- | Type synonym for `Instrument`.
+type T = Instrument
+
+-- | An Instrument representing a common stock.
+template Instrument
+  with
+    issuer : Party
+      -- ^ Issuer.
+    depository : Party
+      -- ^ Depository.
+    id : Id
+      -- ^ A textual identifier.
+    version : Text
+      -- ^ The instrument's version.
+    holdingStandard : HoldingStandard
+      -- ^ The holding standard for holdings referencing this instrument.
+    description : Text
+      -- ^ A description of the instrument.
+    observers : PartiesMap
+      -- ^ Observers.
+    validAsOf : Time
+      -- ^ Timestamp as of which the instrument is valid. This usually coincides with the timestamp
+      --   of the event that creates the instrument. It usually does not coincide with ledger time.
+  where
+    signatory depository, issuer
+    observer Disclosure.flattenObservers observers
+
+    interface instance BaseInstrument.I for Instrument where
+      view = BaseInstrument.View with
+        issuer; depository; id; version; holdingStandard; description; validAsOf
+      getKey = BaseInstrument.instrumentKey this
+
+    interface instance Equity.I for Instrument where
+      view = Equity.View with instrument = BaseInstrument.instrumentKey this
+      declareDistribution
+        Equity.DeclareDistribution{id; description; effectiveTime; newInstrument;
+          perUnitDistribution} =
+            toInterfaceContractId <$>
+              create Distribution.Event with
+                providers = fromList [issuer, depository]
+                id
+                description
+                effectiveTime
+                targetInstrument = BaseInstrument.instrumentKey this
+                newInstrument
+                perUnitDistribution
+                observers = Disclosure.flattenObservers observers
+      declareStockSplit
+        Equity.DeclareStockSplit{id; description; adjustmentFactor; newInstrument;
+          effectiveTime} = do
+            -- An adjusmentFactor between 0 and 1 represents a classic stock split (e.g. 2-for-1 or
+            -- two new for one old).
+            -- A factor above 1 represents a reverse stock split (e.g. 1-for-2 or one new for two
+            -- old).
+            assertMsg "Factor must be greater than zero" $ adjustmentFactor > 0.0
+            toInterfaceContractId <$>
+              -- NOTE: Doesn't handle conversion of fractional shares into cash
+              create Replacement.Event with
+                providers = fromList [issuer, depository]
+                id
+                description
+                effectiveTime
+                targetInstrument = BaseInstrument.instrumentKey this
+                perUnitReplacement = [qty (1.0 / adjustmentFactor) newInstrument]
+                observers = Disclosure.flattenObservers observers
+      declareReplacement
+        Equity.DeclareReplacement{id; description; effectiveTime; perUnitReplacement} =
+          toInterfaceContractId <$>
+            create Replacement.Event with
+              providers = fromList [issuer, depository]
+              id
+              description
+              effectiveTime
+              targetInstrument = BaseInstrument.instrumentKey this
+              perUnitReplacement
+              observers = Disclosure.flattenObservers observers
+
+    interface instance Disclosure.I for Instrument where
+      view = Disclosure.View with disclosureControllers = singleton issuer; observers
+      setObservers = setObserversImpl this . Some . BaseInstrument.disclosureUpdateReference $
+        BaseInstrument.instrumentKey this
+      addObservers = addObserversImpl this . Some . BaseInstrument.disclosureUpdateReference $
+        BaseInstrument.instrumentKey this
+      removeObservers = removeObserversImpl this . Some . BaseInstrument.disclosureUpdateReference $
+        BaseInstrument.instrumentKey this

@@ -1,0 +1,138 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module ContingentClaims.Valuation.V0.MathML (
+  ToXml,
+  presentation
+) where
+
+import ContingentClaims.Valuation.V0.Stochastic (Expr, ExprF(..))
+import DA.Date (toGregorian)
+import DA.Foldable (foldMap, foldr1)
+import DA.Map (Map, insert, toList)
+import DA.Text (intercalate, wordsBy)
+import Daml.Control.Recursion (Cofree(..), Corecursive(..), Recursive(..))
+import Prelude hiding (elem, null)
+
+type Attrs = Map Text Text
+
+data Xml
+  = Elem { attributes : Attrs, name : Text, content: [Xml] }
+  | Leaf Text
+  deriving (Eq)
+
+instance Show Xml where
+  show Elem{attributes, name, content} =
+    "<" <> name <> as <> ">" <> (foldMap show content) <> "</" <> name <> ">"
+      where as = (<>) " " . intercalate ";" . fmap (\(k, v) -> k <> "=" <> v) . toList $ attributes
+  show (Leaf t) = t
+
+data XmlF x
+  = ElemF { attributes : Attrs, name : Text, content: [x] }
+  | LeafF Text
+  deriving (Show, Eq, Functor)
+
+instance Corecursive Xml XmlF where
+  embed ElemF{..} = Elem with ..
+  embed (LeafF a) = Leaf a
+
+instance Recursive Xml XmlF where
+  project Elem{..} = ElemF with ..
+  project (Leaf a) = LeafF a
+
+-- | Renders an `Expr` into MathML presentation format.
+class ToXml a where
+  presentation : a -> Xml
+
+-- | Supports LaTeX-style use of underscore for subscript.
+instance ToXml Text where
+  presentation = foldr1 msub . fmap mi . wordsBy (\case "_" -> True; _ -> False)
+
+instance ToXml Date where
+  presentation d = case toGregorian d of
+    (yyyy, mm, dd) -> mi $ show dd <> " " <> show mm <> " " <> show yyyy
+
+instance ToXml Decimal where
+  presentation = mn . show
+
+instance ToXml t => ToXml (Expr t) where
+  presentation = math . histo \case
+    ConstF a -> [mn $ show a]
+    ProcF name _f t -> [mi name `msub` presentation t]
+    SupF t τ x -> (mo "Sup" `msub` mfenced "{" "}" bound) :: mo "&ApplyFunction;" :: x.attribute
+                  where bound = [presentation t, mo "&le;", presentation τ]
+    IdentF t -> [presentation t]
+    SumF xs -> foldr add [] xs
+                 where add (Cofree _ (NegF x)) xs = mo "-" :: x.attribute <> xs
+                       add x xs = mo "+" :: x.attribute <> xs
+    NegF x -> mo "-" :: x.attribute
+    MulF (Cofree _ (PowF denom (Cofree _ (NegF (Cofree _ (ConstF 1.0)))))) num ->
+      [mfrac num.attribute denom.attribute]
+    MulF x (Cofree s (SumF _)) -> x.attribute ++ [mo "&InvisibleTimes;" , mfenced "(" ")" s ]
+    MulF (Cofree s (SumF _)) x -> mfenced "(" ")" s :: mo "&InvisibleTimes;" :: x.attribute
+    MulF x (Cofree s (NegF _)) -> x.attribute ++ [mo "&#xD7;"] ++ s
+    MulF (Cofree s (ConstF _)) x -> s ++ [mo "&#xD7;"] ++ x.attribute
+    MulF x (Cofree s (ConstF _)) -> x.attribute ++ [mo "&#xD7;"] ++ s
+    MulF x x' -> x.attribute ++ [mo "&InvisibleTimes;"] ++ x'.attribute
+    PowF x i -> [mrow x.attribute `msup` mrow i.attribute]
+    I_F x x' -> [mo "I" `msub` mrow (x.attribute ++ [mo "&le;"] ++ x'.attribute)]
+    E_F x t -> [ mo "&Eopf;"
+               , mo "&ApplyFunction;"
+               , mfenced "[" "]" (x.attribute ++ [mo "|", curlyF `msub` presentation t])]
+      where curlyF = Elem (just "mathvariant" "script") "mo" (text "F")
+
+just : Text -> Text -> Attrs
+just k v = insert k v mempty
+
+-- | An element with no attributes
+elem : Text -> [Xml] -> Xml
+elem = Elem mempty
+
+-- | A leaf node, text content
+text : Text -> [Xml]
+text t = [Leaf t]
+
+-- | Top-level math element
+math : [Xml] -> Xml
+math content = Elem (just "display" "block") "math" content
+
+-- | identifier
+mi : Text -> Xml
+mi = elem "mi" . text
+
+-- | operator
+mo : Text -> Xml
+mo = elem "mo" . text
+
+-- | number
+mn : Text -> Xml
+mn = elem "mn" . text
+
+-- | text
+mtext : Text -> Xml
+mtext = elem "mtext" . text
+
+-- | string literal
+ms : Text -> Xml
+ms = elem "ms" . text
+
+-- | subscript
+msub : Xml -> Xml -> Xml
+msub base subscript = elem "msub" [base, subscript]
+
+-- | subperscript
+msup : Xml -> Xml -> Xml
+msup base superscript = elem "msup" [base, superscript]
+
+-- | fraction
+mfrac : [Xml] -> [Xml] -> Xml
+mfrac numerator denominator = elem "mfrac" [mrow numerator, mrow denominator]
+
+mrow : [Xml] -> Xml
+mrow = elem "mrow"
+
+-- | A helper function for rendering parentheses.
+mfenced : Text -> Text -> [Xml] -> Xml
+mfenced open close ctx =
+  mrow $ [ Elem (just "fence" "true") "mo" (text open)] ++ ctx ++
+    [Elem (just "fence" "true") "mo" (text close)]

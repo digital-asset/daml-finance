@@ -1,0 +1,89 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Swap.V0.Asset.DistributionRule where
+
+import DA.List (dedup)
+import DA.Map(fromList)
+import Daml.Finance.Interface.Instrument.Base.V4.Instrument qualified as BaseInstrument (exerciseInterfaceByKey)
+import Daml.Finance.Interface.Instrument.Swap.V0.Asset.Factory qualified as AssetSwapFactory (Create(..), I(..))
+import Daml.Finance.Interface.Instrument.Swap.V0.Asset.Instrument qualified as Asset (GetView(..), I)
+import Daml.Finance.Interface.Lifecycle.V4.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I, View(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (Id(..), Parties)
+import Daml.Finance.Interface.Util.V3.Common (scale)
+import Daml.Finance.Lifecycle.V4.Effect (Effect(..))
+import Daml.Finance.Lifecycle.V4.Event.Distribution qualified as Distribution (Event(..))
+
+-- | Rule contract used to process a Distribution event (e.g. share or cash dividends) targeting an
+-- underlying of an asset swap.
+template DistributionRule
+  with
+    providers : Parties
+      -- ^ Providers of the distribution rule.
+    lifecycler : Party
+      -- ^ Party performing the lifecycling.
+    observers : Parties
+      -- ^ Observers of the distribution rule.
+    id : Id
+      -- ^ Identifier for the rule contract.
+    description : Text
+      -- ^ Textual description.
+    assetSwapFactoryCid : ContractId AssetSwapFactory.I
+      -- ^ Factory used to create an updated version of the asset swap.
+    newInstrumentObservers : [(Text, Parties)]
+      -- ^ Observers used for the updated version of the asset swap.
+  where
+    signatory providers
+    observer observers, lifecycler
+
+    interface instance Lifecycle.I for DistributionRule where
+      view = Lifecycle.View with lifecycler; id; description
+      evolve Lifecycle.Evolve{eventCid; instrument} = do
+        distribution <- fetch $ fromInterfaceContractId @Distribution.Event eventCid
+
+        -- Get the instrument view
+        v <- BaseInstrument.exerciseInterfaceByKey @Asset.I
+          instrument
+          lifecycler
+          Asset.GetView with viewer = lifecycler
+
+        assertMsg "duplicate underlyings are not supported" $
+          length v.asset.underlyings == length (dedup (map (.referenceAsset) v.asset.underlyings))
+
+        -- Create a new asset swap instrument with an updated instrument key for the underlying that
+        -- paid a dividend.
+        let divUnderlyingFound = find (\u -> u.referenceAsset == distribution.targetInstrument)
+              v.asset.underlyings
+        case divUnderlyingFound of
+          None -> pure (None, [])
+          Some divUnderlying -> do
+            let
+              swapInstrumentAfterDiv = instrument with
+                version = v.asset.instrument.version <> "-exDiv"
+              newUnderlying = divUnderlying with referenceAsset = distribution.newInstrument
+              newUnderlyings = map (\u -> if u == divUnderlying then newUnderlying else u)
+                v.asset.underlyings
+
+            exercise assetSwapFactoryCid AssetSwapFactory.Create with
+              asset = v.asset with
+                instrument = swapInstrumentAfterDiv
+                underlyings = newUnderlyings
+              observers = fromList newInstrumentObservers
+
+            -- Calculate dividend amount (divide by initial fixing)
+            let dividends = map (\d -> scale (divUnderlying.weight / divUnderlying.initialPrice) d)
+                  distribution.perUnitDistribution
+
+            -- Create lifecycle effect
+            effectCid <- toInterfaceContractId <$>
+              create Effect with
+                providers
+                id = distribution.id
+                description = distribution.description
+                targetInstrument = instrument
+                producedInstrument = Some swapInstrumentAfterDiv
+                otherConsumed = []
+                otherProduced = dividends
+                settlementTime = Some distribution.effectiveTime
+                observers = fromList [("RuleObservers", observers)]
+            pure (Some swapInstrumentAfterDiv, [effectCid])
