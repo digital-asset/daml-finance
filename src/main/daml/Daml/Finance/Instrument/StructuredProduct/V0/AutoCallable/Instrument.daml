@@ -1,0 +1,164 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.StructuredProduct.V0.AutoCallable.Instrument where
+
+import DA.Date (daysSinceEpochToDate)
+import DA.Set (singleton)
+import Daml.Finance.Data.V4.Reference.HolidayCalendar (getHolidayCalendars, rollSchedule)
+import Daml.Finance.Data.V4.Time.DateClock (dateToDateClockTime)
+import Daml.Finance.Instrument.StructuredProduct.V0.Util (createAutoCallableClaims)
+import Daml.Finance.Interface.Claims.V4.Claim qualified as Claim (GetClaims(..), I, View(..))
+import Daml.Finance.Interface.Claims.V4.Dynamic.Instrument qualified as DynamicInstrument (CreateNewVersion(..), I, View(..))
+import Daml.Finance.Interface.Claims.V4.Types (EventData)
+import Daml.Finance.Interface.Instrument.Base.V4.Instrument qualified as BaseInstrument (I, View(..), createReference, disclosureUpdateReference, instrumentKey)
+import Daml.Finance.Interface.Instrument.StructuredProduct.V0.AutoCallable.Instrument qualified as AutoCallable (I, View(..))
+import Daml.Finance.Interface.Instrument.StructuredProduct.V0.AutoCallable.Types (AutoCallable(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..), InstrumentKey(..), PartiesMap)
+import Daml.Finance.Interface.Types.Date.V3.DayCount (DayCountConventionEnum)
+import Daml.Finance.Interface.Types.Date.V3.Schedule (PeriodicSchedule(..))
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Util.V4.Date.Calendar (merge)
+import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+
+-- | Type synonym for `Instrument`.
+type T = Instrument
+
+-- | This template models an AutoCallable instrument that pays a conditional coupon.
+--   It is an AutoCallable Barrier Reverse Convertible where the KI barrier is observed at maturity.
+--   It is a single-underlying product.
+--   The instrument is automatically called (redeemed early) if the call barrier is hit.
+--   The conditional coupon is paid in each coupon period unless the coupon barrier has been hit.
+--   Both the call barrier and the coupon barrier are observed only on the last observation date of
+--   each period.
+template Instrument
+  with
+    depository : Party
+      -- ^ The depository of the instrument.
+    issuer : Party
+      -- ^ The issuer of the instrument.
+    id : Id
+      -- ^ An identifier of the instrument.
+    version : Text
+      -- ^ The instrument's version.
+    holdingStandard : HoldingStandard
+      -- ^ The holding standard for holdings referencing this instrument.
+    description : Text
+      -- ^ A description of the instrument.
+    referenceAssetId : Text
+      -- ^ The reference asset ID. For example, in case of an AAPL underlying this should be a valid
+      --   reference to the AAPL fixings to be used for the payoff calculation.
+    putStrike : Decimal
+      -- ^ The strike of the put (as a percentage of the underlying closing price on the first
+      --   observation date).
+    couponBarrier : Decimal
+      -- ^ The coupon barrier (as a percentage of the underlying closing price on the first
+      --   observation date).
+    callBarrier : Decimal
+      -- ^ The barrier used to automatically call the instrument (as a percentage of the underlying
+      --   closing price on the first observation date).
+    finalBarrier : Decimal
+      -- ^ The barrier used to determine the final redemption amount (as a percentage of the
+      --   underlying closing price on the first observation date).
+    couponRate : Decimal
+      -- ^ The fixed coupon rate, either per annum or per coupon period (depending on the
+      --   dayCountConvention below).
+    observationSchedule : PeriodicSchedule
+      -- ^ The schedule for the observation dates. These are used to observe the barrier, determine
+      --   whether the instrument is automatically called and to determine the final redemption
+      --   amount.
+    periodicSchedule : PeriodicSchedule
+      -- ^ The schedule for the periodic coupon payments.
+    holidayCalendarIds : [Text]
+      -- ^ The identifiers of the holiday calendars to be used for the coupon schedule.
+    calendarDataProvider : Party
+      -- ^ The reference data provider to use for the holiday calendar.
+    dayCountConvention : DayCountConventionEnum
+      -- ^ The day count convention used to calculate day count fractions. For example: Act360.
+    currency : InstrumentKey
+      -- ^ The currency of the product. For example, if the product pays in USD this should be a USD
+      --   cash instrument.
+    notional : Decimal
+      -- ^ The notional of the product. This is the face value corresponding to one unit of the
+      --   product. For example, if one product unit corresponds to 1000 USD, this should be 1000.0.
+    observers : PartiesMap
+      -- ^ The observers of the instrument.
+    lastEventTimestamp : Time
+      -- ^ (Market) time of the last recorded lifecycle event. If no event has occurred yet, the
+      --   time of creation should be used.
+    prevEvents : [EventData]
+      -- ^ A list of previous events that have been lifecycled on this instrument so far.
+  where
+    signatory depository, issuer
+    observer Disclosure.flattenObservers observers
+
+    interface instance Claim.I for Instrument where
+      view = Claim.View with acquisitionTime = dateToDateClockTime $ daysSinceEpochToDate 0
+      getClaims Claim.GetClaims{actor} = do
+        -- get the initial claims tree (as of the instrument's acquisition time)
+
+        let
+          getCalendars = getHolidayCalendars actor calendarDataProvider
+          floatingRate = None
+          capRate = None
+          floorRate = None
+          fixingBusinessCenters = []
+
+        assertMsg "Currently only put strike of 100% supported" $ putStrike == 1.00
+        fixingCals <- getHolidayCalendars issuer calendarDataProvider fixingBusinessCenters
+        (schedule, _) <- rollSchedule getCalendars periodicSchedule holidayCalendarIds
+        (callableSchedule, _) <- rollSchedule getCalendars observationSchedule holidayCalendarIds
+        assertMsg "The callable schedule must have the same length as the coupon schedule" $
+          length schedule == length callableSchedule
+        let
+          useAdjustedDatesForDcf = True
+          callableClaims = createAutoCallableClaims dateToDateClockTime schedule callableSchedule
+            periodicSchedule useAdjustedDatesForDcf couponRate dayCountConvention notional currency
+            floatingRate capRate floorRate referenceAssetId couponBarrier callBarrier finalBarrier
+            putStrike $ merge fixingCals
+
+        pure [callableClaims]
+
+    interface instance BaseInstrument.I for Instrument where
+      view = BaseInstrument.View with
+        depository; issuer; id; version; holdingStandard; description
+        validAsOf = lastEventTimestamp
+      getKey = BaseInstrument.instrumentKey this
+
+    interface instance AutoCallable.I for Instrument where
+      view = AutoCallable.View with
+        autoCallable = AutoCallable with
+          instrument = BaseInstrument.instrumentKey this
+          description
+          referenceAssetId
+          putStrike
+          couponBarrier
+          callBarrier
+          finalBarrier
+          couponRate
+          observationSchedule
+          periodicSchedule
+          holidayCalendarIds
+          calendarDataProvider
+          dayCountConvention
+          currency
+          notional
+          lastEventTimestamp
+          prevEvents
+
+    interface instance DynamicInstrument.I for Instrument where
+      view = DynamicInstrument.View with lifecycler = issuer; lastEventTimestamp; prevEvents
+      createNewVersion DynamicInstrument.CreateNewVersion{version; lastEventTimestamp;
+        prevEvents} = do
+          cid <- create this with version; lastEventTimestamp; prevEvents
+          BaseInstrument.createReference issuer $ toInterfaceContractId cid
+          pure $ toInterfaceContractId cid
+
+    interface instance Disclosure.I for Instrument where
+      view = Disclosure.View with disclosureControllers = singleton issuer; observers
+      setObservers = setObserversImpl @Instrument this $
+        Some . BaseInstrument.disclosureUpdateReference $ BaseInstrument.instrumentKey this
+      addObservers = addObserversImpl @Instrument this $
+        Some . BaseInstrument.disclosureUpdateReference $ BaseInstrument.instrumentKey this
+      removeObservers = removeObserversImpl this .
+        Some . BaseInstrument.disclosureUpdateReference $ BaseInstrument.instrumentKey this
