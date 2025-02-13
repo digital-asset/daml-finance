@@ -55,7 +55,7 @@ Bump SDK to 2.10.0. LF protocol update.
 
 Dependency update.
 
-Bumps `daml-ctl` to `2.4.1`.
+Bumps `daml-ctl` to `2.5.0`.
 
 ### ContingentClaims.Lifecycle
 
@@ -63,7 +63,7 @@ Bump SDK to 2.10.0. LF protocol update.
 
 Dependency update.
 
-Bumps `daml-ctl` to `2.4.1`.
+Bumps `daml-ctl` to `2.5.0`.
 
 ### ContingentClaims.Valuation
 
@@ -71,7 +71,7 @@ Bump SDK to 2.10.0. LF protocol update.
 
 Dependency update.
 
-Bumps `daml-ctl` to `2.4.1`.
+Bumps `daml-ctl` to `2.5.0`.
 
 ### Daml.Finance.Account
 
