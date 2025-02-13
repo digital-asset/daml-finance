@@ -1,0 +1,144 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Swap.V0.Fpml.Instrument where
+
+import DA.Date (daysSinceEpochToDate)
+import DA.Set (singleton)
+import Daml.Finance.Data.V4.Reference.HolidayCalendar (getHolidayCalendars, rollSchedule)
+import Daml.Finance.Data.V4.Time.DateClock (dateToDateClockTime)
+import Daml.Finance.Instrument.Swap.V0.Fpml.Util (applyPaymentDaysOffset, calculateClaimsFromSwapStream, createCalculationPeriodicSchedule, createPaymentPeriodicSchedule)
+import Daml.Finance.Interface.Claims.V4.Claim qualified as Claim (GetClaims(..), I, View(..))
+import Daml.Finance.Interface.Claims.V4.Dynamic.Instrument qualified as DynamicInstrument (CreateNewVersion(..), I, View(..))
+import Daml.Finance.Interface.Instrument.Base.V4.Instrument qualified as BaseInstrument (I, View(..), createReference, disclosureUpdateReference, instrumentKey)
+import Daml.Finance.Interface.Instrument.Swap.V0.Fpml.FpmlTypes (DateRelativeToEnum(..), NotionalScheduleValue(..), SwapStream(..))
+import Daml.Finance.Interface.Instrument.Swap.V0.Fpml.Instrument qualified as Fpml (I, View(..))
+import Daml.Finance.Interface.Instrument.Swap.V0.Fpml.Types (Fpml(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..), InstrumentKey(..), PartiesMap)
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+
+-- | Type synonym for `Instrument`.
+type T = Instrument
+
+-- | This template models a swap specified by FpML swapStream modules.
+-- It can contain one or several legs of different types: fix or floating rates
+template Instrument
+  with
+    depository : Party
+      -- ^ The depository of the instrument.
+    issuer : Party
+      -- ^ The issuer of the instrument.
+    id : Id
+      -- ^ An identifier of the instrument.
+    version : Text
+      -- ^ The instrument's version.
+    holdingStandard : HoldingStandard
+      -- ^ The holding standard for holdings referencing this instrument.
+    description : Text
+      -- ^ A description of the instrument.
+    swapStreams : [SwapStream]
+      -- ^ Each element describes a stream of swap payments, for example a regular fixed or floating
+      --   rate.
+    issuerPartyRef : Text
+      -- ^ Used to the identify which counterparty is the issuer in the swapStream.
+    calendarDataProvider : Party
+      -- ^ The reference data provider to use for the holiday calendar.
+    currencies : [InstrumentKey]
+      -- ^ The currencies of the different swap legs, one for each swapStream. For example, if one
+      --   leg pays in USD this should be a USD cash instrument.
+    observers : PartiesMap
+      -- ^ The observers of the instrument.
+    lastEventTimestamp : Time
+      -- ^ (Market) time of the last recorded lifecycle event. If no event has occurred yet, the
+      --   time of creation should be used.
+  where
+    signatory depository, issuer
+    observer Disclosure.flattenObservers observers
+
+    interface instance Claim.I for Instrument where
+      view = Claim.View with acquisitionTime = dateToDateClockTime $ daysSinceEpochToDate 0
+      getClaims Claim.GetClaims{actor} = do
+        -- get the initial claims tree (as of the swap's acquisition time)
+        let
+          calculateSwapStreamClaims (s, ccy) = do
+            let
+              calculationPeriodicSchedule =
+                createCalculationPeriodicSchedule s.calculationPeriodDates
+              paymentPeriodicSchedule = createPaymentPeriodicSchedule s
+              useAdjustedDatesForDcf = True
+              issuerPaysLeg = if s.payerPartyReference == s.receiverPartyReference
+                              then error "payer and receiver must be different counterparties"
+                              else (s.payerPartyReference == issuerPartyRef)
+            -- Verify the payment schedule
+            assertMsg ("The payment schedule must refer to the calculationPeriodDates of the " <>
+              "current swapStream") $
+              s.paymentDates.calculationPeriodDatesReference == s.calculationPeriodDates.id
+            assertMsg "Only payment schedules relative to CalculationPeriodEndDate supported" $
+              s.paymentDates.payRelativeTo == CalculationPeriodEndDate
+            let getCalendars = getHolidayCalendars issuer calendarDataProvider
+            calculationSchedule <- fst <$> rollSchedule getCalendars calculationPeriodicSchedule
+              s.calculationPeriodDates.calculationPeriodDatesAdjustments.businessCenters
+            (paymentScheduleBase, paymentCalendars) <- rollSchedule getCalendars
+              paymentPeriodicSchedule s.paymentDates.paymentDatesAdjustments.businessCenters
+            let
+              paymentSchedule = applyPaymentDaysOffset paymentScheduleBase s.paymentDates
+                paymentCalendars
+            -- If there is an fxLinkedNotionalSchedule, look up which swap leg contains the base
+            -- notional
+            let
+              swapStreamNotionalRef =
+                case s.calculationPeriodAmount.calculation.notionalScheduleValue of
+                  NotionalSchedule_FxLinked fxl ->
+                    find (\e -> case e.calculationPeriodAmount.calculation.notionalScheduleValue of
+                      NotionalSchedule_FxLinked fxl -> False
+                      NotionalSchedule_Regular notionalSchedule ->
+                        notionalSchedule.id == fxl.constantNotionalScheduleReference) swapStreams
+                  NotionalSchedule_Regular n -> None
+            -- Calculate the claims from the current leg (either fix or float)
+            calculateClaimsFromSwapStream
+              s
+              calculationPeriodicSchedule
+              calculationSchedule
+              paymentSchedule
+              swapStreamNotionalRef
+              useAdjustedDatesForDcf
+              issuerPaysLeg
+              ccy
+              issuer
+              calendarDataProvider
+        allClaims <- mapA calculateSwapStreamClaims $ zip swapStreams currencies
+        pure $ concat allClaims
+
+    interface instance BaseInstrument.I for Instrument where
+      view = BaseInstrument.View with
+        depository; issuer; id; version; holdingStandard; description
+        validAsOf = lastEventTimestamp
+      getKey = BaseInstrument.instrumentKey this
+
+    interface instance Fpml.I for Instrument where
+      view = Fpml.View with
+        fpml = Fpml with
+          instrument = BaseInstrument.instrumentKey this
+          description
+          swapStreams
+          issuerPartyRef
+          calendarDataProvider
+          currencies
+          lastEventTimestamp
+
+    interface instance DynamicInstrument.I for Instrument where
+      view = DynamicInstrument.View with lifecycler = issuer; lastEventTimestamp; prevEvents = []
+      createNewVersion DynamicInstrument.CreateNewVersion{version; lastEventTimestamp} = do
+        cid <- create this with version; lastEventTimestamp
+        BaseInstrument.createReference issuer $ toInterfaceContractId cid
+        pure $ toInterfaceContractId cid
+
+    interface instance Disclosure.I for Instrument where
+      view = Disclosure.View with disclosureControllers = singleton issuer; observers
+      setObservers = setObserversImpl this . Some . BaseInstrument.disclosureUpdateReference $
+        BaseInstrument.instrumentKey this
+      addObservers = addObserversImpl this . Some . BaseInstrument.disclosureUpdateReference $
+        BaseInstrument.instrumentKey this
+      removeObservers = removeObserversImpl this . Some . BaseInstrument.disclosureUpdateReference $
+        BaseInstrument.instrumentKey this
