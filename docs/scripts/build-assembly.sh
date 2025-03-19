@@ -20,31 +20,25 @@ cp -r ${root_dir}/src ${docs_dir}/.assembly
 
 # Copy quickstarter code into the assembly
 mkdir ${docs_dir}/.assembly/quickstart-finance
-cp -r ${docs_dir}/code-samples/getting-started/* ${docs_dir}/.assembly/quickstart-finance
+cp -r ${docs_dir}/manually-written/quickstart-finance/* ${docs_dir}/.assembly/quickstart-finance
 
 # Copy finance-lifecycling code into the assembly
 mkdir ${docs_dir}/.assembly/finance-lifecycling
-cp -r ${docs_dir}/code-samples/lifecycling/* ${docs_dir}/.assembly/finance-lifecycling
+cp -r ${docs_dir}/manually-written/finance-lifecycling/* ${docs_dir}/.assembly/finance-lifecycling
 
 # Copy finance-settlement code into the assembly
 mkdir ${docs_dir}/.assembly/finance-settlement
-cp -r ${docs_dir}/code-samples/settlement/* ${docs_dir}/.assembly/finance-settlement
+cp -r ${docs_dir}/manually-written/finance-settlement/* ${docs_dir}/.assembly/finance-settlement
 
 # Copy finance-payoff-modeling code into the assembly
 mkdir ${docs_dir}/.assembly/finance-payoff-modeling
-cp -r ${docs_dir}/code-samples/payoff-modeling/* ${docs_dir}/.assembly/finance-payoff-modeling
+cp -r ${docs_dir}/manually-written/finance-payoff-modeling/* ${docs_dir}/.assembly/finance-payoff-modeling
 
 # Copy upgrades code into the assembly
 mkdir ${docs_dir}/.assembly/finance-upgrades
-cp -r ${docs_dir}/code-samples/upgrades/* ${docs_dir}/.assembly/finance-upgrades
+cp -r ${docs_dir}/manually-written/finance-upgrades/* ${docs_dir}/.assembly/finance-upgrades
 
 # Copy doc build output into assembly file structure
 mkdir -p ${docs_dir}/.assembly/reference/code-documentation
 cp -r ${docs_dir}/build/daml-finance-rst ${docs_dir}/.assembly/reference/code-documentation/daml-finance-rst
 cp ${docs_dir}/build/daml-finance-hoogle.txt ${docs_dir}/.assembly/reference/daml-finance-hoogle.txt
-
-# Update the directory paths in the RST files as per the assembly structure
-find ${docs_dir}/.assembly -type f -name '*.rst' -print0 | while IFS= read -r -d '' file
-do
-    sed -i 's|.. literalinclude:: ../../|.. literalinclude:: |g' $file
-done
