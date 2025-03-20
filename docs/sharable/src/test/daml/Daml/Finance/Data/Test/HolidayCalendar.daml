@@ -1,0 +1,70 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Data.Test.HolidayCalendar where
+
+import DA.Date (DayOfWeek(..), Month(..), date)
+import DA.Map qualified as Map (fromList)
+import DA.Set (singleton)
+import Daml.Finance.Data.V4.Reference.HolidayCalendar (Factory(..))
+import Daml.Finance.Interface.Data.V4.Reference.HolidayCalendar (GetView(..), UpdateCalendar(..))
+import Daml.Finance.Interface.Data.V4.Reference.HolidayCalendar.Factory qualified as HolidayCalendarFactory (Create(..), I)
+import Daml.Finance.Interface.Types.Date.V3.Calendar (HolidayCalendarData(..))
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Script
+
+-- | Test holiday calendars by a reference data provider.
+testHolidayCalendar : Script ()
+testHolidayCalendar = script do
+  [reuters, publicParty] <- createParties ["Reuters", "PublicParty"]
+
+  let
+    calendar = HolidayCalendarData with
+      id = "USNY"
+      weekend = [Saturday, Sunday]
+      holidays = [date 2018 Jan 02, date 2018 Jan 31, date 2018 Feb 1]
+    observers = [("PublicParty", singleton publicParty)]
+
+  -- Reuters defines the USNY holiday calendar
+  -- Create calendar via factory
+  calendarFactoryCid <- toInterfaceContractId @HolidayCalendarFactory.I <$> submit reuters do
+    createCmd Factory with provider = reuters; observers = mempty
+
+  usnyCalendarCid <- submit reuters do
+    exerciseCmd calendarFactoryCid HolidayCalendarFactory.Create with
+      provider = reuters
+      calendar
+      observers = Map.fromList observers
+
+  -- Retrieve the calendar view from the ledger
+  usnyCalendarView <- submit reuters do exerciseCmd usnyCalendarCid GetView with viewer = reuters
+
+  -- Define a new calendar locally
+  let
+    cal2 = HolidayCalendarData with
+      id = "USNY"
+      weekend = [Saturday, Sunday]
+      holidays = [date 2018 Jan 02]
+
+  -- Ensure that publicParty cannot update the calendar
+  submitMustFail publicParty do
+    exerciseCmd usnyCalendarCid UpdateCalendar with
+      newCalendar = cal2
+
+  -- Reuters updates the USNY calendar
+  usnyCalendarCid2 <- submit reuters do
+    exerciseCmd usnyCalendarCid UpdateCalendar with
+      newCalendar = cal2
+
+  -- Retrieve the updated calendar from the ledger
+  usnyCalendarView2 <- submit reuters do exerciseCmd usnyCalendarCid2 GetView with viewer = reuters
+
+  -- Verify that the updated calendar now has different holidays
+  assertMsg "The calendars should now have different holidays"
+    $ usnyCalendarView.calendar.holidays /= usnyCalendarView2.calendar.holidays
+
+  -- Archive calendar
+  submit reuters do
+    archiveCmd calendarFactoryCid
+
+  pure ()

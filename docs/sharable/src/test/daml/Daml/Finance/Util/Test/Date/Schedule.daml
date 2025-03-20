@@ -1,0 +1,426 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Util.Test.Date.Schedule where
+
+import DA.Assert ((===))
+import DA.Date as D
+import DA.List (head, init, tail)
+import Daml.Finance.Interface.Types.Date.V3.Calendar (BusinessDayAdjustment(..), BusinessDayConventionEnum(..), HolidayCalendarData(..))
+import Daml.Finance.Interface.Types.Date.V3.RollConvention (Period(..), PeriodEnum(..), RollConventionEnum(..))
+import Daml.Finance.Interface.Types.Date.V3.Schedule (Frequency(..), PeriodicSchedule(..), Schedule(..), ScheduleFrequency(..), SchedulePeriod(..), StubPeriodTypeEnum(..))
+import Daml.Finance.Util.V4.Date.Schedule (createSchedule)
+import Daml.Script
+
+cals : [HolidayCalendarData]
+cals = [ HolidayCalendarData with
+          id = "USNY"
+          weekend = [Saturday, Sunday]
+          holidays = [D.date 2019 Dec 19]
+       ]
+
+example : PeriodicSchedule
+example = PeriodicSchedule with
+  businessDayAdjustment =
+    BusinessDayAdjustment with calendarIds = ["USNY"]; convention = ModifiedFollowing
+  effectiveDateBusinessDayAdjustment = None
+  terminationDateBusinessDayAdjustment = None
+  frequency = Periodic Frequency with
+    rollConvention = DOM 30; period = Period with period = M; periodMultiplier = 3
+  effectiveDate = D.date 2018 Nov 15
+  firstRegularPeriodStartDate = Some $ D.date 2018 Nov 30
+  lastRegularPeriodEndDate = Some $ D.date 2019 Nov 30
+  stubPeriodType = None
+  terminationDate = D.date 2019 Dec 15
+
+expectedResultBothStub : Schedule
+expectedResultBothStub =
+  [ SchedulePeriod with
+      unadjustedStartDate = D.date 2018 Nov 15
+      unadjustedEndDate = D.date 2018 Nov 30
+      adjustedStartDate = D.date 2018 Nov 15
+      adjustedEndDate = D.date 2018 Nov 30
+      stubType = Some ShortInitial
+  , SchedulePeriod with
+      unadjustedStartDate = D.date 2018 Nov 30
+      unadjustedEndDate = D.date 2019 Feb 28
+      adjustedStartDate = D.date 2018 Nov 30
+      adjustedEndDate = D.date 2019 Feb 28
+      stubType = None
+  , SchedulePeriod with
+      unadjustedStartDate = D.date 2019 Feb 28
+      unadjustedEndDate = D.date 2019 May 30
+      adjustedStartDate = D.date 2019 Feb 28
+      adjustedEndDate = D.date 2019 May 30
+      stubType = None
+  , SchedulePeriod with
+      unadjustedStartDate = D.date 2019 May 30
+      unadjustedEndDate = D.date 2019 Aug 30
+      adjustedStartDate = D.date 2019 May 30
+      adjustedEndDate = D.date 2019 Aug 30
+      stubType = None
+  , SchedulePeriod with
+      unadjustedStartDate = D.date 2019 Aug 30
+      unadjustedEndDate = D.date 2019 Nov 30
+      adjustedStartDate = D.date 2019 Aug 30
+      adjustedEndDate = D.date 2019 Nov 29
+      stubType = None
+  , SchedulePeriod with
+      unadjustedStartDate = D.date 2019 Nov 30
+      unadjustedEndDate = D.date 2019 Dec 15
+      adjustedStartDate = D.date 2019 Nov 29
+      adjustedEndDate = D.date 2019 Dec 16
+      stubType = Some ShortFinal
+  ]
+
+setDates : Date -> Optional Date -> Optional Date -> Date -> PeriodicSchedule -> PeriodicSchedule
+setDates effective firstRegularStart lastRegularEnd termination schedule =
+  schedule with
+    effectiveDate = effective
+    firstRegularPeriodStartDate = firstRegularStart
+    lastRegularPeriodEndDate = lastRegularEnd
+    terminationDate = termination
+
+setStubType : StubPeriodTypeEnum -> PeriodicSchedule -> PeriodicSchedule
+setStubType stubType schedule = schedule with stubPeriodType = Some stubType
+
+test_base : Script ()
+test_base = script do
+  createSchedule cals example === expectedResultBothStub
+
+test_reg_periods_only : Script ()
+test_reg_periods_only = script do
+  -- Regular periods only
+  let
+    testCase = setDates (D.date 2018 Nov 30) None None (D.date 2019 Nov 30) example
+    expectedResult = (tail . init) expectedResultBothStub
+  createSchedule cals testCase === expectedResult
+
+test_regStart_equal_effective_smaller_termination : Script ()
+test_regStart_equal_effective_smaller_termination = script do
+  -- RegStart == Effective < Termination
+  let
+    testCase =
+      setDates (D.date 2018 Nov 30) (Some $ D.date 2018 Nov 30) None (D.date 2019 Nov 30) example
+    expectedResult = (tail . init) expectedResultBothStub
+  createSchedule cals testCase === expectedResult
+
+test_regStart_smaller_effective_smaller_termination : Script ()
+test_regStart_smaller_effective_smaller_termination = script do
+  -- RegStart < Effective < Termination
+  let
+    testCase =
+      setDates (D.date 2018 Nov 15) (Some $ D.date 2018 Nov 30) None (D.date 2019 Nov 30) example
+    expectedResult = init expectedResultBothStub
+  createSchedule cals testCase === expectedResult
+
+test_effective_smaller_regStart_equal_termination : Script ()
+test_effective_smaller_regStart_equal_termination = script do
+  -- Effective < RegStart == Termination
+  let
+    testCase =
+      setDates (D.date 2018 Nov 15) (Some $ D.date 2019 Nov 30) None (D.date 2019 Nov 30) example
+    expectedResult =
+      [ SchedulePeriod with
+          unadjustedStartDate = D.date 2018 Nov 15
+          unadjustedEndDate = D.date 2019 Nov 30
+          adjustedStartDate = D.date 2018 Nov 15
+          adjustedEndDate = D.date 2019 Nov 29
+          stubType = Some LongInitial
+      ]
+  createSchedule cals testCase === expectedResult
+
+test_regEnd_equal_effective_smaller_termination : Script ()
+test_regEnd_equal_effective_smaller_termination = script do
+  -- RegEnd == Effective < Termination
+  let
+    testCase =
+      setDates (D.date 2018 Nov 30) None (Some $ D.date 2018 Nov 30) (D.date 2019 Nov 30) example
+    expectedResult =
+      [ SchedulePeriod with
+          unadjustedStartDate = D.date 2018 Nov 30
+          unadjustedEndDate = D.date 2019 Nov 30
+          adjustedStartDate = D.date 2018 Nov 30
+          adjustedEndDate = D.date 2019 Nov 29
+          stubType = Some LongFinal
+      ]
+  createSchedule cals testCase === expectedResult
+
+test_effective_smaller_regEnd_smaller_termination : Script ()
+test_effective_smaller_regEnd_smaller_termination = script do
+  -- Effective < RegEnd < Termination
+  let
+    testCase =
+      setDates (D.date 2018 Nov 30) None (Some $ D.date 2019 Nov 30) (D.date 2019 Dec 15) example
+  createSchedule cals testCase === tail expectedResultBothStub
+
+test_effective_smaller_termination_equal_regEnd : Script ()
+test_effective_smaller_termination_equal_regEnd = script do
+  -- Effective < Termination == RegEnd
+  let
+    testCase =
+      setDates (D.date 2018 Nov 30) None (Some $ D.date 2019 Nov 30) (D.date 2019 Nov 30) example
+    expectedResult = (tail . init) expectedResultBothStub
+  createSchedule cals testCase === expectedResult
+
+test_effective_smaller_firstReg_equal_lastReg_smaller_termination : Script ()
+test_effective_smaller_firstReg_equal_lastReg_smaller_termination = script do
+  -- Effective < FirstRegular == LastRegular < Termination
+  let
+    testCase =
+      setDates (D.date 2018 Oct 15) (Some $ D.date 2019 Jan 30) (Some $ D.date 2019 Jan 30)
+        (D.date 2019 Dec 15) example
+    expectedResult =
+      [ SchedulePeriod with
+          unadjustedStartDate = D.date 2018 Oct 15
+          unadjustedEndDate = D.date 2019 Jan 30
+          adjustedStartDate = D.date 2018 Oct 15
+          adjustedEndDate = D.date 2019 Jan 30
+          stubType = Some LongInitial
+      , SchedulePeriod with
+          unadjustedStartDate = D.date 2019 Jan 30
+          unadjustedEndDate = D.date 2019 Dec 15
+          adjustedStartDate = D.date 2019 Jan 30
+          adjustedEndDate = D.date 2019 Dec 16
+          stubType = Some LongFinal
+      ]
+  createSchedule cals testCase === expectedResult
+
+test_shortInitial : Script ()
+test_shortInitial = script do
+  -- Implicit Stubs
+  -- exact match
+  let
+    testCase =
+      setDates (D.date 2018 Nov 30) None None (D.date 2019 Nov 30)
+      $ setStubType ShortInitial
+      $ example
+    expectedResult = (tail . init) expectedResultBothStub
+  createSchedule cals testCase === expectedResult
+
+test_longFinal : Script ()
+test_longFinal = script do
+  let
+    testCase =
+      setDates (D.date 2018 Nov 30) None None (D.date 2019 Nov 30)
+      $ setStubType LongFinal
+      $ example
+    expectedResult = (tail . init) expectedResultBothStub
+  createSchedule cals testCase === expectedResult
+
+test_twoPeriods_shortInitial : Script ()
+test_twoPeriods_shortInitial = script do
+  -- Two Periods ShortInitial
+  let
+    testCase =
+      setDates (D.date 2018 Nov 15) None None (D.date 2019 Feb 28)
+      $ setStubType ShortInitial
+      $ example
+    expectedResult = take 2 expectedResultBothStub
+  createSchedule cals testCase === expectedResult
+
+test_twoPeriods_longInitial : Script ()
+test_twoPeriods_longInitial = script do
+  -- Two Periods LongInitial
+  let
+    testCase =
+      setDates (D.date 2018 Nov 15) None None (D.date 2019 Feb 28)
+      $ setStubType LongInitial
+      $ example
+    expectedResult =
+      [ SchedulePeriod with
+          unadjustedStartDate = D.date 2018 Nov 15
+          unadjustedEndDate = D.date 2019 Feb 28
+          adjustedStartDate = D.date 2018 Nov 15
+          adjustedEndDate = D.date 2019 Feb 28
+          stubType = Some LongInitial
+      ]
+  createSchedule cals testCase === expectedResult
+
+test_singlePeriod_shortInitial : Script ()
+test_singlePeriod_shortInitial = script do
+  -- Single Period ShortInitial
+  let
+    testCase =
+      setDates (D.date 2018 Nov 15) None None (D.date 2018 Nov 30)
+      $ setStubType ShortInitial
+      $ example
+    expectedResult = take 1 expectedResultBothStub
+  createSchedule cals testCase === expectedResult
+
+test_singlePeriod_longInitial : Script ()
+test_singlePeriod_longInitial = script do
+  -- Single Period LongInitial
+  let
+    testCase =
+      setDates (D.date 2018 Nov 15) None None (D.date 2018 Nov 30)
+      $ setStubType LongInitial
+      $ example
+    expectedResultExceptStubInfo = head expectedResultBothStub
+    expectedResult = [expectedResultExceptStubInfo with stubType = Some LongInitial]
+  createSchedule cals testCase === expectedResult
+
+test_twoPeriods_shortFinal : Script ()
+test_twoPeriods_shortFinal = script do
+  -- Two Periods ShortFinal
+  let
+    testCase =
+      setDates (D.date 2019 Aug 30) None None (D.date 2019 Dec 15)
+      $ setStubType ShortFinal
+      $ example
+    expectedResult = drop 4 expectedResultBothStub
+  createSchedule cals testCase === expectedResult
+
+test_twoPeriods_longFinal : Script ()
+test_twoPeriods_longFinal = script do
+  -- Two Periods LongFinal
+  let
+    testCase =
+      setDates (D.date 2019 Aug 30) None None (D.date 2019 Dec 15)
+      $ setStubType LongFinal
+      $ example
+    expectedResult =
+      [ SchedulePeriod with
+          unadjustedStartDate = D.date 2019 Aug 30
+          unadjustedEndDate = D.date 2019 Dec 15
+          adjustedStartDate = D.date 2019 Aug 30
+          adjustedEndDate = D.date 2019 Dec 16
+          stubType = Some LongFinal
+      ]
+  createSchedule cals testCase === expectedResult
+
+test_singlePeriod_shortFinal : Script ()
+test_singlePeriod_shortFinal = script do
+  -- Single Period ShortFinal
+  let
+    testCase =
+      setDates (D.date 2019 Nov 30) None None (D.date 2019 Dec 15)
+      $ setStubType ShortFinal
+      $ example
+    expectedResult =
+      [ SchedulePeriod with
+          unadjustedStartDate = D.date 2019 Nov 30
+          unadjustedEndDate = D.date 2019 Dec 15
+          adjustedStartDate = D.date 2019 Nov 29
+          adjustedEndDate = D.date 2019 Dec 16
+          stubType = Some ShortFinal
+      ]
+  createSchedule cals testCase === expectedResult
+
+test_singlePeriod_longFinal : Script ()
+test_singlePeriod_longFinal = script do
+  -- Single Period LongFinal
+  let
+    testCase =
+      setDates (D.date 2019 Nov 30) None None (D.date 2019 Dec 15)
+      $ setStubType LongFinal
+      $ example
+    expectedResult =
+      [ SchedulePeriod with
+          unadjustedStartDate = D.date 2019 Nov 30
+          unadjustedEndDate = D.date 2019 Dec 15
+          adjustedStartDate = D.date 2019 Nov 29
+          adjustedEndDate = D.date 2019 Dec 16
+          stubType = Some LongFinal
+      ]
+  createSchedule cals testCase === expectedResult
+
+testSimplifiedForTutorial : Script ()
+testSimplifiedForTutorial = script do
+  let
+-- CREATE_PERIODIC_SCHEDULE_BEGIN
+    periodicSchedule = PeriodicSchedule with
+      businessDayAdjustment =
+        BusinessDayAdjustment with calendarIds = ["USNY"]; convention = ModifiedFollowing
+      effectiveDateBusinessDayAdjustment = None
+      terminationDateBusinessDayAdjustment = None
+      frequency = Periodic Frequency with
+        rollConvention = DOM 30; period = Period with period = M; periodMultiplier = 3
+      effectiveDate = D.date 2018 Nov 30
+      firstRegularPeriodStartDate = None
+      lastRegularPeriodEndDate = None
+      stubPeriodType = None
+      terminationDate = D.date 2019 Nov 30
+-- CREATE_PERIODIC_SCHEDULE_END
+
+-- CREATE_EXPECTED_SCHEDULE_RESULT_BEGIN
+    expectedResult =
+      [ SchedulePeriod with
+          unadjustedStartDate = D.date 2018 Nov 30
+          unadjustedEndDate = D.date 2019 Feb 28
+          adjustedStartDate = D.date 2018 Nov 30
+          adjustedEndDate = D.date 2019 Feb 28
+          stubType = None
+      , SchedulePeriod with
+          unadjustedStartDate = D.date 2019 Feb 28
+          unadjustedEndDate = D.date 2019 May 30
+          adjustedStartDate = D.date 2019 Feb 28
+          adjustedEndDate = D.date 2019 May 30
+          stubType = None
+      , SchedulePeriod with
+          unadjustedStartDate = D.date 2019 May 30
+          unadjustedEndDate = D.date 2019 Aug 30
+          adjustedStartDate = D.date 2019 May 30
+          adjustedEndDate = D.date 2019 Aug 30
+          stubType = None
+      , SchedulePeriod with
+          unadjustedStartDate = D.date 2019 Aug 30
+          unadjustedEndDate = D.date 2019 Nov 30
+          adjustedStartDate = D.date 2019 Aug 30
+          adjustedEndDate = D.date 2019 Nov 29
+          stubType = None
+      ]
+-- CREATE_EXPECTED_SCHEDULE_RESULT_END
+
+-- CREATE_SCHEDULE_BEGIN
+  createSchedule cals periodicSchedule === expectedResult
+-- CREATE_SCHEDULE_END
+
+  let
+-- CREATE_PERIODIC_SCHEDULE_WITH_STUB_BEGIN
+    periodicScheduleWithStub = PeriodicSchedule with
+      businessDayAdjustment =
+        BusinessDayAdjustment with calendarIds = ["USNY"]; convention = ModifiedFollowing
+      effectiveDateBusinessDayAdjustment = None
+      terminationDateBusinessDayAdjustment = None
+      frequency = Periodic Frequency with
+        rollConvention = DOM 30; period = Period with period = M; periodMultiplier = 3
+      effectiveDate = D.date 2018 Dec 30
+      firstRegularPeriodStartDate = Some $ D.date 2019 Feb 28
+      lastRegularPeriodEndDate = None
+      stubPeriodType = None
+      terminationDate = D.date 2019 Nov 30
+-- CREATE_PERIODIC_SCHEDULE_WITH_STUB_END
+
+-- CREATE_EXPECTED_SCHEDULE_RESULT_WITH_STUB_BEGIN
+    expectedResultWithStub =
+      [ SchedulePeriod with
+          unadjustedStartDate = D.date 2018 Dec 30
+          unadjustedEndDate = D.date 2019 Feb 28
+          adjustedStartDate = D.date 2018 Dec 31
+          adjustedEndDate = D.date 2019 Feb 28
+          stubType = Some ShortInitial
+      , SchedulePeriod with
+          unadjustedStartDate = D.date 2019 Feb 28
+          unadjustedEndDate = D.date 2019 May 30
+          adjustedStartDate = D.date 2019 Feb 28
+          adjustedEndDate = D.date 2019 May 30
+          stubType = None
+      , SchedulePeriod with
+          unadjustedStartDate = D.date 2019 May 30
+          unadjustedEndDate = D.date 2019 Aug 30
+          adjustedStartDate = D.date 2019 May 30
+          adjustedEndDate = D.date 2019 Aug 30
+          stubType = None
+      , SchedulePeriod with
+          unadjustedStartDate = D.date 2019 Aug 30
+          unadjustedEndDate = D.date 2019 Nov 30
+          adjustedStartDate = D.date 2019 Aug 30
+          adjustedEndDate = D.date 2019 Nov 29
+          stubType = None
+      ]
+-- CREATE_EXPECTED_SCHEDULE_RESULT_WITH_STUB_END
+
+-- CREATE_SCHEDULE_WITH_STUB_BEGIN
+  createSchedule cals periodicScheduleWithStub === expectedResultWithStub
+-- CREATE_SCHEDULE_WITH_STUB_END

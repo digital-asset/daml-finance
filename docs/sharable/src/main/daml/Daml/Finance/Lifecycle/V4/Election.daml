@@ -1,0 +1,95 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Lifecycle.V4.Election where
+
+import DA.Set (singleton)
+import Daml.Finance.Interface.Lifecycle.V4.Election qualified as Election (Apply(..), ApplyElection(..), I, View(..))
+import Daml.Finance.Interface.Lifecycle.V4.Election.Factory qualified as ElectionFactory (Create(..), I, View(..))
+import Daml.Finance.Interface.Lifecycle.V4.Event qualified as Event (I, View(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (Id(..), InstrumentKey, PartiesMap)
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+
+-- | Type synonym for `Election`.
+type T = Election
+
+-- | An election, such as the exercise of an option.
+template Election
+  with
+    elector : Party
+      -- ^ Entity making the election.
+    counterparty : Party
+      -- ^ Faces the `elector` in the `Holding`.
+    provider : Party
+      -- ^ The provider of the election is an entity that has the authority to process the election
+      --   and create a new instrument version.
+    id : Id
+      -- ^ Election identifier.
+    description : Text
+      -- ^ A human readable description of the election.
+    instrument : InstrumentKey
+      -- ^ The instrument to which the election applies.
+    amount : Decimal
+      -- ^ Number of units of instrument to which the election applies.
+    claim : Text
+      -- ^ The tag corresponding to the elected sub-tree.
+    electorIsOwner : Bool
+      -- ^ `True` if the elector is the owner of a claim, `False` otherwise.
+    electionTime : Time
+      -- ^ Time at which the election is put forward.
+    observers : PartiesMap
+      -- ^ A set of observers.
+  where
+    signatory elector, provider
+    observer Disclosure.flattenObservers observers
+
+    interface instance Election.I for Election where
+      view = Election.View with
+        id; description; amount; elector; counterparty; electorIsOwner; observers; provider
+        instrument; claim
+      apply self Election.Apply{observableCids; exercisableCid} = do
+        let v = view $ toInterface @Election.I this
+        (newInstrument, effects) <- exercise exercisableCid Election.ApplyElection with
+          observableCids
+          electionCid = toInterfaceContractId self
+        archive self -- this is needed as we can't write postconsuming choices on interfaces
+        pure (newInstrument, effects)
+
+    interface instance Disclosure.I for Election where
+      view = Disclosure.View with disclosureControllers = singleton elector; observers
+      setObservers = setObserversImpl @Election @Disclosure.I this None
+      addObservers = addObserversImpl @Election @Disclosure.I this None
+      removeObservers = removeObserversImpl @Election @Disclosure.I this None
+
+    interface instance Event.I for Election where
+      view = Event.View with
+        providers = singleton provider
+        id
+        description
+        eventTime = electionTime
+
+-- | Factory template to create an `Election`.
+template Factory
+  with
+    provider : Party
+      -- ^ The provider of the `Factory`.
+    observers : PartiesMap
+      -- ^ A set of observers.
+  where
+    signatory provider
+    observer Disclosure.flattenObservers observers
+
+    interface instance ElectionFactory.I for Factory where
+      view = ElectionFactory.View with provider
+      create' ElectionFactory.Create{id; description; claim; elector; counterparty; electorIsOwner;
+        electionTime; observers; amount; provider; instrument} =
+        toInterfaceContractId <$> create Election with
+          id; description; claim; elector; counterparty; electorIsOwner; electionTime
+          observers; amount; provider; instrument
+
+    interface instance Disclosure.I for Factory where
+      view = Disclosure.View with disclosureControllers = singleton provider; observers
+      setObservers = setObserversImpl @Factory @Disclosure.I this None
+      addObservers = addObserversImpl @Factory @Disclosure.I this None
+      removeObservers = removeObserversImpl @Factory @Disclosure.I this None

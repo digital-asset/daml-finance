@@ -1,0 +1,314 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Settlement.Test.Intermediated where
+
+import DA.Date (addDays, toDateUTC)
+import DA.Map qualified as Map (fromList)
+import DA.Set qualified as Set (fromList, singleton)
+import DA.Time (time)
+import Daml.Finance.Holding.V4.Factory qualified as Holding (Factory(..))
+import Daml.Finance.Holding.V4.TransferableFungible qualified as TransferableFungible (T)
+import Daml.Finance.Interface.Holding.V4.Holding qualified as Holding (I)
+import Daml.Finance.Interface.Holding.V4.Util (undisclose)
+import Daml.Finance.Interface.Settlement.V4.Batch qualified as Batch (Settle(..))
+import Daml.Finance.Interface.Settlement.V4.Factory qualified as SettlementFactory (I, Instruct(..))
+import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (Allocate(..), Approve(..), I)
+import Daml.Finance.Interface.Settlement.V4.RouteProvider qualified as RouteProvider (Discover(..), I)
+import Daml.Finance.Interface.Settlement.V4.Types (Allocation(..), Approval(..), Step(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..))
+import Daml.Finance.Interface.Util.V3.Common (qty)
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (AddObservers(..), I, RemoveObservers(..))
+import Daml.Finance.Settlement.V4.Factory qualified as Settlement (Factory(..))
+import Daml.Finance.Settlement.V4.Hierarchy (Hierarchy(..))
+import Daml.Finance.Settlement.V4.RouteProvider.IntermediatedStatic (IntermediatedStatic(..))
+import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit, submitExerciseInterfaceByKeyCmd)
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.Holding qualified as Holding (verifyNoObservers, verifyOwnerOfHolding)
+import Daml.Finance.Test.Util.HoldingFactory (createHoldingFactory)
+import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
+import Daml.Script
+
+data TestParties = TestParties
+  with
+    bank1 : Party
+      -- ^ Custodian of Buyer's cash holdings.
+    bank2 : Party
+      -- ^ Custodian of Seller's cash holdings.
+    cb : Party
+      -- ^ The Central Bank is the depository and the issuer of the cash instrument. It also acts as
+      --   custodian for the cash holdings of Bank 1 and Bank 2.
+    csd : Party
+      -- ^ The Central Security Depository is the depository of the equity instrument. It also acts
+      --   as custodian for the equity holdings of Custodian 1 and Custodian 2.
+    custodian1 : Party
+      -- ^ Custodian of Buyer's equity holdings.
+    custodian2 : Party
+      -- ^ Custodian of Seller's equity holdings.
+    issuer : Party
+      -- ^ Issuer of the equity instrument.
+    buyer : Party
+      -- ^ Sends money to Seller.
+    seller : Party
+      -- ^ Sends shares to Buyer.
+    agent : Party
+      -- ^ Party that requests and executes the settlement of the transaction between Buyer and
+      --   Seller.
+    delegatee : Party
+      -- ^ Party that is granted the right to allocate Buyer's holdings on her behalf.
+    provider : Party
+      -- ^ Acts as provider of account and holding factory.
+    publicParty : Party
+      -- ^ The public party. Every party can readAs the public party.
+
+-- Cross-custodial payment with delegation.
+run1 : Script ()
+run1 = run True
+
+-- Cross-custodial payment without delegation.
+run2 : Script ()
+run2 = run False
+
+-- Cross-custodial payment
+-- Dvp of $ 200000 vs 1250 shares.
+-- +------------------------------------------------------+
+-- | Accounts                                             |
+-- +------------------------------+-----------------------+
+-- | structure:                   | used for:             |
+-- +------------------------------+-----------------------+
+-- |        Central Bank          |                       |
+-- |            /  \              | central bank money    |
+-- |     Bank 1      Bank 2       |                       |
+-- |         /        \           | commercial bank money |
+-- |    Buyer          Seller     |                       |
+-- |         \        /           | securities            |
+-- | Custodian 2      Custodian 1 |                       |
+-- |            \   /             | securities            |
+-- |  Central Security Depository |                       |
+-- +------------------------------+-----------------------+
+--
+-- Setup and assumptions:
+-- 1. The cash settles via Bank 1 and Bank 2, and the Central Bank (CB),
+--    i.e., Buyer -> Bank 1 -> CB -> Bank 2 -> Seller.
+-- 2. The security settles via Custodian 1 and Custodian 2, and the Central Security Depository
+--    (CSD), i.e., Buyer <- Custodian 1 <- CSD -> Custodian 2 <- Seller.
+-- 3. The cash with CB as custodian (i.e., Central Bank Money) settles off ledger, all other cash
+--    and securities settle on ledger.
+-- 4. The CSD does not need credit/debit its accounts actively, rather this happens as a consequence
+--    of transfers of holdings (with CSD as custodian) between Custodian 1 and Custodian 2.
+-- 5. The intermediary banks/custodians allocate and approve their instructions with the
+--    Buyer/Seller by a direct credit/debit of the Buyer's/Seller's accounts.
+-- 6. Buyer and Seller allocate and approve their instructions by pledging holdings and taking
+--    delivery to their accounts, respectively.
+run : Bool -> Script ()
+run useDelegatee = script do
+  -- Create parties
+  TestParties{..} <- setupParties
+  let pp = [("PublicParty", Set.singleton publicParty)]
+
+  -- Create account factory
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory provider pp
+
+  -- Create holding factory
+  holdingFactory <- createHoldingFactory
+    Holding.Factory with provider; id = Id "Holding Factory"; observers = Map.fromList pp
+
+  -- Create accounts
+  let
+    createAccounts description custodian = mapA (Account.createAccount description [publicParty]
+      accountFactoryCid holdingFactory [] Account.Owner custodian)
+  -- cash
+  [buyerCashAccount] <- createAccounts "Cash Account" bank1 [buyer]
+  [sellerCashAccount] <- createAccounts "Cash Account" bank2 [seller]
+  [bank1CashAccount, bank2CashAccount] <- createAccounts "Cash Account" cb [bank1, bank2]
+  -- asset
+  [custodian1DepoAccount, custodian2DepoAccount] <- createAccounts "Securities Account" csd
+    [custodian1, custodian2]
+  [buyerDepoAccount] <- createAccounts "Securities Account" custodian2 [buyer]
+  [custodian1OwnDepoAccount, sellerDepoAccount] <- createAccounts "Securities Account" custodian1
+    [custodian1, seller]
+
+  -- Distribute
+  -- cash
+  now <- getTime
+  cashInstrument <- Instrument.originate cb cb "USD" TransferableFungible "United States Dollar" []
+    now
+  [buyerCashCid] <- mapA (Account.credit [publicParty] cashInstrument 200_000.0) [buyerCashAccount]
+
+  -- assets
+  assetInstrument <- Instrument.originate csd issuer "SHARE" TransferableFungible "Stock" [] now
+  [sellerAssetCid, custodian1AssetCid] <- mapA
+      (Account.credit [publicParty] assetInstrument 1_250.0)
+      [sellerDepoAccount, custodian1DepoAccount]
+
+  -- Settlement steps
+  let
+    cashQuantity = qty 200_000.0 cashInstrument
+    assetQuantity = qty 1_250.0 assetInstrument
+    steps =
+      [ -- Payment step
+        Step with sender = buyer; receiver = seller; quantity = cashQuantity
+        -- Delivery step
+      , Step with sender = seller; receiver = buyer; quantity = assetQuantity
+      ]
+    settlementTime = time (addDays (toDateUTC now) 1) 0 0 0
+
+  -- Discover settlement routes
+    paymentRoute = Hierarchy with
+      rootCustodian = cb
+      pathsToRootCustodian = [[buyer, bank1], [seller, bank2]]
+    deliveryRoute = Hierarchy with
+      rootCustodian = csd
+      pathsToRootCustodian = [[buyer, custodian2], [seller, custodian1]]
+    paths = Map.fromList [("USD", paymentRoute), ("SHARE", deliveryRoute)]
+  routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit agent do
+    createCmd IntermediatedStatic with provider = agent; paths; observers = mempty
+  routedSteps <- submit agent do
+    exerciseCmd routeProviderCid RouteProvider.Discover with
+      discoverors = Set.singleton agent; contextId = None; steps
+
+  -- Instruct settlement
+  settlementFactoryCid <- toInterfaceContractId @SettlementFactory.I <$> submit agent do
+    createCmd Settlement.Factory with provider = agent; observers = mempty
+  (batchCid, [sellerInstructionCid, custodian1InstructionCid, custodian2InstructionCid,
+    buyerInstructionCid, bank1InstructionCid, bank2InstructionCid]) <-
+    submit agent do
+      exerciseCmd settlementFactoryCid SettlementFactory.Instruct with
+        instructor = agent
+        consenters = mempty
+        settlers = Set.singleton agent
+        id = Id "SHARE 200000.0@160.0USD DVP"; description = "Crosspayment"; contextId = None
+        routedSteps; settlementTime = Some settlementTime
+
+  -- Allocate and approve instructions
+  (buyerInstructionCid, _) <-
+    if useDelegatee then
+      do
+        -- delegate
+        delegationCid <- submit buyer do
+          createCmd AllocationDelegation with delegator = buyer; delegatee
+        -- disclose
+        let observerContext = ("delegation123", Set.singleton delegatee)
+        buyerCashCid <- fromInterfaceContractId @Holding.I <$> submit buyer do
+          exerciseCmd (toInterfaceContractId @Disclosure.I buyerCashCid)
+            Disclosure.AddObservers with
+              disclosers = Set.singleton buyer; observersToAdd = observerContext
+        buyerInstructionCid <- fromInterfaceContractId @Instruction.I <$> submit buyer do
+          exerciseCmd (toInterfaceContractId @Disclosure.I buyerInstructionCid)
+            Disclosure.AddObservers with
+              disclosers = Set.singleton buyer; observersToAdd = observerContext
+        Account.submitExerciseInterfaceByKeyCmd @Disclosure.I [buyer] [] buyerCashAccount
+          Disclosure.AddObservers with
+            disclosers = Set.singleton buyer; observersToAdd = observerContext
+        -- allocate (on behalf of buyer)
+        t <- submit delegatee do
+          exerciseCmd delegationCid OnBehalfAllocation with
+            id = observerContext._1; instructionCid = buyerInstructionCid; holdingCid = buyerCashCid
+        -- undisclose
+        Account.submitExerciseInterfaceByKeyCmd @Disclosure.I [buyer] [] buyerCashAccount
+          Disclosure.RemoveObservers with
+            disclosers = Set.singleton buyer; observersToRemove = observerContext
+        pure t
+    else
+      submit buyer do
+        exerciseCmd buyerInstructionCid Instruction.Allocate with
+          actors = Set.singleton buyer; allocation = Pledge buyerCashCid
+  buyerInstructionCid <- submit bank1 do
+    exerciseCmd buyerInstructionCid Instruction.Approve with
+      actors = Set.singleton bank1; approval = DebitSender
+  bank2InstructionCid <- submit seller do
+    exerciseCmd bank2InstructionCid Instruction.Approve with
+      actors = Set.singleton seller; approval = TakeDelivery sellerCashAccount
+  (bank2InstructionCid, _) <- submit bank2 do
+    exerciseCmd bank2InstructionCid Instruction.Allocate with
+      actors = Set.singleton bank2; allocation = CreditReceiver
+  (bank1InstructionCid, _) <- submitMulti [bank1, cb] [] do
+    exerciseCmd bank1InstructionCid Instruction.Allocate with
+      actors = Set.fromList [bank1, cb]; allocation = SettleOffledger
+  bank1InstructionCid <- submitMulti [bank2, cb] [] do
+    exerciseCmd bank1InstructionCid Instruction.Approve with
+      actors = Set.fromList [bank2, cb]; approval = SettleOffledgerAcknowledge
+  (sellerInstructionCid, _) <- submit seller do
+    exerciseCmd sellerInstructionCid Instruction.Allocate with
+      actors = Set.singleton seller; allocation = Pledge sellerAssetCid
+  sellerInstructionCid <- submit custodian1 do
+    exerciseCmd sellerInstructionCid Instruction.Approve with
+      actors = Set.singleton custodian1; approval = DebitSender
+  (custodian1InstructionCid, _) <- submit custodian1 do
+    exerciseCmd custodian1InstructionCid Instruction.Allocate with
+      actors = Set.singleton custodian1; allocation = Pledge custodian1AssetCid
+  custodian1InstructionCid <- submit custodian2 do
+     exerciseCmd custodian1InstructionCid Instruction.Approve with
+      actors = Set.singleton custodian2; approval = TakeDelivery custodian2DepoAccount
+  -- Can't settle batch before all `Instruction`s have been allocated and approved
+  submitMultiMustFail [agent] [publicParty] do
+    exerciseCmd batchCid Batch.Settle with
+      actors = Set.singleton agent
+  (custodian2InstructionCid, _) <- submit custodian2 do
+    exerciseCmd custodian2InstructionCid Instruction.Allocate with
+      actors = Set.singleton custodian2; allocation = CreditReceiver
+  -- Buyer and Custodian2 approves instruction with an incompatible approval
+  custodian2InstructionCid <- submitMulti [buyer, custodian2] [] do
+    exerciseCmd custodian2InstructionCid Instruction.Approve with
+      actors = Set.fromList [buyer, custodian2]; approval = SettleOffledgerAcknowledge
+  -- Settlement of batch must fail due to the incompatible approval
+  submitMultiMustFail [agent] [publicParty] do
+    exerciseCmd batchCid Batch.Settle with actors = Set.singleton agent
+  -- Buyer and Custodian2 unapproves the instruction
+  custodian2InstructionCid <- submitMulti [buyer, custodian2] [] do
+    exerciseCmd custodian2InstructionCid Instruction.Approve with
+      actors = Set.fromList [buyer, custodian2]; approval = Unapproved
+  -- Buyer approves her instruction with a compatible approval
+  custodian2InstructionCid <- submit buyer do
+    exerciseCmd custodian2InstructionCid Instruction.Approve with
+      actors = Set.singleton buyer; approval = TakeDelivery buyerDepoAccount
+
+  -- Set time
+  setTime settlementTime
+
+  -- Settle batch
+  [custodian2AssetCid, buyerAssetCid, sellerCashCid] <-
+    submitMulti [agent] [publicParty] do
+      exerciseCmd batchCid Batch.Settle with actors = Set.singleton agent
+
+  -- Assert state
+  let ts = [(seller, sellerCashCid), (custodian2, custodian2AssetCid), (buyer, buyerAssetCid)]
+  Holding.verifyOwnerOfHolding ts
+  Holding.verifyNoObservers ts
+
+  pure ()
+
+setupParties : Script TestParties
+setupParties = do
+  [cb, csd, bank1, bank2, custodian2, custodian1, issuer, buyer, seller, agent, delegatee, provider,
+    publicParty] <- createParties ["CentralBank", "CSD", "Bank 1", "Bank 2", "Custodian 2",
+    "Custodian 1", "Issuer", "Buyer", "Seller", "Agent", "Delegatee", "Provider", "PublicParty"]
+  pure TestParties with
+    cb; csd; bank1; bank2; custodian2; custodian1; issuer; buyer; seller; agent; delegatee; provider
+    publicParty
+
+-- | Grants the `delegatee` the right to allocate holdings on behalf of the `delegator`
+template AllocationDelegation
+  with
+    delegator : Party
+    delegatee : Party
+  where
+    signatory delegator
+    observer delegatee
+
+    choice OnBehalfAllocation : (ContractId Instruction.I, Optional (ContractId Holding.I))
+      with
+        holdingCid : ContractId Holding.I
+          -- ^ The holding to allocate.
+        instructionCid : ContractId Instruction.I
+          -- ^ The instruction that needs allocation.
+        id : Text
+          -- ^ Identifier of the observation context on the holding, allowing the delegatee to
+          --   undisclose themselves from a holding.
+      controller delegatee
+      do
+        Some cid <- fmap (fromInterfaceContractId @TransferableFungible.T) <$>
+          undisclose (id, Set.singleton delegatee) (Set.singleton delegator) holdingCid
+        fungible <- fetch cid
+        exercise instructionCid Instruction.Allocate with
+          actors = Set.singleton delegator; allocation = Pledge $ toInterfaceContractId cid

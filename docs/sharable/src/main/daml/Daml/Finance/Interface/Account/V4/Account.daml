@@ -1,0 +1,204 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
+-- | We recommend to import this module qualified.
+module Daml.Finance.Interface.Account.V4.Account where
+
+import Daml.Finance.Interface.Holding.V4.Holding qualified as Holding (I)
+import Daml.Finance.Interface.Types.Common.V3.Types (AccountKey(..), Id, InstrumentKey(..), Parties, PartiesMap, Quantity)
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (AddObservers(..), I, RemoveObservers(..), flattenObservers)
+import Daml.Finance.Interface.Util.V3.InterfaceKey (createReferenceHelper, disclosureUpdateReferenceHelper, exerciseInterfaceByKeyHelper)
+import Daml.Finance.Interface.Util.V3.InterfaceKey qualified as InterfaceKey (HasInterfaceKey(..))
+
+-- | Type synonym for `Account`.
+type I = Account
+
+-- | Type synonym for `Reference`. This type is currently used as a work-around given the lack of
+-- interface keys.
+type R = Reference
+
+-- | Type synonym for `View`.
+type V = View
+
+-- | Controllers of the account (related to transfers).
+data Controllers = Controllers
+  with
+    outgoing : Parties
+      -- ^ Parties instructing a transfer (outgoing).
+    incoming : Parties
+      -- ^ Parties approving a transfer (incoming).
+  deriving (Eq, Show)
+
+-- | View for `Account`.
+data View = View
+  with
+    custodian : Party
+      -- ^ Party providing accounting services.
+    owner : Party
+      -- ^ Party owning this account.
+    id : Id
+      -- ^ Identifier for the account.
+    description : Text
+      -- ^ Human readable description of the account.
+    controllers : Controllers
+      -- ^ Parties controlling transfers.
+  deriving (Eq, Show)
+
+-- | Convert the account's 'View' to its key.
+toKey : View -> AccountKey
+toKey v = AccountKey with custodian = v.custodian; owner = v.owner; id = v.id
+
+-- | Retrieves the key of an `Account`.
+accountKey : (HasToInterface i Account) => i -> AccountKey
+accountKey = toKey . view . toInterface @Account
+
+-- | An interface which represents an established relationship between a provider and an owner.
+interface Account requires Disclosure.I where
+  viewtype V
+
+  getKey : AccountKey
+    -- ^ Get the unique key of the `Account`.
+  credit : Credit -> Update (ContractId Holding.I)
+    -- ^ Implementation of the `Credit` choice.
+  debit : Debit -> Update ()
+    -- ^ Implementation of the `Debit` choice.
+
+  nonconsuming choice GetView : View
+    -- ^ Retrieves the interface view.
+    with
+      viewer : Party
+        -- ^ The party fetching the view.
+    controller viewer
+    do
+      pure $ view this
+
+  nonconsuming choice Credit : ContractId Holding.I
+    -- ^ Creates a new `Holding` in the corresponding `Account`.
+    with
+      quantity : Quantity InstrumentKey Decimal
+        -- ^ The target `Instrument` and corresponding amount.
+    controller (view this).custodian, (view this).controllers.incoming
+    do
+      credit this arg
+
+  nonconsuming choice Debit : ()
+    -- ^ Removes an existing `Holding`.
+    with
+      holdingCid : ContractId Holding.I
+        -- ^ The `Holding`'s contract id.
+    controller (view this).custodian, (view this).controllers.outgoing
+    do
+      debit this arg
+
+  choice Remove : ()
+    -- ^ Archive the account.
+    controller signatory this
+    do
+      (refCid, _) <- fetchByKey @Reference $ getKey this
+      archive refCid
+
+-- | HIDE
+-- This template is used to key an Account contract. It allows for looking up this contract by key
+-- then acquiring the Account contract by fetching its contract id on this contract. As updates are
+-- made to an Account, this Reference contract is required to be kept in sync.
+template Reference
+  with
+    accountView : View
+      -- ^ The default view for accounts.
+    cid : ContractId Account
+      -- ^ The contract id of the account.
+    observers : PartiesMap
+  where
+    signatory accountView.custodian, accountView.owner
+    observer Disclosure.flattenObservers observers
+
+    key toKey accountView : AccountKey
+    maintainer key.custodian
+
+    nonconsuming choice GetCid : ContractId Account
+      -- ^ Get the `Account`'s contract id.
+      with
+        viewer : Party
+          -- ^ The party retrieving the account.
+      controller viewer
+      do
+        pure cid
+
+    choice SetCid : ContractId Reference
+      -- ^ Set the account cid. This choice should be called only from `Account` implementations.
+      with
+        newCid : ContractId Account
+          -- ^ The account cid.
+      controller signatory this
+      do
+        create this with cid = newCid
+
+    choice SetObservers : ContractId Reference
+      -- ^ Set observers. This choice should be called only from `Account` implementations.
+      with
+        newObservers : PartiesMap
+          -- ^ The new observers.
+      controller signatory this
+      do
+        create this with observers = newObservers
+
+-- | Disclose account.
+disclose : (Text, Parties) -> Party -> Parties -> AccountKey -> Update (ContractId Account)
+disclose observersToAdd actor disclosers account =
+  fromInterfaceContractId <$>
+    exerciseInterfaceByKey @Disclosure.I
+      account
+      actor
+      Disclosure.AddObservers with disclosers; observersToAdd
+
+-- | Undisclose account.
+undisclose : (Text, Parties) -> Party -> Parties -> AccountKey ->
+  Update (Optional (ContractId Account))
+undisclose observersToRemove actor disclosers account =
+  fmap fromInterfaceContractId <$>
+    exerciseInterfaceByKey @Disclosure.I
+      account
+      actor
+      Disclosure.RemoveObservers with disclosers; observersToRemove
+
+-- | Exercise interface by key.
+-- This method can be used to exercise a choice on an `Account` given its `AccountKey`.
+-- Requires as input the `AccountKey`,
+-- For example:
+-- ```
+-- exerciseInterfaceByKey @Account.I accountKey actor Account.Debit with holdingCid
+-- ```
+exerciseInterfaceByKey : forall i c r.
+  ( HasInterfaceTypeRep i
+  , HasExercise i c r
+  )
+  => AccountKey -- ^ The account key.
+  -> Party      -- ^ The actor exercising.
+  -> c          -- ^ The choice arguments.
+  -> Update r
+exerciseInterfaceByKey k actor arg =
+  exerciseInterfaceByKeyHelper @Reference @GetCid @SetCid @SetObservers @GetView @i k actor arg
+
+-- | HIDE
+-- Create instance of HasInterfaceKey.
+instance InterfaceKey.HasInterfaceKey Account View AccountKey Reference GetCid SetCid SetObservers
+  GetView where
+    createReference = Reference
+    getCid = GetCid
+    setCid = SetCid
+    setObservers = SetObservers
+    getView = GetView
+
+-- | HIDE
+-- Create Reference for the account.
+createReference : Party -> ContractId Account -> Update (ContractId Reference)
+createReference = createReferenceHelper @Reference @GetCid @SetCid @SetObservers @GetView
+
+-- | HIDE
+-- Helper function to update the account reference once observers are added to the account.
+disclosureUpdateReference : AccountKey -> PartiesMap -> ContractId Account ->
+  Update (ContractId Disclosure.I)
+disclosureUpdateReference =
+  disclosureUpdateReferenceHelper @Reference @GetCid @SetCid @SetObservers @GetView

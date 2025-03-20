@@ -1,0 +1,73 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module ContingentClaims.Test.FinancialContract where
+
+import ContingentClaims.Core.V3.Claim (Claim)
+import ContingentClaims.Lifecycle.V3.Lifecycle qualified as Lifecycle
+import DA.Date
+import DA.Set (fromList)
+
+type T = FinancialContract
+type Days = Int
+type Instrument = Text
+type Observable = Text
+
+template Quote
+  with
+    instrument: Instrument
+    quoteDate: Date
+    close: Decimal
+    source: Party
+  where
+    signatory source
+    key (instrument, quoteDate, source) : (Instrument, Date, Party)
+    maintainer key._3
+
+template FinancialContract
+  with
+    bearer: Party
+    counterparty: Party
+    claims: Claim Date Decimal Instrument Observable
+    acquisitionTime : Date
+  where
+    signatory fromList [bearer, counterparty]
+
+    -- Create dummy contracts to settle 'current' claims
+    choice Clear : [ContractId ProposeSettlement]
+      controller bearer
+        -- CLAIMS_LIFECYCLE_TEST_BEGIN
+        do
+          t <- toDateUTC <$> getTime
+          let
+            getSpotRate isin t = do
+              (_, Quote{close}) <- fetchByKey (isin, t, bearer)
+              pure close
+          lifecycleResult <- Lifecycle.lifecycle getSpotRate claims acquisitionTime t
+          -- CLAIMS_LIFECYCLE_TEST_END
+          settlements <- forA lifecycleResult.pending \pending ->
+            create ProposeSettlement with
+              payer = counterparty
+              receiver = bearer
+              instrument = pending.asset
+              quantity = pending.amount
+              tradeDate = pending.t
+          create this with claims = lifecycleResult.remaining
+          pure settlements
+
+-- Dummy contract to propose settlement
+template ProposeSettlement
+  with
+    payer: Party
+    receiver: Party
+    quantity: Decimal
+    instrument: Instrument
+    tradeDate : Date
+  where
+    signatory payer, receiver
+
+    choice Confirm : ()
+      controller receiver
+        do
+          debug $ "Settled: " <> show this
+          pure ()

@@ -1,0 +1,117 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Account.V4.Account where
+
+import DA.Set qualified as Set (fromList, null, singleton)
+import Daml.Finance.Interface.Account.V4.Account qualified as Account (Controllers(..), Credit(..), Debit(..), I, View(..), accountKey, createReference, disclosureUpdateReference)
+import Daml.Finance.Interface.Account.V4.Factory qualified as AccountFactory (Create(..), I, View(..))
+import Daml.Finance.Interface.Holding.V4.Factory qualified as HoldingFactory (Create(..), I, exerciseInterfaceByKey)
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingFactoryKey(..), Id, PartiesMap)
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (AddObservers(..), I, RemoveObservers(..), View(..), flattenObservers)
+import Daml.Finance.Interface.Util.V3.Lockable qualified as Lockable (Acquire(..), I, Lock, Release(..), View(..), getLockers, mustNotBeLocked)
+import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+import Daml.Finance.Util.V4.Lockable (acquireImpl, isValidLock, releaseImpl)
+
+-- | Type synonym for `Account`.
+type T = Account
+
+-- | A relationship between a custodian and an asset owner. It is referenced by holdings.
+template Account
+  with
+    custodian : Party
+      -- ^ The account provider.
+    owner : Party
+      -- ^ The account owner.
+    lock : Optional Lockable.Lock
+      -- ^ An optional lock for the account.
+    controllers : Account.Controllers
+      -- ^ Controllers of transfers.
+    id : Id
+      -- ^ Identifier of the account.
+    description : Text
+      -- ^ Description of the account.
+    holdingFactory : HoldingFactoryKey
+      -- ^ Associated holding factory.
+    observers : PartiesMap
+      -- ^ Observers.
+  where
+    signatory custodian, owner, Lockable.getLockers this
+    observer Disclosure.flattenObservers observers
+
+    -- Outgoing controllers must be non-empty.
+    ensure isValidLock lock && (not . Set.null $ controllers.outgoing)
+
+    interface instance Account.I for Account where
+      view = Account.View with custodian; id; owner; description; controllers
+      getKey = Account.accountKey this
+      credit Account.Credit{quantity} = do
+        Lockable.mustNotBeLocked this
+        HoldingFactory.exerciseInterfaceByKey @HoldingFactory.I
+          holdingFactory
+          custodian
+          HoldingFactory.Create with
+            instrument = quantity.unit
+            account = Account.accountKey this
+            amount = quantity.amount
+            observers = mempty
+      debit Account.Debit{holdingCid} = do
+        Lockable.mustNotBeLocked this
+        holding <- fetch holdingCid
+        assertMsg "Accounts must match" $ (view holding).account == Account.accountKey this
+        archive holdingCid
+
+    interface instance Lockable.I for Account where
+      view = Lockable.View with lock; controllers = Set.singleton custodian
+      acquire lockable@Lockable.Acquire{newLockers; context; lockType} = do
+        newLockableCid <- toInterfaceContractId @Disclosure.I <$>
+          acquireImpl this.lock (\lock -> this with lock) lockable
+        -- adding lockers as observers to Account.R
+        fromInterfaceContractId @Lockable.I <$>
+          exercise newLockableCid Disclosure.AddObservers with
+            disclosers = Set.fromList $ signatory this
+            observersToAdd = (context, newLockers)
+      release lockable@Lockable.Release{context} = do
+        newLockableCid <- releaseImpl this.lock (\lock -> this with lock) lockable
+         -- removing lockers as observers to Account.R
+        optional newLockableCid fromInterfaceContractId <$>
+          exercise (toInterfaceContractId @Disclosure.I newLockableCid)
+            Disclosure.RemoveObservers with
+              disclosers = Set.fromList $ signatory this
+              observersToRemove = (context, Lockable.getLockers this)
+
+    interface instance Disclosure.I for Account where
+      view = Disclosure.View with disclosureControllers = Set.fromList [custodian, owner]; observers
+      setObservers = setObserversImpl this . Some . Account.disclosureUpdateReference $
+        Account.accountKey this
+      addObservers = addObserversImpl this . Some . Account.disclosureUpdateReference $
+        Account.accountKey this
+      removeObservers = removeObserversImpl this . Some . Account.disclosureUpdateReference $
+        Account.accountKey this
+
+-- | Template used to create accounts.
+template Factory
+  with
+    provider : Party
+      -- ^ The factory's provider.
+    observers : PartiesMap
+      -- ^ The factory's observers.
+  where
+    signatory provider
+    observer Disclosure.flattenObservers observers
+
+    interface instance AccountFactory.I for Factory where
+      view = AccountFactory.View with provider
+      create' AccountFactory.Create {account; holdingFactory; controllers; observers; description} =
+        do
+          cid <- toInterfaceContractId <$> create Account with
+            custodian = account.custodian; owner = account.owner; lock = None; controllers
+            id = account.id; holdingFactory; observers; description
+          Account.createReference account.custodian cid
+          pure cid
+
+    interface instance Disclosure.I for Factory where
+      view = Disclosure.View with disclosureControllers = Set.singleton provider; observers
+      setObservers = setObserversImpl @Factory @Disclosure.I this None
+      addObservers = addObserversImpl @Factory @Disclosure.I this None
+      removeObservers = removeObserversImpl @Factory @Disclosure.I this None

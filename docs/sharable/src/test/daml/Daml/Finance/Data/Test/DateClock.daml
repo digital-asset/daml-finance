@@ -1,0 +1,46 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Data.Test.DateClock where
+
+import DA.Assert ((===))
+import DA.Date (addDays, toDateUTC)
+import DA.Set (singleton)
+import Daml.Finance.Data.V4.Time.DateClock qualified as DateClock (DateClock(..), T)
+import Daml.Finance.Data.V4.Time.DateClock.Types (Unit(..))
+import Daml.Finance.Interface.Data.V4.Reference.Time qualified as Time (Advance(..), I, Rewind(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (Id(..))
+import Daml.Script
+
+testDateClock : Script ()
+testDateClock = script do
+  bank <- allocatePartyWithHint <*> PartyIdHint $ "Bank"
+  now <- getTime
+
+  let
+    dateNow = toDateUTC now
+    dateClock = DateClock.DateClock with
+      providers = singleton bank
+      date = Unit dateNow
+      id = Id "CLOCK"
+      description = "Clock"
+      observers = mempty
+
+  -- test advance
+  dateClockCid <- toInterfaceContractId @Time.I <$> submit bank do createCmd dateClock
+  (dateClockCid, _) <- submit bank $
+    exerciseCmd dateClockCid Time.Advance with
+      eventId = Id "T1"
+      eventDescription = "Time advance"
+
+  Some dateClock <- queryContractId bank $ fromInterfaceContractId @DateClock.T dateClockCid
+  dateClock.date === Unit (dateNow `addDays` 1)
+
+  -- test rewind
+  (dateClockCid, _) <- submit bank $
+    exerciseCmd dateClockCid Time.Rewind with
+      eventId = Id "T2"
+      eventDescription = "Time rewind"
+
+  Some dateClock <- queryContractId bank $ fromInterfaceContractId @DateClock.T dateClockCid
+  dateClock.date === Unit dateNow

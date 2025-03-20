@@ -1,0 +1,67 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Option.V0.BarrierEuropeanCash.Factory where
+
+import DA.Set (singleton)
+import Daml.Finance.Instrument.Option.V0.BarrierEuropeanCash.Instrument qualified as BarrierEuropeanCashOption (Instrument(..))
+import Daml.Finance.Interface.Claims.V4.Claim qualified as Claim (GetClaims(..), I, getClaims)
+import Daml.Finance.Interface.Instrument.Base.V4.Instrument qualified as BaseInstrument (createReference)
+import Daml.Finance.Interface.Instrument.Option.V0.BarrierEuropeanCash.Factory qualified as BarrierEuropeanCashOptionFactory (Create(..), I, View(..))
+import Daml.Finance.Interface.Instrument.Option.V0.BarrierEuropeanCash.Types (BarrierEuropean(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (PartiesMap)
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+
+-- | Type synonym for `Factory`.
+type T = Factory
+
+-- | Factory template for instrument creation.
+template Factory
+  with
+    provider : Party
+      -- ^ The factory's provider.
+    observers : PartiesMap
+      -- ^ The factory's observers.
+  where
+    signatory provider
+    observer Disclosure.flattenObservers observers
+
+    interface instance BarrierEuropeanCashOptionFactory.I for Factory where
+      view = BarrierEuropeanCashOptionFactory.View with provider
+      create' BarrierEuropeanCashOptionFactory.Create{
+        barrierEuropean = BarrierEuropean{instrument; description; referenceAssetId; ownerReceives;
+          optionType; strike; barrier; barrierType; barrierStartDate; expiryDate; currency;
+          lastEventTimestamp};
+        observers} = do
+          let
+            barrierEuropeanCashOptionInstrument = BarrierEuropeanCashOption.Instrument with
+              depository = instrument.depository
+              issuer = instrument.issuer
+              ownerReceives
+              id = instrument.id
+              version = instrument.version
+              holdingStandard = instrument.holdingStandard
+              description
+              referenceAssetId
+              optionType
+              strike
+              barrier
+              barrierType
+              barrierStartDate
+              expiryDate
+              currency
+              lastEventTimestamp
+              observers
+          cid <- toInterfaceContractId <$> create barrierEuropeanCashOptionInstrument
+          BaseInstrument.createReference instrument.depository $ toInterfaceContractId cid
+          -- Get the claims in order to run the associated checks.
+          Claim.getClaims (toInterface @Claim.I barrierEuropeanCashOptionInstrument) $
+            Claim.GetClaims with actor = instrument.issuer
+          pure cid
+
+    interface instance Disclosure.I for Factory where
+      view = Disclosure.View with disclosureControllers = singleton provider; observers
+      setObservers = setObserversImpl @Factory @Disclosure.I this None
+      addObservers = addObserversImpl @Factory @Disclosure.I this None
+      removeObservers = removeObserversImpl @Factory @Disclosure.I this None

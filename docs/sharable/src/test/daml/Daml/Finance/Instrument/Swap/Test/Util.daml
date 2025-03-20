@@ -1,0 +1,297 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Swap.Test.Util where
+
+import DA.Map (fromList)
+import Daml.Finance.Instrument.Swap.V0.Asset.Factory qualified as AssetSwap (Factory(..))
+import Daml.Finance.Instrument.Swap.V0.CreditDefault.Factory qualified as CreditDefaultSwap (Factory(..))
+import Daml.Finance.Instrument.Swap.V0.Currency.Factory qualified as CurrencySwap (Factory(..))
+import Daml.Finance.Instrument.Swap.V0.ForeignExchange.Factory qualified as ForeignExchangeSwap (Factory(..))
+import Daml.Finance.Instrument.Swap.V0.Fpml.Factory qualified as FpmlSwap (Factory(..))
+import Daml.Finance.Instrument.Swap.V0.InterestRate.Factory qualified as InterestRateSwap (Factory(..))
+import Daml.Finance.Interface.Instrument.Swap.V0.Asset.Factory qualified as AssetSwapFactory (Create(..), I(..))
+import Daml.Finance.Interface.Instrument.Swap.V0.Asset.Types (Asset(..), Underlying)
+import Daml.Finance.Interface.Instrument.Swap.V0.CreditDefault.Factory qualified as CreditDefaultSwapFactory (Create(..), I(..))
+import Daml.Finance.Interface.Instrument.Swap.V0.CreditDefault.Types (CreditDefault(..))
+import Daml.Finance.Interface.Instrument.Swap.V0.Currency.Factory qualified as CurrencySwapFactory (Create(..), I(..))
+import Daml.Finance.Interface.Instrument.Swap.V0.Currency.Types (CurrencySwap(..))
+import Daml.Finance.Interface.Instrument.Swap.V0.ForeignExchange.Factory qualified as ForeignExchangeSwapFactory (Create(..), I(..))
+import Daml.Finance.Interface.Instrument.Swap.V0.ForeignExchange.Types (ForeignExchange(..))
+import Daml.Finance.Interface.Instrument.Swap.V0.Fpml.Factory qualified as FpmlSwapFactory (Create(..), I(..))
+import Daml.Finance.Interface.Instrument.Swap.V0.Fpml.FpmlTypes (SwapStream(..))
+import Daml.Finance.Interface.Instrument.Swap.V0.Fpml.Types (Fpml(..))
+import Daml.Finance.Interface.Instrument.Swap.V0.InterestRate.Factory qualified as InterestRateSwapFactory (Create(..), I(..))
+import Daml.Finance.Interface.Instrument.Swap.V0.InterestRate.Types (InterestRate(..))
+import Daml.Finance.Interface.Instrument.Types.V2.FloatingRate (FloatingRate)
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard, Id(..), InstrumentKey(..), Parties)
+import Daml.Finance.Interface.Types.Date.V3.Calendar (BusinessDayConventionEnum)
+import Daml.Finance.Interface.Types.Date.V3.DayCount (DayCountConventionEnum)
+import Daml.Finance.Interface.Types.Date.V3.RollConvention (PeriodEnum)
+import Daml.Finance.Test.Util.Time (createPaymentPeriodicSchedule)
+import Daml.Script
+
+-- | Originate an interest rate swap.
+originateInterestRateSwap : Party -> Party -> Text -> HoldingStandard -> Text ->
+  [(Text, Parties)] -> Time -> Date -> [Text] -> Party -> Date ->
+  Date -> DayCountConventionEnum -> BusinessDayConventionEnum -> Decimal -> PeriodEnum -> Int ->
+  InstrumentKey -> FloatingRate -> Bool -> Party -> Script InstrumentKey
+originateInterestRateSwap depository issuer label holdingStandard description
+  observers lastEventTimestamp issueDate holidayCalendarIds calendarDataProvider firstCouponDate
+  maturityDate dayCountConvention businessDayConvention fixRate couponPeriod couponPeriodMultiplier
+  currency floatingRate ownerReceivesFix publicParty = do
+    let
+      periodicSchedule = createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds
+        businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate
+
+    -- Create an interest rate swap factory
+    interestRateSwapFactoryCid <- toInterfaceContractId @InterestRateSwapFactory.I <$>
+      submit issuer do
+        createCmd InterestRateSwap.Factory with
+          provider = issuer
+          observers = mempty
+
+    -- CREATE_INTEREST_RATE_SWAP_INSTRUMENT_BEGIN
+    let
+      instrument = InstrumentKey with
+        issuer
+        depository
+        id = Id label
+        version = "0"
+        holdingStandard
+
+    cid <- submitMulti [issuer] [publicParty] do
+      exerciseCmd interestRateSwapFactoryCid InterestRateSwapFactory.Create with
+        interestRate = InterestRate with
+          instrument
+          description
+          periodicSchedule
+          holidayCalendarIds
+          calendarDataProvider
+          dayCountConvention
+          floatingRate
+          fixRate
+          ownerReceivesFix
+          currency
+          lastEventTimestamp
+        observers = fromList observers
+    -- CREATE_INTEREST_RATE_SWAP_INSTRUMENT_END
+    pure instrument
+
+-- | Originate a swap specified by FpML swapStream modules
+originateFpmlSwap : Party -> Party -> Text -> HoldingStandard -> Text -> [(Text, Parties)] ->
+  Time -> [SwapStream] -> Party -> [InstrumentKey] -> Text -> Party -> Script InstrumentKey
+originateFpmlSwap depository issuer label holdingStandard description observers
+  lastEventTimestamp swapStreams calendarDataProvider currencies issuerPartyRef publicParty = do
+    -- Create an FpML swap factory
+    fpmlSwapFactoryCid <- toInterfaceContractId @FpmlSwapFactory.I <$> submit issuer do
+      createCmd FpmlSwap.Factory with
+        provider = issuer
+        observers = mempty
+
+    -- CREATE_FPML_SWAP_INSTRUMENT_BEGIN
+    let
+      instrument = InstrumentKey with
+        issuer
+        depository
+        id = Id label
+        version = "0"
+        holdingStandard
+
+    cid <- submitMulti [issuer] [publicParty] do
+      exerciseCmd fpmlSwapFactoryCid FpmlSwapFactory.Create with
+        fpml = Fpml with
+          instrument
+          description
+          swapStreams
+          issuerPartyRef
+          currencies
+          calendarDataProvider
+          lastEventTimestamp
+        observers = fromList observers
+    -- CREATE_FPML_SWAP_INSTRUMENT_END
+    pure instrument
+
+-- | Originate an asset swap.
+originateAssetSwap : Party -> Party -> Text -> HoldingStandard -> Text -> [(Text, Parties)] ->
+  Time -> Date -> [Text] -> Party -> Date -> Date ->
+  DayCountConventionEnum -> BusinessDayConventionEnum -> Optional FloatingRate -> Decimal ->
+  PeriodEnum -> Int -> InstrumentKey -> [Underlying] -> Bool -> Party
+   -> Script (InstrumentKey, ContractId AssetSwapFactory.I)
+originateAssetSwap depository issuer label holdingStandard description observers
+  lastEventTimestamp issueDate holidayCalendarIds calendarDataProvider firstCouponDate maturityDate
+  dayCountConvention businessDayConvention floatingRate fixRate
+  couponPeriod couponPeriodMultiplier currency underlyings ownerReceivesRate publicParty = do
+    let
+      periodicSchedule = createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds
+        businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate
+
+    -- Create an asset swap factory
+    assetSwapFactoryCid <- toInterfaceContractId @AssetSwapFactory.I <$> submit issuer do
+      createCmd AssetSwap.Factory with
+        provider = issuer
+        observers = mempty
+
+    -- CREATE_ASSET_SWAP_INSTRUMENT_BEGIN
+    let
+      instrument = InstrumentKey with
+        issuer
+        depository
+        id = Id label
+        version = "0"
+        holdingStandard
+
+    cid <- submitMulti [issuer] [publicParty] do
+      exerciseCmd assetSwapFactoryCid AssetSwapFactory.Create with
+        asset = Asset with
+          instrument
+          description
+          periodicSchedule
+          holidayCalendarIds
+          calendarDataProvider
+          dayCountConvention
+          floatingRate
+          fixRate
+          ownerReceivesRate
+          underlyings
+          currency
+          lastEventTimestamp
+        observers = fromList observers
+    -- CREATE_ASSET_SWAP_INSTRUMENT_END
+    pure (instrument, assetSwapFactoryCid)
+
+-- | Originate a credit default swap (CDS).
+originateCreditDefaultSwap : Party -> Party -> Text -> HoldingStandard -> Text ->
+  [(Text, Parties)] -> Time -> Date -> [Text] -> Party -> Date ->
+  Date -> DayCountConventionEnum -> BusinessDayConventionEnum -> Decimal -> PeriodEnum -> Int ->
+  InstrumentKey -> Text -> Text -> Bool -> Party -> Script InstrumentKey
+originateCreditDefaultSwap depository issuer label holdingStandard description
+  observers lastEventTimestamp issueDate holidayCalendarIds calendarDataProvider firstCouponDate
+  maturityDate dayCountConvention businessDayConvention fixRate couponPeriod couponPeriodMultiplier
+  currency defaultProbabilityReferenceId recoveryRateReferenceId ownerReceivesFix publicParty = do
+    let
+      periodicSchedule = createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds
+        businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate
+
+    -- Create a credit default swap factory
+    creditDefaultSwapFactoryCid <- toInterfaceContractId @CreditDefaultSwapFactory.I <$>
+      submit issuer do
+        createCmd CreditDefaultSwap.Factory with
+          provider = issuer
+          observers = mempty
+
+    -- CREATE_CREDIT_DEFAULT_SWAP_INSTRUMENT_BEGIN
+    let
+      instrument = InstrumentKey with
+        issuer
+        depository
+        id = Id label
+        version = "0"
+        holdingStandard
+
+    cid <- submitMulti [issuer] [publicParty] do
+      exerciseCmd creditDefaultSwapFactoryCid CreditDefaultSwapFactory.Create with
+        creditDefault = CreditDefault with
+          instrument
+          description
+          periodicSchedule
+          holidayCalendarIds
+          calendarDataProvider
+          dayCountConvention
+          fixRate
+          ownerReceivesFix
+          defaultProbabilityReferenceId
+          recoveryRateReferenceId
+          currency
+          lastEventTimestamp
+        observers = fromList observers
+    -- CREATE_CREDIT_DEFAULT_SWAP_INSTRUMENT_END
+    pure instrument
+
+-- | Originate a currency swap.
+originateCurrencySwap : Party -> Party -> Text -> HoldingStandard -> Text -> [(Text, Parties)] ->
+  Time -> Date -> [Text] -> Party -> Date -> Date ->
+  DayCountConventionEnum -> BusinessDayConventionEnum -> Decimal -> Decimal -> PeriodEnum -> Int ->
+  InstrumentKey -> InstrumentKey -> Decimal -> Bool -> Party -> Script InstrumentKey
+originateCurrencySwap depository issuer label holdingStandard description observers
+  lastEventTimestamp issueDate holidayCalendarIds calendarDataProvider firstCouponDate maturityDate
+  dayCountConvention businessDayConvention baseRate foreignRate couponPeriod couponPeriodMultiplier
+  baseCurrency foreignCurrency fxRate ownerReceivesBase publicParty = do
+    let
+      periodicSchedule = createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds
+        businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate
+
+    -- Create a currency swap factory
+    currencySwapFactoryCid <- toInterfaceContractId @CurrencySwapFactory.I <$> submit issuer do
+      createCmd CurrencySwap.Factory with
+        provider = issuer
+        observers = mempty
+
+    -- CREATE_CURRENCY_SWAP_INSTRUMENT_BEGIN
+    let
+      instrument = InstrumentKey with
+        issuer
+        depository
+        id = Id label
+        version = "0"
+        holdingStandard
+
+    cid <- submitMulti [issuer] [publicParty] do
+      exerciseCmd currencySwapFactoryCid CurrencySwapFactory.Create with
+        currencySwap = CurrencySwap with
+          instrument
+          description
+          periodicSchedule
+          holidayCalendarIds
+          calendarDataProvider
+          dayCountConvention
+          ownerReceivesBase
+          baseRate
+          foreignRate
+          baseCurrency
+          foreignCurrency
+          fxRate
+          lastEventTimestamp
+        observers = fromList observers
+    -- CREATE_CURRENCY_SWAP_INSTRUMENT_BEGIN
+    pure instrument
+
+-- | Originate an FX swap.
+originateForeignExchangeSwap : Party -> Party -> Text -> HoldingStandard -> Text ->
+  [(Text, Parties)] -> Time -> Date -> Date -> Date -> InstrumentKey -> InstrumentKey ->
+  Decimal -> Decimal -> Party -> Script InstrumentKey
+originateForeignExchangeSwap depository issuer label holdingStandard description
+  observers lastEventTimestamp issueDate firstPaymentDate maturityDate baseCurrency foreignCurrency
+  firstFxRate finalFxRate publicParty = do
+    -- Create an FX swap factory
+    foreignExchangeSwapFactoryCid <- toInterfaceContractId @ForeignExchangeSwapFactory.I <$>
+      submit issuer do
+        createCmd ForeignExchangeSwap.Factory with
+          provider = issuer
+          observers = mempty
+
+    -- CREATE_FOREIGN_EXCHANGE_SWAP_INSTRUMENT_BEGIN
+    let
+      instrument = InstrumentKey with
+        issuer
+        depository
+        id = Id label
+        version = "0"
+        holdingStandard
+
+    cid <- submitMulti [issuer] [publicParty] do
+      exerciseCmd foreignExchangeSwapFactoryCid ForeignExchangeSwapFactory.Create with
+        foreignExchange = ForeignExchange with
+          instrument
+          description
+          baseCurrency
+          foreignCurrency
+          firstFxRate
+          finalFxRate
+          issueDate
+          firstPaymentDate
+          maturityDate
+          lastEventTimestamp
+        observers = fromList observers
+    -- CREATE_FOREIGN_EXCHANGE_SWAP_INSTRUMENT_END
+    pure instrument

@@ -1,0 +1,180 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
+module Daml.Finance.Interface.Instrument.Base.V4.Instrument where
+
+import Daml.Finance.Interface.Holding.V4.Holding qualified as Holding (I)
+import Daml.Finance.Interface.Holding.V4.Util (getInstrument)
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard, Id(..), InstrumentKey(..), PartiesMap, Quantity(..))
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, flattenObservers)
+import Daml.Finance.Interface.Util.V3.InterfaceKey (createReferenceHelper, disclosureUpdateReferenceHelper, fetchInterfaceByKey)
+import Daml.Finance.Interface.Util.V3.InterfaceKey qualified as InterfaceKey (HasInterfaceKey(..), exerciseInterfaceByKeyHelper)
+
+-- | Type synonym for `Instrument`.
+type I = Instrument
+
+-- | Instrument quantity.
+type Q = Quantity InstrumentKey Decimal
+
+-- | Type synonym for `Reference`. This type is currently used as a work-around given the lack of
+-- interface keys.
+type R = Reference
+
+-- | Type synonym for `View`.
+type V = View
+
+-- | View for `Instrument`.
+data View = View
+  with
+    issuer : Party
+      -- ^ The instrument's issuer.
+    depository : Party
+      -- ^ The instrument's depository.
+    id : Id
+      -- ^ The instrument's identifier.
+    version : Text
+      -- ^ A textual instrument version.
+    holdingStandard : HoldingStandard
+      -- ^ The holding standard for holdings referencing this instrument.
+    description : Text
+      -- ^ A human readable description of the instrument.
+    validAsOf : Time
+      -- ^ Timestamp as of which the instrument is valid. This usually coincides with the timestamp
+      --   of the event that creates the instrument. It usually does not coincide with ledger time.
+      --   This is required for lifecycling of some instruments, in order to keep track of the last
+      --   time the instrument was lifecycled. For instruments where this is not applicable, it can
+      --   be set to the current time.
+  deriving (Eq, Show)
+
+-- | Convert the instrument's View to its key.
+toKey : V -> InstrumentKey
+toKey v = InstrumentKey with
+  depository = v.depository
+  issuer = v.issuer
+  id = v.id
+  version = v.version
+  holdingStandard = v.holdingStandard
+
+-- | Retrieves the key of an `Instrument`.
+instrumentKey : (HasToInterface i Instrument) => i -> InstrumentKey
+instrumentKey = toKey . view . toInterface @Instrument
+
+-- | Base interface for all instruments. This interface does not define any lifecycling logic.
+interface Instrument requires Disclosure.I where
+  viewtype V
+
+  getKey : InstrumentKey
+    -- ^ Get the unique key for the `Instrument`.
+
+  nonconsuming choice GetView : View
+    -- ^ Retrieves the interface view.
+    with
+      viewer : Party
+        -- ^ The party retrieving the view.
+    controller viewer
+    do
+      pure $ view this
+
+  choice Remove : ()
+    -- ^ Archive the instrument.
+    controller signatory this
+    do
+      (refCid, _) <- fetchByKey @Reference $ getKey this
+      archive refCid
+
+-- | HIDE
+-- This template is used to key an Instrument contract. It allows for looking up this contract by
+-- key then acquiring the Instrument contract by fetching its contract id on this contract. As
+-- updates are made to an Instrument, this Reference contract is required to be kept in sync.
+template Reference
+  with
+    instrumentView : V
+      -- ^ The default view.
+    cid : ContractId Instrument
+      -- ^ The contract id of the instrument.
+    observers : PartiesMap
+      -- ^ Observers.
+  where
+    signatory instrumentView.depository, instrumentView.issuer
+    observer Disclosure.flattenObservers observers
+
+    key toKey instrumentView : InstrumentKey
+    maintainer key.issuer
+
+    nonconsuming choice GetCid : ContractId Instrument
+      -- ^ Get the `Instrument`'s contract id.
+      with
+        viewer : Party
+          -- ^ The party retrieving the instrument.
+      controller viewer
+      do
+        pure cid
+
+    choice SetCid : ContractId Reference
+      -- ^ Set the instrument cid. This choice should be called only from `Instrument`
+      --   implementations.
+      with
+        newCid : ContractId Instrument
+          -- ^ The instrument cid.
+      controller signatory this
+      do
+        create this with cid = newCid
+
+    choice SetObservers : ContractId Reference
+      -- ^ Set observers. This choice should be called only from `Instrument` implementations.
+      with
+        newObservers : PartiesMap
+          -- ^ The new observers.
+      controller signatory this
+      do
+        create this with observers = newObservers
+
+-- | Wraps an amount and an instrument key into an instrument quantity.
+qty : Decimal -> InstrumentKey -> Q
+qty amount instrument = Quantity with unit = instrument; amount
+
+-- | Scale `Quantity` by the provided factor.
+scale : Decimal -> Q -> Q
+scale factor quantity = quantity with amount = quantity.amount * factor
+
+-- | Fetch instrument from holding.
+fetchInstrument : (HasToInterface t Holding.I) => t -> Update Instrument
+fetchInstrument = fetchInterfaceByKey @Reference . getInstrument . toInterface @Holding.I
+
+-- | Exercise interface by key.
+-- This method can be used to exercise a choice on an `Instrument` given its `InstrumentKey`.
+-- Requires as input the `InstrumentKey`, the actor exercising the choice, and the choice arguments.
+exerciseInterfaceByKey : forall i c r.
+  ( HasInterfaceTypeRep i
+  , HasExercise i c r
+  )
+  => InstrumentKey     -- ^ The instrument key.
+  -> Party             -- ^ The actor exercising.
+  -> c                 -- ^ The choice arguments.
+  -> Update r
+exerciseInterfaceByKey k actor arg = InterfaceKey.exerciseInterfaceByKeyHelper @Reference @GetCid
+  @SetCid @SetObservers @GetView @i k actor arg
+
+-- | HIDE
+-- Create instance of HasInterfaceKey.
+instance InterfaceKey.HasInterfaceKey Instrument View InstrumentKey Reference GetCid SetCid
+  SetObservers GetView where
+    createReference = Reference
+    getCid = GetCid
+    setCid = SetCid
+    setObservers = SetObservers
+    getView = GetView
+
+-- | HIDE
+-- Create Reference for the instrument.
+createReference : Party -> ContractId Instrument -> Update (ContractId Reference)
+createReference = createReferenceHelper @Reference @GetCid @SetCid @SetObservers @GetView
+
+-- | HIDE
+-- Update the instrument reference once observers are added to the instrument.
+disclosureUpdateReference : InstrumentKey -> PartiesMap -> ContractId Instrument ->
+  Update (ContractId Disclosure.I)
+disclosureUpdateReference =
+  disclosureUpdateReferenceHelper @Reference @GetCid @SetCid @SetObservers @GetView

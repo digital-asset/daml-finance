@@ -1,0 +1,143 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Holding.Test.Holding where
+
+import DA.Assert ((===))
+import DA.Map qualified as Map (fromList)
+import DA.Set (fromList, singleton)
+import Daml.Finance.Account.V4.Account qualified as Account (T)
+import Daml.Finance.Holding.Test.Common (TestInitialState(..), TestParties(..), setupInitialState, setupParties)
+import Daml.Finance.Holding.V4.Factory qualified as Holding (Factory(..))
+import Daml.Finance.Interface.Account.V4.Account qualified as Account (Debit(..), I)
+import Daml.Finance.Interface.Holding.V4.Factory qualified as HoldingFactory (R)
+import Daml.Finance.Interface.Holding.V4.Fungible qualified as Fungible (I, Split(..))
+import Daml.Finance.Interface.Holding.V4.Holding qualified as Holding (I)
+import Daml.Finance.Interface.Holding.V4.Transferable qualified as Transferable (I, Transfer(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..))
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (AddObservers(..), I, RemoveObservers(..))
+import Daml.Finance.Interface.Util.V3.Lockable qualified as Lockable (Acquire(..), I, LockType(..), Release(..))
+import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), submitExerciseInterfaceByKeyCmd, submitMustFailExerciseInterfaceByKeyCmd)
+import Daml.Finance.Test.Util.HoldingFactory qualified as HoldingFactory (submitExerciseInterfaceByKeyCmd)
+import Daml.Script
+
+run : Script ()
+run = script do
+  -- Create parties
+  tp@TestParties{custodian; issuer; investor; locker; locker2} <- setupParties
+
+  -- Initialize state
+  TestInitialState {investorAccount; issuerAccount; issuerHoldingCid; holdingFactory} <-
+    setupInitialState
+      tp
+      Holding.Factory with provider = custodian; id = Id "Holding Factory"; observers = mempty
+      BaseHolding
+      []
+      Account.Owner
+
+  -- Can disclose holding factory
+  let
+    getReference = queryFilter @HoldingFactory.R custodian  (\hf -> key hf == holdingFactory)
+    observers = ("test", singleton investor)
+  cid <- HoldingFactory.submitExerciseInterfaceByKeyCmd @Disclosure.I [custodian] [] holdingFactory $
+    Disclosure.AddObservers  with
+      disclosers = singleton custodian
+      observersToAdd = observers
+  Some disclosure <- queryInterfaceContractId @Disclosure.I custodian cid
+  disclosure.observers === Map.fromList [observers]
+  [(_, ref)] <- getReference
+  ref.observers === Map.fromList [observers]
+
+  -- Can undisclose holding factory
+  Some cid <- HoldingFactory.submitExerciseInterfaceByKeyCmd @Disclosure.I [custodian] []
+    holdingFactory $ Disclosure.RemoveObservers  with
+      disclosers = singleton custodian
+      observersToRemove = observers
+  Some disclosure <- queryInterfaceContractId @Disclosure.I custodian cid
+  disclosure.observers === mempty
+  [(_, ref)] <- getReference
+  ref.observers === mempty
+
+  -- Cannot split
+  submitMultiMustFail [issuer, investor] [] do
+    exerciseCmd (fromInterfaceContractId @Fungible.I issuerHoldingCid)
+      Fungible.Split with amounts = [100.0]
+
+  -- Cannot transfer
+  submitMultiMustFail [issuer, investor] [] do
+    exerciseCmd (fromInterfaceContractId @Transferable.I issuerHoldingCid)
+      Transferable.Transfer with
+        actors = fromList [issuer, investor]; newOwnerAccount = investorAccount
+
+  -- Cannot lock with empty lockers
+  submitMustFail issuer do
+    exerciseCmd (toInterfaceContractId @Lockable.I issuerHoldingCid)
+      Lockable.Acquire with
+        newLockers = mempty; context = "Test Lock"; lockType = Lockable.Semaphore
+
+  -- Lock asset with a one time lock
+  lockableCid <- submitMulti [issuer, locker] [] do
+    exerciseCmd (toInterfaceContractId @Lockable.I issuerHoldingCid)
+      Lockable.Acquire with
+        newLockers = singleton locker; context = "Test Lock"; lockType = Lockable.Semaphore
+
+  -- Same Locker attempts locks asset again
+  submitMultiMustFail [issuer, locker] [] do
+    exerciseCmd lockableCid Lockable.Acquire with
+      newLockers = singleton locker; context = "Second attempt"; lockType =Lockable.Semaphore
+
+  -- Another locker attempts to lock this asset
+  submitMultiMustFail [issuer, locker2] [] do
+    exerciseCmd lockableCid Lockable.Acquire with
+      newLockers = singleton locker2; context = "Steal lock"; lockType =Lockable.Semaphore
+
+  -- Cannot debit
+  Account.submitMustFailExerciseInterfaceByKeyCmd @Account.I [custodian, issuer] [] issuerAccount $
+    Account.Debit with holdingCid = fromInterfaceContractId @Holding.I lockableCid
+
+  -- Unlock asset
+  lockableCid <- submit locker do
+    exerciseCmd lockableCid Lockable.Release with context = "Test Lock"
+
+  -- Lock asset with a reentrant lock
+  lockableCid <- submitMulti [issuer, locker] [] do
+    exerciseCmd lockableCid Lockable.Acquire with
+      newLockers = singleton locker; context = "Lock 1"; lockType = Lockable.Reentrant
+
+  -- Same Locker locks asset again for the same context
+  submitMultiMustFail [issuer, locker] [] do
+    exerciseCmd lockableCid Lockable.Acquire with
+      newLockers = singleton locker; context = "Lock 1"; lockType = Lockable.Reentrant
+
+  -- Lock asset with a reentrant lock for another context
+  lockableCid <- submitMulti [issuer, locker] [] do
+    exerciseCmd lockableCid Lockable.Acquire with
+      newLockers = singleton locker; context = "Lock 2"; lockType = Lockable.Reentrant
+
+  -- Another locker attempts to lock this asset
+  submitMultiMustFail [issuer, locker2] [] do
+    exerciseCmd lockableCid Lockable.Acquire with
+       newLockers = singleton locker2; context = "Steal lock"; lockType = Lockable.Semaphore
+  submitMultiMustFail [issuer, locker2] [] do
+    exerciseCmd lockableCid Lockable.Acquire with
+      newLockers = singleton locker2; context = "Steal lock"; lockType = Lockable.Reentrant
+
+  -- Unlock one lock
+  lockableCid <- submit locker do exerciseCmd lockableCid Lockable.Release with context = "Lock 2"
+
+  -- Debit fails as the asset is still locked
+  Account.submitMustFailExerciseInterfaceByKeyCmd @Account.I [custodian, issuer] [] issuerAccount $
+    Account.Debit with holdingCid = fromInterfaceContractId @Holding.I lockableCid
+
+  -- Unlock the final lock
+  lockableCid <- submit locker do exerciseCmd lockableCid Lockable.Release with context = "Lock 1"
+
+  -- Make sure the issuer account has no observers
+  [(accountCid, account)] <- query @Account.T issuer
+  account.observers === mempty
+
+  -- Debit asset
+  Account.submitExerciseInterfaceByKeyCmd @Account.I [custodian, issuer] [] issuerAccount $
+    Account.Debit with holdingCid = fromInterfaceContractId @Holding.I lockableCid
+
+  pure ()

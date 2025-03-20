@@ -1,0 +1,1190 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Bond.Test.Callable where
+
+import DA.Date (DayOfWeek(..), Month(..), date, subtractDays)
+import DA.Map qualified as Map (fromList)
+import DA.Set (singleton)
+import Daml.Finance.Data.V4.Numeric.Observation (Observation(..))
+import Daml.Finance.Data.V4.Reference.HolidayCalendar (HolidayCalendar(..))
+import Daml.Finance.Data.V4.Time.DateClock (dateToDateClockTime)
+import Daml.Finance.Instrument.Bond.Test.Util (originateCallableBond, originateCallableBondMustFail, originateMultiScheduleCallableBond)
+import Daml.Finance.Interface.Instrument.Types.V2.FloatingRate (DateRelativeToEnum(..), FloatingRate(..), ReferenceRateTypeEnum(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..))
+import Daml.Finance.Interface.Types.Date.V3.Calendar (BusinessDayConventionEnum(..), HolidayCalendarData(..))
+import Daml.Finance.Interface.Types.Date.V3.DateOffset (DateOffset(..), DayTypeEnum(..))
+import Daml.Finance.Interface.Types.Date.V3.DayCount (DayCountConventionEnum(..))
+import Daml.Finance.Interface.Types.Date.V3.RollConvention (PeriodEnum(..))
+import Daml.Finance.Interface.Util.V3.Common (qty)
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.Instrument (originate)
+import Daml.Finance.Test.Util.Lifecycle (electAndVerifyPaymentEffects, ensureElectionNotPossible, lifecycleAndVerifyPaymentEffects, verifyNoLifecycleEffects)
+import Daml.Finance.Test.Util.Time (createPaymentPeriodicSchedule, createPeriodicSchedule)
+import Daml.Script
+
+-- Create and lifecycle a fixed coupon callable bond.
+run : Script ()
+run = script do
+  [custodian, issuer, investor, calendarDataProvider, publicParty] <-
+    createParties ["Custodian", "Issuer", "Investor", "Calendar Data Provider", "PublicParty"]
+
+  -- Account and holding factory
+  let pp = [("FactoryProvider", singleton publicParty)]
+
+  -- Originate commercial-bank cash
+  now <- getTime
+  cashInstrument <- originate custodian issuer "EUR" TransferableFungible "Euro" pp now
+
+  -- Create and distribute bond
+  -- 1.1% coupon every 12M
+  -- CREATE_FIXED_CALLABLE_BOND_VARIABLES_BEGIN
+  let
+    issueDate = date 2019 Jan 16
+    firstCouponDate = date 2019 May 15
+    secondCouponDate = date 2020 May 15
+    maturityDate = date 2021 May 15
+    maturityDateAdj = date 2021 May 17
+    notional = 1.0
+    floatingRate = None
+    couponRate = 0.011
+    capRate = None
+    floorRate = None
+    couponPeriod = M
+    couponPeriodMultiplier = 12
+    dayCountConvention = Act365Fixed
+    useAdjustedDatesForDcf = True
+    businessDayConvention = Following
+    noticeDays = 0
+    -- CREATE_FIXED_CALLABLE_BOND_VARIABLES_END
+    holidayCalendarIds = ["EUR"]
+    calendar =
+      HolidayCalendarData with
+        id = "EUR"
+        weekend = [Saturday, Sunday]
+        holidays = [date 2019 Dec 19]
+
+  -- A reference data provider publishes the holiday calendar on the ledger
+  calendarCid <- submit calendarDataProvider do
+    createCmd HolidayCalendar with
+      provider = calendarDataProvider
+      calendar
+      observers = Map.fromList pp
+
+  bondInstrument <- originateCallableBond issuer issuer "BONDTEST1" TransferableFungible
+    "Callable Bond" pp now issueDate holidayCalendarIds calendarDataProvider firstCouponDate
+    maturityDate dayCountConvention useAdjustedDatesForDcf businessDayConvention floatingRate
+    couponRate capRate floorRate couponPeriod couponPeriodMultiplier cashInstrument notional
+    noticeDays publicParty
+
+  -- One day before the first coupon date: try to lifecycle and verify that there are no lifecycle
+  -- effects.
+  verifyNoLifecycleEffects [publicParty] (subtractDays firstCouponDate 1) bondInstrument issuer []
+
+  let
+    amount = 1.0
+    electorIsOwner = False
+
+  -- First coupon date: Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0035863014 cashInstrument]
+  (Some bondInstrumentAfterFirstCoupon, effectCid) <- electAndVerifyPaymentEffects firstCouponDate
+    amount bondInstrument electorIsOwner issuer investor [publicParty] "NOT CALLED" []
+    expectedConsumed expectedProduced
+
+  -- Second coupon date: Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.011030137 cashInstrument]
+  (Some bondInstrumentAfterSecondCoupon, effectCid) <- electAndVerifyPaymentEffects
+    secondCouponDate amount bondInstrumentAfterFirstCoupon electorIsOwner issuer investor
+    [publicParty] "NOT CALLED" [] expectedConsumed expectedProduced
+
+  -- lifecycle on the maturity date
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.011060274 cashInstrument, qty 1.0 cashInstrument]
+  bondInstrumentAfterThirdCoupon <- electAndVerifyPaymentEffects maturityDateAdj amount
+    bondInstrumentAfterSecondCoupon electorIsOwner issuer investor [publicParty] "NOT CALLED" []
+    expectedConsumed expectedProduced
+
+  pure ()
+
+-- Verify that a callable bond with an invalid schedule fails.
+runCallableBondValidationFail : Script ()
+runCallableBondValidationFail = script do
+  [custodian, issuer, investor, calendarDataProvider, publicParty] <-
+    createParties ["Custodian", "Issuer", "Investor", "Calendar Data Provider", "PublicParty"]
+
+  -- Account and holding factory
+  let pp = [("FactoryProvider", singleton publicParty)]
+
+  -- Originate commercial-bank cash
+  now <- getTime
+  cashInstrument <- originate custodian issuer "EUR" TransferableFungible "Euro" pp now
+
+  -- Create and distribute bond
+  -- 1.1% coupon every 12M
+  let
+    issueDate = date 2019 Jan 16
+    firstCouponDateIncorrect = date 2019 May 16 -- This results in a roll convention mismatch
+    firstCouponDateCorrect = date 2019 May 15 -- This is ok
+    secondCouponDate = date 2020 May 15
+    maturityDate = date 2021 May 15
+    maturityDateAdj = date 2021 May 17
+    notional = 1.0
+    floatingRate = None
+    couponRate = 0.011
+    capRate = None
+    floorRate = None
+    couponPeriod = M
+    couponPeriodMultiplier = 12
+    dayCountConvention = Act365Fixed
+    useAdjustedDatesForDcf = True
+    businessDayConvention = Following
+    noticeDays = 0
+    holidayCalendarIds = ["EUR"]
+    calendar =
+      HolidayCalendarData with
+        id = "EUR"
+        weekend = [Saturday, Sunday]
+        holidays = [date 2019 Dec 19]
+
+  -- A reference data provider publishes the holiday calendar on the ledger
+  calendarCid <- submit calendarDataProvider do
+    createCmd HolidayCalendar with
+      provider = calendarDataProvider
+      calendar
+      observers = Map.fromList pp
+
+  originateCallableBondMustFail issuer issuer "BONDTEST1" TransferableFungible "Callable Bond" pp
+    now issueDate holidayCalendarIds calendarDataProvider firstCouponDateIncorrect maturityDate
+    dayCountConvention useAdjustedDatesForDcf businessDayConvention floatingRate couponRate capRate
+    floorRate couponPeriod couponPeriodMultiplier cashInstrument notional noticeDays publicParty
+
+  bondInstrument <- originateCallableBond issuer issuer "BONDTEST1" TransferableFungible
+    "Callable Bond" pp now issueDate holidayCalendarIds calendarDataProvider firstCouponDateCorrect
+    maturityDate dayCountConvention useAdjustedDatesForDcf businessDayConvention floatingRate
+    couponRate capRate floorRate couponPeriod couponPeriodMultiplier cashInstrument notional
+    noticeDays publicParty
+
+  pure ()
+
+-- Create and lifecycle a floating coupon callable bond.
+-- Issuer calls the bond before maturity.
+runFloatingCall : Script ()
+runFloatingCall = script do
+  [custodian, issuer, investor, calendarDataProvider, publicParty] <-
+    createParties ["Custodian", "Issuer", "Investor", "Calendar Data Provider", "PublicParty"]
+
+  -- Account and holding factory
+  let pp = [("FactoryProvider", singleton publicParty)]
+
+  -- Originate commercial-bank cash
+  now <- getTime
+  cashInstrument <- originate custodian issuer "EUR" TransferableFungible "Euro" pp now
+
+  -- Create and distribute bond
+  -- Libor + 0.1% coupon every 12M
+  -- CREATE_12M_FLOATING_CALLABLE_BOND_VARIABLES_BEGIN
+  let
+    issueDate = date 2019 Jan 16
+    firstCouponDate = date 2019 May 15
+    secondCouponDate = date 2020 May 15
+    maturityDate = date 2021 May 15
+    maturityDateAdj = date 2021 May 17
+    notional = 1.0
+    couponRate = 0.001
+    capRate = None
+    floorRate = None
+    couponPeriod = M
+    couponPeriodMultiplier = 12
+    dayCountConvention = Act365Fixed
+    useAdjustedDatesForDcf = True
+    businessDayConvention = Following
+    referenceRateId = "EUR/EURIBOR/12M"
+    floatingRate = Some FloatingRate with
+      referenceRateId
+      referenceRateType = SingleFixing CalculationPeriodStartDate
+      fixingDates = DateOffset with
+        periodMultiplier = -2
+        period = D
+        dayType = Some Business
+        businessDayConvention = NoAdjustment
+        businessCenters = ["EUR"]
+    noticeDays = 0
+    -- CREATE_12M_FLOATING_CALLABLE_BOND_VARIABLES_END
+    observations = Map.fromList
+      [ (dateToDateClockTime $ date 2019 Jan 14, 0.010)
+      , (dateToDateClockTime $ date 2019 May 13, 0.010)
+      ]
+    holidayCalendarIds = ["EUR"]
+    calendar =
+      HolidayCalendarData with
+        id = "EUR"
+        weekend = [Saturday, Sunday]
+        holidays = [date 2019 Dec 19]
+
+  -- A reference data provider publishes the holiday calendar on the ledger
+  calendarCid <- submit calendarDataProvider do
+    createCmd HolidayCalendar with
+      provider = calendarDataProvider
+      calendar
+      observers = Map.fromList pp
+
+  observableCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Observation with
+      provider = issuer; id = Id $ referenceRateId; observations; observers = mempty
+
+  bondInstrument <- originateCallableBond issuer issuer "BONDTEST1" TransferableFungible
+    "Callable Bond" pp now issueDate holidayCalendarIds calendarDataProvider firstCouponDate
+    maturityDate dayCountConvention useAdjustedDatesForDcf businessDayConvention floatingRate
+    couponRate capRate floorRate couponPeriod couponPeriodMultiplier cashInstrument notional
+    noticeDays publicParty
+
+  -- One day before the first coupon date: try to lifecycle and verify that there are no lifecycle
+  -- effects.
+  verifyNoLifecycleEffects [publicParty] (subtractDays firstCouponDate 1) bondInstrument issuer
+    [observableCid]
+
+  let
+    amount = 1.0
+    electorIsOwner = False
+
+  -- First coupon date: Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0035863014 cashInstrument]
+  (Some bondInstrumentAfterFirstCoupon, effectCid) <- electAndVerifyPaymentEffects firstCouponDate
+    amount bondInstrument electorIsOwner issuer investor [publicParty] "NOT CALLED" [observableCid]
+    expectedConsumed expectedProduced
+
+  -- Second coupon date: Lifecycle and verify that there is an effect for one coupon.
+  -- Issuer calls the bond
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.011030137 cashInstrument, qty 1.0 cashInstrument]
+  (bondInstrumentAfterSecondCoupon, effectCid) <- electAndVerifyPaymentEffects
+    secondCouponDate amount bondInstrumentAfterFirstCoupon electorIsOwner issuer investor
+    [publicParty] "CALLED" [observableCid] expectedConsumed expectedProduced
+
+  pure ()
+
+-- Create and lifecycle a floating coupon callable bond.
+-- 2Y, 3M Libor + 0.1% p.a.
+-- Issuer does not call the bond before maturity.
+runFloating : Script ()
+runFloating = script do
+  [custodian, issuer, investor, calendarDataProvider, publicParty] <-
+    createParties ["Custodian", "Issuer", "Investor", "Calendar Data Provider", "PublicParty"]
+
+  -- Account and holding factory
+  let pp = [("FactoryProvider", singleton publicParty)]
+
+  -- Originate commercial-bank cash
+  now <- getTime
+  cashInstrument <- originate custodian issuer "USD" TransferableFungible "US Dollar" pp now
+
+  -- Create and distribute bond
+  -- Libor + 0.1% coupon every 3M
+  -- CREATE_3M_FLOATING_CALLABLE_BOND_VARIABLES_BEGIN
+  let
+    issueDate = date 2022 Jan 15
+    firstCouponDate = date 2022 Apr 15
+    maturityDate = date 2024 Jan 15
+    notional = 1.0
+    couponRate = 0.001
+    capRate = None
+    floorRate = None
+    couponPeriod = M
+    couponPeriodMultiplier = 3
+    dayCountConvention = Act360
+    useAdjustedDatesForDcf = True
+    businessDayConvention = Following
+    referenceRateId = "USD/LIBOR/3M"
+    floatingRate = Some FloatingRate with
+      referenceRateId
+      referenceRateType = SingleFixing CalculationPeriodStartDate
+      fixingDates = DateOffset with
+        periodMultiplier = -2
+        period = D
+        dayType = Some Business
+        businessDayConvention = NoAdjustment
+        businessCenters = ["USD"]
+    noticeDays = 0
+    -- CREATE_3M_FLOATING_CALLABLE_BOND_VARIABLES_END
+    observations = Map.fromList
+      [ (dateToDateClockTime $ date 2022 Jan 13, 0.010)
+      , (dateToDateClockTime $ date 2022 Apr 13, 0.010)
+      , (dateToDateClockTime $ date 2022 Jul 13, 0.010)
+      , (dateToDateClockTime $ date 2022 Oct 13, 0.010)
+      , (dateToDateClockTime $ date 2023 Jan 12, 0.010)
+      , (dateToDateClockTime $ date 2023 Apr 13, 0.010)
+      , (dateToDateClockTime $ date 2023 Jul 13, 0.010)
+      , (dateToDateClockTime $ date 2023 Oct 12, 0.010)
+      ]
+    holidayCalendarIds = ["USD"]
+    calendar =
+      HolidayCalendarData with
+        id = "USD"
+        weekend = [Saturday, Sunday]
+        holidays = []
+
+  -- A reference data provider publishes the holiday calendar on the ledger
+  calendarCid <- submit calendarDataProvider do
+    createCmd HolidayCalendar with
+      provider = calendarDataProvider
+      calendar
+      observers = Map.fromList pp
+
+  observableCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Observation with
+      provider = issuer; id = Id $ referenceRateId; observations; observers = mempty
+
+  bondInstrument <- originateCallableBond issuer issuer "BONDTEST1" TransferableFungible
+    "Callable Bond" pp now issueDate holidayCalendarIds calendarDataProvider firstCouponDate
+    maturityDate dayCountConvention useAdjustedDatesForDcf businessDayConvention floatingRate
+    couponRate capRate floorRate couponPeriod couponPeriodMultiplier cashInstrument notional
+    noticeDays publicParty
+
+  -- One day before the first coupon date: try to lifecycle and verify that there are no lifecycle
+  -- effects.
+  verifyNoLifecycleEffects [publicParty] (subtractDays firstCouponDate 1) bondInstrument issuer
+    [observableCid]
+
+  let
+    amount = 1.0
+    electorIsOwner = False
+
+  -- Coupon date 1: Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0026888889 cashInstrument]
+  (Some bondInstrumentAfterCoupon1, effectCid) <- electAndVerifyPaymentEffects (date 2022 Apr 15)
+    amount bondInstrument electorIsOwner issuer investor [publicParty] "NOT CALLED" [observableCid]
+    expectedConsumed expectedProduced
+
+  -- Coupon date 2: Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0027805556 cashInstrument]
+  (Some bondInstrumentAfterCoupon2, effectCid) <- electAndVerifyPaymentEffects (date 2022 Jul 15)
+    amount bondInstrumentAfterCoupon1 electorIsOwner issuer investor [publicParty] "NOT CALLED"
+    [observableCid] expectedConsumed expectedProduced
+
+  -- Coupon date 3: Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0028722222 cashInstrument]
+  (Some bondInstrumentAfterCoupon3, effectCid) <- electAndVerifyPaymentEffects (date 2022 Oct 17)
+    amount bondInstrumentAfterCoupon2 electorIsOwner issuer investor [publicParty] "NOT CALLED"
+    [observableCid] expectedConsumed expectedProduced
+
+  -- Coupon date 4: Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0027805556 cashInstrument]
+  (Some bondInstrumentAfterCoupon4, effectCid) <- electAndVerifyPaymentEffects (date 2023 Jan 16)
+    amount bondInstrumentAfterCoupon3 electorIsOwner issuer investor [publicParty] "NOT CALLED"
+    [observableCid] expectedConsumed expectedProduced
+
+  -- Coupon date 5: Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0027805556 cashInstrument]
+  (Some bondInstrumentAfterCoupon5, effectCid) <- electAndVerifyPaymentEffects (date 2023 Apr 17)
+    amount bondInstrumentAfterCoupon4 electorIsOwner issuer investor [publicParty] "NOT CALLED"
+    [observableCid] expectedConsumed expectedProduced
+
+  -- Coupon date 6: Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0027805556 cashInstrument]
+  (Some bondInstrumentAfterCoupon6, effectCid) <- electAndVerifyPaymentEffects (date 2023 Jul 17)
+    amount bondInstrumentAfterCoupon5 electorIsOwner issuer investor [publicParty] "NOT CALLED"
+    [observableCid] expectedConsumed expectedProduced
+
+  -- Coupon date 7: Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0027805556 cashInstrument]
+  (Some bondInstrumentAfterCoupon7, effectCid) <- electAndVerifyPaymentEffects (date 2023 Oct 16)
+    amount bondInstrumentAfterCoupon6 electorIsOwner issuer investor [publicParty] "NOT CALLED"
+    [observableCid] expectedConsumed expectedProduced
+
+  -- lifecycle on the maturity date
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0027805556 cashInstrument, qty 1.0 cashInstrument]
+  (Some _, effectCid) <- electAndVerifyPaymentEffects (date 2024 Jan 15)
+    amount bondInstrumentAfterCoupon7 electorIsOwner issuer investor [publicParty] "NOT CALLED"
+    [observableCid] expectedConsumed expectedProduced
+
+  pure ()
+
+-- Create and lifecycle a floating coupon callable bond.
+-- 2Y, 3M Libor + 0.1% p.a.
+-- cap: 1.5%, floor: 0%
+-- Issuer does not call the bond before maturity.
+runFloatingFloorCap : Script ()
+runFloatingFloorCap = script do
+  [custodian, issuer, investor, calendarDataProvider, publicParty] <-
+    createParties ["Custodian", "Issuer", "Investor", "Calendar Data Provider", "PublicParty"]
+
+  -- Account and holding factory
+  let pp = [("FactoryProvider", singleton publicParty)]
+
+  -- Originate commercial-bank cash
+  now <- getTime
+  cashInstrument <- originate custodian issuer "USD" TransferableFungible "US Dollar" pp now
+
+  -- Create and distribute bond
+  -- CREATE_3M_CAP_FLOOR_FLOATING_CALLABLE_BOND_VARIABLES_BEGIN
+  -- Libor + 0.1% coupon every 3M (with a 0% floor and a 1.5% cap)
+  let
+    issueDate = date 2022 Jan 15
+    firstCouponDate = date 2022 Apr 15
+    maturityDate = date 2024 Jan 15
+    notional = 1.0
+    couponRate = 0.001
+    capRate = Some 0.015
+    floorRate = Some $ 0.0
+    couponPeriod = M
+    couponPeriodMultiplier = 3
+    dayCountConvention = Act360
+    useAdjustedDatesForDcf = True
+    businessDayConvention = Following
+    referenceRateId = "USD/LIBOR/3M"
+    floatingRate = Some FloatingRate with
+      referenceRateId
+      referenceRateType = SingleFixing CalculationPeriodStartDate
+      fixingDates = DateOffset with
+        periodMultiplier = -2
+        period = D
+        dayType = Some Business
+        businessDayConvention = NoAdjustment
+        businessCenters = ["USD"]
+    noticeDays = 0
+    -- CREATE_3M_CAP_FLOOR_FLOATING_CALLABLE_BOND_VARIABLES_END
+    observations = Map.fromList
+      [ (dateToDateClockTime $ date 2022 Jan 13, 0.010)
+      , (dateToDateClockTime $ date 2022 Apr 13, 0.020)
+      , (dateToDateClockTime $ date 2022 Jul 13, -0.005)
+      , (dateToDateClockTime $ date 2022 Oct 13, 0.010)
+      , (dateToDateClockTime $ date 2023 Jan 12, 0.010)
+      , (dateToDateClockTime $ date 2023 Apr 13, 0.010)
+      , (dateToDateClockTime $ date 2023 Jul 13, 0.010)
+      , (dateToDateClockTime $ date 2023 Oct 12, 0.010)
+      ]
+    holidayCalendarIds = ["USD"]
+    calendar =
+      HolidayCalendarData with
+        id = "USD"
+        weekend = [Saturday, Sunday]
+        holidays = []
+
+  -- A reference data provider publishes the holiday calendar on the ledger
+  calendarCid <- submit calendarDataProvider do
+    createCmd HolidayCalendar with
+      provider = calendarDataProvider
+      calendar
+      observers = Map.fromList pp
+
+  observableCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Observation with
+      provider = issuer; id = Id $ referenceRateId; observations; observers = mempty
+
+  bondInstrument <- originateCallableBond issuer issuer "BONDTEST1" TransferableFungible
+    "Callable Bond" pp now issueDate holidayCalendarIds calendarDataProvider firstCouponDate
+    maturityDate dayCountConvention useAdjustedDatesForDcf businessDayConvention floatingRate
+    couponRate capRate floorRate couponPeriod couponPeriodMultiplier cashInstrument notional
+    noticeDays publicParty
+
+  let
+    amount = 1.0
+    electorIsOwner = False
+
+  -- Coupon date 1: Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0026888889 cashInstrument]
+  (Some bondInstrumentAfterCoupon1, effectCid) <- electAndVerifyPaymentEffects (date 2022 Apr 15)
+    amount bondInstrument electorIsOwner issuer investor [publicParty] "NOT CALLED" [observableCid]
+    expectedConsumed expectedProduced
+
+  -- Coupon date 2: Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0037916667 cashInstrument]
+  (Some bondInstrumentAfterCoupon2, effectCid) <- electAndVerifyPaymentEffects (date 2022 Jul 15)
+    amount bondInstrumentAfterCoupon1 electorIsOwner issuer investor [publicParty] "NOT CALLED"
+    [observableCid] expectedConsumed expectedProduced
+
+  -- Coupon date 3: Lifecycle and verify that there are no effects (0% coupon due to floor)
+  let
+    expectedConsumed = []
+    expectedProduced = []
+  (Some bondInstrumentAfterCoupon3, effectCid) <- electAndVerifyPaymentEffects (date 2022 Oct 17)
+    amount bondInstrumentAfterCoupon2 electorIsOwner issuer investor [publicParty] "NOT CALLED"
+    [observableCid] expectedConsumed expectedProduced
+
+  -- Coupon date 4: Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0027805556 cashInstrument]
+  (Some bondInstrumentAfterCoupon4, effectCid) <- electAndVerifyPaymentEffects (date 2023 Jan 16)
+    amount bondInstrumentAfterCoupon3 electorIsOwner issuer investor [publicParty] "NOT CALLED"
+    [observableCid] expectedConsumed expectedProduced
+
+  -- Coupon date 5: Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0027805556 cashInstrument]
+  (Some bondInstrumentAfterCoupon5, effectCid) <- electAndVerifyPaymentEffects (date 2023 Apr 17)
+    amount bondInstrumentAfterCoupon4 electorIsOwner issuer investor [publicParty] "NOT CALLED"
+    [observableCid] expectedConsumed expectedProduced
+
+  -- Coupon date 6: Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0027805556 cashInstrument]
+  (Some bondInstrumentAfterCoupon6, effectCid) <- electAndVerifyPaymentEffects (date 2023 Jul 17)
+    amount bondInstrumentAfterCoupon5 electorIsOwner issuer investor [publicParty] "NOT CALLED"
+    [observableCid] expectedConsumed expectedProduced
+
+  -- Coupon date 7: Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0027805556 cashInstrument]
+  (Some bondInstrumentAfterCoupon7, effectCid) <- electAndVerifyPaymentEffects (date 2023 Oct 16)
+    amount bondInstrumentAfterCoupon6 electorIsOwner issuer investor [publicParty] "NOT CALLED"
+    [observableCid] expectedConsumed expectedProduced
+
+  -- lifecycle on the maturity date
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0027805556 cashInstrument, qty 1.0 cashInstrument]
+  (Some _, effectCid) <- electAndVerifyPaymentEffects (date 2024 Jan 15)
+    amount bondInstrumentAfterCoupon7 electorIsOwner issuer investor [publicParty] "NOT CALLED"
+    [observableCid] expectedConsumed expectedProduced
+
+  pure ()
+
+-- Create and lifecycle a floating coupon callable bond.
+-- 2Y, 3M Libor + 0.1% p.a.
+-- cap: 1.5%, floor: 0%
+-- callable on every second coupon date (6M schedule), except the last one (regular maturity date)
+-- Issuer does not call the bond before maturity.
+runFloatingFloorCapCallable6M : Script ()
+runFloatingFloorCapCallable6M = script do
+  [custodian, issuer, investor, calendarDataProvider, publicParty] <-
+    createParties ["Custodian", "Issuer", "Investor", "Calendar Data Provider", "PublicParty"]
+
+  -- Account and holding factory
+  let pp = [("FactoryProvider", singleton publicParty)]
+
+  -- Originate commercial-bank cash
+  now <- getTime
+  cashInstrument <- originate custodian issuer "USD" TransferableFungible "US Dollar" pp now
+
+  -- Create and distribute bond
+  -- CREATE_3M_CAP_FLOOR_FLOATING_6M_CALLABLE_BOND_VARIABLES_BEGIN
+  -- Libor + 0.1% coupon every 3M (with a 0% floor and a 1.5% cap)
+  let
+    rollDay = 15
+    issueDate = date 2022 Jan rollDay
+    firstCouponDate = date 2022 Apr rollDay
+    maturityDate = date 2024 Jan rollDay
+    notional = 1.0
+    couponRate = 0.001
+    capRate = Some 0.015
+    floorRate = Some $ 0.0
+    couponPeriod = M
+    couponPeriodMultiplier = 3
+    dayCountConvention = Act360
+    useAdjustedDatesForDcf = True
+    businessDayConvention = Following
+    referenceRateId = "USD/LIBOR/3M"
+    floatingRate = Some FloatingRate with
+      referenceRateId
+      referenceRateType = SingleFixing CalculationPeriodStartDate
+      fixingDates = DateOffset with
+        periodMultiplier = -2
+        period = D
+        dayType = Some Business
+        businessDayConvention = NoAdjustment
+        businessCenters = ["USD"]
+    -- CREATE_3M_CAP_FLOOR_FLOATING_6M_CALLABLE_BOND_VARIABLES_END
+    observations = Map.fromList
+      [ (dateToDateClockTime $ date 2022 Jan 13, 0.010)
+      , (dateToDateClockTime $ date 2022 Apr 13, 0.020)
+      , (dateToDateClockTime $ date 2022 Jul 13, -0.005)
+      , (dateToDateClockTime $ date 2022 Oct 13, 0.010)
+      , (dateToDateClockTime $ date 2023 Jan 12, 0.010)
+      , (dateToDateClockTime $ date 2023 Apr 13, 0.010)
+      , (dateToDateClockTime $ date 2023 Jul 13, 0.010)
+      , (dateToDateClockTime $ date 2023 Oct 12, 0.010)
+      ]
+    holidayCalendarIds = ["USD"]
+    calendar =
+      HolidayCalendarData with
+        id = "USD"
+        weekend = [Saturday, Sunday]
+        holidays = []
+
+  -- A reference data provider publishes the holiday calendar on the ledger
+  calendarCid <- submit calendarDataProvider do
+    createCmd HolidayCalendar with
+      provider = calendarDataProvider
+      calendar
+      observers = Map.fromList pp
+
+  observableCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Observation with
+      provider = issuer; id = Id $ referenceRateId; observations; observers = mempty
+
+  let
+  -- CREATE_3M_CAP_FLOOR_FLOATING_6M_CALLABLE_BOND_COUPON_SCHEDULE_BEGIN
+    couponSchedule = createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds
+      businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate
+  -- CREATE_3M_CAP_FLOOR_FLOATING_6M_CALLABLE_BOND_COUPON_SCHEDULE_END
+
+    -- CREATE_3M_CAP_FLOOR_FLOATING_6M_CALLABLE_BOND_SCHEDULE_BEGIN
+    -- Define a schedule for callability. The bond is callable on the *last* date of each schedule
+    -- period.
+    -- In this example, it is possible to call the bond every 6M (every second coupon date).
+    callScheduleStartDate = issueDate
+    callScheduleEndDate = maturityDate
+    callPeriod = couponPeriod
+    callPeriodMultiplier = 6
+    callScheduleFirstRegular = None -- Only used in case of an irregular schedule
+    callSchedule = createPeriodicSchedule callScheduleFirstRegular holidayCalendarIds
+      businessDayConvention callPeriod callPeriodMultiplier callScheduleStartDate
+      callScheduleEndDate rollDay
+    noticeDays = 5
+    -- CREATE_3M_CAP_FLOOR_FLOATING_6M_CALLABLE_BOND_SCHEDULE_END
+
+  bondInstrument <- originateMultiScheduleCallableBond issuer issuer "BONDTEST1"
+    TransferableFungible "Callable Bond" pp now holidayCalendarIds calendarDataProvider
+    dayCountConvention useAdjustedDatesForDcf floatingRate couponRate capRate floorRate
+    cashInstrument notional couponSchedule callSchedule noticeDays publicParty
+
+  let
+    amount = 1.0
+    electorIsOwner = False
+
+  -- Coupon date 1 (not a call date): Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0026888889 cashInstrument]
+  Some bondInstrumentAfterCoupon1 <- lifecycleAndVerifyPaymentEffects [publicParty]
+    (date 2022 Apr 15) bondInstrument issuer [observableCid] expectedConsumed expectedProduced
+
+  -- Call date before Coupon date 2: Lifecycle to get the new instrument.
+  let
+    expectedConsumed = []
+    expectedProduced = []
+  (Some bondInstrumentAfterCallDate2, effectCid) <- electAndVerifyPaymentEffects (date 2022 Jul 8)
+    amount bondInstrumentAfterCoupon1 electorIsOwner issuer investor [publicParty] "NOT CALLED"
+    [observableCid] expectedConsumed expectedProduced
+
+  -- Coupon date 2: Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0037916667 cashInstrument]
+  Some bondInstrumentAfterCoupon2 <- lifecycleAndVerifyPaymentEffects [publicParty]
+    (date 2022 Jul 15) bondInstrumentAfterCallDate2 issuer [observableCid] expectedConsumed
+    expectedProduced
+
+  -- Coupon date 3 (not a call date): Lifecycle and verify that there are no effects (0% coupon due
+  -- to floor)
+  let
+    expectedConsumed = []
+    expectedProduced = []
+  Some bondInstrumentAfterCoupon3 <- lifecycleAndVerifyPaymentEffects [publicParty]
+    (date 2022 Oct 17) bondInstrumentAfterCoupon2 issuer [observableCid] expectedConsumed
+    expectedProduced
+
+  -- Call date before Coupon date 4: Lifecycle to get the new instrument.
+  let
+    expectedConsumed = []
+    expectedProduced = []
+  (Some bondInstrumentAfterCallDate4, effectCid) <- electAndVerifyPaymentEffects (date 2023 Jan 9)
+    amount bondInstrumentAfterCoupon3 electorIsOwner issuer investor [publicParty] "NOT CALLED"
+    [observableCid] expectedConsumed expectedProduced
+
+  -- Coupon date 4 (call date): Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0027805556 cashInstrument]
+  Some bondInstrumentAfterCoupon4 <- lifecycleAndVerifyPaymentEffects [publicParty]
+    (date 2023 Jan 16) bondInstrumentAfterCallDate4 issuer [observableCid] expectedConsumed
+    expectedProduced
+
+  -- 5 business days before coupon date 5 (not a call date): Try to call the bond and verify that
+  -- this is not possible.
+  ensureElectionNotPossible (date 2023 Apr 10) amount bondInstrumentAfterCoupon4 electorIsOwner
+    issuer investor [publicParty] "CALLED" [observableCid]
+
+  -- Coupon date 5 (not a call date): Try to call the bond and verify that this is not possible.
+  ensureElectionNotPossible (date 2023 Apr 17) amount bondInstrumentAfterCoupon4 electorIsOwner
+    issuer investor [publicParty] "CALLED" [observableCid]
+
+  -- Coupon date 5 (not a call date): Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0027805556 cashInstrument]
+  Some bondInstrumentAfterCoupon5 <- lifecycleAndVerifyPaymentEffects [publicParty]
+    (date 2023 Apr 17) bondInstrumentAfterCoupon4 issuer [observableCid] expectedConsumed
+    expectedProduced
+
+  -- Coupon date 6 (call date): Call the bond and get the new instrument.
+  let
+    expectedConsumed = []
+    expectedProduced = []
+  (Some bondInstrumentAfterCallDate6, effectCid) <- electAndVerifyPaymentEffects (date 2023 Jul 10)
+    amount bondInstrumentAfterCoupon5 electorIsOwner issuer investor [publicParty] "CALLED"
+    [observableCid] expectedConsumed expectedProduced
+
+  -- Coupon date 6 (call date): Lifecycle one coupon and the early redemption amount.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 1.0027805556 cashInstrument]
+  Some bondInstrumentAfterCoupon6 <- lifecycleAndVerifyPaymentEffects [publicParty]
+    (date 2023 Jul 17) bondInstrumentAfterCallDate6 issuer [observableCid] expectedConsumed
+    expectedProduced
+
+  pure ()
+
+-- Create and lifecycle a floating coupon callable bond.
+-- 6M bond, two coupons: 3M Libor + 0.1% p.a.
+-- Issuer does not call the bond.
+runTwoCoupons : Script ()
+runTwoCoupons = script do
+  [custodian, issuer, investor, calendarDataProvider, publicParty] <-
+    createParties ["Custodian", "Issuer", "Investor", "Calendar Data Provider", "PublicParty"]
+
+  -- Account and holding factory
+  let pp = [("FactoryProvider", singleton publicParty)]
+
+  -- Originate commercial-bank cash
+  now <- getTime
+  cashInstrument <- originate custodian issuer "USD" TransferableFungible "US Dollar" pp now
+
+  -- Create and distribute bond
+  -- Libor + 0.1% coupon every 3M
+  -- CREATE_3M_FLOATING_CALLABLE_BOND_VARIABLES_BEGIN
+  let
+    issueDate = date 2022 Jan 15
+    firstCouponDate = date 2022 Apr 15
+    maturityDate = date 2022 Jul 15
+    notional = 1.0
+    couponRate = 0.001
+    capRate = None
+    floorRate = None
+    couponPeriod = M
+    couponPeriodMultiplier = 3
+    dayCountConvention = Act360
+    useAdjustedDatesForDcf = True
+    businessDayConvention = Following
+    referenceRateId = "USD/LIBOR/3M"
+    floatingRate = Some FloatingRate with
+      referenceRateId
+      referenceRateType = SingleFixing CalculationPeriodStartDate
+      fixingDates = DateOffset with
+        periodMultiplier = -2
+        period = D
+        dayType = Some Business
+        businessDayConvention = NoAdjustment
+        businessCenters = ["USD"]
+    noticeDays = 0
+    -- CREATE_3M_FLOATING_CALLABLE_BOND_VARIABLES_END
+    observations = Map.fromList
+      [ (dateToDateClockTime $ date 2022 Jan 13, 0.010)
+      , (dateToDateClockTime $ date 2022 Apr 13, 0.010)
+      ]
+    holidayCalendarIds = ["USD"]
+    calendar =
+      HolidayCalendarData with
+        id = "USD"
+        weekend = [Saturday, Sunday]
+        holidays = []
+
+  -- A reference data provider publishes the holiday calendar on the ledger
+  calendarCid <- submit calendarDataProvider do
+    createCmd HolidayCalendar with
+      provider = calendarDataProvider
+      calendar
+      observers = Map.fromList pp
+
+  observableCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Observation with
+      provider = issuer; id = Id $ referenceRateId; observations; observers = mempty
+
+  bondInstrument <- originateCallableBond issuer issuer "BONDTEST1" TransferableFungible
+    "Callable Bond" pp now issueDate holidayCalendarIds calendarDataProvider firstCouponDate
+    maturityDate dayCountConvention useAdjustedDatesForDcf businessDayConvention floatingRate
+    couponRate capRate floorRate couponPeriod couponPeriodMultiplier cashInstrument notional
+    noticeDays publicParty
+
+  -- One day before the first coupon date: try to lifecycle and verify that there are no lifecycle
+  -- effects.
+  verifyNoLifecycleEffects [publicParty] (subtractDays firstCouponDate 1) bondInstrument issuer
+    [observableCid]
+
+  let
+    amount = 1.0
+    electorIsOwner = False
+
+  -- Coupon date 1: Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0026888889 cashInstrument]
+  (Some bondInstrumentAfterCoupon1, effectCid) <- electAndVerifyPaymentEffects (date 2022 Apr 15)
+    amount bondInstrument electorIsOwner issuer investor [publicParty] "NOT CALLED" [observableCid]
+    expectedConsumed expectedProduced
+
+  -- Coupon date 2: Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0027805556 cashInstrument, qty 1.0 cashInstrument]
+  (Some bondInstrumentAfterCoupon2, effectCid) <- electAndVerifyPaymentEffects (date 2022 Jul 15)
+    amount bondInstrumentAfterCoupon1 electorIsOwner issuer investor [publicParty] "NOT CALLED"
+    [observableCid] expectedConsumed expectedProduced
+
+  pure ()
+
+-- Create and lifecycle a fixed coupon callable bond.
+-- 2Y, 4.5% p.a. (Following Unadjusted)
+-- callable on every coupon date (6M schedule) after 1Y.
+-- Issuer does not call the bond.
+runFixCouponUnadjustedCallable6M : Script ()
+runFixCouponUnadjustedCallable6M = script do
+  [custodian, issuer, investor, calendarDataProvider, publicParty] <-
+    createParties ["Custodian", "Issuer", "Investor", "Calendar Data Provider", "PublicParty"]
+
+  -- Account and holding factory
+  let pp = [("FactoryProvider", singleton publicParty)]
+
+  -- Originate commercial-bank cash
+  now <- getTime
+  cashInstrument <- originate custodian issuer "USD" TransferableFungible "US Dollar" pp now
+
+  -- Create and distribute bond
+  let
+    rollDay = 15
+    issueDate = date 2022 Jan rollDay
+    firstCouponDate = date 2022 Jul rollDay
+    maturityDate = date 2024 Jan rollDay
+    notional = 1000.0
+    couponRate = 0.045
+    capRate = None
+    floorRate = None
+    couponPeriod = M
+    couponPeriodMultiplier = 6
+    dayCountConvention = Basis30360
+    useAdjustedDatesForDcf = False
+    businessDayConvention = Following
+    floatingRate = None
+    holidayCalendarIds = ["USD"]
+    calendar =
+      HolidayCalendarData with
+        id = "USD"
+        weekend = [Saturday, Sunday]
+        holidays = []
+    noticeDays = 0
+
+  -- A reference data provider publishes the holiday calendar on the ledger
+  calendarCid <- submit calendarDataProvider do
+    createCmd HolidayCalendar with
+      provider = calendarDataProvider
+      calendar
+      observers = Map.fromList pp
+
+  let
+    couponSchedule = createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds
+      businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate
+
+    -- CREATE_6M_FIXED_COUPON_CALLABLE_BOND_SCHEDULE_BEGIN
+    -- Define a schedule for callability. The bond is callable on the *last* date of each schedule
+    -- period.
+    -- In this example, it is possible to call the bond every 6M, but only starting in the second
+    -- coupon period (after one year).
+    callScheduleStartDate = date 2022 Jul rollDay
+    callScheduleEndDate = date 2023 Jul rollDay
+    callPeriod = couponPeriod
+    callPeriodMultiplier = couponPeriodMultiplier
+    callScheduleFirstRegular = None -- Only used in case of an irregular schedule
+    callSchedule = createPeriodicSchedule callScheduleFirstRegular holidayCalendarIds
+      businessDayConvention callPeriod callPeriodMultiplier callScheduleStartDate
+      callScheduleEndDate rollDay
+    -- CREATE_6M_FIXED_COUPON_CALLABLE_BOND_SCHEDULE_END
+
+  bondInstrument <- originateMultiScheduleCallableBond issuer issuer "BONDTEST1"
+    TransferableFungible "Callable Bond" pp now holidayCalendarIds calendarDataProvider
+    dayCountConvention useAdjustedDatesForDcf floatingRate couponRate capRate floorRate
+    cashInstrument notional couponSchedule callSchedule noticeDays publicParty
+
+  let
+    electorIsOwner = False
+
+  -- Coupon date 1 (not a call date): Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 22.5 cashInstrument]
+  Some bondInstrumentAfterCoupon1 <- lifecycleAndVerifyPaymentEffects [publicParty]
+    (date 2022 Jul 15) bondInstrument issuer [] expectedConsumed expectedProduced
+
+  -- Coupon date 2 (call date): Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 22.5 cashInstrument]
+  (Some bondInstrumentAfterCoupon2, effectCid) <- electAndVerifyPaymentEffects (date 2023 Jan 16)
+    notional bondInstrumentAfterCoupon1 electorIsOwner issuer investor [publicParty] "NOT CALLED"
+    [] expectedConsumed expectedProduced
+
+  -- Coupon date 3 (call date): Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 22.5 cashInstrument]
+  (Some bondInstrumentAfterCoupon3, effectCid) <- electAndVerifyPaymentEffects (date 2023 Jul 17)
+    notional bondInstrumentAfterCoupon2 electorIsOwner issuer investor [publicParty] "NOT CALLED"
+    [] expectedConsumed expectedProduced
+
+  -- Redemption date (not a call date): Lifecycle and verify that there is an effect for one coupon
+  -- and the redemption amount.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 1022.5 cashInstrument]
+  Some bondInstrumentAfterRedemption <- lifecycleAndVerifyPaymentEffects [publicParty]
+    (date 2024 Jan 15) bondInstrumentAfterCoupon3 issuer [] expectedConsumed expectedProduced
+
+  pure ()
+
+-- Create and lifecycle a floating coupon callable bond.
+-- 2Y, compounded SOFR (calculated via SOFR Index) + 0.5% p.a.
+-- cap: 6.0%, floor: 0%
+-- callable on every coupon date (6M schedule) after 1Y.
+-- Issuer calls the bond before maturity.
+runSofrFloorCapCallable6M : Script ()
+runSofrFloorCapCallable6M = script do
+  [custodian, issuer, investor, calendarDataProvider, publicParty] <-
+    createParties ["Custodian", "Issuer", "Investor", "Calendar Data Provider", "PublicParty"]
+
+  -- Account and holding factory
+  let pp = [("FactoryProvider", singleton publicParty)]
+
+  -- Originate commercial-bank cash
+  now <- getTime
+  cashInstrument <- originate custodian issuer "USD" TransferableFungible "US Dollar" pp now
+
+  -- Create and distribute bond
+  -- SOFR + 0.5% coupon every 6M (with a 0% floor and a 6% cap)
+  let
+    rollDay = 15
+    issueDate = date 2022 Jan rollDay
+    firstCouponDate = date 2022 Jul rollDay
+    maturityDate = date 2024 Jan rollDay
+    notional = 1000.0
+    couponRate = 0.005
+    capRate = Some 0.06
+    floorRate = Some $ 0.0
+    couponPeriod = M
+    couponPeriodMultiplier = 6
+    dayCountConvention = Act360
+    useAdjustedDatesForDcf = True
+    businessDayConvention = Following
+    -- CREATE_6M_SOFR_CALLABLE_BOND_VARIABLES_BEGIN
+    referenceRateId = "SOFR/INDEX"
+    floatingRate = Some FloatingRate with
+      referenceRateId
+      referenceRateType = CompoundedIndex Act360
+    -- CREATE_6M_SOFR_CALLABLE_BOND_VARIABLES_END
+      fixingDates = DateOffset with
+        periodMultiplier = -2
+        period = D
+        dayType = Some Business
+        businessDayConvention = NoAdjustment
+        businessCenters = ["USD"]
+    observations = Map.fromList
+      [ (dateToDateClockTime $ date 2022 Jan 13, 1.04240111)
+      , (dateToDateClockTime $ date 2022 Jul 13, 1.04509941)
+      , (dateToDateClockTime $ date 2023 Jan 12, 1.06145226)
+      , (dateToDateClockTime $ date 2023 Jul 13, 1.08019012)
+      ]
+    holidayCalendarIds = ["USD"]
+    calendar =
+      HolidayCalendarData with
+        id = "USD"
+        weekend = [Saturday, Sunday]
+        holidays = []
+
+  -- A reference data provider publishes the holiday calendar on the ledger
+  calendarCid <- submit calendarDataProvider do
+    createCmd HolidayCalendar with
+      provider = calendarDataProvider
+      calendar
+      observers = Map.fromList pp
+
+  observableCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Observation with
+      provider = issuer; id = Id $ referenceRateId; observations; observers = mempty
+
+  let
+    couponSchedule = createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds
+      businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate
+
+    -- CREATE_6M_SOFR_CALLABLE_BOND_SCHEDULE_BEGIN
+    -- Define a schedule for callability. The bond is callable on the *last* date of each schedule
+    -- period.
+    -- In this example, it is possible to call the bond every 6M, but only starting in the second
+    -- coupon period (after one year).
+    callScheduleStartDate = date 2022 Jul rollDay
+    callScheduleEndDate = date 2023 Jul rollDay
+    callPeriod = couponPeriod
+    callPeriodMultiplier = couponPeriodMultiplier
+    callScheduleFirstRegular = None -- Only used in case of an irregular schedule
+    callSchedule = createPeriodicSchedule callScheduleFirstRegular holidayCalendarIds
+      businessDayConvention callPeriod callPeriodMultiplier callScheduleStartDate
+      callScheduleEndDate rollDay
+    noticeDays = 0
+    -- CREATE_6M_SOFR_CALLABLE_BOND_SCHEDULE_END
+
+  bondInstrument <- originateMultiScheduleCallableBond issuer issuer "BONDTEST1"
+    TransferableFungible "Callable Bond" pp now holidayCalendarIds calendarDataProvider
+    dayCountConvention useAdjustedDatesForDcf floatingRate couponRate capRate floorRate
+    cashInstrument notional couponSchedule callSchedule noticeDays publicParty
+
+  let
+    electorIsOwner = False
+
+  -- Coupon date 1 (not a call date): Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 7.5885429 cashInstrument]
+  Some bondInstrumentAfterCoupon1 <- lifecycleAndVerifyPaymentEffects [publicParty]
+    (date 2022 Jul 15) bondInstrument issuer [observableCid] expectedConsumed expectedProduced
+
+  -- Coupon date 2 (call date): Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 20.6471718 cashInstrument]
+  (Some bondInstrumentAfterCoupon2, effectCid) <- electAndVerifyPaymentEffects (date 2023 Jan 16)
+    notional bondInstrumentAfterCoupon1 electorIsOwner issuer investor [publicParty] "NOT CALLED"
+    [observableCid] expectedConsumed expectedProduced
+
+  -- Coupon date 3 (call date): Try to call, which works as expected: one coupon and early
+  -- redemption amount.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 22.6530408 cashInstrument, qty 1000.0 cashInstrument]
+  (Some bondInstrumentAfterCoupon3, effectCid) <- electAndVerifyPaymentEffects (date 2023 Jul 17)
+    notional bondInstrumentAfterCoupon2 electorIsOwner issuer investor [publicParty] "CALLED"
+    [observableCid] expectedConsumed expectedProduced
+
+  pure ()
+
+-- Create and lifecycle a floating coupon callable bond.
+-- 1Y bond, two coupons: 3M Libor + 0.5% p.a. (Following Unadjusted)
+-- Issuer does not call the bond.
+runFloatingCouponUnadjustedCallable1Y : Script ()
+runFloatingCouponUnadjustedCallable1Y = script do
+  [custodian, issuer, investor, calendarDataProvider, publicParty] <-
+    createParties ["Custodian", "Issuer", "Investor", "Calendar Data Provider", "PublicParty"]
+
+  -- Account and holding factory
+  let pp = [("FactoryProvider", singleton publicParty)]
+
+  -- Originate commercial-bank cash
+  now <- getTime
+  cashInstrument <- originate custodian issuer "USD" TransferableFungible "US Dollar" pp now
+
+  -- Create and distribute bond
+  let
+    rollDay = 25
+    issueDate = date 2022 Jan rollDay
+    firstCouponDate = date 2022 Jul rollDay
+    firstCouponDateAdj = date 2022 Jul 26
+    maturityDate = date 2023 Jul rollDay
+    notional = 1000.0
+    couponRate = 0.005
+    capRate = None
+    floorRate = None
+    couponPeriod = Y
+    couponPeriodMultiplier = 1
+    dayCountConvention = Basis30360
+    useAdjustedDatesForDcf = False
+    businessDayConvention = Following
+    referenceRateId = "USD/LIBOR/3M"
+    floatingRate = Some FloatingRate with
+      referenceRateId
+      referenceRateType = SingleFixing CalculationPeriodStartDate
+      fixingDates = DateOffset with
+        periodMultiplier = -2
+        period = D
+        dayType = Some Business
+        businessDayConvention = NoAdjustment
+        businessCenters = ["TARGET2"]
+    noticeDays = 0
+    observations = Map.fromList
+      [ (dateToDateClockTime $ date 2022 Jan 21, 0.040)
+      , (dateToDateClockTime $ date 2022 Jul 21, 0.040)
+      ]
+    holidayCalendarIds = ["USD"]
+    calUS =
+      HolidayCalendarData with
+        id = "USD"
+        weekend = [Saturday, Sunday]
+        holidays = [date 2022 Jul 25]
+    calTarget2 =
+      HolidayCalendarData with
+        id = "TARGET2"
+        weekend = [Saturday, Sunday]
+        holidays = []
+
+  -- A reference data provider publishes the holiday calendar on the ledger
+  submit calendarDataProvider do
+    createCmd HolidayCalendar with
+      provider = calendarDataProvider
+      calendar = calUS
+      observers = Map.fromList pp
+  submit calendarDataProvider do
+    createCmd HolidayCalendar with
+      provider = calendarDataProvider
+      calendar = calTarget2
+      observers = Map.fromList pp
+
+  observableCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Observation with
+      provider = issuer; id = Id $ referenceRateId; observations; observers = mempty
+
+  let
+    couponSchedule = createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds
+      businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate
+
+  bondInstrument <- originateCallableBond issuer issuer "BONDTEST1" TransferableFungible
+    "Callable Bond" pp now issueDate holidayCalendarIds calendarDataProvider firstCouponDate
+    maturityDate dayCountConvention useAdjustedDatesForDcf businessDayConvention floatingRate
+    couponRate capRate floorRate couponPeriod couponPeriodMultiplier cashInstrument notional
+    noticeDays publicParty
+
+  let
+    electorIsOwner = False
+
+  -- Coupon date 1 (call date): Lifecycle and verify that there is an effect for one coupon.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 22.5 cashInstrument]
+  (Some bondInstrumentAfterCoupon1, _effectCid) <- electAndVerifyPaymentEffects firstCouponDateAdj
+    notional bondInstrument electorIsOwner issuer investor [publicParty] "NOT CALLED"
+    [observableCid] expectedConsumed expectedProduced
+
+  -- lifecycle on the maturity date
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 45.0 cashInstrument, qty 1000.0 cashInstrument]
+  electAndVerifyPaymentEffects maturityDate notional bondInstrumentAfterCoupon1 electorIsOwner
+    issuer investor [publicParty] "NOT CALLED" [observableCid] expectedConsumed expectedProduced
+
+  pure ()

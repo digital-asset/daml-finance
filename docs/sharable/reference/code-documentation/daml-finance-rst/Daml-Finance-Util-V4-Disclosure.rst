@@ -1,0 +1,40 @@
+.. Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+.. SPDX-License-Identifier: Apache-2.0
+
+.. _module-daml-finance-util-v4-disclosure-31001:
+
+Daml.Finance.Util.V4.Disclosure
+===============================
+
+This module contains default implementations for the methods of the ``Disclosure`` interface\.
+These are used across multiple templates in the library\.
+
+Functions
+---------
+
+.. _function-daml-finance-util-v4-disclosure-setobserversimpl-89368:
+
+`setObserversImpl <function-daml-finance-util-v4-disclosure-setobserversimpl-89368_>`_
+  \: (`HasCreate <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hascreate-45738>`_ t, `HasField <https://docs.daml.com/daml/stdlib/DA-Record.html#class-da-internal-record-hasfield-52839>`_ \"observers\" t :ref:`PartiesMap <type-daml-finance-interface-types-common-v3-types-partiesmap-43006>`, `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ t :ref:`I <type-daml-finance-interface-util-v3-disclosure-i-28317>`, `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ t :ref:`I <type-daml-finance-interface-util-v3-disclosure-i-28317>`, `HasInterfaceTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfacetyperep-84221>`_ i, `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ i :ref:`I <type-daml-finance-interface-util-v3-disclosure-i-28317>`, `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ t i) \=\> t \-\> `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ (:ref:`PartiesMap <type-daml-finance-interface-types-common-v3-types-partiesmap-43006>` \-\> `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ i \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-util-v3-disclosure-i-28317>`)) \-\> :ref:`SetObservers <type-daml-finance-interface-util-v3-disclosure-setobservers-68580>` \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-util-v3-disclosure-i-28317>`)
+
+  Default implementation for ``setObservers``\.
+  The ``refUpdate`` argument is used to update the corresponding contract ``Reference`` and
+  can be set to ``None`` if your template does not have an accompanying ``Reference`` contract\.
+
+.. _function-daml-finance-util-v4-disclosure-addobserversimpl-48035:
+
+`addObserversImpl <function-daml-finance-util-v4-disclosure-addobserversimpl-48035_>`_
+  \: (`HasCreate <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hascreate-45738>`_ t, `HasField <https://docs.daml.com/daml/stdlib/DA-Record.html#class-da-internal-record-hasfield-52839>`_ \"observers\" t :ref:`PartiesMap <type-daml-finance-interface-types-common-v3-types-partiesmap-43006>`, `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ t :ref:`I <type-daml-finance-interface-util-v3-disclosure-i-28317>`, `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ t :ref:`I <type-daml-finance-interface-util-v3-disclosure-i-28317>`, `HasInterfaceTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfacetyperep-84221>`_ i, `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ i :ref:`I <type-daml-finance-interface-util-v3-disclosure-i-28317>`, `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ t i) \=\> t \-\> `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ (:ref:`PartiesMap <type-daml-finance-interface-types-common-v3-types-partiesmap-43006>` \-\> `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ i \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-util-v3-disclosure-i-28317>`)) \-\> :ref:`AddObservers <type-daml-finance-interface-util-v3-disclosure-addobservers-68807>` \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-util-v3-disclosure-i-28317>`)
+
+  Default implementation for ``addObservers``\.
+  The ``refUpdate`` argument is used to update the corresponding contract ``Reference`` and
+  can be set to ``None`` if your template does not have an accompanying ``Reference`` contract\.
+
+.. _function-daml-finance-util-v4-disclosure-removeobserversimpl-23291:
+
+`removeObserversImpl <function-daml-finance-util-v4-disclosure-removeobserversimpl-23291_>`_
+  \: (`HasCreate <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hascreate-45738>`_ t, `HasField <https://docs.daml.com/daml/stdlib/DA-Record.html#class-da-internal-record-hasfield-52839>`_ \"observers\" t :ref:`PartiesMap <type-daml-finance-interface-types-common-v3-types-partiesmap-43006>`, `HasFromInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ t :ref:`I <type-daml-finance-interface-util-v3-disclosure-i-28317>`, `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ t :ref:`I <type-daml-finance-interface-util-v3-disclosure-i-28317>`, `HasInterfaceTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfacetyperep-84221>`_ i, `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ i :ref:`I <type-daml-finance-interface-util-v3-disclosure-i-28317>`, `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ t i) \=\> t \-\> `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ (:ref:`PartiesMap <type-daml-finance-interface-types-common-v3-types-partiesmap-43006>` \-\> `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ i \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-util-v3-disclosure-i-28317>`)) \-\> `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-util-v3-disclosure-i-28317>` \-\> :ref:`RemoveObservers <type-daml-finance-interface-util-v3-disclosure-removeobservers-4683>` \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-util-v3-disclosure-i-28317>`))
+
+  Default implementation for ``removeObservers``\.
+  The ``refUpdate`` argument is used to update the corresponding contract ``Reference`` and
+  can be set to ``None`` if your template does not have an accompanying ``Reference`` contract\.

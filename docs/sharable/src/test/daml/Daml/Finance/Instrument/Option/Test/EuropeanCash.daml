@@ -1,0 +1,137 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Option.Test.EuropeanCash where
+
+import DA.Date (Month(..), date, subtractDays)
+import DA.Map qualified as Map (fromList)
+import DA.Set qualified as Set (singleton)
+import Daml.Finance.Data.V4.Numeric.Observation (Observation(..))
+import Daml.Finance.Data.V4.Time.DateClock (dateToDateClockTime)
+import Daml.Finance.Instrument.Option.Test.Util (originateEuropeanCashOption)
+import Daml.Finance.Interface.Instrument.Option.V0.Types (OptionTypeEnum(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..))
+import Daml.Finance.Interface.Util.V3.Common (qty)
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.Instrument (originate)
+import Daml.Finance.Test.Util.Lifecycle (lifecycleAndVerifyPaymentEffects, verifyNoLifecycleEffects)
+import Daml.Script
+
+-- Define and lifecycle European call/put options, which are automatically exercised and cash
+-- settled.
+run : Script ()
+run = script do
+  [custodian, issuer, calendarDataProvider, publicParty] <-
+    createParties ["Custodian", "Issuer", "Calendar Data Provider", "PublicParty"]
+
+  -- Distribute commercial-bank cash
+  now <- getTime
+  let observers = [("PublicParty", Set.singleton publicParty)]
+  cashInstrument <- originate custodian issuer "USD" TransferableFungible "US Dollars" observers now
+
+  -- Create and distribute option
+  let
+    strikeLow = 40.0
+    -- CREATE_EUROPEAN_OPTION_VARIABLES_BEGIN
+    strike = 50.0
+    expiryDate = date 2019 May 15
+    referenceAssetId = "AAPL-CLOSE"
+    -- CREATE_EUROPEAN_OPTION_VARIABLES_END
+    longOption = True
+    shortOption = False
+
+  -- CREATE_EUROPEAN_OPTION_OBSERVATIONS_BEGIN
+  let observations = Map.fromList [(dateToDateClockTime $ date 2019 May 15, 48.78)]
+  observableCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Observation with
+      provider = issuer; id = Id referenceAssetId; observations; observers = mempty
+  -- CREATE_EUROPEAN_OPTION_OBSERVATIONS_END
+
+  -- Issue instruments
+  itmLongCallInstrument <- originateEuropeanCashOption issuer issuer "Long ITM Call"
+    TransferableFungible "Option" observers now expiryDate Call strikeLow cashInstrument
+    referenceAssetId longOption publicParty
+  itmShortCallInstrument <- originateEuropeanCashOption issuer issuer "Short ITM Call"
+    TransferableFungible "Option" observers now expiryDate Call strikeLow cashInstrument
+    referenceAssetId shortOption publicParty
+  otmLongCallInstrument <- originateEuropeanCashOption issuer issuer "Long OTM Call"
+    TransferableFungible "Option" observers now expiryDate Call strike cashInstrument
+    referenceAssetId longOption publicParty
+  otmShortCallInstrument <- originateEuropeanCashOption issuer issuer "Short OTM Call"
+    TransferableFungible "Option" observers now expiryDate Call strike cashInstrument
+    referenceAssetId shortOption publicParty
+  itmLongPutInstrument <- originateEuropeanCashOption issuer issuer "Long ITM Put"
+    TransferableFungible "Option" observers now expiryDate Put strike cashInstrument
+    referenceAssetId longOption publicParty
+  itmShortPutInstrument <- originateEuropeanCashOption issuer issuer "Short ITM Put"
+    TransferableFungible "Option" observers now expiryDate Put strike cashInstrument
+    referenceAssetId shortOption publicParty
+  otmLongPutInstrument <- originateEuropeanCashOption issuer issuer "Long OTM Put"
+    TransferableFungible "Option" observers now expiryDate Put strikeLow cashInstrument
+    referenceAssetId longOption publicParty
+  otmShortPutInstrument <- originateEuropeanCashOption issuer issuer "Short OTM Put"
+    TransferableFungible "Option" observers now expiryDate Put strikeLow cashInstrument
+    referenceAssetId shortOption publicParty
+
+  -- One day before the expiry date: try to lifecycle and verify that there are no lifecycle
+  -- effects.
+  verifyNoLifecycleEffects [publicParty] (subtractDays expiryDate 1) itmLongCallInstrument issuer
+    [observableCid]
+
+  -- Long call: Lifecycle and verify the lifecycle effects for an in-the-money option.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 8.78 cashInstrument]
+  optionInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty] expiryDate
+    itmLongCallInstrument issuer [observableCid] expectedConsumed expectedProduced
+
+  -- Short call: Lifecycle and verify the lifecycle effects for an in-the-money option.
+  let
+    expectedConsumed = [qty 8.78 cashInstrument]
+    expectedProduced = []
+  optionInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty] expiryDate
+    itmShortCallInstrument issuer [observableCid] expectedConsumed expectedProduced
+
+  -- Long call: Lifecycle and verify the lifecycle effects for an out-of-the-money option.
+  let
+    expectedConsumed = []
+    expectedProduced = []
+  optionInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty] expiryDate
+    otmLongCallInstrument issuer [observableCid] expectedConsumed expectedProduced
+
+  -- Short call: Lifecycle and verify the lifecycle effects for an out-of-the-money option.
+  let
+    expectedConsumed = []
+    expectedProduced = []
+  optionInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty] expiryDate
+    otmShortCallInstrument issuer [observableCid] expectedConsumed expectedProduced
+
+  -- Long put: Lifecycle and verify the lifecycle effects for an in-the-money option.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 1.22 cashInstrument]
+  optionInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty] expiryDate
+    itmLongPutInstrument issuer [observableCid] expectedConsumed expectedProduced
+
+  -- Short put: Lifecycle and verify the lifecycle effects for an in-the-money option.
+  let
+    expectedConsumed = [qty 1.22 cashInstrument]
+    expectedProduced = []
+  optionInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty] expiryDate
+    itmShortPutInstrument issuer [observableCid] expectedConsumed expectedProduced
+
+  -- Long put: Lifecycle and verify the lifecycle effects for an out-of-the-money option.
+  let
+    expectedConsumed = []
+    expectedProduced = []
+  optionInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty] expiryDate
+    otmLongPutInstrument issuer [observableCid] expectedConsumed expectedProduced
+
+  -- Short put: Lifecycle and verify the lifecycle effects for an out-of-the-money option.
+  let
+    expectedConsumed = []
+    expectedProduced = []
+  optionInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty] expiryDate
+    otmShortPutInstrument issuer [observableCid] expectedConsumed expectedProduced
+
+  pure ()

@@ -1,0 +1,50 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Bond.Test.ZeroCoupon where
+
+import DA.Date (Month(..), date, subtractDays)
+import DA.Set (singleton)
+import Daml.Finance.Instrument.Bond.Test.Util (originateZeroCouponBond)
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..))
+import Daml.Finance.Interface.Util.V3.Common (qty)
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.Instrument (originate)
+import Daml.Finance.Test.Util.Lifecycle (lifecycleAndVerifyPaymentEffects, verifyNoLifecycleEffects)
+import Daml.Script
+
+-- Test creation and lifecycling of a zero coupon bond
+run : Script ()
+run = script do
+  [depository, custodian, issuer, publicParty] <-
+    createParties ["CSD", "Custodian", "Issuer", "PublicParty"]
+
+  -- Distribute commercial-bank cash
+  now <- getTime
+  let pp = [("PublicParty", singleton publicParty)]
+  cashInstrument <-
+    originate depository issuer "USD" TransferableFungible "United States Dollar" pp now
+
+  -- Create and distribute bond
+  -- Zero coupon bond example
+  -- CREATE_ZERO_COUPON_BOND_VARIABLES_BEGIN
+  let
+    issueDate = date 2019 Jan 16
+    maturityDate = date 2020 May 15
+    notional = 1000.0
+  -- CREATE_ZERO_COUPON_BOND_VARIABLES_END
+
+  bondInstrument <- originateZeroCouponBond issuer issuer "BONDTEST1" TransferableFungible
+    "Zero Coupon Bond" pp now issueDate maturityDate cashInstrument notional publicParty
+
+  -- One day before expiry: try to lifecycle and verify that there are no lifecycle effects.
+  verifyNoLifecycleEffects [publicParty] (subtractDays maturityDate 1) bondInstrument issuer []
+
+  -- Lifecycle on the expiry date. Verify the lifecycle effect for the redemption amount
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 1000.0 cashInstrument]
+  Some bondInstrumentAfterMaturity <- lifecycleAndVerifyPaymentEffects [publicParty] maturityDate
+    bondInstrument issuer [] expectedConsumed expectedProduced
+
+  pure ()

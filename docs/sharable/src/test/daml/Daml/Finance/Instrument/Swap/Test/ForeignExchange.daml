@@ -1,0 +1,77 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Swap.Test.ForeignExchange where
+
+import DA.Date (Month(..), addDays, date, subtractDays)
+import DA.Set (singleton)
+import Daml.Finance.Instrument.Swap.Test.Util (originateForeignExchangeSwap)
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..))
+import Daml.Finance.Interface.Util.V3.Common (qty)
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.Instrument (originate)
+import Daml.Finance.Test.Util.Lifecycle (lifecycleAndVerifyPaymentEffects, verifyNoLifecycleEffects)
+import Daml.Script
+
+-- Calculate the fx payments of a foreign exchange swap, including lifecycling and creation of new
+-- instrument version.
+run : Script ()
+run = script do
+  [custodian, issuer, publicParty] <-
+    createParties ["Custodian", "Issuer", "PublicParty"]
+
+  -- Distribute commercial-bank cash
+  now <- getTime
+  let observers = [("PublicParty", singleton publicParty)]
+
+  -- CREATE_FX_SWAP_CASH_INSTRUMENTS_BEGIN
+  cashInstrument <- originate custodian issuer "USD" TransferableFungible "US Dollars" observers now
+  foreignCashInstrument <- originate custodian issuer "EUR" TransferableFungible "Euro" observers
+    now
+  -- CREATE_FX_SWAP_CASH_INSTRUMENTS_END
+
+  -- Create and distribute swap
+  -- Foreign exchange swap: USD vs EUR
+  -- CREATE_FX_SWAP_VARIABLES_BEGIN
+  let
+    issueDate = date 2019 Jan 16
+    firstPaymentDate = date 2019 Feb 15
+    maturityDate = date 2019 May 15
+    firstFxRate = 1.1
+    finalFxRate = 1.2
+    -- CREATE_FX_SWAP_VARIABLES_END
+    fxRateSameCurrency = 1.0
+
+  swapInstrument <- originateForeignExchangeSwap issuer issuer "SwapTest1" BaseHolding
+    "Foreign exchange swap" observers now issueDate firstPaymentDate maturityDate cashInstrument
+    foreignCashInstrument firstFxRate finalFxRate publicParty
+
+  -- One day before the first payment date: try to lifecycle and verify that there are no lifecycle
+  -- effects.
+  verifyNoLifecycleEffects [publicParty] (subtractDays firstPaymentDate 1) swapInstrument issuer []
+
+  -- First payment date: Lifecycle and verify the lifecycle effects for the fx payments.
+  let
+    expectedConsumed = [qty fxRateSameCurrency cashInstrument]
+    expectedProduced = [qty firstFxRate foreignCashInstrument]
+  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
+    firstPaymentDate swapInstrument issuer [] expectedConsumed expectedProduced
+
+  -- One day after the first payment date: try to lifecycle and verify that there are no lifecycle
+  -- effects.
+  verifyNoLifecycleEffects [publicParty] (addDays firstPaymentDate 1)
+    swapInstrumentAfterFirstPayment issuer []
+
+  -- One day before expiry: try to lifecycle and verify that there are no lifecycle effects.
+  verifyNoLifecycleEffects [publicParty] (subtractDays maturityDate 1)
+    swapInstrumentAfterFirstPayment issuer []
+
+  -- Lifecycle on the second payment date, which is also the expiry date. Verify the lifecycle
+  -- effects for the fx payments.
+  let
+    expectedConsumed = [qty finalFxRate foreignCashInstrument]
+    expectedProduced = [qty fxRateSameCurrency cashInstrument]
+  lifecycleAndVerifyPaymentEffects [publicParty] maturityDate swapInstrumentAfterFirstPayment
+    issuer [] expectedConsumed expectedProduced
+
+  pure ()

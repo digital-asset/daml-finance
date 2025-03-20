@@ -1,0 +1,89 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
+module Daml.Finance.Test.Util.Common where
+
+import DA.Assert ((===))
+import DA.Exception (throw)
+import Daml.Script
+
+-- | Create parties
+createParties : [Text] -> Script [Party]
+createParties names = mapA createParty names where
+  createParty name = allocatePartyWithHint name $ PartyIdHint name
+
+-- | This exception is used in tests where we expect an exception but it doesn't throw and this gets
+-- thrown instead. This allows for ensuring an exception was fired and if not, we can rethrow to
+-- show that the expected behaviour was not observed.
+exception TestFailureException
+  with
+    text : Text
+  where
+    message "TestFailureException(text=" <> text <> ")"
+
+-- | Takes a 'Script a' that is expected to throw a 'AssertionFailed' exception, catches said
+-- exception and then validates its message. If the exception message from the 'AssertFailed'
+-- exception does not match the expected failure message, then the test is failed. If the
+-- 'Script a' does not fail, a 'TestFailureException' is thrown which in turn is caught and
+-- rethrown thusly failing the test.
+validateAssertionFailure : Script a -> Text -> Script ()
+validateAssertionFailure assertion expectedFailureMessage =
+  try do
+    assertion
+    throw TestFailureException with
+      text = "Expected test failure succeeded - expectedFailureMessage=" <> expectedFailureMessage
+  catch
+    (AssertionFailed msg) -> msg === expectedFailureMessage
+    myTestException@(TestFailureException _) -> assertFail $ show myTestException
+
+-- | Utility for exercising interface by key (submitMulti composed with exerciseInterfaceByKey
+-- helper)
+submitExerciseInterfaceByKeyCmdHelper : forall t1 t2 t c1 k c2 b.
+  ( HasInterfaceTypeRep t2
+  , HasInterfaceTypeRep t
+  , Template t1
+  , Choice t1 c1 (ContractId t)
+  , HasKey t1 k
+  , HasLookupByKey t1 k
+  , HasFetchByKey t1 k
+  , HasMaintainer t1 k
+  , HasToAnyContractKey t1 k
+  , HasFromAnyContractKey t1 k
+  , HasTemplateTypeRep t2
+  , HasToAnyTemplate t2
+  , HasFromAnyTemplate t2
+  , HasToAnyChoice t2 c2 b
+  , HasFromAnyChoice t2 c2 b
+  , HasExercise t2 c2 b
+  )
+  => [Party] -> [Party] -> k -> c1 -> c2 -> Script b
+submitExerciseInterfaceByKeyCmdHelper actAs readAs k arg1 arg2 = do
+  cid <- submitMulti actAs readAs do exerciseByKeyCmd @t1 k arg1
+  submitMulti actAs readAs do exerciseCmd (coerceInterfaceContractId @t2 cid) arg2
+
+-- | Utility for exercising interface by key (submitMulti composed with exerciseInterfaceByKey
+-- helper)
+submitMustFailExerciseInterfaceByKeyCmdHelper : forall t1 t2 t c1 k c2 b.
+  ( HasInterfaceTypeRep t2
+  , HasInterfaceTypeRep t
+  , Template t1
+  , Choice t1 c1 (ContractId t)
+  , HasKey t1 k
+  , HasLookupByKey t1 k
+  , HasFetchByKey t1 k
+  , HasMaintainer t1 k
+  , HasToAnyContractKey t1 k
+  , HasFromAnyContractKey t1 k
+  , HasTemplateTypeRep t2
+  , HasToAnyTemplate t2
+  , HasFromAnyTemplate t2
+  , HasToAnyChoice t2 c2 b
+  , HasFromAnyChoice t2 c2 b
+  , HasExercise t2 c2 b
+  )
+  => [Party] -> [Party] -> k -> c1 -> c2 -> Script ()
+submitMustFailExerciseInterfaceByKeyCmdHelper actAs readAs k arg1 arg2 = do
+  cid <- submitMulti actAs readAs do exerciseByKeyCmd @t1 k arg1
+  submitMultiMustFail actAs readAs do exerciseCmd (coerceInterfaceContractId @t2 cid) arg2

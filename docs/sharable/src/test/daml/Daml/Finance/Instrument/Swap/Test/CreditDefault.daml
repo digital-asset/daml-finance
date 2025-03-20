@@ -1,0 +1,336 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Swap.Test.CreditDefault where
+
+import DA.Date (DayOfWeek(..), Month(..), addDays, date, subtractDays)
+import DA.Map qualified as Map (fromList)
+import DA.Set (singleton)
+import Daml.Finance.Data.V4.Numeric.Observation (Observation(..))
+import Daml.Finance.Data.V4.Reference.HolidayCalendar (HolidayCalendar(..))
+import Daml.Finance.Data.V4.Time.DateClock (dateToDateClockTime)
+import Daml.Finance.Instrument.Swap.Test.Util (originateCreditDefaultSwap)
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..), InstrumentKey)
+import Daml.Finance.Interface.Types.Date.V3.Calendar (BusinessDayConventionEnum(..), HolidayCalendarData(..))
+import Daml.Finance.Interface.Types.Date.V3.DayCount (DayCountConventionEnum(..))
+import Daml.Finance.Interface.Types.Date.V3.RollConvention (PeriodEnum(..))
+import Daml.Finance.Interface.Util.V3.Common (qty)
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.Instrument (originate)
+import Daml.Finance.Test.Util.Lifecycle (lifecycleAndVerifyPaymentEffects, verifyNoLifecycleEffects)
+import Daml.Script
+
+-- | Parties involved in the test script.
+data TestParties = TestParties
+  with
+    calendarDataProvider : Party
+      -- ^ Publishes the holiday calendar.
+    custodian : Party
+      -- ^ Acts as custodian in the respective holdings (both cash holdings and instrument
+      --   holdings). It also acts as depository in the option instrument.
+    issuer : Party
+      -- ^ Acts as issuer of the instrument. It is also the party tasked with lifecycling the
+      --   contract.
+    publicParty : Party
+      -- ^ The public party. Every party can readAs the public party.
+
+-- Economics of the Credit Default Swap
+-- CREATE_CREDIT_DEFAULT_SWAP_VARIABLES_BEGIN
+issueDate = date 2019 Jan 16
+firstPaymentDate = date 2019 Feb 15
+maturityDate = date 2019 May 15
+defaultProbabilityReferenceId = "TSLA-DEFAULT-PROB"
+recoveryRateReferenceId = "TSLA-RECOVERY-RATE"
+ownerReceivesFix = False
+fixRate = 0.0201
+paymentPeriod = M
+paymentPeriodMultiplier = 3
+dayCountConvention = Act360
+businessDayConvention = ModifiedFollowing
+-- CREATE_CREDIT_DEFAULT_SWAP_VARIABLES_END
+
+-- Calculate credit default swap payments (test case with a credit event), including lifecycling and
+-- creation of new instrument version.
+runCreditEvent : Script ()
+runCreditEvent = script do
+  parties@TestParties{..} <- setupParties
+
+  -- Public party observer
+  let pp = [("PublicParty", singleton publicParty)]
+
+  -- Distribute commercial-bank cash
+  now <- getTime
+  cashInstrument <- setupCash parties now
+
+  -- Populate holiday calendar and observations.
+  setupCalendar parties
+  let
+    creditEventDate = date 2019 Mar 15
+    defaultProbabilityObservations = Map.fromList
+      [ (dateToDateClockTime $ subtractDays firstPaymentDate 1, 0.2)
+      , (dateToDateClockTime firstPaymentDate                 , 0.2)
+      , (dateToDateClockTime $ addDays firstPaymentDate 1     , 0.2)
+      , (dateToDateClockTime creditEventDate                  , 1.0) -- credit event
+      ]
+    recoveryRateObservations = Map.fromList
+      [(dateToDateClockTime creditEventDate, 0.6)]
+
+  -- Create and distribute swap
+  swapInstrument <- setupSwap parties now cashInstrument
+
+  observableDefaultProbabilityCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Observation with
+      provider = issuer; id = Id defaultProbabilityReferenceId
+      observations = defaultProbabilityObservations; observers = mempty
+  observableRecoveryRateCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Observation with
+      provider = issuer; id = Id recoveryRateReferenceId; observations = recoveryRateObservations
+      observers = mempty
+  let observableCids = [observableDefaultProbabilityCid, observableRecoveryRateCid]
+
+  -- One day before the first payment date: try to lifecycle and verify that there are no lifecycle
+  -- effects.
+  verifyNoLifecycleEffects [publicParty] (subtractDays firstPaymentDate 1) swapInstrument issuer
+    observableCids
+
+  -- First payment date: Lifecycle and verify the lifecycle effects for the fix payment.
+  let
+    expectedConsumed = [qty 0.001675 cashInstrument]
+    expectedProduced = []
+  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
+    firstPaymentDate swapInstrument issuer observableCids expectedConsumed expectedProduced
+
+  -- One day after the first payment date: try to lifecycle and verify that there are no lifecycle
+  -- effects.
+  verifyNoLifecycleEffects [publicParty] (addDays firstPaymentDate 1)
+    swapInstrumentAfterFirstPayment issuer observableCids
+
+  -- Credit event date: Lifecycle and verify that there is a lifecycle effect for the
+  -- (1-recoveryRate) payment. Also, verify that the instrument expires.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.4 cashInstrument]
+  Some swapInstrumentAfterMaturity <- lifecycleAndVerifyPaymentEffects [publicParty]
+    creditEventDate swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed
+    expectedProduced
+
+  pure ()
+
+-- | Verify that no coupon is paid if credit event happens on a payment date.
+runCreditEventOnPaymentDate : Script ()
+runCreditEventOnPaymentDate = script do
+  parties@TestParties{..} <- setupParties
+
+  -- Public party observer
+  let pp = [("PublicParty", singleton publicParty)]
+
+  -- Distribute commercial-bank cash
+  now <- getTime
+  cashInstrument <- setupCash parties now
+
+  -- Populate holiday calendar and observations.
+  setupCalendar parties
+  let
+    creditEventDate = maturityDate
+    defaultProbabilityObservations = Map.fromList
+      [ (dateToDateClockTime $ subtractDays firstPaymentDate 1, 0.2)
+      , (dateToDateClockTime firstPaymentDate                 , 0.2)
+      , (dateToDateClockTime $ addDays firstPaymentDate 1     , 0.2)
+      , (dateToDateClockTime creditEventDate                  , 1.0) -- credit event
+      ]
+    recoveryRateObservations = Map.fromList
+      [(dateToDateClockTime creditEventDate, 0.6)]
+
+  -- Create and distribute swap
+  swapInstrument <- setupSwap parties now cashInstrument
+
+  observableDefaultProbabilityCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Observation with
+      provider = issuer; id = Id defaultProbabilityReferenceId
+      observations = defaultProbabilityObservations; observers = mempty
+  observableRecoveryRateCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Observation with
+      provider = issuer; id = Id recoveryRateReferenceId; observations = recoveryRateObservations
+      observers = mempty
+  let observableCids = [observableDefaultProbabilityCid, observableRecoveryRateCid]
+
+  -- First payment date: Lifecycle and verify the lifecycle effects for the fix payment.
+  let
+    expectedConsumed = [qty 0.001675 cashInstrument]
+    expectedProduced = []
+  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
+    firstPaymentDate swapInstrument issuer observableCids expectedConsumed expectedProduced
+
+  -- One day after the first payment date: try to lifecycle and verify that there are no lifecycle
+  -- effects.
+  verifyNoLifecycleEffects [publicParty] (addDays firstPaymentDate 1)
+    swapInstrumentAfterFirstPayment issuer observableCids
+
+  -- Credit event date: Lifecycle and verify that there is a lifecycle effect for the
+  -- (1-recoveryRate) payment.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.4 cashInstrument]
+  swapInstrumentAfterCreditEvent <- lifecycleAndVerifyPaymentEffects [publicParty]
+    creditEventDate swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed
+    expectedProduced
+
+  pure ()
+
+-- Calculate credit default swap payments (test case without a credit event), including lifecycling
+-- and creation of new instrument version.
+runNoCreditEvent : Script ()
+runNoCreditEvent = script do
+  parties@TestParties{..} <- setupParties
+
+  -- Public party observer
+  let pp = [("PublicParty", singleton publicParty)]
+
+  -- Distribute commercial-bank cash
+  now <- getTime
+  cashInstrument <- setupCash parties now
+
+  -- Populate holiday calendar and observations.
+  setupCalendar parties
+  let
+    defaultProbabilityObservations = Map.fromList
+      [ (dateToDateClockTime $ subtractDays firstPaymentDate 1, 0.2)
+      , (dateToDateClockTime firstPaymentDate                 , 0.2)
+      , (dateToDateClockTime $ addDays firstPaymentDate 1     , 0.2)
+      , (dateToDateClockTime maturityDate                     , 0.2)
+      , (dateToDateClockTime $ addDays maturityDate 1         , 0.2)
+      ]
+
+  -- Create and distribute swap
+  swapInstrument <- setupSwap parties now cashInstrument
+
+  observableDefaultProbabilityCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Observation with
+      provider = issuer; id = Id defaultProbabilityReferenceId
+      observations = defaultProbabilityObservations; observers = mempty
+  let observableCids = [observableDefaultProbabilityCid]
+
+  -- One day before the first payment date: try to lifecycle and verify that there are no lifecycle
+  -- effects.
+  verifyNoLifecycleEffects [publicParty] (subtractDays firstPaymentDate 1) swapInstrument issuer
+    observableCids
+
+  -- First payment date: Lifecycle and verify the lifecycle effects for the fix payment.
+  let
+    expectedConsumed = [qty 0.001675 cashInstrument]
+    expectedProduced = []
+  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
+    firstPaymentDate swapInstrument issuer observableCids expectedConsumed expectedProduced
+
+  -- One day after the first payment date: try to lifecycle and verify that there are no lifecycle
+  -- effects.
+  verifyNoLifecycleEffects [publicParty] (addDays firstPaymentDate 1)
+    swapInstrumentAfterFirstPayment issuer observableCids
+
+  -- Second payment date: Lifecycle and verify the lifecycle effects for the fix payment.
+  let
+    expectedConsumed = [qty 0.0049691667 cashInstrument]
+    expectedProduced = []
+  Some swapInstrumentAfterSecondPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
+    maturityDate swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed
+    expectedProduced
+
+  -- One day after the maturity: try to lifecycle and verify that there are no lifecycle effects.
+  verifyNoLifecycleEffects [publicParty] (addDays maturityDate 1) swapInstrumentAfterSecondPayment
+    issuer observableCids
+
+  pure ()
+
+-- | Verify that a credit event after maturity does not pay the recovery rate.
+runCreditEventAfterMaturity : Script ()
+runCreditEventAfterMaturity = script do
+  parties@TestParties{..} <- setupParties
+
+  -- Public party observer
+  let pp = [("PublicParty", singleton publicParty)]
+
+  -- Distribute commercial-bank cash
+  now <- getTime
+  cashInstrument <- setupCash parties now
+
+  -- Populate holiday calendar and observations.
+  setupCalendar parties
+  let
+    defaultProbabilityObservations = Map.fromList
+      [ (dateToDateClockTime firstPaymentDate, 0.2)
+      , (dateToDateClockTime maturityDate, 0.2)
+      , (dateToDateClockTime $ addDays maturityDate 1, 1.0) -- credit event
+      ]
+
+  -- Create and distribute swap
+  swapInstrument <- setupSwap parties now cashInstrument
+
+  observableDefaultProbabilityCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Observation with
+      provider = issuer; id = Id defaultProbabilityReferenceId
+      observations = defaultProbabilityObservations; observers = mempty
+  let observableCids = [observableDefaultProbabilityCid]
+
+  -- First payment date: Lifecycle and verify the lifecycle effects for the fix payment.
+  let
+    expectedConsumed = [qty 0.001675 cashInstrument]
+    expectedProduced = []
+  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
+    firstPaymentDate swapInstrument issuer observableCids expectedConsumed expectedProduced
+
+  -- Second payment date: Lifecycle and verify the lifecycle effects for the fix payment.
+  let
+    expectedConsumed = [qty 0.0049691667 cashInstrument]
+    expectedProduced = []
+  swapInstrumentAfterSecondPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
+    maturityDate swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed
+    expectedProduced
+
+  -- One day after the maturity: no payment is made, instrument expires
+  let
+    expectedConsumed = []
+    expectedProduced = []
+  lifecycleAndVerifyPaymentEffects [publicParty] (addDays maturityDate 1)
+    swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed
+    expectedProduced
+
+  pure ()
+
+-- | Setup parties.
+setupParties : Script TestParties
+setupParties = do
+  [custodian, issuer, calendarDataProvider, publicParty] <-
+    createParties ["Custodian", "Issuer", "Calendar Data Provider", "PublicParty"]
+  pure TestParties with custodian; issuer; calendarDataProvider; publicParty
+
+-- | Setup holiday calendar.
+holidayCalendarData = HolidayCalendarData with
+  id = "USD"
+  weekend = [Saturday, Sunday]
+  holidays = [date 2019 Dec 19]
+
+-- | Create holiday calendar on ledger.
+setupCalendar : TestParties -> Script (ContractId HolidayCalendar)
+setupCalendar TestParties{..} = do
+  let pp = [("PublicParty", singleton publicParty)]
+  submit calendarDataProvider do
+    createCmd HolidayCalendar with
+      provider = calendarDataProvider
+      calendar = holidayCalendarData
+      observers = Map.fromList pp
+
+-- | Setup cash instrument.
+setupCash : TestParties -> Time -> Script InstrumentKey
+setupCash TestParties{..} now = do
+  let pp = [("PublicParty", singleton publicParty)]
+  originate custodian issuer "USD" TransferableFungible "US Dollars" pp now
+
+-- | Setup Credit Default Swap instrument.
+setupSwap : TestParties -> Time -> InstrumentKey -> Script InstrumentKey
+setupSwap TestParties{..} now cashInstrument = do
+  let pp = [("PublicParty", singleton publicParty)]
+  originateCreditDefaultSwap issuer issuer "SwapTest1" BaseHolding "Credit default swap" pp now
+    issueDate [holidayCalendarData.id] calendarDataProvider firstPaymentDate maturityDate
+    dayCountConvention businessDayConvention fixRate paymentPeriod paymentPeriodMultiplier
+    cashInstrument defaultProbabilityReferenceId recoveryRateReferenceId ownerReceivesFix
+    publicParty
