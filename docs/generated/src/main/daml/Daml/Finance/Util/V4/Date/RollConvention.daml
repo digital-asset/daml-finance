@@ -1,0 +1,75 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Util.V4.Date.RollConvention
+  ( addPeriod
+  , next
+  , previous
+  ) where
+
+import DA.Date as D
+import Daml.Finance.Interface.Types.Date.V3.RollConvention(Period(..), PeriodEnum(..), RollConventionEnum(..))
+
+-- | Get next periodic (daily `D` and weekly `W` not supported) date according
+-- to a given roll convention.
+next : Date -> Period -> RollConventionEnum -> Date
+next _ period _ | period.period == D = error "daily periodic dates not supported."
+next _ period _ | period.period == W = error "weekly periodic dates not supported."
+next _ _ NoRollConvention =
+  error "A roll convention is required for schedules with a monthly or yearly frequency."
+next date period EOM
+  | d /= monthDayCount y m = error $ "day " <> show d <> " does not match roll convention EOM."
+  | otherwise =
+      let (yEnd, mEnd, dEnd) = toGregorian $ addPeriod date period
+      in D.date yEnd mEnd (monthDayCount yEnd mEnd)
+  where
+    (y, m, d) = toGregorian date
+next date period (DOM rollDay)
+  | d /= rollDay && (d /= monthDayCount y m || d > rollDay) =
+      error $ "day " <> show d <> " does not match roll convention DOM " <> show rollDay
+  | otherwise =
+      let
+        (yEnd, mEnd, dEnd) = toGregorian $ addPeriod date period
+        eomEnd = monthDayCount yEnd mEnd
+      in
+        D.date yEnd mEnd $ min rollDay eomEnd
+  where
+    (y, m, d) = toGregorian date
+
+-- | Get previous periodic (daily `D` and weekly `W` not supported) date according
+-- to a given roll convention.
+previous : Date -> Period -> RollConventionEnum -> Date
+previous date Period{period; periodMultiplier} rc =
+  let periodRev = Period with periodMultiplier = -periodMultiplier; period
+  in next date periodRev rc
+
+-- | Add period to given date.
+addPeriod : Date -> Period -> Date
+addPeriod date Period{periodMultiplier; period = D} = addDays date periodMultiplier
+addPeriod date Period{periodMultiplier; period = M} = addMonths date periodMultiplier
+addPeriod date Period{periodMultiplier; period = W} = addDays date (7 * periodMultiplier)
+addPeriod date Period{periodMultiplier; period = Y} = addYears date periodMultiplier
+
+-- | HIDE
+-- Add number of months to Date (clip days if invalid).
+addMonths : Date -> Int -> Date
+addMonths date n = D.date y' m' d'
+  where
+    (y, m, d) = toGregorian date
+    (y', m') = rolloverMonths (y, fromEnum m + 1 + n)
+    d' = clip 1 (monthDayCount y' m') d
+
+    rolloverMonths : (Int, Int) -> (Int, Month)
+    rolloverMonths (y, m) = (y + div (m - 1) 12, toEnum $ mod (m - 1) 12)
+      where
+        div x y = floor $ (intToDecimal x) / (intToDecimal y)
+        mod x y = x - (div x y) * y
+
+    clip : Int -> Int -> Int -> Int
+    clip a _ x | x < a = a
+    clip _ b x | x > b = b
+    clip _ _ x = x
+
+-- | HIDE
+addYears : Date -> Int -> Date
+addYears date n = addMonths date (n * 12)

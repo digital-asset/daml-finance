@@ -1,0 +1,142 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Holding.Test.Transfer where
+
+import DA.Action (foldlA)
+import DA.Assert ((===))
+import DA.Map qualified as Map (fromList)
+import DA.Set qualified as Set (fromList, singleton, toList)
+import Daml.Finance.Holding.Test.Common (TestInitialState(..), TestParties(..), setupInitialState, setupParties)
+import Daml.Finance.Holding.V4.Factory qualified as Holding (Factory(..))
+import Daml.Finance.Interface.Holding.V4.Transferable qualified as Transferable (I, Transfer(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (AccountKey(..), HoldingStandard(..), Id(..))
+import Daml.Finance.Interface.Util.V3.Lockable qualified as Lockable (Acquire(..), GetView(..), I, LockType(..), Release(..))
+import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..))
+import Daml.Script
+
+-- | Test transfer and preservation of locks.
+testTransfer : Bool -> Script ()
+testTransfer useReentrantLockTransferService = script do
+  -- Create parties
+  tp@TestParties{custodian; issuer; investor; locker; publicParty} <- setupParties
+
+  -- Initialize state
+  let pp = Map.fromList [("PublicParty", Set.singleton publicParty)]
+  TestInitialState {issuerAccount; issuerHoldingCid; investorAccount} <- setupInitialState
+    tp
+    Holding.Factory with provider = custodian; id = Id "Holding Factory"; observers = pp
+    Transferable
+    []
+    Account.Owner
+
+  -- Lock asset (with 2 contexts)
+  lockableCid <- submitMulti [issuer, locker] [] do
+    exerciseCmd (toInterfaceContractId @Lockable.I issuerHoldingCid) Lockable.Acquire with
+      newLockers = Set.singleton locker; context = "C1"; lockType = Lockable.Reentrant
+  lockableCid <- submitMulti [issuer, locker] [] do
+    exerciseCmd lockableCid Lockable.Acquire with
+      newLockers = Set.singleton locker; context = "C2"; lockType = Lockable.Reentrant
+
+  lockableCid <- if useReentrantLockTransferService then
+    do
+      -- Create re-entrant lock transfer service
+      reentrantTransferUtilityCid <- submitMulti [custodian, issuer, investor, locker] [] do
+        createCmd ReentrantLockTransferService with
+          custodian
+          locker
+          observers = [issuer, investor]
+
+      -- Transfer with re-entrant locks
+      transferableCid <- submitMulti [issuer, investor, locker] [publicParty] do
+        exerciseCmd reentrantTransferUtilityCid TransferWithLocks with
+          sender = issuer
+          receiverAccount = investorAccount
+          transferableCid = fromInterfaceContractId @Transferable.I lockableCid
+
+      pure $ toInterfaceContractId @Lockable.I transferableCid
+  else
+   do
+      -- Transfer
+      submitMultiMustFail [issuer, investor, locker] [publicParty] do
+        exerciseCmd (fromInterfaceContractId @Transferable.I lockableCid) Transferable.Transfer with
+          actors = Set.fromList [issuer, investor, locker]; newOwnerAccount = investorAccount
+
+      -- Unlock
+      lockableCid <- submit locker do
+        exerciseCmd lockableCid Lockable.Release with
+          context = "C1"
+      lockableCid <- submit locker do
+        exerciseCmd lockableCid Lockable.Release with
+          context = "C2"
+
+      -- Transfer
+      newTransferableCid <- submitMulti [issuer, investor] [publicParty] do
+        exerciseCmd (fromInterfaceContractId @Transferable.I lockableCid) Transferable.Transfer with
+          actors = Set.fromList [issuer, investor]; newOwnerAccount = investorAccount
+
+      -- Lock asset (using same contexts)
+      lockableCid <- submitMulti [investor, locker] [] do
+        exerciseCmd (toInterfaceContractId @Lockable.I newTransferableCid) Lockable.Acquire with
+          newLockers = Set.singleton locker; context = "C1"; lockType = Lockable.Reentrant
+      submitMulti [investor, locker] [] do
+        exerciseCmd lockableCid Lockable.Acquire with
+          newLockers = Set.singleton locker; context = "C2"; lockType = Lockable.Reentrant
+
+  -- Verify lock is maintained
+  Some lock <- (.lock) <$> submit locker do
+    exerciseCmd lockableCid Lockable.GetView with viewer = locker
+  lock.lockers === Set.singleton locker
+  lock.context === Set.fromList ["C1", "C2"]
+  lock.lockType === Lockable.Reentrant
+
+  pure ()
+
+-- | Example template with re-entrant lock logic.
+template ReentrantLockTransferService
+  with
+    custodian : Party
+    locker : Party
+    observers : [Party]
+  where
+    signatory custodian, locker
+    observer observers
+
+    nonconsuming choice TransferWithLocks : ContractId Transferable.I
+      with
+        sender : Party
+        receiverAccount : AccountKey
+        transferableCid : ContractId Transferable.I
+      controller sender, receiverAccount.owner
+      do
+        let lockableCid = toInterfaceContractId @Lockable.I transferableCid
+        vLockable <- view <$> fetch lockableCid
+        -- Release all locks
+        let
+          releaseAll cid lock =
+            foldlA (\acc context -> exercise acc Lockable.Release with context) cid
+              (Set.toList lock.context)
+        transferableCid <- fromInterfaceContractId @Transferable.I <$>
+          optional (pure lockableCid) (releaseAll lockableCid) vLockable.lock
+        -- Transfer
+        newLockableCid <- toInterfaceContractId @Lockable.I <$>
+          exercise transferableCid
+            Transferable.Transfer with
+              actors = Set.fromList [sender, receiverAccount.owner]
+              newOwnerAccount = receiverAccount
+        -- Reapply locks
+        let
+          reapplyLocks cid lock =
+            foldlA
+              (\acc context -> exercise acc Lockable.Acquire with
+                  newLockers = lock.lockers; context; lockType = lock.lockType
+              )
+              cid (Set.toList lock.context)
+        fromInterfaceContractId @Transferable.I <$>
+          optional (pure newLockableCid) (reapplyLocks newLockableCid) vLockable.lock
+
+test1 : Script()
+test1 = testTransfer True
+
+test2 : Script()
+test2 = testTransfer False

@@ -1,0 +1,90 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Interface.Lifecycle.V4.Effect where
+
+import Daml.Finance.Interface.Types.Common.V3.Types (Id, InstrumentKey, InstrumentQuantity, Parties)
+
+-- | Type synonym for `Effect`.
+type I = Effect
+
+-- | Type synonym for `View`.
+type V = View
+
+-- | View for `Effect`.
+data View = View
+  with
+    providers : Parties
+      -- ^ The parties providing the claim processing.
+    targetInstrument : InstrumentKey
+      -- ^ The target instrument. A holding on this instrument is required to claim the effect.
+      --   For example, in the case of a swap instrument, this would be the original instrument
+      --   version before lifecycling, that contains the current swap payment.
+    producedInstrument : Optional InstrumentKey
+      -- ^ The produced instrument, if it exists.
+      --   For example, in the case of a swap instrument, this would be the new instrument
+      --   version after lifecycling, that does not contain the current swap payment.
+      --   If there are no more claims remaining after the current lifecycling, this would be None.
+    id : Id
+      -- ^ A textual identifier.
+    description : Text
+      -- ^ A human readable description of the Effect.
+    settlementTime : Optional Time
+      -- ^ The effect's settlement time (if any).
+    otherConsumed : [InstrumentQuantity]
+      -- ^ Consumed quantities (in addition to the target instrument).
+      --   For example, in the case of a fix vs floating rate swap, this could be a 2.5% fix
+      --   payment.
+    otherProduced : [InstrumentQuantity]
+      -- ^ Produced quantities (in additon to the produced instrument).
+      --   For example, in the case of a fix vs floating rate swap, this could be a 3M Euribor
+      --   floating payment.
+  deriving (Eq, Show)
+
+-- | Interface for contracts exposing effects of lifecycling processes.
+interface Effect where
+  viewtype V
+
+  setProviders : SetProviders -> Update (ContractId Effect)
+    -- ^ Implementation of the `SetProviders` choice.
+  calculate : Calculate -> ContractId Effect -> Update CalculationResult
+    -- ^ Implementation of the `Calculate` choice.
+
+  nonconsuming choice GetView : View
+    -- ^ Retrieves the interface view.
+    with
+      viewer : Party
+        -- ^ The party retrieving the view.
+    controller viewer
+    do
+      pure $ view this
+
+  nonconsuming choice Calculate : CalculationResult
+    -- ^ Given an instrument quantity of the target instrument, it calculates the instrument
+    --   quantities to settle.
+    with
+      actor : Party
+        -- ^ The flexible controller of the choice.
+      quantity : InstrumentQuantity
+        -- ^ The quantity being targeted.
+    controller actor
+    do
+      calculate this arg self
+
+  choice SetProviders : ContractId Effect
+    -- ^ Set the provider of the effect.
+    with
+      newProviders : Parties
+        -- ^ The new provider.
+    controller (view this).providers, newProviders
+    do
+      setProviders this arg
+
+-- | Data type encapsulating the effect's calculation result.
+data CalculationResult = CalculationResult
+  with
+    consumed : [InstrumentQuantity]
+      -- ^ Consumed quantities.
+    produced : [InstrumentQuantity]
+      -- ^ Produced quantities.
+  deriving (Eq, Show)

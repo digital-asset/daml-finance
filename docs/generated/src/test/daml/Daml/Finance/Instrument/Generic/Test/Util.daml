@@ -1,0 +1,50 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Generic.Test.Util where
+
+import ContingentClaims.Core.V3.Claim (Claim)
+import DA.Map (fromList)
+import Daml.Finance.Claims.V3.Util (toTime)
+import Daml.Finance.Data.V4.Time.DateClock (dateToDateClockTime)
+import Daml.Finance.Instrument.Generic.V4.Factory (Factory(..))
+import Daml.Finance.Interface.Claims.V4.Types (C, Deliverable, Observable)
+import Daml.Finance.Interface.Instrument.Generic.V4.Factory qualified as GenericFactory (Create(..), I)
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..), InstrumentKey(..), Parties)
+import Daml.Script
+
+-- | Maps a `Date` claim to a `Time` claim using the rule in the `DateClock`.
+mapClaimToUTCTime : Claim Date Decimal Deliverable Observable -> C
+mapClaimToUTCTime = toTime dateToDateClockTime
+
+-- | Originate generic instrument
+originateGeneric : Party -> Party -> Text -> HoldingStandard -> Text -> Time -> C ->
+  [(Text, Parties)] -> Time -> Script InstrumentKey
+originateGeneric depository issuer label holdingStandard description acquisitionTime claims
+  observers lastEventTimestamp = do
+
+    -- Create a generic instrument factory
+    genericFactoryCid <- toInterfaceContractId @GenericFactory.I <$> submit issuer do
+      createCmd Factory with
+        provider = issuer
+        observers = mempty
+
+    -- Create instrument
+    let
+      instrument = InstrumentKey with
+        issuer
+        depository
+        id = Id label
+        version = "0"
+        holdingStandard
+
+    submitMulti [issuer, depository] [] do
+      exerciseCmd genericFactoryCid GenericFactory.Create with
+        instrument
+        description
+        claims
+        acquisitionTime
+        lastEventTimestamp
+        observers = fromList observers
+
+    pure instrument

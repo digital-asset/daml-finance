@@ -1,0 +1,96 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Holding.Test.Common where
+
+import Daml.Finance.Interface.Account.V4.Factory qualified as AccountFactory (I)
+import Daml.Finance.Interface.Holding.V4.Factory qualified as HoldingFactory (I)
+import Daml.Finance.Interface.Holding.V4.Holding qualified as Holding (I)
+import Daml.Finance.Interface.Types.Common.V3.Types (AccountKey, HoldingFactoryKey, HoldingStandard, InstrumentKey, Parties)
+import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.HoldingFactory (createHoldingFactory)
+import Daml.Finance.Test.Util.Instrument (originate)
+import Daml.Script
+
+-- | Parties involved in the initial test state.
+data TestParties = TestParties
+  with
+    custodian : Party
+      -- ^ Acts as custodian of holdings. It also acts as depository of the instrument.
+    issuer : Party
+      -- ^ Acts as the issuer of the instrument. Is also the initial owner of the holding.
+    investor : Party
+      -- ^ Owner of the holding.
+    locker : Party
+      -- ^ Locker of the holding.
+    locker2 : Party
+      -- ^ Additional lockers of the holding.
+    regulator : Party
+      -- ^ Regulator of the market.
+    publicParty : Party
+      -- ^ The public party. Every party can readAs the public party.
+
+-- | Initial test state.
+data TestInitialState = TestInitialState
+  with
+    investorAccount : AccountKey
+      -- ^ Investor account at the custodian.
+    issuerAccount : AccountKey
+      -- ^ Issuer account at the custodian.
+    instrument : InstrumentKey
+      -- ^ Key of the instrument.
+    issuerHoldingCid : ContractId Holding.I
+      -- ^ Initial holding of the issuer.
+    accountFactoryCid : ContractId AccountFactory.I
+      -- ^ Account factory of the custodian.
+    holdingFactory : HoldingFactoryKey
+      -- ^ Holding factory of the custodian.
+
+-- | Setup test parties.
+setupParties : Script TestParties
+setupParties = do
+  -- Create parties
+  [custodian, issuer, investor, locker, locker2, regulator, publicParty] <- createParties
+    ["Custodian", "Issuer", "Investor", "Locker", "Locker2", "regulator", "PublicParty"]
+  pure TestParties{..}
+
+-- | Setup test initial state.
+setupInitialState :
+  ( HasToInterface a HoldingFactory.I
+  , HasSignatory a
+  , HasObserver a
+  , HasEnsure a
+  , HasAgreement a
+  , HasCreate a
+  , HasFetch a
+  , HasArchive a
+  , HasTemplateTypeRep a
+  , HasToAnyTemplate a
+  , HasFromAnyTemplate a
+  )
+  => TestParties -> a -> HoldingStandard -> [(Text, Parties)]
+  -> Account.ControlledBy -> Script (TestInitialState)
+setupInitialState (tp : TestParties) (holdingFactory : a) holdingStandard accountObservers
+  controlledBy = do
+    let TestParties{..} = tp
+
+    -- Create account factory
+    accountFactoryCid <- toInterfaceContractId <$> Account.createFactory custodian []
+
+    -- Create holding factory
+    holdingFactory <- createHoldingFactory holdingFactory
+
+    -- Create account
+    [issuerAccount, investorAccount] <-
+      mapA (Account.createAccount "Default Account" [] accountFactoryCid holdingFactory
+        accountObservers controlledBy custodian) [issuer, investor]
+
+    -- Originate instrument
+    now <- getTime
+    instrument <- originate custodian issuer "ABC.DE" holdingStandard "Stock" [] now
+
+    -- Credit asset
+    issuerHoldingCid <- Account.credit [] instrument 1_000.0 issuerAccount
+
+    pure TestInitialState{..}

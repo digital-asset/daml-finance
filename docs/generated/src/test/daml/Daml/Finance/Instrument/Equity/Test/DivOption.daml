@@ -1,0 +1,227 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Equity.Test.DivOption where
+
+import DA.Date (Month(..), date)
+import DA.Map qualified as Map (fromList)
+import DA.Set qualified as Set (fromList, singleton)
+import Daml.Finance.Holding.V4.Factory qualified as Holding (Factory(..))
+import Daml.Finance.Instrument.Equity.Test.Util
+import Daml.Finance.Instrument.Option.Test.Util (electAndVerifyDivOptionPaymentEffects, originateDividendOption)
+import Daml.Finance.Interface.Instrument.Equity.V0.Instrument qualified as Equity (DeclareDistribution(..), I)
+import Daml.Finance.Interface.Instrument.Option.V0.Dividend.Types (ElectionTypeEnum(..))
+import Daml.Finance.Interface.Lifecycle.V4.Rule.Claim qualified as Claim (ClaimEffect(..), I)
+import Daml.Finance.Interface.Lifecycle.V4.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I)
+import Daml.Finance.Interface.Settlement.V4.Batch qualified as Batch (Settle(..))
+import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.V4.Types (Allocation(..), Approval(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..))
+import Daml.Finance.Interface.Util.V3.Common (qty)
+import Daml.Finance.Lifecycle.V4.Rule.Claim qualified as Claim (Rule(..))
+import Daml.Finance.Lifecycle.V4.Rule.Distribution qualified as Distribution (Rule(..))
+import Daml.Finance.Settlement.V4.Factory (Factory(..))
+import Daml.Finance.Settlement.V4.RouteProvider.SingleCustodian (SingleCustodian(..))
+import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerAndAmountOfHolding)
+import Daml.Finance.Test.Util.HoldingFactory (createHoldingFactory)
+import Daml.Finance.Test.Util.Instrument (originate)
+import Daml.Finance.Test.Util.Instrument qualified as Instrument (submitExerciseInterfaceByKeyCmd)
+import Daml.Script
+
+-- Issue dividend option and do an election: lifecycling and settlement
+run : Script ()
+run = script do
+  -----------------------------
+  -- Issue a dividend option --
+  -----------------------------
+
+  -- Create parties
+  [cb, issuer, custodian, investor, publicParty] <-
+    createParties ["CentralBank", "Issuer", "Custodian", "Investor", "PublicParty"]
+  let pp = [("PublicParty", Set.singleton publicParty)]
+
+  -- Create account factory
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory issuer pp
+
+  -- Create holding factory
+  holdingFactory <- createHoldingFactory
+    Holding.Factory with
+      provider = custodian; id = Id "Holding Factory"; observers = Map.fromList pp
+
+  -- Create accounts
+  investorAccount <-
+    Account.createAccount "Investor Account" [publicParty] accountFactoryCid holdingFactory []
+    Account.Owner custodian investor
+
+  let
+    expiryDate = date 2019 May 15
+
+  -- Originate instruments
+  now <- getTime
+  cashInstrument <- originate cb cb "USD" TransferableFungible "United States Dollar" pp now
+  eurInstrument <- originate cb cb "EUR" TransferableFungible "Euro" pp now
+  cumEquityInstrument <-
+    originateEquity issuer issuer "EQUITY-INST-1" "0" TransferableFungible "ABC" pp now
+  exEquityInstrument <-
+    originateEquity issuer issuer "EQUITY-INST-1" "1" TransferableFungible "ABC" [] now
+
+  let
+    cashQuantity = qty 0.19 cashInstrument
+    sharesQuantity = Some $ qty 0.0041 exEquityInstrument
+    fxQuantity = Some $ qty 0.17 eurInstrument
+
+  longDivOptionInstrument <- originateDividendOption issuer issuer "long div option"
+    TransferableFungible "Option" pp now expiryDate cashQuantity sharesQuantity fxQuantity
+    publicParty
+
+  -- Distribute holdings: fractional holdings are also supported.
+  investorEquityCid <- Account.credit [publicParty] cumEquityInstrument 1000.0 investorAccount
+
+  -- Create distribution rule for the dividend option
+  distributionRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit issuer do
+    createCmd Distribution.Rule with
+      providers =Set.singleton issuer
+      lifecycler = issuer
+      observers = Set.singleton publicParty
+      id = Id "LifecycleRule"
+      description = "Rule to lifecycle an instrument following a distribution event"
+
+  -- Create dividend option event: 1.0 per share (this also works with fractional shares)
+  distributionEventCid <-
+    Instrument.submitExerciseInterfaceByKeyCmd @Equity.I [issuer] [] cumEquityInstrument
+      Equity.DeclareDistribution with
+        id = Id $ "ABC - " <> show now
+        description = "Dividend options issue"
+        effectiveTime = now
+        newInstrument = exEquityInstrument
+        perUnitDistribution = [qty 1.0 longDivOptionInstrument]
+
+  -- Lifecycle dividend option distribution
+  (_, [effectCid]) <- submit issuer do
+    exerciseCmd distributionRuleCid Lifecycle.Evolve with
+      observableCids = []
+      eventCid = distributionEventCid
+      instrument = cumEquityInstrument
+
+  -- Claim effect
+  routeProviderCid <- toInterfaceContractId <$> submit custodian do
+    createCmd SingleCustodian with
+      provider = custodian; observers = Set.singleton publicParty; custodian
+  settlementFactoryCid <- toInterfaceContractId <$> submit custodian do
+    createCmd Factory with provider = custodian; observers = Set.singleton publicParty
+  -- Enable netting so that there is only one holding with the new correct quantity
+  let settlers = Set.fromList [investor, custodian]
+  claimRuleCid <- toInterfaceContractId @Claim.I <$> submit custodian do
+    createCmd Claim.Rule with
+      provider = custodian
+      claimers = Set.fromList [investor, custodian]
+      settlers
+      routeProviderCid
+      settlementFactoryCid
+      netInstructions = True
+
+  -- The effect is claimed and then settled by the custodian, but it could also be claimed and then
+  -- settled by the investor.
+  result <- submitMulti [custodian] [publicParty] do
+    exerciseCmd claimRuleCid Claim.ClaimEffect with
+      claimer = custodian
+      holdingCids = [investorEquityCid]
+      effectCid
+      batchId = Id "DivOptionSettlement"
+
+  let
+    [investorInstrumentInstructionCid, custodianInstrumentInstructionCid,
+      custodianDivOptionInstructionCid] = result.instructionCids
+
+  -- Allocate instructions
+  (investorInstrumentInstructionCid, _) <- submit investor do
+    exerciseCmd investorInstrumentInstructionCid Instruction.Allocate with
+      actors = Set.singleton investor
+      allocation = Pledge $ fromInterfaceContractId investorEquityCid
+  (custodianInstrumentInstructionCid, _) <- submit custodian do
+    exerciseCmd custodianInstrumentInstructionCid Instruction.Allocate with
+      actors = Set.singleton custodian; allocation = CreditReceiver
+  (custodianDivOptionInstructionCid, _) <- submit custodian do
+    exerciseCmd custodianDivOptionInstructionCid Instruction.Allocate with
+      actors = Set.singleton custodian; allocation = CreditReceiver
+
+  -- Approve instructions
+  investorInstrumentInstructionCid <- submit custodian do
+    exerciseCmd investorInstrumentInstructionCid Instruction.Approve with
+      actors = Set.singleton custodian; approval = DebitSender
+  custodianInstrumentInstructionCid <- submit investor do
+    exerciseCmd custodianInstrumentInstructionCid Instruction.Approve with
+      actors = Set.singleton investor; approval = TakeDelivery investorAccount
+  custodianDivOptionInstructionCid <- submit investor do
+    exerciseCmd custodianDivOptionInstructionCid Instruction.Approve with
+      actors = Set.singleton investor; approval = TakeDelivery investorAccount
+
+  -- Settle batch
+  [investorEquityHoldingCid, investorDivOptionHoldingCid] <-
+    submitMulti [custodian] [publicParty] do
+      exerciseCmd result.batchCid Batch.Settle with actors = Set.singleton custodian
+
+  -- Assert state
+  Holding.verifyOwnerAndAmountOfHolding [(investor, 1000.00, investorEquityHoldingCid),
+    (investor, 1000.00, investorDivOptionHoldingCid)]
+
+  ------------------------------------------------
+  -- Election: Choose which dividend to receive --
+  ------------------------------------------------
+
+  -- The investor can now choose what kind of dividend to receive by exercising the dividend option,
+  -- either in parts or in whole.
+  -- The example below shows how an investor chooses to receive the dividend in shares.
+  -- It is also possible to receive part in shares and part in cash. For that, you would simply have
+  -- to split the option holding and apply the workflow twice: once for shares and once for cash.
+
+  let
+    electAmount = 1000.0 -- Elect to receive shares for 1000 units of Dividend options
+    expectedConsumed = []
+    expectedProduced = [qty 0.0041 exEquityInstrument]
+  (_, divOptionEffect) <- electAndVerifyDivOptionPaymentEffects [publicParty] expiryDate
+    electAmount longDivOptionInstrument issuer investor Shares expectedConsumed expectedProduced
+
+  -- Create a claim rule
+  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit custodian do
+    createCmd Claim.Rule with
+      provider = custodian
+      claimers = Set.fromList [investor, issuer]
+      settlers
+      routeProviderCid
+      settlementFactoryCid
+      netInstructions = False
+
+  -- Cannot claim effect for a different amount than what was elected
+  -- In particular, electing for more than the size of the holding does not work:
+  investorDivOptionSmallHoldingCid <- Account.credit [publicParty] longDivOptionInstrument 3.0
+    investorAccount
+  submitMultiMustFail [investor] [publicParty] do
+    exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
+      claimer = investor
+      holdingCids = [investorDivOptionSmallHoldingCid]
+      effectCid = divOptionEffect
+      batchId = Id "DivOptionExerciseSettlement"
+
+  -- Electing for less than the size of the holding does not work either:
+  -- (you would have to split the holding first)
+  investorDivOptionBigHoldingCid <- Account.credit [publicParty] longDivOptionInstrument 30000.0
+    investorAccount
+  submitMultiMustFail [investor] [publicParty] do
+    exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
+      claimer = investor
+      holdingCids = [investorDivOptionBigHoldingCid]
+      effectCid = divOptionEffect
+      batchId = Id "DivOptionExerciseSettlement"
+
+  -- Electing for the same amount as the size of the holding works:
+  submitMulti [investor] [publicParty] do
+    exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
+      claimer = investor
+      holdingCids = [investorDivOptionHoldingCid]
+      effectCid = divOptionEffect
+      batchId = Id "DivOptionExerciseSettlement"
+
+  pure ()

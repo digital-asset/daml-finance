@@ -1,0 +1,211 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Settlement.Test.Batch where
+
+import DA.Map qualified as Map (fromList)
+import DA.Set qualified as Set (fromList, singleton)
+import Daml.Finance.Holding.V4.Factory qualified as Holding (Factory(..))
+import Daml.Finance.Interface.Settlement.V4.Batch qualified as Batch (Cancel(..), Settle(..))
+import Daml.Finance.Interface.Settlement.V4.Factory qualified as SettlementFactory (I, Instruct(..))
+import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (Allocate(..), Approve(..), Execute(..))
+import Daml.Finance.Interface.Settlement.V4.RouteProvider qualified as RouteProvider (Discover(..), I)
+import Daml.Finance.Interface.Settlement.V4.Types (Allocation(..), Approval(..), Step(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..))
+import Daml.Finance.Interface.Util.V3.Common (qty)
+import Daml.Finance.Settlement.V4.Factory (Factory(..))
+import Daml.Finance.Settlement.V4.RouteProvider.SingleCustodian (SingleCustodian(..))
+import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.Holding qualified as Holding (verifyNoObservers, verifyOwnerOfHolding)
+import Daml.Finance.Test.Util.HoldingFactory (createHoldingFactory)
+import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
+import Daml.Script
+
+-- | Parties involved in the test script.
+data TestParties = TestParties
+  with
+    bank : Party
+      -- ^ Acts as custodian in the respective holdings (for both the cash and equity instrument).
+    cb : Party
+      -- ^ Depository and issuer of the cash instrument.
+    csd : Party
+      -- ^ Depository of the equity instrument.
+    issuer : Party
+      -- ^ Issuer of the equity instrument.
+    buyer : Party
+      -- ^ Buyer of the equity instrument.
+    seller : Party
+      -- ^ Seller of the equity instrument.
+    publicParty : Party
+      -- ^ The public party. Every party can readAs the public party.
+
+-- DvP via settlement chain and instructions.
+-- Seller transfers equity to buyer in exchange for cash.
+-- +----------------------------------------+
+-- | Accounts                               |
+-- +----------------+-----------------------+
+-- | structure:     | used for:             |
+-- +----------------+-----------------------+
+-- |     Bank       |                       |
+-- |     /  \       | commercial bank money |
+-- | Buyer  Seller  |                       |
+-- |     \  /       | securities            |
+-- |     Bank       |                       |
+-- +----------------+-----------------------+
+run: Bool -> Bool -> Script ()
+run settleCashOnledger bankIsInstructor = script do
+  -- Create parties
+  TestParties{..} <- setupParties
+  let pp = [("PublicParty", Set.singleton publicParty)]
+
+  -- Create account factory
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank []
+
+  -- Create holding factory
+  holdingFactory <- createHoldingFactory
+    Holding.Factory with provider = bank; id = Id "Holding Factory"; observers = Map.fromList pp
+
+  -- Originate instruments
+  now <- getTime
+  equityInstrument <- Instrument.originate csd issuer "AAPL" TransferableFungible "Apple Inc." pp
+    now
+  cashInstrument <- Instrument.originate cb cb "USD" TransferableFungible "United States Dollar" pp
+    now
+
+  -- Custody accounts
+  [buyerCustodyAccount, sellerCustodyAccount] <-
+    mapA (Account.createAccount "Custody Account" [] accountFactoryCid holdingFactory []
+      Account.Owner bank) [buyer, seller]
+
+  -- Cash accounts
+  [buyerCashAccount, sellerCashAccount] <- mapA (Account.createAccount "Cash Account" []
+    accountFactoryCid holdingFactory [] Account.Owner bank) [buyer, seller]
+
+  -- Distribute equity
+  equityHoldingCid <- Account.credit [publicParty] equityInstrument 1_000.0 sellerCustodyAccount
+
+  -- Settlement steps
+  let
+    steps =
+      [ Step with sender = seller; receiver = buyer; quantity = qty 1_000.0 equityInstrument
+      , Step with sender = buyer; receiver = seller; quantity = qty 200_000.0 cashInstrument
+      ]
+
+  -- Discover settlement routes
+  routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit bank do
+    createCmd SingleCustodian with
+      provider = bank; custodian = bank; observers = Set.singleton publicParty
+  routedSteps <- submit bank do
+    exerciseCmd routeProviderCid RouteProvider.Discover with
+      discoverors = Set.singleton bank; contextId = None; steps
+
+  -- Setup settlement factory
+  settlementFactoryCid <- toInterfaceContractId @SettlementFactory.I <$>
+    submit bank do
+      createCmd Factory with provider = bank; observers = Set.singleton publicParty
+
+  -- Instruct settlement
+  let
+    instructor = if bankIsInstructor then bank else buyer
+    consenters = if bankIsInstructor then [] else [seller]
+    settlers = Set.fromList [buyer, seller]
+    instructCmd = submitMulti (instructor :: consenters) [publicParty] do
+      exerciseCmd settlementFactoryCid SettlementFactory.Instruct with
+        instructor
+        consenters = Set.fromList consenters
+        settlers
+        id = Id "APPL 1000@200.0USD"
+        description = "DVP"
+        contextId = None
+        routedSteps
+        settlementTime = None
+
+  -- Create batch and instructions, and then cancel
+  (batchCid, _) <- instructCmd
+  -- seller can't cancel batch
+  submitMustFail seller do exerciseCmd batchCid Batch.Cancel with actors = Set.singleton seller
+  -- instructor and consenters can cancel batch
+  submitMulti (instructor :: consenters) [] do
+    exerciseCmd batchCid Batch.Cancel with actors = Set.fromList $ instructor :: consenters
+
+  -- Create batch and instructions
+  (batchCid, [equityInstructionCid, cashInstructionCid]) <- instructCmd
+
+  -- Allocate and approve equity instruction
+  (equityInstructionCid, _) <- submit seller do
+    exerciseCmd equityInstructionCid Instruction.Allocate with
+      actors = Set.singleton seller; allocation = Pledge equityHoldingCid
+  equityInstructionCid <- submit buyer do
+    exerciseCmd equityInstructionCid Instruction.Approve with
+      actors = Set.singleton buyer; approval = TakeDelivery buyerCustodyAccount
+
+  -- Allocate and approve cash instruction
+  cashInstructionCid <- if settleCashOnledger
+    then
+      do
+        -- Settle by on-ledger transfer
+        cashHoldingCid <- Account.credit [publicParty] cashInstrument 200_000.0 buyerCashAccount
+        (cashInstructionCid, _) <- submit buyer do
+          exerciseCmd cashInstructionCid Instruction.Allocate with
+            actors = Set.singleton buyer; allocation = Pledge cashHoldingCid
+        submit seller do
+          exerciseCmd cashInstructionCid Instruction.Approve with
+            actors = Set.singleton seller; approval = TakeDelivery sellerCashAccount
+    else
+      do
+        -- Settle by off ledger transfer
+        (cashInstructionCid, _) <- submitMulti [buyer, bank] [] do
+          exerciseCmd cashInstructionCid Instruction.Allocate with
+            actors = Set.fromList [buyer, bank]; allocation = SettleOffledger
+        submitMulti [seller, bank] [] do
+          exerciseCmd cashInstructionCid Instruction.Approve with
+            actors = Set.fromList [seller, bank]; approval = SettleOffledgerAcknowledge
+
+  -- Settle batch
+  -- neither the bank, nor seller, nor buyer can execute an instruction
+  submitMustFail bank do
+    exerciseCmd cashInstructionCid Instruction.Execute with actors = Set.singleton bank
+  submitMustFail seller do
+    exerciseCmd cashInstructionCid Instruction.Execute with actors = Set.singleton seller
+  submitMustFail buyer do
+    exerciseCmd cashInstructionCid Instruction.Execute with actors = Set.singleton buyer
+  -- the bank can't settle the batch
+  if bankIsInstructor then
+    submitMustFail bank do
+      exerciseCmd batchCid Batch.Settle with actors = Set.singleton bank
+  else
+    pure ()
+  -- any of the settlers can settle the batch (i.e., buyer or seller)
+  cids <- submitMulti [buyer] [publicParty] do
+    exerciseCmd batchCid Batch.Settle with actors = Set.singleton buyer
+
+  -- Assert state
+  let ts = zip [buyer, seller] cids
+  Holding.verifyOwnerOfHolding ts
+  Holding.verifyNoObservers ts
+
+  pure ()
+
+-- Settle cash on-ledger
+-- with bank as instructor
+run1 : Script ()
+run1 = run True True
+-- with buyer as instructor (and seller as consenter)
+run2 : Script ()
+run2 = run True False
+
+-- Settle cash off-ledger
+-- with bank as instructor
+run3 : Script ()
+run3 = run False True
+-- with buyer as instructor (and seller as consenter)
+run4 : Script ()
+run4 = run False False
+
+-- | Settup parties for the scripts
+setupParties : Script TestParties
+setupParties = do
+  [cb, csd, bank, issuer, buyer, seller, publicParty] <- createParties
+    ["CentralBank", "CentralSecurityDepository", "Bank", "Issuer", "Buyer", "Seller", "PublicParty"]
+  pure TestParties with cb; csd; bank; issuer; buyer; seller; publicParty

@@ -1,0 +1,357 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Bond.Test.Util where
+
+import DA.Map (fromList)
+import Daml.Finance.Instrument.Bond.V3.Callable.Factory qualified as CallableBond (Factory(..))
+import Daml.Finance.Instrument.Bond.V3.FixedRate.Factory qualified as FixedRateBond (Factory(..))
+import Daml.Finance.Instrument.Bond.V3.FloatingRate.Factory qualified as FloatingRateBond (Factory(..))
+import Daml.Finance.Instrument.Bond.V3.InflationLinked.Factory qualified as InflationLinkedBond (Factory(..))
+import Daml.Finance.Instrument.Bond.V3.ZeroCoupon.Factory qualified as ZeroCouponBond (Factory(..))
+import Daml.Finance.Interface.Claims.V4.Types (Deliverable)
+import Daml.Finance.Interface.Instrument.Bond.V3.Callable.Factory qualified as CallableBondFactory (Create(..), I(..))
+import Daml.Finance.Interface.Instrument.Bond.V3.Callable.Types (Callable(..))
+import Daml.Finance.Interface.Instrument.Bond.V3.FixedRate.Factory qualified as FixedRateBondFactory (Create(..), I(..))
+import Daml.Finance.Interface.Instrument.Bond.V3.FixedRate.Types (FixedRate(..))
+import Daml.Finance.Interface.Instrument.Bond.V3.FloatingRate.Factory qualified as FloatingRateBondFactory (Create(..), I(..))
+import Daml.Finance.Interface.Instrument.Bond.V3.FloatingRate.Types qualified as FloatingRateBond (FloatingRate(..))
+import Daml.Finance.Interface.Instrument.Bond.V3.InflationLinked.Factory qualified as InflationLinkedBondFactory (Create(..), I(..))
+import Daml.Finance.Interface.Instrument.Bond.V3.InflationLinked.Types (InflationLinked(..))
+import Daml.Finance.Interface.Instrument.Bond.V3.ZeroCoupon.Factory qualified as ZeroCouponBondFactory (Create(..), I(..))
+import Daml.Finance.Interface.Instrument.Bond.V3.ZeroCoupon.Types (ZeroCoupon(..))
+import Daml.Finance.Interface.Instrument.Types.V2.FloatingRate (FloatingRate)
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..), InstrumentKey(..), Parties)
+import Daml.Finance.Interface.Types.Date.V3.Calendar (BusinessDayConventionEnum)
+import Daml.Finance.Interface.Types.Date.V3.DayCount (DayCountConventionEnum)
+import Daml.Finance.Interface.Types.Date.V3.RollConvention (PeriodEnum)
+import Daml.Finance.Interface.Types.Date.V3.Schedule (PeriodicSchedule)
+import Daml.Finance.Test.Util.Time (createPaymentPeriodicSchedule)
+import Daml.Script
+
+originateFixedRateBond : Party -> Party -> Text -> HoldingStandard -> Text -> [(Text, Parties)] ->
+  Time -> Date -> [Text] -> Party -> Date-> Date ->
+  DayCountConventionEnum -> BusinessDayConventionEnum -> Decimal -> PeriodEnum -> Int ->
+  InstrumentKey -> Decimal -> Party -> Script InstrumentKey
+originateFixedRateBond depository issuer label holdingStandard description observers
+  lastEventTimestamp issueDate holidayCalendarIds calendarDataProvider firstCouponDate maturityDate
+  dayCountConvention businessDayConvention couponRate couponPeriod couponPeriodMultiplier
+  currency notional publicParty
+  = do
+    let
+      periodicSchedule = createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds
+        businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate
+
+    -- Create a fixed rate bond factory
+    fixedRateBondFactoryCid <- toInterfaceContractId @FixedRateBondFactory.I <$> submit issuer do
+      createCmd FixedRateBond.Factory with
+        provider = issuer
+        observers = mempty
+
+    -- CREATE_FIXED_RATE_BOND_INSTRUMENT_BEGIN
+    let
+      instrument = InstrumentKey with
+        issuer
+        depository
+        id = Id label
+        version = "0"
+        holdingStandard
+
+    cid <- submitMulti [issuer] [publicParty] do
+      exerciseCmd fixedRateBondFactoryCid FixedRateBondFactory.Create with
+        fixedRate = FixedRate with
+          instrument
+          description
+          couponRate
+          periodicSchedule
+          holidayCalendarIds
+          calendarDataProvider
+          dayCountConvention
+          currency
+          notional
+          lastEventTimestamp
+        observers = fromList observers
+    -- CREATE_FIXED_RATE_BOND_INSTRUMENT_END
+    pure instrument
+
+originateCallableBond : Party -> Party -> Text -> HoldingStandard -> Text -> [(Text, Parties)] ->
+  Time -> Date ->
+  [Text] -> Party -> Date -> Date ->
+  DayCountConventionEnum -> Bool -> BusinessDayConventionEnum -> Optional FloatingRate -> Decimal ->
+  Optional Decimal -> Optional Decimal -> PeriodEnum -> Int -> InstrumentKey -> Decimal -> Int ->
+  Party -> Script InstrumentKey
+originateCallableBond depository issuer label holdingStandard description observers
+  lastEventTimestamp issueDate holidayCalendarIds calendarDataProvider firstCouponDate maturityDate
+  dayCountConvention useAdjustedDatesForDcf businessDayConvention floatingRate couponRate
+  capRate floorRate couponPeriod couponPeriodMultiplier currency notional noticeDays
+  publicParty = do
+    let
+      couponSchedule = createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds
+        businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate
+      callSchedule = couponSchedule
+
+    -- Create a callable rate bond factory
+    callableBondFactoryCid <- toInterfaceContractId @CallableBondFactory.I <$> submit issuer do
+      createCmd CallableBond.Factory with
+        provider = issuer
+        observers = mempty
+
+    -- CREATE_CALLABLE_BOND_INSTRUMENT_BEGIN
+    let
+      instrument = InstrumentKey with
+        issuer
+        depository
+        id = Id label
+        version = "0"
+        holdingStandard
+
+    cid <- submitMulti [issuer] [publicParty] do
+      exerciseCmd callableBondFactoryCid CallableBondFactory.Create with
+        callable = Callable with
+          instrument
+          description
+          floatingRate
+          couponRate
+          capRate
+          floorRate
+          couponSchedule
+          noticeDays
+          callSchedule
+          holidayCalendarIds
+          calendarDataProvider
+          dayCountConvention
+          useAdjustedDatesForDcf
+          currency
+          notional
+          lastEventTimestamp
+          prevEvents = []
+        observers = fromList observers
+    -- CREATE_CALLABLE_BOND_INSTRUMENT_END
+    pure instrument
+
+originateCallableBondMustFail : Party -> Party -> Text -> HoldingStandard -> Text ->
+  [(Text, Parties)] -> Time -> Date -> [Text] -> Party -> Date ->
+  Date -> DayCountConventionEnum -> Bool -> BusinessDayConventionEnum -> Optional FloatingRate ->
+  Decimal -> Optional Decimal -> Optional Decimal -> PeriodEnum -> Int -> InstrumentKey ->
+  Decimal -> Int -> Party ->
+  Script ()
+originateCallableBondMustFail depository issuer label holdingStandard description
+  observers lastEventTimestamp issueDate holidayCalendarIds calendarDataProvider firstCouponDate
+  maturityDate dayCountConvention useAdjustedDatesForDcf businessDayConvention floatingRate
+  couponRate capRate floorRate couponPeriod couponPeriodMultiplier currency
+  notional noticeDays publicParty = do
+    let
+      couponSchedule = createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds
+        businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate
+      callSchedule = couponSchedule
+
+    -- Create a callable rate bond factory
+    callableBondFactoryCid <- toInterfaceContractId @CallableBondFactory.I <$> submit issuer do
+      createCmd CallableBond.Factory with
+        provider = issuer
+        observers = mempty
+
+    let
+      instrument = InstrumentKey with
+        issuer
+        depository
+        id = Id label
+        version = "0"
+        holdingStandard
+
+    submitMultiMustFail [issuer] [publicParty] do
+      exerciseCmd callableBondFactoryCid CallableBondFactory.Create with
+        callable = Callable with
+          instrument
+          description
+          floatingRate
+          couponRate
+          capRate
+          floorRate
+          couponSchedule
+          noticeDays
+          callSchedule
+          holidayCalendarIds
+          calendarDataProvider
+          dayCountConvention
+          useAdjustedDatesForDcf
+          currency
+          notional
+          lastEventTimestamp
+          prevEvents = []
+        observers = fromList observers
+    pure ()
+
+originateMultiScheduleCallableBond : Party -> Party -> Text -> HoldingStandard -> Text ->
+  [(Text, Parties)] -> Time -> [Text] -> Party -> DayCountConventionEnum ->
+  Bool ->  Optional FloatingRate -> Decimal -> Optional Decimal -> Optional Decimal ->
+  InstrumentKey ->  Decimal -> PeriodicSchedule -> PeriodicSchedule -> Int -> Party ->
+  Script InstrumentKey
+originateMultiScheduleCallableBond depository issuer label holdingStandard description
+  observers lastEventTimestamp holidayCalendarIds calendarDataProvider dayCountConvention
+  useAdjustedDatesForDcf floatingRate couponRate capRate floorRate
+  currency notional couponSchedule callSchedule noticeDays publicParty = do
+      -- Create a callable rate bond factory
+    callableBondFactoryCid <- toInterfaceContractId @CallableBondFactory.I <$> submit issuer do
+      createCmd CallableBond.Factory with
+        provider = issuer
+        observers = mempty
+
+    -- CREATE_MULTI_SCHEDULE_CALLABLE_BOND_INSTRUMENT_BEGIN
+    let
+      instrument = InstrumentKey with
+        issuer
+        depository
+        id = Id label
+        version = "0"
+        holdingStandard
+
+    cid <- submitMulti [issuer] [publicParty] do
+      exerciseCmd callableBondFactoryCid CallableBondFactory.Create with
+        callable = Callable with
+          instrument
+          description
+          floatingRate
+          couponRate
+          capRate
+          floorRate
+          couponSchedule
+          noticeDays
+          callSchedule
+          holidayCalendarIds
+          calendarDataProvider
+          dayCountConvention
+          useAdjustedDatesForDcf
+          currency
+          notional
+          lastEventTimestamp
+          prevEvents = []
+        observers = fromList observers
+    -- CREATE_MULTI_SCHEDULE_CALLABLE_BOND_INSTRUMENT_END
+    pure instrument
+
+originateZeroCouponBond : Party -> Party -> Text -> HoldingStandard -> Text -> [(Text, Parties)] ->
+  Time -> Date -> Date -> Deliverable -> Decimal -> Party -> Script InstrumentKey
+originateZeroCouponBond depository issuer label holdingStandard description observers
+  lastEventTimestamp issueDate maturityDate currency notional publicParty = do
+    -- Create a zero coupon bond factory
+    zeroCouponBondFactoryCid <- toInterfaceContractId @ZeroCouponBondFactory.I <$> submit issuer do
+      createCmd ZeroCouponBond.Factory with
+        provider = issuer
+        observers = mempty
+
+    -- CREATE_ZERO_COUPON_BOND_INSTRUMENT_BEGIN
+    let
+      instrument = InstrumentKey with
+        issuer
+        depository
+        id = Id label
+        version = "0"
+        holdingStandard
+
+    cid <- submitMulti [issuer] [publicParty] do
+      exerciseCmd zeroCouponBondFactoryCid ZeroCouponBondFactory.Create with
+        zeroCoupon = ZeroCoupon with
+          instrument
+          description
+          currency
+          issueDate
+          maturityDate
+          notional
+          lastEventTimestamp
+        observers = fromList observers
+    -- CREATE_ZERO_COUPON_BOND_INSTRUMENT_END
+    pure instrument
+
+originateFloatingRateBond : Party -> Party -> Text -> HoldingStandard -> Text ->
+  [(Text, Parties)] -> Time -> Date -> [Text] -> Party -> Date ->
+  Date -> DayCountConventionEnum -> BusinessDayConventionEnum -> Decimal -> PeriodEnum ->
+  Int -> InstrumentKey -> Decimal -> FloatingRate -> Party -> Script InstrumentKey
+originateFloatingRateBond depository issuer label holdingStandard description
+  observers lastEventTimestamp issueDate holidayCalendarIds calendarDataProvider firstCouponDate
+  maturityDate dayCountConvention businessDayConvention couponSpread couponPeriod
+  couponPeriodMultiplier currency notional floatingRate publicParty = do
+    let
+      periodicSchedule = createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds
+        businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate
+
+    -- Create a floating rate bond factory
+    floatingRateBondFactoryCid <- toInterfaceContractId @FloatingRateBondFactory.I <$>
+      submit issuer do
+        createCmd FloatingRateBond.Factory with
+          provider = issuer
+          observers = mempty
+
+    -- CREATE_FLOATING_RATE_BOND_INSTRUMENT_BEGIN
+    let
+      instrument = InstrumentKey with
+        issuer
+        depository
+        id = Id label
+        version = "0"
+        holdingStandard
+
+    cid <- submitMulti [issuer] [publicParty] do
+      exerciseCmd floatingRateBondFactoryCid FloatingRateBondFactory.Create with
+        floatingRate = FloatingRateBond.FloatingRate with
+          instrument
+          description
+          floatingRate
+          couponSpread
+          periodicSchedule
+          holidayCalendarIds
+          calendarDataProvider
+          dayCountConvention
+          currency
+          notional
+          lastEventTimestamp
+        observers = fromList observers
+    -- CREATE_FLOATING_RATE_BOND_INSTRUMENT_END
+    pure instrument
+
+originateInflationLinkedBond : Party -> Party -> Text -> HoldingStandard -> Text ->
+  [(Text, Parties)] -> Time -> Date -> [Text] -> Party -> Date ->
+  Date -> DayCountConventionEnum -> BusinessDayConventionEnum -> Decimal -> PeriodEnum ->
+  Int -> InstrumentKey -> Decimal -> Text -> Decimal -> Party -> Script InstrumentKey
+originateInflationLinkedBond depository issuer label holdingStandard description
+  observers  lastEventTimestamp issueDate holidayCalendarIds calendarDataProvider firstCouponDate
+  maturityDate dayCountConvention businessDayConvention couponRate couponPeriod
+  couponPeriodMultiplier currency notional inflationIndexId inflationIndexBaseValue publicParty = do
+    let
+      periodicSchedule = createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds
+        businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate
+
+    -- Create an inflation linked bond factory
+    inflationLinkedBondFactoryCid <- toInterfaceContractId @InflationLinkedBondFactory.I <$>
+      submit issuer do
+        createCmd InflationLinkedBond.Factory with
+          provider = issuer
+          observers = mempty
+
+    -- CREATE_INFLATION_LINKED_BOND_INSTRUMENT_BEGIN
+    let
+      instrument = InstrumentKey with
+        issuer
+        depository
+        id = Id label
+        version = "0"
+        holdingStandard
+
+    cid <- submitMulti [issuer] [publicParty] do
+      exerciseCmd inflationLinkedBondFactoryCid InflationLinkedBondFactory.Create with
+        inflationLinked = InflationLinked with
+          instrument
+          description
+          periodicSchedule
+          holidayCalendarIds
+          calendarDataProvider
+          dayCountConvention
+          couponRate
+          inflationIndexId
+          inflationIndexBaseValue
+          currency
+          notional
+          lastEventTimestamp
+        observers = fromList observers
+    -- CREATE_INFLATION_LINKED_BOND_INSTRUMENT_END
+    pure instrument

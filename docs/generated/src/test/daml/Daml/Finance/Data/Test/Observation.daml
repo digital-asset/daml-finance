@@ -1,0 +1,59 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Data.Test.Observation where
+
+import DA.Assert ((===))
+import DA.Date (Month(..), date)
+import DA.Map qualified as Map (fromList)
+import DA.Set (singleton)
+import DA.Time (time)
+import Daml.Finance.Data.V4.Numeric.Observation (Factory(..))
+import Daml.Finance.Interface.Data.V4.Numeric.Observation (GetView(..))
+import Daml.Finance.Interface.Data.V4.Numeric.Observation.Factory qualified as NumbericObservationFactory (Create(..), I)
+import Daml.Finance.Interface.Lifecycle.V4.Observable.NumericObservable qualified as NumericObservable (I, Observe(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (Id(..))
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Script
+
+-- | Test `Observation`.
+testObservation : Script ()
+testObservation = script do
+  [reuters, publicParty] <- createParties ["Reuters", "PublicParty"]
+
+  let
+    toTime d = time d 0 0 0
+    observations = Map.fromList $ fmap (\(d, v) -> (toTime d, v))
+      [ (date 2019 Jan 16, -0.00311)
+      , (date 2019 Feb 16, -0.00266)
+      ]
+    observers = Map.fromList [("PublicParty", singleton publicParty)]
+
+  -- Create observation via factory
+  observationFactoryCid <- toInterfaceContractId @NumbericObservationFactory.I <$> submit reuters do
+    createCmd Factory with provider = reuters; observers
+  observationCid <- submit reuters do
+    exerciseCmd observationFactoryCid NumbericObservationFactory.Create with
+      provider = reuters
+      observations
+      observers
+      id = Id "Observation"
+
+  -- Get view
+  view <- submit reuters do
+    exerciseCmd observationCid GetView with viewer = reuters
+
+  view.observations === observations
+
+  -- Observe
+  o <- submit reuters do
+    exerciseCmd (toInterfaceContractId @NumericObservable.I observationCid)
+      NumericObservable.Observe with t = toTime $ date 2019 Jan 16; actors = singleton reuters
+
+  o === -0.00311
+
+  -- Archive observation
+  submit reuters do
+    archiveCmd observationFactoryCid
+
+  pure ()

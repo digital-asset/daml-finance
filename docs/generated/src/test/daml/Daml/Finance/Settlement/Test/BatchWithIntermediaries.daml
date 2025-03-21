@@ -1,0 +1,200 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Settlement.Test.BatchWithIntermediaries where
+
+import DA.Date (addDays, toDateUTC)
+import DA.Map qualified as Map (fromList)
+import DA.Set qualified as Set (fromList, singleton)
+import DA.Time (time)
+import Daml.Finance.Holding.V4.Factory qualified as Holding (Factory(..))
+import Daml.Finance.Interface.Settlement.V4.Batch qualified as Batch (Settle(..))
+import Daml.Finance.Interface.Settlement.V4.Factory qualified as SettlementFactory (I, Instruct(..))
+import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.V4.RouteProvider qualified as RouteProvider (Discover(..), I)
+import Daml.Finance.Interface.Settlement.V4.Types (Allocation(..), Approval(..), Step(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..))
+import Daml.Finance.Interface.Util.V3.Common (qty)
+import Daml.Finance.Settlement.V4.Factory qualified as Settlement (Factory(..))
+import Daml.Finance.Settlement.V4.Hierarchy (Hierarchy(..))
+import Daml.Finance.Settlement.V4.RouteProvider.IntermediatedStatic (IntermediatedStatic(..))
+import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.Holding qualified as Holding (verifyNoObservers, verifyOwnerOfHolding)
+import Daml.Finance.Test.Util.HoldingDuplicates.Factory qualified as HoldingV2 (Factory(..))
+import Daml.Finance.Test.Util.HoldingFactory (createHoldingFactory)
+import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
+import Daml.Script
+
+-- | Parties involved in the test script.
+data TestParties = TestParties
+  with
+    buyer : Party
+      -- ^ Receives the equity instrument in exchange for cash.
+    seller : Party
+      -- ^ Seller of the equity instrument. Receives cash in exchange for units of equity.
+    bank : Party
+      -- ^ Custodian of the issuer's cash holdings.
+    cb : Party
+      -- ^ Depository and issuer of the cash instrument. Custodian of the cash holdings of Bank 1
+      --   and Bank 2.
+    csd : Party
+      -- ^ Depository of the equity instrument. Custodian of the equity holdings of Bank 1 and
+      --   Issuer.
+    issuer : Party
+      -- ^ Issuer of the equity instrument. Receives cash in exchange for units of equity.
+    publicParty : Party
+      -- ^ The public party. Every party can readAs the public party.
+
+-- DvP via settlement chain and instructions.
+-- The Buyer transfers cash to Seller in exchange for an equity instrument (detained by issuer at
+-- depository).
+-- Seller transfers equity to Buyer in exchange for cash.
+-- +------------------------------------------------------+
+-- | Accounts                                             |
+-- +-----------------------------+------------------------+
+-- | structure:                  | used for:              |
+-- +-----------------------------+------------------------+
+-- |       Central Bank          |                        |
+-- |         /      \            | central bank money     |
+-- |      Buyer     Bank         |                        |
+-- |                /            | commercial bank money  |
+-- |      Buyer   Seller         |                        |
+-- |          \   /              | securities             |
+-- | Central Security Depository |                        |
+-- +-----------------------------+------------------------+
+run : Script ()
+run = script do
+  -- Create parties
+  TestParties{..} <- setupParties
+  let pp = [("PublicParty", Set.singleton publicParty)]
+
+  -- Setup security accounts at CB (utilising non-fungible holdings)
+  -- Create account factory
+  csdAccountFactoryCid <- toInterfaceContractId <$> Account.createFactory csd []
+  -- Create holding factory
+  csdHoldingFactory <- createHoldingFactory
+    Holding.Factory with
+      provider = csd; id = Id "Holding Factory @ CSD"; observers = Map.fromList pp
+  -- Create accounts
+  [buyerSecurityAccount, sellerSecurityAccount] <- mapA (Account.createAccount "Security Account" []
+    csdAccountFactoryCid csdHoldingFactory [] Account.Owner csd) [buyer, seller]
+
+  -- Setup cash accounts at CB (utilising fungible holdings)
+  -- Create account factory
+  cbAccountFactoryCid <- toInterfaceContractId <$> Account.createFactory cb []
+  -- Create holding factory
+  cbHoldingFactory <- createHoldingFactory
+    Holding.Factory with
+      provider = cb; id = Id "Holding Factory @ CB"; observers = Map.fromList pp
+  -- Create accounts
+  [buyerCashAccount, bankCashAccount] <- mapA (Account.createAccount "Cash Account" []
+    cbAccountFactoryCid cbHoldingFactory [] Account.Owner cb) [buyer, bank]
+
+  -- Setup cash accounts at Bank
+  -- Create account factory
+  bankAccountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank []
+  -- Create holding factory
+  bankHoldingFactory <-
+    createHoldingFactory
+      HoldingV2.Factory with
+        provider = bank; id = Id "HoldingV2 Factory @ Bank"; observers = Map.fromList pp
+  -- Create accounts
+  [sellerCashAccount] <- mapA (Account.createAccount "Cash Account" [] bankAccountFactoryCid
+    bankHoldingFactory [] Account.Owner bank) [seller]
+
+  -- Distribute assets
+  now <- getTime
+  equityInstrument <-
+    Instrument.originate csd issuer "AAPL" TransferableFungible "Apple Inc." [] now
+  equityHoldingCid <- Account.credit [] equityInstrument 1_000.0 sellerSecurityAccount
+  cashInstrument <- Instrument.originate cb cb "USD" TransferableFungible "United States Dollar"
+    [] now
+  buyerCashHoldingCid <- Account.credit [] cashInstrument 200_000.0 buyerCashAccount
+
+  -- Settlement steps
+  let
+    steps =
+      [ Step with sender = seller; receiver = buyer; quantity = qty 1_000.0 equityInstrument
+      , Step with sender = buyer; receiver = seller; quantity = qty 200_000.0 cashInstrument
+      ]
+    settlementTime = time (addDays (toDateUTC now) 1) 0 0 0
+
+  -- Discover settlement routes (by first creating a route provider with intermediaries from Buyer
+  -- to Seller)
+  let
+    paths = Map.fromList
+      [ ("USD", Hierarchy with rootCustodian = cb; pathsToRootCustodian = [[buyer], [seller, bank]])
+      , ("AAPL", Hierarchy with rootCustodian = csd; pathsToRootCustodian = [[seller], [buyer]])
+      ]
+  routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit buyer do
+    createCmd IntermediatedStatic with provider = buyer; paths; observers = mempty
+  routedSteps <- submit buyer do
+    exerciseCmd routeProviderCid RouteProvider.Discover with
+      discoverors = Set.singleton buyer; contextId = None; steps
+
+  -- Instruct settlement
+  settlementFactoryCid <- toInterfaceContractId @SettlementFactory.I <$> submit buyer do
+    createCmd Settlement.Factory with provider = buyer; observers = mempty
+  (batchCid, [cashInstruction1Cid, cashInstruction2Cid, equityInstructionCid]) <-
+    submitMulti [buyer, seller] [] do
+      exerciseCmd settlementFactoryCid SettlementFactory.Instruct with
+        instructor = buyer
+        consenters = Set.singleton seller
+        settlers = Set.fromList [buyer, seller]
+        id = Id "APPL 1000@200.0USD"; description = "DVP"; contextId = None; routedSteps
+        settlementTime = Some settlementTime
+
+  -- Allocate instructions
+  (equityInstructionCid, _) <- submit seller do
+    exerciseCmd equityInstructionCid
+      Instruction.Allocate with actors = Set.singleton seller; allocation = Pledge equityHoldingCid
+  (cashInstruction1Cid, _) <- submit buyer do
+    exerciseCmd cashInstruction1Cid
+      Instruction.Allocate with
+        actors = Set.singleton buyer; allocation = Pledge buyerCashHoldingCid
+  (cashInstruction2Cid, _) <-  submit bank do
+    exerciseCmd cashInstruction2Cid
+      Instruction.Allocate with actors = Set.singleton bank; allocation = CreditReceiver
+
+  submitMustFail buyer do
+    exerciseCmd cashInstruction1Cid
+      Instruction.Allocate with actors = Set.singleton buyer; allocation = CreditReceiver
+
+  -- Approve instructions
+  equityInstructionCid <- submit buyer do
+    exerciseCmd equityInstructionCid
+      Instruction.Approve with
+        actors = Set.singleton buyer; approval = TakeDelivery buyerSecurityAccount
+  cashInstruction1Cid <- submit bank do
+    exerciseCmd cashInstruction1Cid
+      Instruction.Approve with actors = Set.singleton bank; approval = TakeDelivery bankCashAccount
+  cashInstruction2Cid <- submit seller do
+    exerciseCmd cashInstruction2Cid
+      Instruction.Approve with
+        actors = Set.singleton seller; approval = TakeDelivery sellerCashAccount
+
+  submitMustFail buyer do
+    exerciseCmd equityInstructionCid
+      Instruction.Approve with actors = Set.singleton buyer; approval = DebitSender
+
+  -- Set time
+  setTime settlementTime
+
+  -- Settle batch
+  [bankCashHoldingCid, sellerCashHoldingCid, equityHoldingCid] <-
+    submitMulti [buyer] [publicParty] do
+      exerciseCmd batchCid Batch.Settle with actors = Set.singleton buyer
+
+  -- Assert state
+  let ts = [(buyer, equityHoldingCid), (bank, bankCashHoldingCid), (seller, sellerCashHoldingCid)]
+  Holding.verifyOwnerOfHolding ts
+  Holding.verifyNoObservers ts
+
+  pure ()
+
+setupParties : Script TestParties
+setupParties = do
+  [buyer, seller, cb, csd, bank, issuer, publicParty] <- createParties
+    ["Buyer", "Seller", "CentralBank", "CentralSecurityDepository", "Bank", "Issuer", "PublicParty"]
+  pure TestParties with buyer; seller; cb; csd; bank; issuer; publicParty

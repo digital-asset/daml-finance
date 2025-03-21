@@ -1,0 +1,130 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Account.Test.Controllers where
+
+import DA.Map qualified as Map (fromList, toList)
+import DA.Set qualified as Set (fromList, singleton)
+import Daml.Finance.Holding.Test.Common (TestInitialState(..), TestParties(..), setupInitialState, setupParties)
+import Daml.Finance.Holding.V4.Factory qualified as Holding (Factory(..))
+import Daml.Finance.Interface.Holding.V4.Transferable qualified as Transferable (I, Transfer(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..))
+import Daml.Finance.Test.Util.Account (ControlledBy(..))
+import Daml.Script
+
+-- | Verify that custodian can transfer (in its sole discretion).
+custodianControlled : Script ()
+custodianControlled = script do
+  -- Create parties
+  tp@TestParties{custodian; issuer; investor; publicParty} <- setupParties
+  let pp = Map.fromList [("PublicParty", Set.singleton publicParty)]
+
+  -- Initialize state
+  TestInitialState {issuerAccount; investorAccount; issuerHoldingCid} <- setupInitialState
+    tp
+    Holding.Factory with
+      provider = custodian; id = Id "Holding Factory @ custodian"; observers = pp
+    TransferableFungible
+    []
+    Custodian
+
+  -- Owners can't transfer
+  submitMultiMustFail [issuer, investor] [publicParty] do
+    exerciseCmd (fromInterfaceContractId @Transferable.I issuerHoldingCid)
+      Transferable.Transfer with actors = Set.singleton issuer; newOwnerAccount = investorAccount
+
+  -- Custodian can transfer
+  submitMulti [custodian] [publicParty] do
+    exerciseCmd (fromInterfaceContractId @Transferable.I issuerHoldingCid)
+      Transferable.Transfer with actors = Set.singleton custodian; newOwnerAccount = investorAccount
+
+  pure ()
+
+-- | Verify that owner and new owner can transfer jointly.
+ownerControlled : Script ()
+ownerControlled = script do
+  -- Create parties
+  tp@TestParties{custodian; issuer; investor; publicParty} <- setupParties
+  let pp = Map.fromList [("PublicParty", Set.singleton publicParty)]
+
+  -- Initialize state
+  TestInitialState {issuerAccount; investorAccount; issuerHoldingCid} <- setupInitialState
+    tp
+    Holding.Factory with provider = custodian; id = Id "Holding Factory"; observers = pp
+    TransferableFungible
+    []
+    Owner
+
+  -- Custodian can't transfer.
+  submitMultiMustFail [custodian] [publicParty] do
+    exerciseCmd (fromInterfaceContractId @Transferable.I issuerHoldingCid)
+      Transferable.Transfer with actors = Set.singleton custodian; newOwnerAccount = investorAccount
+
+  -- Owners can transfer.
+  submitMulti [issuer, investor] [publicParty] do
+    exerciseCmd (fromInterfaceContractId @Transferable.I issuerHoldingCid)
+      Transferable.Transfer with
+        actors = Set.fromList [issuer, investor]; newOwnerAccount = investorAccount
+
+  pure ()
+
+-- | Verify that owner, custodian, and new owner can transfer jointly.
+ownerAndCustodianControlled : Script ()
+ownerAndCustodianControlled = script do
+  -- Create parties
+  tp@TestParties{custodian; issuer; investor; publicParty} <- setupParties
+  let pp = Map.fromList [("PublicParty", Set.singleton publicParty)]
+
+  -- Initialize state
+  TestInitialState {issuerAccount; investorAccount; issuerHoldingCid} <- setupInitialState
+    tp
+    Holding.Factory with provider = custodian; id = Id "Holding Factory"; observers = pp
+    TransferableFungible
+    []
+    OwnerAndCustodian
+
+  -- Owners can't transfer.
+  submitMultiMustFail [issuer, investor] [publicParty] do
+    exerciseCmd (fromInterfaceContractId @Transferable.I issuerHoldingCid)
+      Transferable.Transfer with
+        actors = Set.fromList [issuer, investor]; newOwnerAccount = investorAccount
+
+  -- Custodian can't transfer.
+  submitMultiMustFail [custodian] [publicParty] do
+    exerciseCmd (fromInterfaceContractId @Transferable.I issuerHoldingCid)
+      Transferable.Transfer with actors = Set.singleton custodian; newOwnerAccount = investorAccount
+
+  -- Owners and Custodian can transfer.
+  submitMulti [custodian, issuer, investor] [publicParty] do
+    exerciseCmd (fromInterfaceContractId @Transferable.I issuerHoldingCid)
+      Transferable.Transfer with
+        actors = Set.fromList [custodian, issuer, investor]; newOwnerAccount = investorAccount
+
+  pure ()
+
+-- | Verify that owner can transfer (in its sole discretion).
+ownerControlledWithAutoApproval : Script ()
+ownerControlledWithAutoApproval = script do
+  -- Create parties
+  tp@TestParties{custodian; issuer; investor; publicParty} <- setupParties
+  let pp = Map.fromList [("PublicParty", Set.singleton publicParty)]
+
+  -- Initialize state
+  TestInitialState {issuerAccount; investorAccount; issuerHoldingCid} <- setupInitialState
+    tp
+    Holding.Factory with provider = custodian; id = Id "Holding Factory"; observers = pp
+    TransferableFungible
+    (Map.toList pp)
+    OwnerWithAutoApproval
+
+  -- Custodian can't transfer.
+  submitMultiMustFail [custodian] [publicParty] do
+    exerciseCmd (fromInterfaceContractId @Transferable.I issuerHoldingCid)
+      Transferable.Transfer with actors = Set.singleton custodian; newOwnerAccount = investorAccount
+
+  -- Owner can transfer.
+  submitMulti [issuer] [publicParty] do
+    exerciseCmd (fromInterfaceContractId @Transferable.I issuerHoldingCid)
+      Transferable.Transfer with actors = Set.singleton issuer; newOwnerAccount = investorAccount
+
+  pure ()

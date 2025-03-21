@@ -1,0 +1,61 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Settlement.V4.Factory where
+
+import DA.List (mapAccumL)
+import DA.Map (fromList)
+import Daml.Finance.Interface.Settlement.V4.Factory qualified as SettlementFactory (I, Instruct(..), View(..))
+import Daml.Finance.Interface.Settlement.V4.Types (Allocation(..), Approval(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (Id(..), Parties)
+import Daml.Finance.Settlement.V4.Batch (Batch(..))
+import Daml.Finance.Settlement.V4.Instruction (Instruction(..))
+
+-- | Factory template that implements the `Factory` interface.
+-- It is used to create a set of settlement `Instruction`\s, and a `Batch` to atomically settle
+-- them.
+template Factory
+  with
+    provider : Party
+      -- ^ Party providing the facility.
+    observers : Parties
+      -- ^ Observers.
+  where
+    signatory provider
+    observer observers
+
+    interface instance SettlementFactory.I for Factory where
+      view = SettlementFactory.View with provider; observers
+      instruct SettlementFactory.Instruct {instructor; consenters; settlers; id; description;
+        contextId; routedSteps; settlementTime} = do
+          let
+            createInstruction index routedStep =
+              ( index + 1,
+                Instruction with
+                  instructor
+                  consenters
+                  settlers
+                  batchId = id
+                  id = Id (show index)
+                  routedStep
+                  settlementTime
+                  allocation = Unallocated
+                  approval = Unapproved
+                  signedSenders = mempty
+                  signedReceivers = mempty
+                  observers = fromList [(show id, settlers)]
+              )
+            instructions = snd $ mapAccumL createInstruction 0 routedSteps
+            instructionIds = map (.id) instructions
+          instructionCids <- mapA (fmap toInterfaceContractId . create) instructions
+          batchCid <- toInterfaceContractId <$>
+            create Batch with
+              instructor
+              consenters
+              settlers
+              id
+              description
+              contextId
+              routedStepsWithInstructionId = zip routedSteps instructionIds
+              settlementTime
+          pure (batchCid, instructionCids)

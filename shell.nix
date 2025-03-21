@@ -42,5 +42,6 @@ pkgs.mkShell {
     pkgs.openssh
     pkgs.unixtools.xxd
     pkgs.yq-go
+    pkgs.sphinx
   ];
 }

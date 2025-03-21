@@ -1,0 +1,104 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Account.Test.Lock where
+
+import DA.Set (fromList, insert, singleton, toList)
+import Daml.Finance.Holding.Test.Common (TestInitialState(..), TestParties(..), setupInitialState, setupParties)
+import Daml.Finance.Holding.V4.Factory qualified as Holding (Factory(..))
+import Daml.Finance.Interface.Holding.V4.Transferable qualified as Transferable (I, Transfer(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..))
+import Daml.Finance.Interface.Util.V3.Lockable qualified as Lockable (Acquire(..), I, LockType(..), Release(..))
+import Daml.Finance.Test.Util.Account qualified as Account (submitExerciseInterfaceByKeyCmd, submitMustFailExerciseInterfaceByKeyCmd)
+import Daml.Finance.Test.Util.Account qualified as ControlledBy (ControlledBy(..))
+import Daml.Script
+
+-- | Enum indicating to which parties the account is being locked.
+data Lockers
+  = CustodianOnly
+  | RegulatorOnly
+  | CustodianAndRegulator
+
+-- | Verify that custodian can lock an account with a party.
+lockWith : Lockers -> Bool -> Script ()
+lockWith f lockOutgoingAccount = script do
+  -- Create parties.
+  tp@TestParties{custodian; issuer; investor; regulator} <- setupParties
+
+  -- Initialize state.
+  TestInitialState {issuerAccount; investorAccount; issuerHoldingCid} <- setupInitialState
+    tp
+    Holding.Factory with provider = custodian; id = Id "Holding Factory"; observers = mempty
+    Transferable
+    []
+    ControlledBy.Custodian
+  let
+    lockers = case f of
+      CustodianOnly -> singleton custodian
+      RegulatorOnly -> singleton regulator
+      CustodianAndRegulator -> fromList [custodian, regulator]
+    custodianAndLockers = toList . insert custodian $ lockers
+    accountToBeFrozen = if lockOutgoingAccount then issuerAccount else investorAccount
+    context = "Frozen"
+
+  -- Can't acquire lock with no new lockers.
+  Account.submitMustFailExerciseInterfaceByKeyCmd @Lockable.I [custodian] [] issuerAccount $
+    Lockable.Acquire with
+      newLockers = mempty; context; lockType = Lockable.Semaphore
+
+  -- A third party (here the regulator) can't acquire the lock for itself (even if they would see
+  -- it).
+  Account.submitMustFailExerciseInterfaceByKeyCmd @Lockable.I [regulator] [custodian] issuerAccount
+    $ Lockable.Acquire with
+        newLockers = singleton regulator; context; lockType = Lockable.Semaphore
+
+  -- Custodian and the lockers can lock the account to the lockers.
+  Account.submitExerciseInterfaceByKeyCmd @Lockable.I custodianAndLockers []
+    accountToBeFrozen $ Lockable.Acquire with
+      newLockers = lockers; context; lockType = Lockable.Semaphore
+
+  -- They can't lock twice (as locktype is Semaphore).
+  Account.submitMustFailExerciseInterfaceByKeyCmd @Lockable.I custodianAndLockers []
+    accountToBeFrozen $ Lockable.Acquire with
+      newLockers = lockers; context; lockType = Lockable.Semaphore
+
+  -- Custodian can't transfer (as account is locked).
+  submitMustFail custodian do
+    exerciseCmd (coerceInterfaceContractId @Transferable.I issuerHoldingCid)
+      Transferable.Transfer with
+        actors = singleton custodian
+        newOwnerAccount = investorAccount
+
+  -- Lockers can't release the lock using an incorrect context.
+  Account.submitMustFailExerciseInterfaceByKeyCmd @Lockable.I (toList lockers) []
+    accountToBeFrozen $ Lockable.Release with
+      context = "DifferentContext"
+
+  -- Lockers can release the lock.
+  Account.submitExerciseInterfaceByKeyCmd @Lockable.I (toList lockers) [] accountToBeFrozen $
+    Lockable.Release with context
+
+  -- Custodian can transfer (as account is unlocked).
+  submit custodian do
+    exerciseCmd (coerceInterfaceContractId @Transferable.I issuerHoldingCid)
+      Transferable.Transfer with actors = singleton custodian; newOwnerAccount = investorAccount
+
+  pure ()
+
+test1 : Script ()
+test1 = lockWith CustodianOnly True
+
+test2 : Script ()
+test2 = lockWith CustodianOnly False
+
+test3 : Script ()
+test3 = lockWith RegulatorOnly True
+
+test4 : Script ()
+test4 = lockWith RegulatorOnly False
+
+test5 : Script ()
+test5 = lockWith CustodianAndRegulator True
+
+test6 : Script ()
+test6 = lockWith CustodianAndRegulator False

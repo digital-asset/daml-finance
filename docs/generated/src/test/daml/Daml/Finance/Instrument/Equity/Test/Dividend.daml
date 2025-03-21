@@ -1,0 +1,310 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Equity.Test.Dividend where
+
+import DA.Map qualified as Map (fromList)
+import DA.Set qualified as Set (fromList, singleton)
+import Daml.Finance.Holding.V4.Factory qualified as Holding (Factory(..))
+import Daml.Finance.Instrument.Equity.Test.Util (originateEquity)
+import Daml.Finance.Interface.Instrument.Equity.V0.Instrument qualified as Equity (DeclareDistribution(..), I)
+import Daml.Finance.Interface.Lifecycle.V4.Rule.Claim qualified as Claim (ClaimEffect(..), I)
+import Daml.Finance.Interface.Lifecycle.V4.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I)
+import Daml.Finance.Interface.Settlement.V4.Batch qualified as Batch (Settle(..))
+import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.V4.Types (Allocation(..), Approval(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..))
+import Daml.Finance.Interface.Util.V3.Common (qty)
+import Daml.Finance.Lifecycle.V4.Rule.Claim qualified as Claim (Rule(..))
+import Daml.Finance.Lifecycle.V4.Rule.Distribution qualified as Distribution (Rule(..))
+import Daml.Finance.Settlement.V4.Factory (Factory(..))
+import Daml.Finance.Settlement.V4.RouteProvider.SingleCustodian (SingleCustodian(..))
+import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerAndAmountOfHolding)
+import Daml.Finance.Test.Util.HoldingFactory (createHoldingFactory)
+import Daml.Finance.Test.Util.Instrument (originate)
+import Daml.Finance.Test.Util.Instrument qualified as Instrument (submitExerciseInterfaceByKeyCmd)
+import Daml.Script
+
+-- Cash dividend (and bonus issue) lifecycling and settlement
+run : Script ()
+run = script do
+  -- Create parties
+  [cb, issuer, custodian, investor, publicParty] <-
+    createParties ["CentralBank", "Issuer", "Custodian", "Investor", "PublicParty"]
+  let pp = [("PublicParty", Set.singleton publicParty)]
+
+  -- Create account factory
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory issuer pp
+
+  -- Create holding factory
+  holdingFactory <- createHoldingFactory
+    Holding.Factory with provider = custodian; id =Id "Holding Factory"; observers = Map.fromList pp
+
+  -- Create accounts
+  investorAccount <-
+    Account.createAccount "Account" [publicParty] accountFactoryCid holdingFactory []
+    Account.Owner custodian investor
+
+  -- Originate instruments
+  now <- getTime
+  cashInstrument <- originate cb cb "USD" TransferableFungible "United States Dollar" pp now
+  -- CREATE_EQUITY_INSTRUMENTS_BEGIN
+  cumEquityInstrument <-
+    originateEquity issuer issuer "EQUITY-INST-1" "0" TransferableFungible "ABC" pp now
+  exEquityInstrument <-
+    originateEquity issuer issuer "EQUITY-INST-1" "1" TransferableFungible "ABC" [] now
+  -- CREATE_EQUITY_INSTRUMENTS_END
+
+  -- CREATE_EQUITY_HOLDING_BEGIN
+  -- Distribute holdings: fractional holdings are also supported.
+  investorEquityCid <- Account.credit [publicParty] cumEquityInstrument 1000.25 investorAccount
+  -- CREATE_EQUITY_HOLDING_END
+
+  -- CREATE_EQUITY_DISTRIBUTION_RULE_BEGIN
+  -- Create cash dividend rule
+  distributionRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit issuer do
+    createCmd Distribution.Rule with
+      providers = Set.singleton issuer
+      lifecycler = issuer
+      observers = Set.singleton publicParty
+      id = Id "LifecycleRule"
+      description = "Rule to lifecycle an instrument following a distribution event"
+  -- CREATE_EQUITY_DISTRIBUTION_RULE_END
+
+  -- CREATE_EQUITY_DISTRIBUTION_EVENT_BEGIN
+  -- Create cash dividend event: USD 2 per share (this also works with fractional shares)
+  distributionEventCid <-
+    Instrument.submitExerciseInterfaceByKeyCmd @Equity.I [issuer] [] cumEquityInstrument
+      Equity.DeclareDistribution with
+        id = Id $ "ABC - " <> show now
+        description = "Cash Dividend"
+        effectiveTime = now
+        newInstrument = exEquityInstrument
+        perUnitDistribution = [qty 2.0 cashInstrument]
+  -- CREATE_EQUITY_DISTRIBUTION_EVENT_END
+
+  -- LIFECYCLE_CASH_DIVIDEND_BEGIN
+  -- Lifecycle cash dividend
+  (_, [effectCid]) <- submit issuer do
+    exerciseCmd distributionRuleCid Lifecycle.Evolve with
+      observableCids = []
+      eventCid = distributionEventCid
+      instrument = cumEquityInstrument
+  -- LIFECYCLE_CASH_DIVIDEND_END
+
+  -- Claim effect
+  routeProviderCid <- toInterfaceContractId <$> submit custodian do
+    createCmd SingleCustodian with
+      provider = custodian; observers = Set.singleton publicParty; custodian
+  settlementFactoryCid <- toInterfaceContractId <$> submit custodian do
+    createCmd Factory with provider = custodian; observers = Set.singleton publicParty
+  -- Enable netting so that there is only one holding with the new correct quantity
+  claimRuleCid <- toInterfaceContractId @Claim.I <$> submit custodian do
+    createCmd Claim.Rule with
+      provider = custodian
+      claimers = Set.fromList [investor, custodian]
+      settlers = Set.fromList [investor, custodian]
+      routeProviderCid
+      settlementFactoryCid
+      netInstructions = True
+
+  -- The effect is claimed and then settled by the custodian, but it could also be claimed and then
+  -- settled by the investor.
+  result <- submitMulti [custodian] [publicParty] do
+    exerciseCmd claimRuleCid Claim.ClaimEffect with
+      claimer = custodian
+      holdingCids = [investorEquityCid]
+      effectCid
+      batchId = Id "DividendSettlement"
+
+  let
+    [investorInstrumentInstructionCid, custodianInstrumentInstructionCid,
+      custodianCashInstructionCid] = result.instructionCids
+
+  -- Allocate instructions
+  (investorInstrumentInstructionCid, _) <- submit investor do
+    exerciseCmd investorInstrumentInstructionCid Instruction.Allocate with
+      actors = Set.singleton investor
+      allocation = Pledge $ fromInterfaceContractId investorEquityCid
+  (custodianInstrumentInstructionCid, _) <- submit custodian do
+    exerciseCmd custodianInstrumentInstructionCid Instruction.Allocate with
+      actors = Set.singleton custodian; allocation = CreditReceiver
+  (custodianCashInstructionCid, _) <- submit custodian do
+    exerciseCmd custodianCashInstructionCid Instruction.Allocate with
+      actors = Set.singleton custodian; allocation = CreditReceiver
+
+  -- Approve instructions
+  investorInstrumentInstructionCid <- submit custodian do
+    exerciseCmd investorInstrumentInstructionCid Instruction.Approve with
+      actors = Set.singleton custodian; approval = DebitSender
+  custodianInstrumentInstructionCid <- submit investor do
+    exerciseCmd custodianInstrumentInstructionCid Instruction.Approve with
+      actors = Set.singleton investor; approval = TakeDelivery investorAccount
+  custodianCashInstructionCid <- submit investor do
+    exerciseCmd custodianCashInstructionCid Instruction.Approve with
+      actors = Set.singleton investor; approval = TakeDelivery investorAccount
+
+  -- Settle batch
+  [investorCashHoldingCid, investorEquityHoldingCid] <- submitMulti [custodian] [publicParty] do
+    exerciseCmd result.batchCid Batch.Settle with actors = Set.singleton custodian
+
+  -- Assert state
+  Holding.verifyOwnerAndAmountOfHolding [(investor, 1000.25, investorEquityHoldingCid),
+    (investor, 2000.50, investorCashHoldingCid)]
+
+  -- Test bonus issue (works in a similar way to the dividend above)
+
+  -- Distribute holdings: fractional holdings are also supported.
+  investorEquityCid <- Account.credit [publicParty] cumEquityInstrument 1000.25 investorAccount
+
+  -- CREATE_EQUITY_BONUS_ISSUE_DISTRIBUTION_EVENT_BEGIN
+  -- Create bonus issue event: receive 2 additional shares for each share currently held
+  -- (this also works with fractional shares)
+  distributionEventCid <-
+    Instrument.submitExerciseInterfaceByKeyCmd @Equity.I [issuer] [] cumEquityInstrument
+      Equity.DeclareDistribution with
+        id = Id $ "ABC - " <> show now
+        description = "Bonus issue"
+        effectiveTime = now
+        newInstrument = exEquityInstrument
+        perUnitDistribution = [qty 2.0 exEquityInstrument]
+  -- CREATE_EQUITY_BONUS_ISSUE_DISTRIBUTION_EVENT_END
+
+    -- Lifecycle bonus issue
+  (_, [effectCid]) <- submit issuer do
+    exerciseCmd distributionRuleCid Lifecycle.Evolve with
+      observableCids = []
+      eventCid = distributionEventCid
+      instrument = cumEquityInstrument
+
+  -- The effect is claimed and then settled by the custodian, but it could also be claimed and then
+  -- settled by the investor.
+  result <- submitMulti [custodian] [publicParty] do
+    exerciseCmd claimRuleCid Claim.ClaimEffect with
+      claimer = custodian
+      holdingCids = [investorEquityCid]
+      effectCid
+      batchId = Id "BonusIssueSettlement"
+
+  let
+    [investorInstrumentInstructionCid, custodianInstrumentInstructionCid] = result.instructionCids
+
+  -- Allocate instructions
+  (investorInstrumentInstructionCid, _) <- submit investor do
+    exerciseCmd investorInstrumentInstructionCid Instruction.Allocate with
+      actors = Set.singleton investor
+      allocation = Pledge $ fromInterfaceContractId investorEquityCid
+  (custodianInstrumentInstructionCid, _) <- submit custodian do
+    exerciseCmd custodianInstrumentInstructionCid Instruction.Allocate with
+      actors = Set.singleton custodian; allocation = CreditReceiver
+
+  -- Approve instructions
+  investorInstrumentInstructionCid <- submit custodian do
+    exerciseCmd investorInstrumentInstructionCid Instruction.Approve with
+      actors = Set.singleton custodian; approval = DebitSender
+  custodianInstrumentInstructionCid <- submit investor do
+    exerciseCmd custodianInstrumentInstructionCid Instruction.Approve with
+      actors = Set.singleton investor; approval = TakeDelivery investorAccount
+
+  -- Settle batch
+  [investorEquityHoldingCid] <- submitMulti [custodian] [publicParty] do
+    exerciseCmd result.batchCid Batch.Settle with actors = Set.singleton custodian
+
+  -- Assert state
+  Holding.verifyOwnerAndAmountOfHolding [(investor, 3000.75, investorEquityHoldingCid)]
+
+  -- Test dividend option: the shareholder can choose (only) one out of several dividend effects.
+
+  -- Distribute holdings: fractional holdings are also supported.
+  investorEquityCid <- Account.credit [publicParty] cumEquityInstrument 1000.25 investorAccount
+
+  -- CREATE_EQUITY_DIVIDEND_OPTION_DISTRIBUTION_EVENT_BEGIN
+  -- Create dividend option event.
+  -- For each share currently held, the shareholder can choose to either receive cash (USD 10.5) or
+  -- stock (1.5 additional shares).
+  -- perUnitDistribution is an arbitrary list, so this can be extended with additional options, e.g.
+  -- warrants or cash in a different currency.
+  distributionEventCashCid <-
+    Instrument.submitExerciseInterfaceByKeyCmd @Equity.I [issuer] [] cumEquityInstrument
+      Equity.DeclareDistribution with
+        id = Id $ "ABC - " <> show now
+        description = "Dividend option: cash"
+        effectiveTime = now
+        newInstrument = exEquityInstrument
+        perUnitDistribution = [qty 10.5 cashInstrument]
+
+  distributionEventStockCid <-
+    Instrument.submitExerciseInterfaceByKeyCmd @Equity.I [issuer] [] cumEquityInstrument
+      Equity.DeclareDistribution with
+        id = Id $ "ABC - " <> show now
+        description = "Dividend option: stock"
+        effectiveTime = now
+        newInstrument = exEquityInstrument
+        perUnitDistribution = [qty 1.5 exEquityInstrument]
+  -- CREATE_EQUITY_DIVIDEND_OPTION_DISTRIBUTION_EVENT_END
+
+  -- LIVECYCLE_DIVIDEND_OPTION_BEGIN
+  -- Lifecycle dividend option
+  (_, [effectCashCid]) <- submit issuer do
+    exerciseCmd distributionRuleCid Lifecycle.Evolve with
+      observableCids = []
+      eventCid = distributionEventCashCid
+      instrument = cumEquityInstrument
+
+  (_, [effectStockCid]) <- submit issuer do
+    exerciseCmd distributionRuleCid Lifecycle.Evolve with
+      observableCids = []
+      eventCid = distributionEventStockCid
+      instrument = cumEquityInstrument
+  -- LIVECYCLE_DIVIDEND_OPTION_END
+
+  -- INVESTOR_CLAIMS_DIVIDEND_OPTION_BEGIN
+  -- The investor chooses the stock dividend
+  result <- submitMulti [investor] [publicParty] do
+    exerciseCmd claimRuleCid Claim.ClaimEffect with
+      claimer = investor
+      holdingCids = [investorEquityCid]
+      effectCid = effectStockCid
+      batchId = Id "DividendOptionSettlement"
+  -- INVESTOR_CLAIMS_DIVIDEND_OPTION_END
+
+  let
+    [investorInstrumentInstructionCid, custodianInstrumentInstructionCid] = result.instructionCids
+
+  -- Allocate instructions
+  (investorInstrumentInstructionCid, _) <- submit investor do
+    exerciseCmd investorInstrumentInstructionCid Instruction.Allocate with
+      actors = Set.singleton investor
+      allocation = Pledge $ fromInterfaceContractId investorEquityCid
+  (custodianInstrumentInstructionCid, _) <- submit custodian do
+    exerciseCmd custodianInstrumentInstructionCid Instruction.Allocate with
+      actors = Set.singleton custodian; allocation = CreditReceiver
+
+  -- Approve instructions
+  investorInstrumentInstructionCid <- submit custodian do
+    exerciseCmd investorInstrumentInstructionCid Instruction.Approve with
+      actors = Set.singleton custodian; approval = DebitSender
+  custodianInstrumentInstructionCid <- submit investor do
+    exerciseCmd custodianInstrumentInstructionCid Instruction.Approve with
+      actors = Set.singleton investor; approval = TakeDelivery investorAccount
+
+  -- Settle batch
+  [investorEquityHoldingCid] <- submitMulti [custodian] [publicParty] do
+    exerciseCmd result.batchCid Batch.Settle with actors = Set.singleton custodian
+
+  -- Assert state
+  Holding.verifyOwnerAndAmountOfHolding [(investor, 2500.625, investorEquityHoldingCid)]
+
+  -- The investor then tries to choose the cash dividend as well.
+  -- This fails as expected, because the investor has already chosen the stock
+  -- dividend and during that settlement the cum dividend equity holding was consumed.
+  submitMultiMustFail [investor] [publicParty] do
+    exerciseCmd claimRuleCid Claim.ClaimEffect with
+      claimer = investor
+      holdingCids = [investorEquityCid]
+      effectCid = effectCashCid
+      batchId = Id "DividendOptionSettlement"
+
+  pure ()

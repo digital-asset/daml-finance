@@ -1,0 +1,142 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Equity.Test.Merger where
+
+import DA.Map qualified as Map (fromList)
+import DA.Set qualified as Set (fromList, singleton)
+import Daml.Finance.Holding.V4.Factory qualified as Holding (Factory(..))
+import Daml.Finance.Instrument.Equity.Test.Util (originateEquity)
+import Daml.Finance.Interface.Instrument.Equity.V0.Instrument qualified as Equity (DeclareReplacement(..), I)
+import Daml.Finance.Interface.Lifecycle.V4.Rule.Claim qualified as Claim (ClaimEffect(..), I)
+import Daml.Finance.Interface.Lifecycle.V4.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I)
+import Daml.Finance.Interface.Settlement.V4.Batch qualified as Batch (Settle(..))
+import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.V4.Types (Allocation(..), Approval(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..))
+import Daml.Finance.Interface.Util.V3.Common (qty)
+import Daml.Finance.Lifecycle.V4.Rule.Claim qualified as Claim (Rule(..))
+import Daml.Finance.Lifecycle.V4.Rule.Replacement qualified as Replacement (Rule(..))
+import Daml.Finance.Settlement.V4.Factory (Factory(..))
+import Daml.Finance.Settlement.V4.RouteProvider.SingleCustodian (SingleCustodian(..))
+import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
+import Daml.Finance.Test.Util.HoldingFactory (createHoldingFactory)
+import Daml.Finance.Test.Util.Instrument qualified as Instrument (submitExerciseInterfaceByKeyCmd)
+import Daml.Script
+
+-- Merger lifecycling and settlement
+-- This is a mandatory corporate action: no election is required by the shareholder.
+run : Script ()
+run = script do
+  -- Create parties
+  [merging, merged, custodian, investor, publicParty] <-
+    createParties ["MergingIssuer", "MergedIssuer", "Custodian", "Investor", "PublicParty"]
+  let pp = [("PublicParty", Set.singleton publicParty)]
+
+  -- Account factory
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory custodian pp
+
+  -- Create holding factory
+  holdingFactory <- createHoldingFactory
+    Holding.Factory with
+      provider = custodian; id = Id "Holding Factory"; observers = Map.fromList pp
+
+  -- Create accounts
+  investorSecuritiesAccount <- Account.createAccount "Securities Account" [] accountFactoryCid
+    holdingFactory [] Account.Owner custodian investor
+
+  -- CREATE_EQUITY_REPLACEMENT_RULE_BEGIN
+  -- Create lifecycle rules
+  replacementRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit merging do
+    createCmd Replacement.Rule with
+      providers = Set.singleton merging
+      lifecycler = merging
+      observers = Set.singleton publicParty
+      id = Id "LifecycleRule"
+      description = "Rule to lifecycle an instrument following a replacement event"
+  -- CREATE_EQUITY_REPLACEMENT_RULE_END
+
+  -- Originate instruments
+  now <- getTime
+  -- CREATE_EQUITY_INSTRUMENTS_BEGIN
+  mergingInstrument <-
+    originateEquity merging merging "INST-1" "0" TransferableFungible "ABC" pp now
+  mergedInstrument <-
+    originateEquity merged merged "INST-2" "0" TransferableFungible "XYZ" pp now
+  -- CREATE_EQUITY_INSTRUMENTS_END
+
+  -- Distribute holdings
+  investorEquityCid <- Account.credit [] mergingInstrument 2_000.0 investorSecuritiesAccount
+
+  -- CREATE_EQUITY_REPLACEMENT_EVENT_BEGIN
+  -- Create replacement event
+  -- perUnitReplacement is an arbitrary list of instruments, so the investor can also receive a
+  -- combination of shares and cash.
+  replacementEventCid <-
+    Instrument.submitExerciseInterfaceByKeyCmd @Equity.I [merging] [] mergingInstrument
+      Equity.DeclareReplacement with
+        id = Id $ "ABC merge - " <> show now
+        description = "Merge"
+        effectiveTime = now
+        perUnitReplacement = [qty 0.5 mergedInstrument]
+  -- CREATE_EQUITY_REPLACEMENT_EVENT_END
+
+  -- LIFECYCLE_MERGER_BEGIN
+  -- Lifecycle replacement event
+  (_, [effectCid]) <- submit merging do
+    exerciseCmd replacementRuleCid Lifecycle.Evolve with
+      eventCid = replacementEventCid
+      observableCids = []
+      instrument = mergingInstrument
+  -- LIFECYCLE_MERGER_END
+
+  -- Claim effect
+  routeProviderCid <- toInterfaceContractId <$> submit custodian do
+    createCmd SingleCustodian with
+      provider = custodian; observers = Set.singleton publicParty; custodian
+  settlementFactoryCid <- toInterfaceContractId <$> submit custodian do
+    createCmd Factory with provider = custodian; observers = Set.singleton publicParty
+  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit custodian do
+    createCmd Claim.Rule with
+      provider = custodian
+      claimers = Set.fromList [custodian, investor]
+      settlers = Set.fromList [custodian, investor]
+      routeProviderCid
+      settlementFactoryCid
+      netInstructions = False
+
+  result <- submitMulti [custodian] [publicParty] do
+    exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
+      claimer = custodian
+      holdingCids = [investorEquityCid]
+      effectCid
+      batchId = Id "MergerSettlement"
+
+  -- Allocate instructions
+  let [consumeInstructionCid, produceInstructionCid] = result.instructionCids
+  (consumeInstructionCid, _) <- submit investor do
+    exerciseCmd consumeInstructionCid Instruction.Allocate with
+      actors = Set.singleton investor
+      allocation = Pledge $ fromInterfaceContractId investorEquityCid
+  (produceInstructionCid, _) <- submit custodian do
+    exerciseCmd produceInstructionCid Instruction.Allocate with
+      actors = Set.singleton custodian; allocation = CreditReceiver
+
+  -- Approve instructions
+  consumeInstructionCid <- submit custodian do
+    exerciseCmd consumeInstructionCid Instruction.Approve with
+      actors = Set.singleton custodian; approval = DebitSender
+  produceInstructionCid <- submit investor do
+    exerciseCmd produceInstructionCid Instruction.Approve with
+      actors = Set.singleton investor; approval = TakeDelivery investorSecuritiesAccount
+
+  -- Settle batch
+  [investorEquityCid] <- submit custodian do
+    exerciseCmd result.batchCid Batch.Settle with actors = Set.singleton custodian
+
+  -- Assert state
+  Holding.verifyOwnerOfHolding [(investor, investorEquityCid)]
+
+  pure ()

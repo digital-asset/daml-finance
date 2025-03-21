@@ -1,0 +1,179 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.StructuredProduct.Test.BarrierReverseConvertible where
+
+import DA.Date (DayOfWeek(..), Month(..), date)
+import DA.Map qualified as Map (fromList)
+import DA.Set qualified as Set (singleton)
+import Daml.Finance.Data.V4.Numeric.Observation (Observation(..))
+import Daml.Finance.Data.V4.Reference.HolidayCalendar (HolidayCalendar(..))
+import Daml.Finance.Data.V4.Time.DateClock (dateToDateClockTime)
+import Daml.Finance.Instrument.StructuredProduct.Test.Util (originateBarrierReverseConvertible)
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..))
+import Daml.Finance.Interface.Types.Date.V3.Calendar (BusinessDayConventionEnum(..), HolidayCalendarData(..))
+import Daml.Finance.Interface.Types.Date.V3.DayCount (DayCountConventionEnum(..))
+import Daml.Finance.Interface.Types.Date.V3.RollConvention (PeriodEnum(..))
+import Daml.Finance.Interface.Util.V3.Common (qty)
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.Instrument (originate)
+import Daml.Finance.Test.Util.Lifecycle (lifecycleAndVerifyPaymentEffects, verifyNoLifecycleEffects)
+import Daml.Finance.Test.Util.Time (createPaymentPeriodicSchedule)
+import Daml.Script
+
+-- Define and lifecycle a barrier reverse convertible (BRC).
+run : Script ()
+run = script do
+  [custodian, issuer, calendarDataProvider, publicParty] <-
+    createParties ["Custodian", "Issuer", "Calendar Data Provider", "PublicParty"]
+
+  -- Account and holding factory
+  let pp = [("FactoryProvider", Set.singleton publicParty)]
+
+  -- Distribute commercial-bank cash
+  now <- getTime
+  let observers = [("PublicParty", Set.singleton publicParty)]
+  cashInstrument <- originate custodian issuer "USD" TransferableFungible "US Dollars" observers now
+
+  -- Create and distribute option
+  let
+    barrierLow = 20.0
+    strikeLow = 35.0
+    -- CREATE_BARRIER_REVERSE_CONVERTIBLE_VARIABLES_BEGIN
+    barrier = 30.0
+    barrierStartDate = date 2019 Jan 16
+    strike = 40.0
+    expiryDate = date 2019 May 15
+    referenceAssetId = "AAPL-CLOSE"
+    couponRate = 0.05
+    issueDate = date 2019 Jan 16
+    firstCouponDate = date 2019 Feb 15
+    maturityDate = date 2019 May 15
+    -- CREATE_BARRIER_REVERSE_CONVERTIBLE_VARIABLES_END
+    businessDayConvention = Following
+    couponPeriod = M
+    couponPeriodMultiplier = 3
+    dayCountConvention = Act360
+    holidayCalendarIds = ["USD"]
+    calendar =
+      HolidayCalendarData with
+        id = "USD"
+        weekend = [Saturday, Sunday]
+        holidays = []
+    couponSchedule = createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds
+      businessDayConvention couponPeriod couponPeriodMultiplier issueDate maturityDate
+    notional = 1.0
+
+  -- CREATE_BARRIER_REVERSE_CONVERTIBLE_OBSERVATIONS_BEGIN
+  let
+    observations = Map.fromList
+      [ (dateToDateClockTime $ date 2019 Feb 13, 28.78)
+      , (dateToDateClockTime $ date 2019 Feb 15, 39.78)
+      , (dateToDateClockTime $ date 2019 May 15, 38.78)
+      , (dateToDateClockTime $ date 2019 May 16, 18.78)
+      , (dateToDateClockTime $ date 2019 May 17, 38.78)
+      ]
+  observableCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Observation with
+      provider = issuer; id = Id referenceAssetId; observations; observers = mempty
+  -- CREATE_BARRIER_REVERSE_CONVERTIBLE_OBSERVATIONS_END
+
+  -- A reference data provider publishes the holiday calendar on the ledger
+  calendarCid <- submit calendarDataProvider do
+    createCmd HolidayCalendar with
+      provider = calendarDataProvider
+      calendar
+      observers = Map.fromList pp
+
+  --------------------------------
+  -- 1. BRC with barrier event  --
+  --------------------------------
+
+  -- Test option with barrier hit (on Feb 13). Option expires in the money.
+  brcInstrument <- originateBarrierReverseConvertible issuer issuer "BRC" TransferableFungible
+    "Option" observers now expiryDate strike barrier barrierStartDate cashInstrument
+    referenceAssetId couponRate couponSchedule holidayCalendarIds dayCountConvention notional
+    calendarDataProvider publicParty
+
+  let
+    expectedConsumed = []
+    expectedProduced = []
+  Some brcInstrumentAfterBarrierHit <- lifecycleAndVerifyPaymentEffects [publicParty]
+    (date 2019 Feb 13) brcInstrument issuer [observableCid] expectedConsumed expectedProduced
+
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0041666667 cashInstrument]
+  Some brcInstrumentAfterCouponPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
+    firstCouponDate brcInstrumentAfterBarrierHit issuer [observableCid] expectedConsumed
+    expectedProduced
+
+  let
+    expectedConsumed = [qty 0.0305 cashInstrument]
+    expectedProduced = [(qty 0.0123611111 cashInstrument), (qty 1.0 cashInstrument)]
+  lifecycleAndVerifyPaymentEffects [publicParty] expiryDate brcInstrumentAfterCouponPayment issuer
+    [observableCid] expectedConsumed expectedProduced
+
+  -- Test option with barrier hit (on Feb 13). Option expires out of the money.
+
+  brcLowStrikeInstrument <- originateBarrierReverseConvertible issuer issuer "BRCLowStrike"
+    TransferableFungible "Option" observers now expiryDate strikeLow barrier barrierStartDate
+    cashInstrument referenceAssetId couponRate couponSchedule holidayCalendarIds dayCountConvention
+    notional calendarDataProvider publicParty
+
+  let
+    expectedConsumed = []
+    expectedProduced = []
+  Some brcInstrumentAfterBarrierHit <- lifecycleAndVerifyPaymentEffects [publicParty]
+    (date 2019 Feb 13) brcLowStrikeInstrument issuer [observableCid] expectedConsumed
+    expectedProduced
+
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0041666667 cashInstrument]
+  Some brcInstrumentAfterCouponPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
+    firstCouponDate brcInstrumentAfterBarrierHit issuer [observableCid] expectedConsumed
+    expectedProduced
+
+  let
+    expectedConsumed = []
+    expectedProduced = [(qty 0.0123611111 cashInstrument), (qty 1.0 cashInstrument)]
+  lifecycleAndVerifyPaymentEffects [publicParty] expiryDate brcInstrumentAfterCouponPayment issuer
+    [observableCid] expectedConsumed expectedProduced
+
+  --------------------------------------------------
+  -- 2. BRC without barrier event (before expiry) --
+  --------------------------------------------------
+
+  -- Test option without barrier hit. Also test a barrier hit after expiry.
+  brcLowBarrierInstrument <- originateBarrierReverseConvertible issuer issuer "DownAndInLow"
+    TransferableFungible "Option" observers now expiryDate strike barrierLow barrierStartDate
+    cashInstrument referenceAssetId couponRate couponSchedule holidayCalendarIds dayCountConvention
+    notional calendarDataProvider publicParty
+
+  verifyNoLifecycleEffects [publicParty] (date 2019 Feb 13) brcLowBarrierInstrument
+    issuer [observableCid]
+
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0041666667 cashInstrument]
+  Some brcInstrumentAfterCouponPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
+    firstCouponDate brcLowBarrierInstrument issuer [observableCid] expectedConsumed expectedProduced
+
+  let
+    expectedConsumed = []
+    expectedProduced = [(qty 0.0123611111 cashInstrument), (qty 1.0 cashInstrument)]
+  Some brcInstrumentAfterExpiry <- lifecycleAndVerifyPaymentEffects [publicParty] expiryDate
+    brcInstrumentAfterCouponPayment issuer [observableCid] expectedConsumed expectedProduced
+
+  let
+    expectedConsumed = []
+    expectedProduced = []
+  Some brcInstrumentAfterBarrierHit <- lifecycleAndVerifyPaymentEffects [publicParty]
+    (date 2019 May 16) brcInstrumentAfterExpiry issuer [observableCid] expectedConsumed
+    expectedProduced
+
+  verifyNoLifecycleEffects [publicParty] (date 2019 May 17) brcInstrumentAfterBarrierHit
+    issuer [observableCid]
+
+  pure ()

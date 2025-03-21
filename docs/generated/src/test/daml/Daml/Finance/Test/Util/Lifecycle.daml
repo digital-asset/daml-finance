@@ -1,0 +1,178 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Test.Util.Lifecycle where
+
+import DA.List (sort)
+import DA.Map qualified as Map (fromList)
+import DA.Set qualified as Set (fromList, singleton)
+import Daml.Finance.Claims.V3.Lifecycle.Rule (Rule(..))
+import Daml.Finance.Claims.V3.Lifecycle.Rule qualified as Lifecycle (Rule(..))
+import Daml.Finance.Data.V4.Time.DateClock (dateToDateClockTime)
+import Daml.Finance.Interface.Lifecycle.V4.Effect qualified as Effect (GetView(..), I)
+import Daml.Finance.Interface.Lifecycle.V4.Election qualified as Election (Apply(..), Exercisable, I)
+import Daml.Finance.Interface.Lifecycle.V4.Election.Factory qualified as ElectionFactory (Create(..), I)
+import Daml.Finance.Interface.Lifecycle.V4.Observable.NumericObservable qualified as NumericObservable (I)
+import Daml.Finance.Interface.Lifecycle.V4.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I)
+import Daml.Finance.Interface.Types.Common.V3.Types (Id(..), InstrumentKey, InstrumentQuantity)
+import Daml.Finance.Lifecycle.V4.Election qualified as Election (Factory(..))
+import Daml.Finance.Test.Util.Time (createClockUpdateEvent)
+import Daml.Script
+
+-- | Lifecycle the instrument as of this date. This is a general function that can be used for
+-- different kinds of instruments.
+lifecycleInstrument : [Party] -> Date -> InstrumentKey -> Party ->
+  [ContractId NumericObservable.I] -> Script (Optional InstrumentKey, [ContractId Effect.I])
+lifecycleInstrument readAs today instrument issuer observableCids = do
+  -- Create a clock update event
+  clockEventCid <- createClockUpdateEvent (Set.singleton issuer) today mempty
+
+  -- Create a lifecycle rule
+  lifecycleRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit issuer do
+    createCmd Rule with
+      providers = Set.singleton issuer
+      observers = mempty
+      lifecycler = issuer
+      id = Id "LifecycleRule"
+      description = "Rule to lifecycle an instrument"
+
+  -- Try to lifecycle the instrument
+  (lifecycleCid, effectCids) <- submitMulti [issuer] readAs do
+    exerciseCmd lifecycleRuleCid Lifecycle.Evolve with
+      eventCid = clockEventCid
+      observableCids
+      instrument
+
+  pure (lifecycleCid, effectCids)
+
+-- | Verify that the consumed/produced quantities match the expected ones.
+verifyConsumedAndProduced : [InstrumentQuantity] -> [InstrumentQuantity] -> ContractId Effect.I
+  -> Party -> Script ()
+verifyConsumedAndProduced expectedConsumed expectedProduced effectCid
+  issuer = do
+    -- Get the effect
+    effectView <- submit issuer do
+      exerciseCmd effectCid Effect.GetView with viewer = issuer
+
+    -- Sort the instrument quantities for a more robust comparison
+    let
+      sortedConsumed = sort effectView.otherConsumed
+      sortedProduced = sort effectView.otherProduced
+      sortedExpectedConsumed = sort expectedConsumed
+      sortedExpectedProduced = sort expectedProduced
+
+    assertMsg ("The consumed quantities " <> show sortedConsumed <>
+      " do not match the expected ones " <> show sortedExpectedConsumed) $
+      sortedExpectedConsumed == sortedConsumed
+    assertMsg ("The produced quantities " <> show sortedProduced <>
+      " do not match the expected ones " <> show sortedExpectedProduced) $
+      sortedExpectedProduced == sortedProduced
+
+-- | Verify a that there are no lifecycle effects of the instrument on this date.
+verifyNoLifecycleEffects : [Party] -> Date -> InstrumentKey -> Party ->
+  [ContractId NumericObservable.I] -> Script (Optional InstrumentKey)
+verifyNoLifecycleEffects readAs today instrument issuer observableCids = do
+  (newInstrumentKey, effectCids) <- lifecycleInstrument readAs today instrument issuer
+    observableCids
+  assertMsg ("There should be no lifecycle effects on " <> show today) (null effectCids)
+  pure newInstrumentKey
+
+-- | Verify the payments from a payment date of an instrument (excluding settlement)
+lifecycleAndVerifyPaymentEffects : [Party] -> Date -> InstrumentKey -> Party ->
+  [ContractId NumericObservable.I] -> [InstrumentQuantity] -> [InstrumentQuantity] ->
+  Script (Optional InstrumentKey)
+lifecycleAndVerifyPaymentEffects readAs today instrument issuer
+  observableCids expectedConsumed expectedProduced = do
+    (newInstrumentKey, [effectCid]) <-
+      lifecycleInstrument readAs today instrument issuer observableCids
+
+    -- Verify that the consumed/produced quantities match the expected ones
+    verifyConsumedAndProduced expectedConsumed expectedProduced effectCid issuer
+
+    pure newInstrumentKey
+
+-- | Create the Election and the lifecycle rule.
+createElectionAndLifecycleRule : Date -> Decimal -> InstrumentKey -> Bool -> Party -> Party -> Text
+  -> Script (ContractId Election.I, ContractId Election.Exercisable)
+createElectionAndLifecycleRule today amount instrument electorIsOwner issuer elector electedTag = do
+  -- Create election factory to allow holders to create elections
+  electionFactoryCid <- submit issuer do
+    toInterfaceContractId @ElectionFactory.I <$> createCmd Election.Factory with
+      provider = issuer
+      observers = Map.fromList [("Observers", Set.fromList [elector, issuer])]
+
+  -- Create a lifecycle rule
+  lifecycleRuleCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Lifecycle.Rule with
+      providers = Set.singleton issuer
+      observers = mempty
+      lifecycler = issuer
+      id = Id "LifecycleRule"
+      description = "Rule to lifecycle an Election based instrument"
+
+  -- Create the Election
+  let
+    counterparty = issuer
+    description = "election for a callable bond"
+  electionCid <- submit elector do
+    exerciseCmd electionFactoryCid ElectionFactory.Create with
+      actors = Set.singleton elector
+      id = Id "election id"
+      description
+      claim = electedTag
+      electionTime = dateToDateClockTime today
+      electorIsOwner
+      elector
+      counterparty
+      instrument
+      amount
+      observers = Map.fromList [("Holders", Set.fromList [issuer, elector, counterparty])]
+      provider = issuer
+
+  pure (electionCid, lifecycleRuleCid)
+
+-- | Apply an election and verify that the election effect matches the expected result.
+applyElectionAndVerify : Party -> [Party] -> [ContractId NumericObservable.I] ->
+  [InstrumentQuantity] -> [InstrumentQuantity] -> ContractId Election.I ->
+  ContractId Election.Exercisable -> Script (Optional InstrumentKey, ContractId Effect.I)
+applyElectionAndVerify issuer readAs observableCids
+  expectedConsumed expectedProduced electionCid
+  lifecycleRuleCid = do
+    -- Apply election to generate new instrument version + effects
+    (newInstrumentKey, [effectCid]) <- submitMulti [issuer] readAs do
+      exerciseCmd electionCid Election.Apply with
+        observableCids
+        exercisableCid = lifecycleRuleCid
+
+    -- Verify that the consumed/produced quantities match the expected ones
+    verifyConsumedAndProduced expectedConsumed expectedProduced effectCid issuer
+
+    pure (newInstrumentKey, effectCid)
+
+-- | Verify the payments of an instrument after an election (excluding settlement).
+electAndVerifyPaymentEffects : Date -> Decimal -> InstrumentKey -> Bool -> Party -> Party -> [Party]
+  -> Text -> [ContractId NumericObservable.I] -> [InstrumentQuantity] -> [InstrumentQuantity]
+  -> Script (Optional InstrumentKey, ContractId Effect.I)
+electAndVerifyPaymentEffects today amount instrument electorIsOwner issuer elector readAs
+  electedTag observableCids expectedConsumed expectedProduced = do
+    -- Create the Election and the lifecycle rule
+    (electionCid, lifecycleRuleCid) <- createElectionAndLifecycleRule today amount instrument
+      electorIsOwner issuer elector electedTag
+
+    applyElectionAndVerify issuer readAs observableCids expectedConsumed expectedProduced
+      electionCid lifecycleRuleCid
+
+-- | Try to lifecycle an election and verify that this is not possible.
+ensureElectionNotPossible : Date -> Decimal -> InstrumentKey -> Bool -> Party -> Party -> [Party]
+  -> Text -> [ContractId NumericObservable.I] -> Script ()
+ensureElectionNotPossible today amount instrument electorIsOwner issuer elector readAs
+  electedTag observableCids = do
+    -- Create the Election and the lifecycle rule
+    (electionCid, lifecycleRuleCid) <- createElectionAndLifecycleRule today amount instrument
+      electorIsOwner issuer elector electedTag
+
+    -- Try to apply the election and verify that this does not work
+    submitMultiMustFail [issuer] readAs do
+      exerciseCmd electionCid Election.Apply with
+        observableCids
+        exercisableCid = lifecycleRuleCid

@@ -1,0 +1,91 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+{-# OPTIONS -Wno-deprecations #-} -- To supress 'Monad' warnings
+
+-- | This module collects a set of utilities used to execute recursion schemes.
+-- The morphisms ending in 'M' are monadic variants, allowing to interleave, e.g., `Update` or
+-- `Script`. `cataM` after Tim Williams' talk, https://www.youtube.com/watch?v=Zw9KeP3OzpU.
+module ContingentClaims.Core.V3.Util.Recursion (
+    anaM
+  , apoCataM
+  , apoM
+  , funzip
+  , futuM
+  , ghyloM
+  , hyloM
+  , inherit
+  , paraM
+  , synthesize
+) where
+
+import DA.Traversable (Traversable, mapA, sequence)
+import Daml.Control.Arrow (Kleisli(..), (&&&), (<<<), (>>>), (|||))
+import Daml.Control.Comonad (Comonad(..))
+import Daml.Control.Recursion (Cofree(..), Corecursive(..), Free(..), Recursive(..))
+import Prelude hiding (mapA, sequence, sum)
+
+-- | Monadic paramorphism.
+paraM : (Monad m, Traversable f, Recursive b f) => (f (b, a) -> m a) -> b -> m a
+paraM f b =
+  (project >>> fmap (runKleisli $ Kleisli pure &&& Kleisli (paraM f)) >>> ((>>= f) . sequence)) b
+
+-- | Monadic anamorphism.
+anaM : (Monad m, Traversable f, Corecursive b f) => (a -> m (f a)) -> a -> m b
+anaM f a = (fmap embed <<< (>>= mapA (anaM f)) <<< f) a
+
+-- | Monadic apomorphism.
+apoM : (Monad m, Traversable f, Corecursive b f) => (a -> m (f (Either b a))) -> a -> m b
+apoM f a = (fmap embed <<< (>>= (mapA (pure ||| apoM f))) <<< f) a
+
+-- | Monadic futumorphism.
+futuM : (Monad m, Traversable f, Corecursive b f) => (a -> m (f (Free f a))) -> a -> m b
+futuM f a = (fmap embed <<< (>>= (mapA (futuM' f))) <<< f) a
+
+-- | HIDE
+-- mutually recursive helper function for futuM.
+futuM' : (Monad m, Traversable f, Corecursive b f) => (a -> m (f (Free f a))) -> Free f a -> m b
+futuM' f (Pure a) = futuM f a
+futuM' f (Free as) = fmap embed . mapA (futuM' f) $ as
+
+-- | Monadic lazy unfold (apoM) followed by a fold (cata).
+-- This Specialised lazy re-fold is used by `lifecycle`.
+apoCataM : (Monad m, Traversable f, Corecursive b f) =>
+  (f b -> b) -> (a -> m (f (Either b a))) -> a -> m b
+apoCataM g f a = (fmap g <<< (>>= (mapA (pure ||| apoCataM g f))) <<< f) a
+
+-- | A modified `hylo` (refold), whith an interleaved monad effect (typically `Update`).
+hyloM : (Traversable f, Monad n) => (f b -> b) -> (a -> n (f a)) -> a -> n b
+hyloM f g a = (fmap f <<< (>>= mapA (hyloM f g)) <<< g) a
+
+-- | Generalised hylomorphism (with monadic unfold).
+ghyloM : (Comonad w, Traversable f, Monad m, Traversable m, Monad n)
+       => (forall c . f (w c) -> w (f c))
+       -> (forall d . m (f d) -> f (m d))
+       -> (f (w b) -> b)
+       -> (a -> n (f (m a)))
+       -> a
+       -> n b
+ghyloM w m f g a = (fmap f <<< (>>= mapA (hyloM alg coalg)) <<< g) a where
+  coalg  = fmap g >>> sequence >>> fmap m >>> fmap (fmap join)
+  alg  = fmap f <<< w <<< fmap duplicate
+
+-- | Functor unzip.
+funzip : Functor f => f (a, b) -> (f a, f b)
+funzip = fmap fst &&& fmap snd
+
+-- | Annotate a recursive type bottom-up.
+synthesize : (Functor f, Recursive b f) => (f attr -> attr) -> b -> Cofree f attr
+synthesize f = cata algebra where
+  -- alg : f (Cofree f a) -> Cofree f a
+  algebra = uncurry Cofree . ((f <<< fmap (.attribute)) &&& identity)
+
+-- | Annotate a recursive type top-down.
+inherit : (Functor f, Corecursive b f, Recursive b f) =>
+  (b -> attr -> attr) -> attr -> b -> Cofree f attr
+inherit g seed b = para algebra b seed where
+  -- f (b, attr -> Cofree f attr) -> attr -> Cofree f attr
+  algebra gbg attr = Cofree attr' f' where
+    (fb, ff) = funzip gbg
+    attr' = g (embed fb) attr
+    f' = fmap ($ attr') ff

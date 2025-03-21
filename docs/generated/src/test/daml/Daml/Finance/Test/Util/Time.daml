@@ -1,0 +1,100 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Test.Util.Time where
+
+import DA.Date (toGregorian)
+import DA.Set (toList)
+import Daml.Finance.Data.V4.Time.DateClock (DateClock(..))
+import Daml.Finance.Data.V4.Time.DateClock.Types (Unit(..))
+import Daml.Finance.Data.V4.Time.DateClockUpdate (DateClockUpdateEvent(..))
+import Daml.Finance.Interface.Lifecycle.V4.Event qualified as Event (I)
+import Daml.Finance.Interface.Lifecycle.V4.Observable.TimeObservable qualified as TimeObservable (I)
+import Daml.Finance.Interface.Types.Common.V3.Types (Id(..), Parties)
+import Daml.Finance.Interface.Types.Date.V3.Calendar (BusinessDayAdjustment(..), BusinessDayConventionEnum)
+import Daml.Finance.Interface.Types.Date.V3.Classes (HasUTCTimeConversion(..))
+import Daml.Finance.Interface.Types.Date.V3.RollConvention (Period(..), PeriodEnum, RollConventionEnum(..))
+import Daml.Finance.Interface.Types.Date.V3.Schedule (Frequency(..), PeriodicSchedule(..), ScheduleFrequency(..))
+import Daml.Script
+
+-- | Given a `Date`, it creates a `DateClockUpdateEvent`.
+createClockUpdateEvent : Parties -> Date -> Parties
+  -> Script (ContractId Event.I)
+createClockUpdateEvent providers today observers = do
+  let
+    description = show today
+    id = Id description
+    date = Unit today
+  eventCid <- toInterfaceContractId <$> submitMulti (toList providers) [] do
+    createCmd DateClockUpdateEvent with
+      providers; id; description; date = today; observers; eventTime = toUTCTime date
+  pure eventCid
+
+-- | Given a `Date`, it creates a `DateClock` and returns it as a `TimeObservable`.
+createDateClock : Parties -> Date -> Parties
+  -> Script (ContractId TimeObservable.I)
+createDateClock providers today observers = do
+  let
+    description = show today
+    id = Id description
+    date = Unit today
+  toInterfaceContractId <$> submitMulti (toList providers) [] do
+    createCmd DateClock with
+      providers; date; id; description; observers
+
+-- | Create a schedule for periodic payments.
+createPaymentPeriodicSchedule : Date -> [Text] -> BusinessDayConventionEnum -> PeriodEnum ->
+  Int -> Date -> Date -> PeriodicSchedule
+createPaymentPeriodicSchedule firstCouponDate holidayCalendarIds businessDayConvention couponPeriod
+  couponPeriodMultiplier issueDate maturityDate = do
+    -- CREATE_PERIODIC_SCHEDULE_BEGIN
+    let
+      (y, m, d) = toGregorian firstCouponDate
+      periodicSchedule = PeriodicSchedule with
+        businessDayAdjustment =
+          BusinessDayAdjustment with
+            calendarIds = holidayCalendarIds
+            convention = businessDayConvention
+        effectiveDateBusinessDayAdjustment = None
+        terminationDateBusinessDayAdjustment = None
+        frequency =
+          Periodic Frequency with
+            rollConvention = DOM d
+            period = Period with
+              period = couponPeriod
+              periodMultiplier = couponPeriodMultiplier
+        effectiveDate = issueDate
+        firstRegularPeriodStartDate = Some firstCouponDate
+        lastRegularPeriodEndDate = Some maturityDate
+        stubPeriodType = None
+        terminationDate = maturityDate
+    -- CREATE_PERIODIC_SCHEDULE_END
+    periodicSchedule
+
+-- | Create a schedule for periodic events.
+createPeriodicSchedule : Optional Date -> [Text] -> BusinessDayConventionEnum ->
+  PeriodEnum -> Int -> Date -> Date -> Int -> PeriodicSchedule
+createPeriodicSchedule firstRegularPeriodStartDate holidayCalendarIds businessDayConvention
+  couponPeriod couponPeriodMultiplier issueDate maturityDate rollDay = do
+    -- CREATE_GENERAL_PERIODIC_SCHEDULE_BEGIN
+    let
+      periodicSchedule = PeriodicSchedule with
+        businessDayAdjustment =
+          BusinessDayAdjustment with
+            calendarIds = holidayCalendarIds
+            convention = businessDayConvention
+        effectiveDateBusinessDayAdjustment = None
+        terminationDateBusinessDayAdjustment = None
+        frequency =
+          Periodic Frequency with
+            rollConvention = DOM rollDay
+            period = Period with
+              period = couponPeriod
+              periodMultiplier = couponPeriodMultiplier
+        effectiveDate = issueDate
+        firstRegularPeriodStartDate
+        lastRegularPeriodEndDate = Some maturityDate
+        stubPeriodType = None
+        terminationDate = maturityDate
+    -- CREATE_GENERAL_PERIODIC_SCHEDULE_END
+    periodicSchedule

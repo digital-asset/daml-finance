@@ -1,0 +1,264 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Option.Test.BarrierEuropeanCash where
+
+import DA.Date (Month(..), date)
+import DA.Map qualified as Map (fromList)
+import DA.Set qualified as Set (singleton)
+import Daml.Finance.Data.V4.Numeric.Observation (Observation(..))
+import Daml.Finance.Data.V4.Time.DateClock (dateToDateClockTime)
+import Daml.Finance.Instrument.Option.Test.Util (originateBarrierEuropeanCashOption)
+import Daml.Finance.Interface.Instrument.Option.V0.Types (BarrierTypeEnum(..), OptionTypeEnum(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..))
+import Daml.Finance.Interface.Util.V3.Common (qty)
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.Instrument (originate)
+import Daml.Finance.Test.Util.Lifecycle (lifecycleAndVerifyPaymentEffects, verifyNoLifecycleEffects)
+import Daml.Script
+
+-- Define and lifecycle barrier call/put options, which are automatically exercised and cash
+-- settled.
+run : Script ()
+run = script do
+  [custodian, issuer, calendarDataProvider, publicParty] <-
+    createParties ["Custodian", "Issuer", "Calendar Data Provider", "PublicParty"]
+
+  -- Distribute commercial-bank cash
+  now <- getTime
+  let observers = [("PublicParty", Set.singleton publicParty)]
+  cashInstrument <- originate custodian issuer "USD" TransferableFungible "US Dollars" observers now
+
+  -- Create and distribute option
+  let
+    barrierLow : Decimal = 20.0
+    barrierHigh : Decimal = 50.0
+    -- CREATE_BARRIER_EUROPEAN_OPTION_VARIABLES_BEGIN
+    barrier = 30.0
+    barrierType = DownAndOut
+    barrierStartDate = date 2019 Jan 20
+    strike = 40.0
+    expiryDate = date 2019 May 15
+    referenceAssetId = "AAPL-CLOSE"
+    -- CREATE_BARRIER_EUROPEAN_OPTION_VARIABLES_END
+    longOption = True
+
+  -- CREATE_BARRIER_EUROPEAN_OPTION_OBSERVATIONS_BEGIN
+  let
+    observations = Map.fromList
+      [ (dateToDateClockTime $ date 2019 May 13, 28.78)
+      , (dateToDateClockTime $ date 2019 May 14, 49.78)
+      , (dateToDateClockTime $ date 2019 May 15, 48.78)
+      , (dateToDateClockTime $ date 2019 May 16, 18.78)
+      , (dateToDateClockTime $ date 2019 May 17, 48.78)
+      , (dateToDateClockTime $ date 2019 May 20, 58.78)
+      , (dateToDateClockTime $ date 2019 May 21, 48.78)
+      ]
+  observableCid <- toInterfaceContractId <$> submit issuer do
+    createCmd Observation with
+      provider = issuer; id = Id referenceAssetId; observations; observers = mempty
+  -- CREATE_BARRIER_EUROPEAN_OPTION_OBSERVATIONS_END
+
+  ------------------------------------
+  -- 1. Down-And-Out barrier option --
+  ------------------------------------
+
+  -- Test option with barrier hit (on May 13)
+  downAndOutLongCallInstrument <- originateBarrierEuropeanCashOption issuer issuer "DownAndOut"
+    TransferableFungible "Option" observers now expiryDate Call strike barrier barrierType
+    barrierStartDate cashInstrument referenceAssetId longOption publicParty
+
+  let
+    expectedConsumed = []
+    expectedProduced = []
+  Some optionInstrumentAfterBarrierHit <- lifecycleAndVerifyPaymentEffects [publicParty]
+    (date 2019 May 13) downAndOutLongCallInstrument issuer [observableCid] expectedConsumed
+    expectedProduced
+
+  verifyNoLifecycleEffects [publicParty] (date 2019 May 14) optionInstrumentAfterBarrierHit issuer
+    [observableCid]
+
+  let
+    expectedConsumed = []
+    expectedProduced = []
+  lifecycleAndVerifyPaymentEffects [publicParty] expiryDate optionInstrumentAfterBarrierHit issuer
+    [observableCid] expectedConsumed expectedProduced
+
+  -- Test option without barrier hit. Also test a barrier hit after expiry.
+  downAndOutLowBarrierLongCallInstrument <- originateBarrierEuropeanCashOption issuer issuer
+    "DownAndOutLow" TransferableFungible "Option" observers now expiryDate Call strike barrierLow
+    DownAndOut barrierStartDate cashInstrument referenceAssetId longOption publicParty
+
+  verifyNoLifecycleEffects [publicParty] (date 2019 May 13) downAndOutLowBarrierLongCallInstrument
+    issuer [observableCid]
+
+  verifyNoLifecycleEffects [publicParty] (date 2019 May 14) downAndOutLowBarrierLongCallInstrument
+    issuer [observableCid]
+
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 8.78 cashInstrument]
+  Some optionInstrumentAfterExpiry <- lifecycleAndVerifyPaymentEffects [publicParty] expiryDate
+    downAndOutLowBarrierLongCallInstrument issuer [observableCid] expectedConsumed expectedProduced
+
+  let
+    expectedConsumed = []
+    expectedProduced = []
+  Some optionInstrumentAfterBarrierHit <- lifecycleAndVerifyPaymentEffects [publicParty]
+    (date 2019 May 16) optionInstrumentAfterExpiry issuer [observableCid] expectedConsumed
+    expectedProduced
+
+  verifyNoLifecycleEffects [publicParty] (date 2019 May 17) optionInstrumentAfterBarrierHit
+    issuer [observableCid]
+
+  -----------------------------------
+  -- 2. Down-And-In barrier option --
+  -----------------------------------
+
+  -- Test option with barrier hit (on May 13)
+  downAndInLongCallInstrument <- originateBarrierEuropeanCashOption issuer issuer "DownAndIn"
+    TransferableFungible "Option" observers now expiryDate Call strike barrier DownAndIn
+    barrierStartDate cashInstrument referenceAssetId longOption publicParty
+
+  let
+    expectedConsumed = []
+    expectedProduced = []
+  Some optionInstrumentAfterBarrierHit <- lifecycleAndVerifyPaymentEffects [publicParty]
+    (date 2019 May 13) downAndInLongCallInstrument issuer [observableCid] expectedConsumed
+    expectedProduced
+
+  verifyNoLifecycleEffects [publicParty] (date 2019 May 14) optionInstrumentAfterBarrierHit issuer
+    [observableCid]
+
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 8.78 cashInstrument]
+  lifecycleAndVerifyPaymentEffects [publicParty] expiryDate optionInstrumentAfterBarrierHit issuer
+    [observableCid] expectedConsumed expectedProduced
+
+  -- Test option without barrier hit. Also test a barrier hit after expiry.
+  downAndInLowBarrierLongCallInstrument <- originateBarrierEuropeanCashOption issuer issuer
+    "DownAndInLow" TransferableFungible "Option" observers now expiryDate Call strike barrierLow
+    DownAndIn barrierStartDate cashInstrument referenceAssetId longOption publicParty
+
+  verifyNoLifecycleEffects [publicParty] (date 2019 May 13) downAndInLowBarrierLongCallInstrument
+    issuer [observableCid]
+
+  verifyNoLifecycleEffects [publicParty] (date 2019 May 14) downAndInLowBarrierLongCallInstrument
+    issuer [observableCid]
+
+  verifyNoLifecycleEffects [publicParty] expiryDate downAndInLowBarrierLongCallInstrument issuer
+    [observableCid]
+
+  let
+    expectedConsumed = []
+    expectedProduced = []
+  Some optionInstrumentAfterBarrierHit <- lifecycleAndVerifyPaymentEffects [publicParty]
+    (date 2019 May 16) downAndInLowBarrierLongCallInstrument issuer [observableCid] expectedConsumed
+    expectedProduced
+
+  verifyNoLifecycleEffects [publicParty] (date 2019 May 17) optionInstrumentAfterBarrierHit
+    issuer [observableCid]
+
+  ----------------------------------
+  -- 3. Up-And-Out barrier option --
+  ----------------------------------
+
+  -- Test option with barrier hit (on May 14)
+  upAndOutLongCallInstrument <- originateBarrierEuropeanCashOption issuer issuer "UpAndOut"
+    TransferableFungible "Option" observers now expiryDate Call strike barrier UpAndOut
+    barrierStartDate cashInstrument referenceAssetId longOption publicParty
+
+  verifyNoLifecycleEffects [publicParty] (date 2019 May 13) upAndOutLongCallInstrument issuer
+    [observableCid]
+
+  let
+    expectedConsumed = []
+    expectedProduced = []
+  Some optionInstrumentAfterBarrierHit <- lifecycleAndVerifyPaymentEffects [publicParty]
+    (date 2019 May 14) upAndOutLongCallInstrument issuer [observableCid] expectedConsumed
+    expectedProduced
+
+  let
+    expectedConsumed = []
+    expectedProduced = []
+  lifecycleAndVerifyPaymentEffects [publicParty] expiryDate
+    optionInstrumentAfterBarrierHit issuer [observableCid] expectedConsumed expectedProduced
+
+  -- Test option without barrier hit. Also test a barrier hit after expiry.
+  upAndOutHighBarrierLongCallInstrument <- originateBarrierEuropeanCashOption issuer issuer
+    "UpAndOutHigh" TransferableFungible "Option" observers now expiryDate Call strike barrierHigh
+    UpAndOut barrierStartDate cashInstrument referenceAssetId longOption publicParty
+
+  verifyNoLifecycleEffects [publicParty] (date 2019 May 13) upAndOutHighBarrierLongCallInstrument
+    issuer [observableCid]
+
+  verifyNoLifecycleEffects [publicParty] (date 2019 May 14) upAndOutHighBarrierLongCallInstrument
+    issuer [observableCid]
+
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 8.78 cashInstrument]
+  Some optionInstrumentAfterExpiry <- lifecycleAndVerifyPaymentEffects [publicParty] expiryDate
+    upAndOutHighBarrierLongCallInstrument issuer [observableCid] expectedConsumed expectedProduced
+
+  let
+    expectedConsumed = []
+    expectedProduced = []
+  Some optionInstrumentAfterBarrierHit <- lifecycleAndVerifyPaymentEffects [publicParty]
+    (date 2019 May 20) optionInstrumentAfterExpiry issuer [observableCid] expectedConsumed
+    expectedProduced
+
+  verifyNoLifecycleEffects [publicParty] (date 2019 May 21) optionInstrumentAfterBarrierHit
+    issuer [observableCid]
+
+  ----------------------------------
+  -- 4. Up-And-In barrier option --
+  ----------------------------------
+
+  -- Test option with barrier hit (on May 14)
+  upAndInLongCallInstrument <- originateBarrierEuropeanCashOption issuer issuer "UpAndIn"
+    TransferableFungible "Option" observers now expiryDate Call strike barrier UpAndIn
+    barrierStartDate cashInstrument referenceAssetId longOption publicParty
+
+  verifyNoLifecycleEffects [publicParty] (date 2019 May 13) upAndInLongCallInstrument issuer
+    [observableCid]
+
+  let
+    expectedConsumed = []
+    expectedProduced = []
+  Some optionInstrumentAfterBarrierHit <- lifecycleAndVerifyPaymentEffects [publicParty]
+    (date 2019 May 14) upAndInLongCallInstrument issuer [observableCid] expectedConsumed
+    expectedProduced
+
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 8.78 cashInstrument]
+  lifecycleAndVerifyPaymentEffects [publicParty] expiryDate optionInstrumentAfterBarrierHit issuer
+    [observableCid] expectedConsumed expectedProduced
+
+  -- Test option without barrier hit. Also test a barrier hit after expiry.
+  upAndInHighBarrierLongCallInstrument <- originateBarrierEuropeanCashOption issuer issuer
+    "UpAndInHigh" TransferableFungible "Option" observers now expiryDate Call strike barrierHigh
+    UpAndIn barrierStartDate cashInstrument referenceAssetId longOption publicParty
+
+  verifyNoLifecycleEffects [publicParty] (date 2019 May 13) upAndInHighBarrierLongCallInstrument
+    issuer [observableCid]
+
+  verifyNoLifecycleEffects [publicParty] (date 2019 May 14) upAndInHighBarrierLongCallInstrument
+    issuer [observableCid]
+
+  verifyNoLifecycleEffects [publicParty] expiryDate upAndInHighBarrierLongCallInstrument issuer
+    [observableCid]
+
+  let
+    expectedConsumed = []
+    expectedProduced = []
+  Some optionInstrumentAfterBarrierHit <- lifecycleAndVerifyPaymentEffects [publicParty]
+    (date 2019 May 20) upAndInHighBarrierLongCallInstrument issuer [observableCid] expectedConsumed
+    expectedProduced
+
+  verifyNoLifecycleEffects [publicParty] (date 2019 May 21) optionInstrumentAfterBarrierHit
+    issuer [observableCid]
+
+  pure ()

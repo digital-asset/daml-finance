@@ -1,0 +1,211 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Generic.Test.ReverseConvertible where
+
+import ContingentClaims.Core.V3.Claim (Inequality(..), at, cond, one, scale, when)
+import ContingentClaims.Core.V3.Observation (Observation(..))
+import DA.Assert ((===))
+import DA.Date (Month(..), date)
+import DA.Map qualified as Map (fromList)
+import DA.Set qualified as Set (singleton, toList)
+import DA.Time (time)
+import Daml.Finance.Data.V4.Numeric.Observation (Observation(..))
+import Daml.Finance.Data.V4.Time.DateClock (dateToDateClockTime)
+import Daml.Finance.Holding.V4.Factory qualified as Holding (Factory(..))
+import Daml.Finance.Holding.V4.TransferableFungible qualified as TransferableFungible (T)
+import Daml.Finance.Instrument.Generic.Test.Util (originateGeneric)
+import Daml.Finance.Instrument.Generic.V4.Lifecycle.Rule qualified as Lifecycle (Rule(..))
+import Daml.Finance.Interface.Account.V4.Util (getOwner)
+import Daml.Finance.Interface.Holding.V4.Util (getAmount, getInstrument)
+import Daml.Finance.Interface.Lifecycle.V4.Rule.Claim qualified as Claim (ClaimEffect(..), I)
+import Daml.Finance.Interface.Lifecycle.V4.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I)
+import Daml.Finance.Interface.Settlement.V4.Batch qualified as Batch (Settle(..))
+import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.V4.Types (Allocation(..), Approval(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..), Parties)
+import Daml.Finance.Interface.Types.Date.V3.DayCount (DayCountConventionEnum(..))
+import Daml.Finance.Lifecycle.V4.Rule.Claim (Rule(..))
+import Daml.Finance.Settlement.V4.Factory (Factory(..))
+import Daml.Finance.Settlement.V4.RouteProvider.SingleCustodian (SingleCustodian(..))
+import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.HoldingFactory (createHoldingFactory)
+import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
+import Daml.Finance.Test.Util.Time (createClockUpdateEvent)
+import Daml.Finance.Util.V4.Date.DayCount (calcDcf)
+import Daml.Script
+
+-- This script models a reverse convertible instrument on an FX underlying. Depending on where the
+-- underlying closes at expiry compared to the strike, the product will either:
+-- 1. Pay the investment amount and the coupon in the local currency, or
+-- 2. Pay the investment amount and the coupon in the foreign currency (converted from local
+--    currency using the strike as FX rate).
+-- The product is auto-exercising using the Contingent Claims *cond* node, meaning no manual
+-- election is required by either counterparty.
+-- The *calcDcf* utility function is used to showcase how day count fractions can be calculated in
+-- Daml Finance.
+
+-- | Parties involved in the test script.
+data TestParties = TestParties
+  with
+    bank : Party
+      -- ^ Acts as custodian in the respective holdings (both cash holdings and instrument
+      --   holdings). It also acts as depository in the reverse convertible instrument.
+    broker : Party
+      -- ^ Acts as issuer of the reverse convertible contract. It is also the party tasked with
+      --   lifecycling of the contract.
+    centralBankEU : Party
+      -- ^ The depository and the issuer of the EUR cash instrument.
+    centralBankUK : Party
+      -- ^ The depository and the issuer of the GBP cash instrument.
+    investor : Party
+      -- ^ Owner of the reverse convertible holding.
+    settlers : Parties
+      -- ^ Any of the parties can trigger the settlement of fully allocated settlement instructions.
+    publicParty : Party
+      -- ^ The public party. Every party can readAs the public party.
+
+-- | Physically-settled (inverse) FX reverse convertible trade: lifecycling and settlement
+run : Script ()
+run = script do
+  TestParties{..} <- setupParties
+  let pp = [("PublicParty", Set.singleton publicParty)]
+
+  -- Create account factory
+  accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank pp
+
+  -- Create holding factory
+  holdingFactory <- createHoldingFactory
+    Holding.Factory with provider = bank; id = Id "Holding Factory"; observers = Map.fromList pp
+
+  -- Create accounts
+  investorAccount <- Account.createAccount "Default Account" [] accountFactoryCid holdingFactory
+    [] Account.Owner bank investor
+
+  -- Create cash instruments
+  now <- getTime
+  localCurrencyInstrument <- Instrument.originate bank centralBankEU "EUR" TransferableFungible
+    "Euro" pp now
+  foreignCurrencyInstrument <- Instrument.originate bank centralBankUK "GBP" TransferableFungible
+    "Pounds" pp now
+
+  -- Create and distribute a generic derivative
+  let
+    issue = date 2023 Sep 6
+    expiry = date 2024 Mar 4
+    maturity = date 2024 Mar 6
+    fxObservable = "EUR/GBP"
+    couponRate = 0.040
+    dayCountConvention = Act360
+    dcf = calcDcf dayCountConvention issue maturity
+    redemptionLocal = 1.0 + couponRate * dcf
+    strike = 0.80
+    redemptionForeign = redemptionLocal * strike
+    notExercised = scale (Const redemptionLocal) $ one localCurrencyInstrument
+    exercised = scale (Const redemptionForeign) $ one foreignCurrencyInstrument
+    autoExerciseCondition = Lte (Const strike, ObserveAt fxObservable $ dateToDateClockTime expiry)
+    claims = when (at $ dateToDateClockTime maturity)
+             $ cond autoExerciseCondition exercised notExercised
+
+  genericInstrument <- originateGeneric bank broker "RC-EURGBP" TransferableFungible
+    "Reverse Convertible" now claims [("PublicParty", Set.singleton publicParty)] now
+  investorGenericHoldingCid <- Account.credit [publicParty] genericInstrument 1_000.0
+    investorAccount
+
+  -- create clock update event
+  clockEventCid <- createClockUpdateEvent (Set.singleton broker) maturity mempty
+
+  -- Create observable
+  let observations = Map.fromList [(dateToDateClockTime expiry, 0.91)]
+  observableCid <- toInterfaceContractId <$> submit broker do
+    createCmd Observation with
+      provider = broker; id = Id fxObservable; observations; observers = mempty
+
+  -- Create lifecycle rule
+  lifecycleRuleCid <- toInterfaceContractId @Lifecycle.I <$>
+    submit bank do
+      createCmd Lifecycle.Rule with
+        providers = Set.singleton bank
+        observers = mempty
+        lifecycler = broker
+        id = Id "LifecycleRule"
+        description = "Rule to lifecycle a generic instrument"
+
+  -- Lifecycle a generic derivative
+  (Some finalInstrument, [effectCid]) <- submit broker do
+    exerciseCmd lifecycleRuleCid Lifecycle.Evolve with
+      eventCid = clockEventCid
+      observableCids = [observableCid]
+      instrument = genericInstrument
+
+  -- Create route provider
+  routeProviderCid <- toInterfaceContractId <$>
+    submit investor do
+      createCmd SingleCustodian with
+        provider = investor; observers = mempty; custodian = bank
+
+  -- Create settlement factory
+  settlementFactoryCid <- toInterfaceContractId <$>
+    submit investor do createCmd Factory with provider = investor; observers = mempty
+
+  -- Create claim rule
+  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$>
+    submitMulti [bank, investor] [] do
+      createCmd Rule with
+        provider = bank
+        claimers = Set.singleton investor
+        settlers
+        routeProviderCid
+        settlementFactoryCid
+        netInstructions = False
+
+  -- Claim effect
+  result <- submitMulti [investor] [publicParty] do
+    exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
+      claimer = investor
+      holdingCids = [investorGenericHoldingCid]
+      effectCid
+      batchId = Id "ReverseConvertiblePhysicalSettlement"
+
+  let [investorInstrumentInstructionCid, bankEquityInstructionCid] = result.instructionCids
+
+  -- Allocate instructions
+  (investorInstrumentInstructionCid, _) <- submit investor do
+    exerciseCmd investorInstrumentInstructionCid Instruction.Allocate with
+      actors = Set.singleton investor; allocation = Pledge investorGenericHoldingCid
+  (bankEquityInstructionCid, _) <- submit bank do
+    exerciseCmd bankEquityInstructionCid Instruction.Allocate with
+      actors = Set.singleton bank; allocation = CreditReceiver
+
+  -- Approve instructions
+  investorInstrumentInstructionCid <- submit bank do
+    exerciseCmd investorInstrumentInstructionCid Instruction.Approve with
+      actors = Set.singleton bank; approval = DebitSender
+  bankEquityInstructionCid <- submit investor do
+    exerciseCmd bankEquityInstructionCid Instruction.Approve with
+      actors = Set.singleton investor; approval = TakeDelivery investorAccount
+
+  -- Set time
+  setTime $ time maturity 0 0 0
+
+  -- Settle batch
+  [investorCashHoldingCid] <- submitMulti (Set.toList settlers) [publicParty] do
+    exerciseCmd result.batchCid Batch.Settle with actors = settlers
+
+  -- Verify result
+  Some investorCash <- queryContractId investor $ fromInterfaceContractId @TransferableFungible.T
+    investorCashHoldingCid
+  getAmount investorCash === 816.1777778
+  getInstrument investorCash === foreignCurrencyInstrument
+  getOwner investorCash === investor
+
+  pure ()
+
+setupParties : Script TestParties
+setupParties = do
+  [bank, broker, centralBankEU, centralBankUK, investor, settler, publicParty] <- createParties
+    ["Bank", "Broker", "EU Central Bank", "UK Central Bank", "Investor", "Settler", "PublicParty"]
+  pure TestParties with
+    bank; broker; centralBankEU; centralBankUK; investor; settlers = Set.singleton settler
+    publicParty

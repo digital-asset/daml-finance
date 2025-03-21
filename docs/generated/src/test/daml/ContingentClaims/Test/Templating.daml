@@ -1,0 +1,50 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+-- | This gives an example of how to 'template' claims.
+-- The basic idea is to store variable names in the 'holes' in the `Observable` leaves; this creates
+-- a template with placeholders for the actual values we want. We then map these parameters to
+-- values when we're ready to 'issue' the instrument, using `mapParams`.
+module ContingentClaims.Test.Templating where
+
+import ContingentClaims.Core.V3.Builders (european)
+import ContingentClaims.Core.V3.Claim (Inequality(..), mapParams, one, or, scale, when, zero)
+import ContingentClaims.Core.V3.Observation qualified as O
+import DA.Assert ((===))
+import DA.Date (Month(..), addDays, date, subDate)
+import DA.Map qualified as Map
+import DA.Optional (fromSomeNote)
+import Daml.Script
+import Prelude hiding (or, zero)
+
+instance Additive Text where
+  aunit = "0"
+  x + y = x <> "+" <> y
+  negate x = "-" <> x
+
+instance Multiplicative Text where
+  munit = "1"
+  x * y = x <> "*" <> y
+  x ^ i = x <> "^" <> show i
+
+ccy : Text
+ccy = "ccy"
+usd : Text
+usd = "USD"
+
+demoTemplate : Script ()
+demoTemplate = script do
+  let
+    today = date 2021 Jun 8
+    call spot strike = O.observe spot - O.pure strike
+    aTemplate = european (date 2021 Jul 15 `subDate` today) (scale (call "s" "k") (one ccy))
+  aTemplate === when (TimeGte 37)
+    (("EXERCISE", scale (O.observe "s" - O.pure "k") (one ccy)) `or` ("EXPIRE", zero))
+  let
+    constants : Map.Map Text Decimal = Map.fromList [("k", 99.8)]
+    assets : Map.Map Text Text = Map.fromList [(ccy, usd)]
+    observables : Map.Map Text Text = Map.fromList [("s", "VOD.L")]
+    get dict k = fromSomeNote ("failed to template " <> k) (Map.lookup k dict)
+    f = mapParams (`subDate` today) (today `addDays`) (get assets) (get observables) (get constants)
+  f aTemplate === when (TimeGte $ date 2021 Jul 15)
+    (("EXERCISE", scale (O.observe "VOD.L" - O.pure 99.8) (one usd)) `or` ("EXPIRE", zero))

@@ -1,0 +1,74 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module ContingentClaims.Core.V3.Builders where
+
+import ContingentClaims.Core.V3.Claim (Claim, anytime, at, give, one, or, scale, upTo, when, zero)
+import ContingentClaims.Core.V3.Observation (Observation)
+import ContingentClaims.Core.V3.Observation qualified as O
+import DA.Date (Month, date)
+import DA.Foldable (foldMap)
+import DA.List.Total (last)
+import Prelude hiding (and, or, zero)
+
+-- | Helper function to generate a series of fixing dates, e.g. for coupon payments in `fixed`.
+-- This assumes `fixingMonths` and `fixingDates` are ordered.
+-- The [Daml Finance library](https://github.com/digital-asset/daml-finance) has more
+-- feature-complete date handling functions.
+unrollDates : Int -> Int -> [Month] -> Int -> [Date]
+unrollDates issueYear maturityYear fixingMonths fixingDay =
+  date <$> [issueYear .. maturityYear] <*> fixingMonths <*> [fixingDay]
+
+-- | Forward agreement. Discounted by (potentially stochastic) interest rate `r`.
+forward : t -> Observation t x o -> Claim t x a o -> Claim t x a o
+forward maturity r payoff = when (at maturity) $ scale r payoff
+
+-- | Forward rate agreement.
+fra : t -> t -> Observation t x o -> Observation t x o -> Claim t x a o -> Claim t x a o
+fra t₁ t₂ r₀ r₁ = forward t₁ r₀ . forward t₂ r₁
+
+-- | Zero Coupon Bond.
+zcb : forall t x ccy o. t -> x -> ccy -> Claim t x ccy o
+zcb maturity principal ccy = forward maturity (O.pure principal) (one ccy)
+
+-- | A floating rate bond.
+floating : forall t x ccy o. Observation t x o -> Observation t x o -> ccy -> [t] -> Claim t x ccy o
+floating principal coupon asset fixings =
+  (mconcat (mkCoupon <$> fixings)) <> mkPrincipal (last fixings : Optional t)
+  where mkCoupon t = forward t coupon (one asset)
+        mkPrincipal = foldMap \t -> forward t principal (one asset)
+
+-- | A (fixed rate) coupon paying bond.
+fixed : forall t x ccy o. x -> x -> ccy -> [t] -> Claim t x ccy o
+fixed principal coupon = floating (O.pure principal) (O.pure coupon)
+
+-- | European option on the input claim. At maturity, the holder must `EXERCISE` or `EXPIRE`
+-- the claim. e.g. call option on S&P 500:
+-- ```
+-- european (date 2021 05 14) (observe "SPX" - pure 4200)
+-- ```
+european : t -> Claim t x a o -> Claim t x a o
+european maturity payoff = when (at maturity) (("EXERCISE", payoff) `or` ("EXPIRE", zero))
+
+-- | Bermudan option on the input claim. Given a pre-defined set of times
+-- {t_1, t_2, .., t_N}, it allows the holder to acquire the underlying claim on at
+-- most one of these times.
+-- At each election time before maturity, the holder must `EXERCISE` the option or `POSTPONE`.
+-- At maturity, the holder must `EXERCISE` or `EXPIRE`.
+bermudan : [t] -> Claim t x a o -> Claim t x a o
+bermudan [] _ = zero
+bermudan [t] c = european t c
+bermudan (t :: ts) c = when (at t) (("EXERCISE", c) `or` ("POSTPONE", bermudan ts c))
+
+-- | American option (knock-in). The lead parameter is the first possible acquisition date.
+american : t -> t -> Claim t x a o -> Claim t x a o
+american start maturity payoff = when (at start) $ anytime (upTo maturity) "EXERCISE" payoff
+
+-- | Asset swap on specific fixing dates `[t]`. For example:
+-- ```
+-- fixedUsdVsFloatingEur : [t] -> Serializable.Claim Text
+-- fixedUsdVsFloatingEur =
+--   fixed 100.0 0.02 "USD" `swap` floating (observe "USDEUR" * pure 100.0) (observe "EUR1M") "EUR"
+-- ```
+swap : ([t] -> Claim t x a o) -> ([t] -> Claim t x a o) -> [t] -> Claim t x a o
+swap receive pay ts = receive ts <> give (pay ts)

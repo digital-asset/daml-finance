@@ -69,6 +69,22 @@ test-all: test test-packages
 .PHONY: clean-all
 clean-all: clean clean-packages clean-docs
 
+.PHONY: generate-docs
+generate-docs:
+	./docs/scripts/generate-docs.sh
+
+.PHONY: validate-generated-docs
+validate-generated-docs:
+	./docs/scripts/validate-generated-docs.sh
+
+.PHONY: sphinx-build-generated-docs
+sphinx-build-generated-docs:
+	sphinx-build -M html ./docs/generated ./docs/.preview -c ./docs/sphinx-config -E
+
+.PHONY: sphinx-preview-generated-docs
+sphinx-preview-generated-docs:
+	python -m http.server -d ./docs/.preview/html
+
 ##################################
 # CI                             #
 #  - utilises nix                #
@@ -137,6 +153,12 @@ ci-data-dependencies:
 
 .PHONY: ci-local
 ci-local: clean-all ci-headers-check ci-versioning ci-data-dependencies ci-build ci-validate ci-build-java ci-build-js ci-test ci-docs
+
+.PHONY: ci-validate-generated-docs-full
+ci-validate-generated-docs-full:
+	@nix-shell \
+		--pure \
+		--run 'make validate-generated-docs sphinx-build-generated-docs'
 
 #########
 # Cache #
