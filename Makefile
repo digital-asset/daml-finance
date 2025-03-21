@@ -69,20 +69,20 @@ test-all: test test-packages
 .PHONY: clean-all
 clean-all: clean clean-packages clean-docs
 
-.PHONY: build-sharable-docs
-build-sharable-docs:
-	./docs/scripts/build-sharable-docs.sh
+.PHONY: generate-docs
+generate-docs:
+	./docs/scripts/generate-docs.sh
 
-.PHONY: validate-sharable-docs
-validate-sharable-docs:
-	./docs/scripts/validate-sharable-docs.sh
+.PHONY: validate-generated-docs
+validate-generated-docs:
+	./docs/scripts/validate-generated-docs.sh
 
-.PHONY: sphinx-build-sharable-docs
-sphinx-build-sharable-docs:
-	sphinx-build -M html ./docs/sharable ./docs/.preview -c ./docs/sphinx-config -E
+.PHONY: sphinx-build-generated-docs
+sphinx-build-generated-docs:
+	sphinx-build -M html ./docs/generated ./docs/.preview -c ./docs/sphinx-config -E
 
-.PHONY: sphinx-preview-sharable-docs
-sphinx-preview-sharable-docs:
+.PHONY: sphinx-preview-generated-docs
+sphinx-preview-generated-docs:
 	python -m http.server -d ./docs/.preview/html
 
 ##################################
@@ -154,11 +154,11 @@ ci-data-dependencies:
 .PHONY: ci-local
 ci-local: clean-all ci-headers-check ci-versioning ci-data-dependencies ci-build ci-validate ci-build-java ci-build-js ci-test ci-docs
 
-.PHONY: ci-validate-sharable-docs-full
-ci-validate-sharable-docs-full:
+.PHONY: ci-validate-generated-docs-full
+ci-validate-generated-docs-full:
 	@nix-shell \
 		--pure \
-		--run 'make validate-sharable-docs sphinx-build-sharable-docs'
+		--run 'make validate-generated-docs sphinx-build-generated-docs'
 
 #########
 # Cache #
