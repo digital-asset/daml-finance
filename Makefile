@@ -80,6 +80,7 @@ validate-generated-docs:
 .PHONY: sphinx-build-generated-docs
 sphinx-build-generated-docs:
 	sphinx-build -M html ./docs/generated ./docs/.preview -c ./docs/sphinx-config -E
+	find ./docs/.preview -type f -follow -exec chmod 0444 {} +
 
 .PHONY: sphinx-preview-generated-docs
 sphinx-preview-generated-docs:

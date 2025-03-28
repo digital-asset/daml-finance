@@ -22,3 +22,6 @@ cp -a ${root_dir}/src/* ${docs_dir}/generated/src/
 mkdir -p ${docs_dir}/generated/reference/code-documentation
 cp -r ${docs_dir}/build/daml-finance-rst ${docs_dir}/generated/reference/code-documentation/daml-finance-rst
 cp ${docs_dir}/build/daml-finance-hoogle.txt ${docs_dir}/generated/reference/daml-finance-hoogle.txt
+
+# Make the generated files read-only
+find ${docs_dir}/generated -type f -follow -exec chmod 0444 {} +
