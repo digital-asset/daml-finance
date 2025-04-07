@@ -15,4 +15,8 @@ the docs via an `assembly` artifact.
 
 4. `make generate-docs` to create auto-generated docs and combine them with manual docs in `docs/generated`.
 
+For preview:
 
+1. `make sphinx-build-generated-docs`
+2. `make sphinx-preview-generated-docs`
+3. Visit http://localhost:8000/
