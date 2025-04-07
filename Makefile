@@ -70,11 +70,11 @@ test-all: test test-packages
 clean-all: clean clean-packages clean-docs
 
 .PHONY: generate-docs
-generate-docs:
+generate-docs: doc-code
 	./docs/scripts/generate-docs.sh
 
 .PHONY: validate-generated-docs
-validate-generated-docs:
+validate-generated-docs: doc-code
 	./docs/scripts/validate-generated-docs.sh
 
 .PHONY: sphinx-build-generated-docs
