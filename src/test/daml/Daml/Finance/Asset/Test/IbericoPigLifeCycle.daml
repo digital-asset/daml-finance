@@ -1,0 +1,134 @@
+module Daml.Finance.Asset.Test.IbericoPigLifeCycle where
+
+import Daml.Finance.Interface.Asset.Instrument qualified as Instrument (I)
+import Daml.Finance.Asset.Test.Util.Account qualified as Account
+import Daml.Finance.Asset.Fungible as Fungible
+import Daml.Finance.Interface.Asset.Holding qualified as Holding (I)
+import Daml.Finance.Asset.Test.Util.Instrument qualified as Instrument (originate, createReference, submitExerciseInterfaceByKeyCmd)
+import Daml.Finance.Interface.Asset.Transferable qualified as Transferable (I)
+import Daml.Finance.Interface.Lifecycle.Lifecyclable qualified as Lifecyclable (I, Lifecycle(..))
+import Daml.Finance.Interface.Settlement.Settleable qualified as Settleable (Settle(..))
+import Daml.Finance.Interface.Settlement.Instruction qualified as Instruction
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Asset.Test.IbericoPig
+import Daml.Finance.Bond.Util(dateToDateClockTime) -- todo can this be move to a more general place)
+import Daml.Finance.Interface.Asset.Types (Id(..))
+import Daml.Finance.RefData.Observation (Observation(..))
+import Daml.Finance.RefData.Time.DateClock
+import Daml.Finance.Settlement.Batch
+import Daml.Finance.Lifecycle.Rule.Settlement
+import Daml.Finance.Interface.Lifecycle.SettlementRule qualified as SettlementRule
+import Daml.Script
+import DA.Date
+import DA.Time
+import DA.Set qualified as S
+import DA.Text (sha256)
+import DA.Map qualified as M
+{- 
+pig (pig farmer) -> butchering (butcher) -> salting -> aging (food processor) -> ship to restaurant (shop owner, shipping company) -> tasting (me)
+1. pig farmer sell pig to butcher, effect: target pig -> produced unprocessed ham, produced cash to farmer)
+2. butcher sell unprocessed ham to food processor, effect: target unprocessed ham -> unprocessed ham in factory, produced cash to butcher
+3. food processor done salting, effect: target unprocessed ham in factory -> produced salted non-aged ham
+4. food processor done aging, effect: target salted non-aged ham -> produced aged ham
+5. restaurant bought aged ham from food processor, effect: target aged ham -> produced aged ham in restauarant, produced cash to food processor and shipping company)
+6. I order and eat aged ham in the restaurant, effect: target aged ham in restaurant, produced aged ham eaten/archived, produced cash to restaurant
+-}
+
+
+{- Implementation steps
+1. setup: create parties, account/holding factory, create accounts, credit cash to butcher, food processor, restaurant, me
+2. create "Instrument" IbericoPig (version will be presented using status hash) template
+3. orignate IbericoPig and credit it into pig farmer's account
+4. implement steps 1-6
+-}
+
+ibericoHamLifeCycle: Script ()
+ibericoHamLifeCycle = do
+-- allocate parties 
+parties@[farmer, butcher, foodProcessor, shippingCompany, restaurant, judy, public, bank] <- 
+  createParties ["Pig Farmer", "Butcher", "Food Processor", "Shipping Company", "Restaurant", "Judy", "Public", "Bank"]
+
+-- create account/holding factory
+let publicObserver = [("factoryProvider", S.singleton $ S.singleton public)]
+accountFactoryCid <- toInterfaceContractId <$> Account.createFactory bank publicObserver
+holdingFactoryCid <- toInterfaceContractId <$> submit bank do
+    createCmd Fungible.Factory with provider = bank; observers = M.fromList publicObserver
+
+-- create accounts
+[farmerAccount, butcherAccount, foodProcessorAccount, shippingCompanyAccount, restaurantAccount, judyAccount, _, bankAccount] <- 
+  mapA (Account.createAccount [public] accountFactoryCid holdingFactoryCid [] bank) parties
+
+-- originate cash
+now <- getTime
+cashInstrumentCid <- Instrument.originate bank bank "EUR" publicObserver now
+
+-- originate IbericoPig and add to farmers account
+let 
+  pigInKg:Decimal = 100.0
+  state = Pig
+  id = Id with label = "IbericoPig"; version = sha256 $ show state
+  observers = M.fromList publicObserver
+  matureDate = date 2020 Jun 15 
+
+ibericoPigCid <- toInterfaceContractId @Instrument.I <$> submit farmer do createCmd IbericoPig with farmer; id; observers; state; matureDate; cashInstrumentCid
+ibericoPigKey <- Instrument.createReference ibericoPigCid farmer farmer publicObserver
+-- need to read as public as we need holding factory to create new holdings
+transferableIbericoPig: ContractId Transferable.I <- Account.credit [public] ibericoPigKey pigInKg farmerAccount
+
+-- lifecycle ibericoPig for step 1, create pig price observable and pig sold event
+let 
+  settler = bank
+  eventTime = time (matureDate) 12 30 00
+  observations = M.fromList [(dateToDateClockTime (matureDate), 1.0)]
+  lifecycleObserver = [("PigLifecycler", S.singleton $ S.singleton farmer)]
+
+pigPriceOnMatureDateCid <- toInterfaceContractId  <$> submit butcher do 
+  createCmd Observation with provider = butcher; obsKey = show Pig; observations; observers = M.fromList lifecycleObserver
+-- butcherPigPriceOnMatureDateCid <- toInterfaceContractId  <$> submit foodProcessor do createCmd Observation with provider = foodProcessor; obsKey = show Butchered; observations; observers = M.fromList lifecycleObserver
+-- agedHamPriceOnMatureDateCid <- toInterfaceContractId  <$> submit restaurant do createCmd Observation with provider = restaurant; obsKey = show Aged; observations; observers = M.fromList lifecycleObserver
+-- restaurantHamPriceOnMatureDateCid <- toInterfaceContractId  <$> submit restaurant do createCmd Observation with provider = restaurant; obsKey = show Restaurant; observations; observers = M.fromList lifecycleObserver
+
+pigSoldEventCid <- toInterfaceContractId <$> submitMulti [farmer, butcher] [] do 
+  createCmd StateTransitionEvent with currentOwner = farmer; newOwner = butcher; eventTime; currentState = state
+
+-- create clock with mature to declare that current time is mature date
+clockCid <- toInterfaceContractId <$> submit farmer do 
+  createCmd DateClock with u = Unit matureDate; id = show matureDate; provider = farmer; observers = M.empty
+(soldPigCid , [effectCid]) <- Instrument.submitExerciseInterfaceByKeyCmd @Lifecyclable.I [farmer] [public] ibericoPigKey 
+  Lifecyclable.Lifecycle with settler; eventCid = pigSoldEventCid; 
+                                observableCids = [pigPriceOnMatureDateCid]; 
+                                ruleName = show state; clockCid
+
+-- Settlement, create settlement factory, settlement rule and get claim result                                                                                                                                                                   
+factoryCid <- submit farmer do createCmd BatchFactory with provider = farmer; observers = S.empty
+
+settlementRuleCid <- submitMulti [bank, farmer] [] do
+    createCmd Rule
+      with
+        custodian = bank
+        owner = farmer
+        claimers = S.singleton farmer -- Can I make new instrument go into butcher's account? No, not in the current rule implementation
+        settler
+        instructableCid = toInterfaceContractId factoryCid
+
+result <- submitMulti [farmer] [public] do
+  exerciseCmd settlementRuleCid SettlementRule.Claim with
+    claimer = farmer
+    holdingCids = [toInterfaceContractId @Holding.I transferableIbericoPig]
+    effectCid
+let 
+  Some [soldPigHoldingsCid] = result.newInstrumentHoldingCids
+  [paymentForPigInstructionCid] = result.instructionCids
+  paymentBatchForPigCid = result.containerCid
+
+-- can we setup instruction for butcher to pay farmer not for bank to pay farmer? No, not in the current rule implementation
+-- Allocate Cash 
+cashForPigPayment <- Account.credit [public] cashInstrumentCid 100.0 bankAccount
+paymentForPigInstructionCid <- submit bank do exerciseCmd paymentForPigInstructionCid Instruction.Allocate with transferableCid = cashForPigPayment
+
+-- Approve Instruction with receiver account
+submit farmer do exerciseCmd paymentForPigInstructionCid Instruction.Approve with receiverAccount = farmerAccount
+
+-- Settle the payment
+submit bank do exerciseCmd paymentBatchForPigCid Settleable.Settle
+pure ()
