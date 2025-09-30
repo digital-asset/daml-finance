@@ -21,12 +21,13 @@ let
 
   arch =
     if pkgs.stdenv.isDarwin then "x86_64" else
+    if pkgs.stdenv.hostPlatform.system == "x86_64-linux" then "x86_64" else
     if pkgs.stdenv.hostPlatform.system == "aarch64-linux" then "aarch64"
     else ""; #for plain `linux.tar.gz`
 
   daml = build_daml {
     stdenv = pkgs.stdenv;
-    jdk = pkgs.openjdk11_headless;
+    jdk = pkgs.openjdk17_headless;    
     sdkVersion = damlYaml.sdk-version;
     damlVersion = damlYaml.daml-version;
     tarPath = damlYaml.daml-tar-path or null;
@@ -57,7 +58,7 @@ pkgs.mkShell {
     pkgs.git
     pkgs.gnupg
     pkgs.jq
-    pkgs.python39
+    pkgs.python310
     pkgs.openssh
     pkgs.unixtools.xxd
     pkgs.yq-go

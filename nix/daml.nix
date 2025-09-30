@@ -1,5 +1,8 @@
 {stdenv, jdk, curl, curl_cert, sdkVersion, damlVersion, tarPath, os, arch, osJFrog, hashes}: #added arch parameter
 let
+  target_version =
+    if arch != "" then "${os}-${arch}" else os;
+
   nixTarPath =
     if builtins.isPath tarPath || builtins.isString tarPath
     then /. + tarPath   # turn a string or path into a store path
@@ -32,13 +35,12 @@ let
       )
       get_open_source() (
         echo "Downloading SDK from GitHub..."
-        target_version="${if arch != "" then "${os}-${arch}" else "${os}"}"
-        echo "Downloading from https://github.com/digital-asset/daml/releases/download/v${sdkVersion}/daml-sdk-${damlVersion}-$target_version.tar.gz"
-        curl --location \
-            --fail \
-            https://github.com/digital-asset/daml/releases/download/v${sdkVersion}/daml-sdk-${damlVersion}-$target_version.tar.gz \
-          > $out
+
+        sdk_url="https://github.com/digital-asset/daml/releases/download/v${sdkVersion}/daml-sdk-${damlVersion}-${target_version}.tar.gz"
+        echo "Downloading from $sdk_url"
+        curl --location --fail "$sdk_url" > "$out"
       )
+      
       get_enterprise_edition() (
         echo "Downloading SDK from Artifactory..."
         if [ -n "''${ARTIFACTORY_PASSWORD:-}" ]; then
