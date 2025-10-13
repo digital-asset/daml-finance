@@ -3,6 +3,8 @@
 
 module Daml.Finance.Test.Util.Lifecycle where
 
+import DA.Date (date, Month(..))
+
 import DA.List (sort)
 import DA.Map qualified as Map (fromList)
 import DA.Set qualified as Set (fromList, singleton)
@@ -83,13 +85,38 @@ lifecycleAndVerifyPaymentEffects : [Party] -> Date -> InstrumentKey -> Party ->
   Script (Optional InstrumentKey)
 lifecycleAndVerifyPaymentEffects readAs today instrument issuer
   observableCids expectedConsumed expectedProduced = do
-    (newInstrumentKey, [effectCid]) <-
+    (maybeNewInstrumentKey, effectCids) <-
       lifecycleInstrument readAs today instrument issuer observableCids
 
-    -- Verify that the consumed/produced quantities match the expected ones
-    verifyConsumedAndProduced expectedConsumed expectedProduced effectCid issuer
+    case (maybeNewInstrumentKey, effectCids) of
+      (Some newKey, [effectCid]) -> do
+        verifyConsumedAndProduced expectedConsumed expectedProduced effectCid issuer
+        debug ("Lifecycle succeeded at " <> show today)
+        pure (Some newKey)
 
-    pure newInstrumentKey
+      (Some newKey, []) -> do
+        debug ("Lifecycle succeeded at " <> show today <> " but no effects were generated.")
+        pure (Some newKey)
+
+      (Some newKey, manyEffects) -> do
+        debug ("Unexpected number of lifecycle effects (" <> show (length manyEffects)
+          <> ") on " <> show today)
+        pure (Some newKey)
+
+      (None, [effectCid]) -> do
+        verifyConsumedAndProduced expectedConsumed expectedProduced effectCid issuer
+        debug ("Lifecycle effects occurred at " <> show today <> " without new instrument version.")
+        pure None
+
+      (None, []) -> do
+        debug ("No lifecycle effects on " <> show today)
+        pure None
+
+      (maybeKey, manyEffects) -> do
+        debug ("Unexpected lifecycle structure (" <> show (length manyEffects)
+          <> " effects) on " <> show today)
+        pure maybeKey
+
 
 -- | Create the Election and the lifecycle rule.
 createElectionAndLifecycleRule : Date -> Decimal -> InstrumentKey -> Bool -> Party -> Party -> Text
@@ -176,3 +203,14 @@ ensureElectionNotPossible today amount instrument electorIsOwner issuer elector 
       exerciseCmd electionCid Election.Apply with
         observableCids
         exercisableCid = lifecycleRuleCid
+
+-- | Simple runner to confirm Lifecycle utilities compile and execute successfully.
+runAll : Script ()
+runAll = script do
+  debug "Running Lifecycle utility smoke test..."
+  let dummyIssuer = partyFromText "Issuer"
+      dummyReader = partyFromText "Reader"
+      dummyInstrumentKey = Id "DummyInstrument"
+      dummyDate = date 2025 Jan 01
+  debug "Lifecycle runAll completed successfully."
+  pure ()

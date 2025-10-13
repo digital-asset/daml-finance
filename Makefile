@@ -10,16 +10,16 @@ install:
 
 .PHONY: build
 build: install
-	daml build
+	dpm build
 
 .PHONY: test
 test: build
-	daml test
+	dpm test
 
 .PHONY: clean
 clean:
 	-rm -rf .lib/
-	daml clean
+	dpm clean
 
 #########################
 # Packages (./packages) #

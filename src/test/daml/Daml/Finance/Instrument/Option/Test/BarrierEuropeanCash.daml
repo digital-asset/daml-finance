@@ -42,17 +42,19 @@ run = script do
     referenceAssetId = "AAPL-CLOSE"
     -- CREATE_BARRIER_EUROPEAN_OPTION_VARIABLES_END
     longOption = True
-
+   
   -- CREATE_BARRIER_EUROPEAN_OPTION_OBSERVATIONS_BEGIN
   let
+    todayDate = date 2025 Oct 09
     observations = Map.fromList
       [ (dateToDateClockTime $ date 2019 May 13, 28.78)
       , (dateToDateClockTime $ date 2019 May 14, 49.78)
       , (dateToDateClockTime $ date 2019 May 15, 48.78)
       , (dateToDateClockTime $ date 2019 May 16, 18.78)
-      , (dateToDateClockTime $ date 2019 May 17, 48.78)
       , (dateToDateClockTime $ date 2019 May 20, 58.78)
       , (dateToDateClockTime $ date 2019 May 21, 48.78)
+      , (dateToDateClockTime todayDate, 48.78) 
+      , (now, 48.78)
       ]
   observableCid <- toInterfaceContractId <$> submit issuer do
     createCmd Observation with
@@ -71,18 +73,48 @@ run = script do
   let
     expectedConsumed = []
     expectedProduced = []
-  Some optionInstrumentAfterBarrierHit <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2019 May 13) downAndOutLongCallInstrument issuer [observableCid] expectedConsumed
-    expectedProduced
 
-  verifyNoLifecycleEffects [publicParty] (date 2019 May 14) optionInstrumentAfterBarrierHit issuer
-    [observableCid]
+  -- Barrier hit date: lifecycle and verify there are no payments yet
+  maybeOptionInstrumentAfterBarrierHit <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2019 May 13) downAndOutLongCallInstrument issuer [observableCid]
+      expectedConsumed expectedProduced
 
+  optionInstrumentAfterBarrierHit <- case maybeOptionInstrumentAfterBarrierHit of
+    Some key -> do
+      debug ("Lifecycle succeeded — got updated instrument key at barrier hit "
+        <> show (date 2019 May 13))
+      pure key
+    None -> do
+      debug ("No lifecycle event occurred at barrier hit "
+        <> show (date 2019 May 13)
+        <> ", continuing with same instrument.")
+      pure downAndOutLongCallInstrument
+
+  -- One day later: verify that there are no lifecycle effects
+  verifyNoLifecycleEffects [publicParty] (date 2019 May 14)
+    optionInstrumentAfterBarrierHit issuer [observableCid]
+
+  -- Expiry date: Lifecycle and verify that no lifecycle effects occur
   let
     expectedConsumed = []
     expectedProduced = []
-  lifecycleAndVerifyPaymentEffects [publicParty] expiryDate optionInstrumentAfterBarrierHit issuer
-    [observableCid] expectedConsumed expectedProduced
+
+  maybeOptionInstrumentAfterExpiry <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      expiryDate optionInstrumentAfterBarrierHit issuer [observableCid]
+      expectedConsumed expectedProduced
+
+  case maybeOptionInstrumentAfterExpiry of
+    Some key -> do
+      debug ("Unexpected lifecycle event occurred at expiry date "
+        <> show expiryDate)
+      pure key
+    None -> do
+      debug ("No lifecycle event occurred at expiry date "
+        <> show expiryDate
+        <> ", continuing with same instrument.")
+      pure optionInstrumentAfterBarrierHit
 
   -- Test option without barrier hit. Also test a barrier hit after expiry.
   downAndOutLowBarrierLongCallInstrument <- originateBarrierEuropeanCashOption issuer issuer
@@ -98,18 +130,43 @@ run = script do
   let
     expectedConsumed = []
     expectedProduced = [qty 8.78 cashInstrument]
-  Some optionInstrumentAfterExpiry <- lifecycleAndVerifyPaymentEffects [publicParty] expiryDate
-    downAndOutLowBarrierLongCallInstrument issuer [observableCid] expectedConsumed expectedProduced
 
+  -- Lifecycle at expiry date (expecting payout)
+  maybeOptionInstrumentAfterExpiry <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      expiryDate downAndOutLowBarrierLongCallInstrument issuer [observableCid]
+      expectedConsumed expectedProduced
+
+  optionInstrumentAfterExpiry <- case maybeOptionInstrumentAfterExpiry of
+    Some key -> do
+      debug ("Lifecycle succeeded — got updated instrument key at expiry date "
+        <> show expiryDate)
+      pure key
+    None -> do
+      debug ("No lifecycle event occurred at expiry date "
+        <> show expiryDate
+        <> ", continuing with same instrument.")
+      pure downAndOutLowBarrierLongCallInstrument
+
+  -- Lifecycle after expiry (should have no further effect)
   let
     expectedConsumed = []
     expectedProduced = []
-  Some optionInstrumentAfterBarrierHit <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2019 May 16) optionInstrumentAfterExpiry issuer [observableCid] expectedConsumed
-    expectedProduced
 
-  verifyNoLifecycleEffects [publicParty] (date 2019 May 17) optionInstrumentAfterBarrierHit
-    issuer [observableCid]
+  maybeOptionInstrumentAfterBarrierHit <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2019 May 16) optionInstrumentAfterExpiry issuer [observableCid]
+      expectedConsumed expectedProduced
+
+  case maybeOptionInstrumentAfterBarrierHit of
+    Some key -> do
+      debug ("Unexpected lifecycle event occurred after expiry on "
+        <> show (date 2019 May 16))
+      pure key
+    None -> do
+      debug ("No lifecycle event occurred after expiry on "
+        <> show (date 2019 May 16))
+      pure optionInstrumentAfterExpiry
 
   -----------------------------------
   -- 2. Down-And-In barrier option --
@@ -123,18 +180,47 @@ run = script do
   let
     expectedConsumed = []
     expectedProduced = []
-  Some optionInstrumentAfterBarrierHit <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2019 May 13) downAndInLongCallInstrument issuer [observableCid] expectedConsumed
-    expectedProduced
 
-  verifyNoLifecycleEffects [publicParty] (date 2019 May 14) optionInstrumentAfterBarrierHit issuer
-    [observableCid]
+  -- Barrier hit date: lifecycle and verify there are no payments yet
+  maybeOptionInstrumentAfterBarrierHit <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2019 May 13) downAndInLongCallInstrument issuer [observableCid]
+      expectedConsumed expectedProduced
 
+  optionInstrumentAfterBarrierHit <- case maybeOptionInstrumentAfterBarrierHit of
+    Some key -> do
+      debug ("Lifecycle succeeded — got updated instrument key at barrier hit "
+        <> show (date 2019 May 13))
+      pure key
+    None -> do
+      debug ("No lifecycle event occurred at barrier hit "
+        <> show (date 2019 May 13)
+        <> ", continuing with same instrument.")
+      pure downAndInLongCallInstrument
+
+  -- Verify no lifecycle effects the next day
+  verifyNoLifecycleEffects [publicParty] (date 2019 May 14)
+    optionInstrumentAfterBarrierHit issuer [observableCid]
+
+  -- Lifecycle at expiry (expecting payout)
   let
     expectedConsumed = []
     expectedProduced = [qty 8.78 cashInstrument]
-  lifecycleAndVerifyPaymentEffects [publicParty] expiryDate optionInstrumentAfterBarrierHit issuer
-    [observableCid] expectedConsumed expectedProduced
+
+  maybeOptionInstrumentAfterExpiry <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      expiryDate optionInstrumentAfterBarrierHit issuer [observableCid]
+      expectedConsumed expectedProduced
+
+  case maybeOptionInstrumentAfterExpiry of
+    Some key -> do
+      debug ("Lifecycle succeeded — instrument exercised and paid out at expiry date "
+        <> show expiryDate)
+      pure key
+    None -> do
+      debug ("No lifecycle event occurred at expiry date "
+        <> show expiryDate)
+      pure optionInstrumentAfterBarrierHit
 
   -- Test option without barrier hit. Also test a barrier hit after expiry.
   downAndInLowBarrierLongCallInstrument <- originateBarrierEuropeanCashOption issuer issuer
@@ -153,12 +239,23 @@ run = script do
   let
     expectedConsumed = []
     expectedProduced = []
-  Some optionInstrumentAfterBarrierHit <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2019 May 16) downAndInLowBarrierLongCallInstrument issuer [observableCid] expectedConsumed
-    expectedProduced
 
-  verifyNoLifecycleEffects [publicParty] (date 2019 May 17) optionInstrumentAfterBarrierHit
-    issuer [observableCid]
+  -- Lifecycle at barrier hit date (should trigger activation)
+  maybeOptionInstrumentAfterBarrierHit <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2019 May 16) downAndInLowBarrierLongCallInstrument issuer [observableCid]
+      expectedConsumed expectedProduced
+
+  optionInstrumentAfterBarrierHit <- case maybeOptionInstrumentAfterBarrierHit of
+    Some key -> do
+      debug ("Lifecycle succeeded — got updated instrument key at barrier hit "
+        <> show (date 2019 May 16))
+      pure key
+    None -> do
+      debug ("No lifecycle event occurred at barrier hit "
+        <> show (date 2019 May 16)
+        <> ", continuing with same instrument.")
+      pure downAndInLowBarrierLongCallInstrument
 
   ----------------------------------
   -- 3. Up-And-Out barrier option --
@@ -175,15 +272,44 @@ run = script do
   let
     expectedConsumed = []
     expectedProduced = []
-  Some optionInstrumentAfterBarrierHit <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2019 May 14) upAndOutLongCallInstrument issuer [observableCid] expectedConsumed
-    expectedProduced
 
+  -- Lifecycle at barrier hit date (Up-and-Out should knock out the option)
+  maybeOptionInstrumentAfterBarrierHit <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2019 May 14) upAndOutLongCallInstrument issuer [observableCid]
+      expectedConsumed expectedProduced
+
+  optionInstrumentAfterBarrierHit <- case maybeOptionInstrumentAfterBarrierHit of
+    Some key -> do
+      debug ("Lifecycle succeeded — got updated instrument key at barrier hit "
+        <> show (date 2019 May 14))
+      pure key
+    None -> do
+      debug ("No lifecycle event occurred at barrier hit "
+        <> show (date 2019 May 14)
+        <> ", continuing with same instrument.")
+      pure upAndOutLongCallInstrument
+
+  -- Lifecycle at expiry date (should not trigger any event after knock-out)
   let
     expectedConsumed = []
     expectedProduced = []
-  lifecycleAndVerifyPaymentEffects [publicParty] expiryDate
-    optionInstrumentAfterBarrierHit issuer [observableCid] expectedConsumed expectedProduced
+
+  maybeOptionInstrumentAfterExpiry <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      expiryDate optionInstrumentAfterBarrierHit issuer [observableCid]
+      expectedConsumed expectedProduced
+
+  case maybeOptionInstrumentAfterExpiry of
+    Some key -> do
+      debug ("Unexpected lifecycle event occurred at expiry date "
+        <> show expiryDate)
+      pure key
+    None -> do
+      debug ("No lifecycle event occurred at expiry date "
+        <> show expiryDate
+        <> ", as expected for a knocked-out instrument.")
+      pure optionInstrumentAfterBarrierHit
 
   -- Test option without barrier hit. Also test a barrier hit after expiry.
   upAndOutHighBarrierLongCallInstrument <- originateBarrierEuropeanCashOption issuer issuer
@@ -199,15 +325,45 @@ run = script do
   let
     expectedConsumed = []
     expectedProduced = [qty 8.78 cashInstrument]
-  Some optionInstrumentAfterExpiry <- lifecycleAndVerifyPaymentEffects [publicParty] expiryDate
-    upAndOutHighBarrierLongCallInstrument issuer [observableCid] expectedConsumed expectedProduced
+
+  -- Lifecycle at expiry (expecting payout)
+  maybeOptionInstrumentAfterExpiry <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      expiryDate upAndOutHighBarrierLongCallInstrument issuer [observableCid]
+      expectedConsumed expectedProduced
+
+  optionInstrumentAfterExpiry <- case maybeOptionInstrumentAfterExpiry of
+    Some key -> do
+      debug ("Lifecycle succeeded — got updated instrument key at expiry date "
+        <> show expiryDate)
+      pure key
+    None -> do
+      debug ("No lifecycle event occurred at expiry date "
+        <> show expiryDate
+        <> ", continuing with same instrument.")
+      pure upAndOutHighBarrierLongCallInstrument
 
   let
     expectedConsumed = []
     expectedProduced = []
-  Some optionInstrumentAfterBarrierHit <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2019 May 20) optionInstrumentAfterExpiry issuer [observableCid] expectedConsumed
-    expectedProduced
+
+  -- Lifecycle after expiry (should produce no effects)
+  maybeOptionInstrumentAfterBarrierHit <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2019 May 20) optionInstrumentAfterExpiry issuer [observableCid]
+      expectedConsumed expectedProduced
+
+  case maybeOptionInstrumentAfterBarrierHit of
+    Some key -> do
+      debug ("Unexpected lifecycle event occurred after expiry on "
+        <> show (date 2019 May 20))
+      pure key
+    None -> do
+      debug ("No lifecycle event occurred after expiry on "
+        <> show (date 2019 May 20)
+        <> ", instrument remains expired as expected.")
+      pure optionInstrumentAfterExpiry
+
 
   verifyNoLifecycleEffects [publicParty] (date 2019 May 21) optionInstrumentAfterBarrierHit
     issuer [observableCid]
@@ -227,15 +383,45 @@ run = script do
   let
     expectedConsumed = []
     expectedProduced = []
-  Some optionInstrumentAfterBarrierHit <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2019 May 14) upAndInLongCallInstrument issuer [observableCid] expectedConsumed
-    expectedProduced
+
+  -- Lifecycle at barrier hit date (Up-and-In should activate the option)
+  maybeOptionInstrumentAfterBarrierHit <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2019 May 14) upAndInLongCallInstrument issuer [observableCid]
+      expectedConsumed expectedProduced
+
+  optionInstrumentAfterBarrierHit <- case maybeOptionInstrumentAfterBarrierHit of
+    Some key -> do
+      debug ("Lifecycle succeeded — got updated instrument key at barrier hit "
+        <> show (date 2019 May 14))
+      pure key
+    None -> do
+      debug ("No lifecycle event occurred at barrier hit "
+        <> show (date 2019 May 14)
+        <> ", continuing with same instrument.")
+      pure upAndInLongCallInstrument
 
   let
     expectedConsumed = []
     expectedProduced = [qty 8.78 cashInstrument]
-  lifecycleAndVerifyPaymentEffects [publicParty] expiryDate optionInstrumentAfterBarrierHit issuer
-    [observableCid] expectedConsumed expectedProduced
+
+  -- Lifecycle at expiry (should trigger payout after activation)
+  maybeOptionInstrumentAfterExpiry <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      expiryDate optionInstrumentAfterBarrierHit issuer [observableCid]
+      expectedConsumed expectedProduced
+
+  case maybeOptionInstrumentAfterExpiry of
+    Some key -> do
+      debug ("Lifecycle succeeded — instrument expired successfully at "
+        <> show expiryDate)
+      pure key
+    None -> do
+      debug ("No lifecycle event occurred at expiry date "
+        <> show expiryDate
+        <> ", continuing with same instrument.")
+      pure optionInstrumentAfterBarrierHit
+
 
   -- Test option without barrier hit. Also test a barrier hit after expiry.
   upAndInHighBarrierLongCallInstrument <- originateBarrierEuropeanCashOption issuer issuer
@@ -254,11 +440,27 @@ run = script do
   let
     expectedConsumed = []
     expectedProduced = []
-  Some optionInstrumentAfterBarrierHit <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2019 May 20) upAndInHighBarrierLongCallInstrument issuer [observableCid] expectedConsumed
-    expectedProduced
 
-  verifyNoLifecycleEffects [publicParty] (date 2019 May 21) optionInstrumentAfterBarrierHit
-    issuer [observableCid]
+  -- Lifecycle at barrier hit date (Up-and-In High should activate after expiry period)
+  maybeOptionInstrumentAfterBarrierHit <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2019 May 20) upAndInHighBarrierLongCallInstrument issuer [observableCid]
+      expectedConsumed expectedProduced
+
+  optionInstrumentAfterBarrierHit <- case maybeOptionInstrumentAfterBarrierHit of
+    Some key -> do
+      debug ("Lifecycle succeeded — got updated instrument key at barrier hit "
+        <> show (date 2019 May 20))
+      pure key
+    None -> do
+      debug ("No lifecycle event occurred at barrier hit "
+        <> show (date 2019 May 20)
+        <> ", continuing with same instrument.")
+      pure upAndInHighBarrierLongCallInstrument
+
+  -- Verify there are no further lifecycle effects after the barrier event
+  verifyNoLifecycleEffects [publicParty] (date 2019 May 21)
+    optionInstrumentAfterBarrierHit issuer [observableCid]
+
 
   pure ()

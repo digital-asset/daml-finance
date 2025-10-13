@@ -25,6 +25,8 @@ TODO
             Upgrade this warning to an error -Werror=template-interface-depends-on-daml-script
             Disable this warning entirely with -Wno-template-interface-depends-on-daml-script
 "
+8/ Check chnage in update-daml-hashes line 64!!!!!
+9/ check Daml.Finance.Test.Util.Common allocatePartyByHint part
 
 
 

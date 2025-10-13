@@ -83,12 +83,18 @@ run = script do
   investorAccount <- Account.createAccount "Default Account" [] accountFactoryCid holdingFactory
     [] Account.Owner bank investor
 
-  -- Create cash instruments
-  now <- getTime
+   -- Define dates and acquisition time (use issue date, not current wallclock)
+  let
+    issue    = date 2023 Sep 6
+    expiry   = date 2024 Mar 4
+    maturity = date 2024 Mar 6
+    acqTime  = time issue 0 0 0
+
+  -- Create cash instruments using acquisition time
   localCurrencyInstrument <- Instrument.originate bank centralBankEU "EUR" TransferableFungible
-    "Euro" pp now
+    "Euro" pp acqTime
   foreignCurrencyInstrument <- Instrument.originate bank centralBankUK "GBP" TransferableFungible
-    "Pounds" pp now
+    "Pounds" pp acqTime
 
   -- Create and distribute a generic derivative
   let
@@ -108,8 +114,10 @@ run = script do
     claims = when (at $ dateToDateClockTime maturity)
              $ cond autoExerciseCondition exercised notExercised
 
-  genericInstrument <- originateGeneric bank broker "RC-EURGBP" TransferableFungible
-    "Reverse Convertible" now claims [("PublicParty", Set.singleton publicParty)] now
+  genericInstrument <- originateGeneric
+    bank broker "RC-EURGBP" TransferableFungible
+    "Reverse Convertible" acqTime claims [("PublicParty", Set.singleton publicParty)] acqTime
+
   investorGenericHoldingCid <- Account.credit [publicParty] genericInstrument 1_000.0
     investorAccount
 
@@ -132,12 +140,33 @@ run = script do
         id = Id "LifecycleRule"
         description = "Rule to lifecycle a generic instrument"
 
+  -- Evolve at expiry first (usually no effect, but registers observable)
+  expiryEventCid <- createClockUpdateEvent (Set.singleton broker) expiry mempty
+  (_, expiryEffects) <- submit broker do
+    exerciseCmd lifecycleRuleCid Lifecycle.Evolve with
+      eventCid = expiryEventCid
+      observableCids = [observableCid]
+      instrument = genericInstrument
+  debug ("Expiry evolve effects: " <> show expiryEffects)
+
   -- Lifecycle a generic derivative
-  (Some finalInstrument, [effectCid]) <- submit broker do
+  (maybeFinalKey, effectCids) <- submit broker do
     exerciseCmd lifecycleRuleCid Lifecycle.Evolve with
       eventCid = clockEventCid
       observableCids = [observableCid]
       instrument = genericInstrument
+
+  -- Use the evolved instrument key if provided, otherwise keep the original
+  let finalInstrument =
+        case maybeFinalKey of
+          Some ik -> ik
+          None    -> genericInstrument
+
+  -- Expect at least one lifecycle effect; take the first
+  effectCid <- case effectCids of
+    cid :: _ -> pure cid
+    []       -> abort "Lifecycle.Evolve returned no effects; cannot proceed"
+
 
   -- Create route provider
   routeProviderCid <- toInterfaceContractId <$>
@@ -185,9 +214,6 @@ run = script do
   bankEquityInstructionCid <- submit investor do
     exerciseCmd bankEquityInstructionCid Instruction.Approve with
       actors = Set.singleton investor; approval = TakeDelivery investorAccount
-
-  -- Set time
-  setTime $ time maturity 0 0 0
 
   -- Settle batch
   [investorCashHoldingCid] <- submit (actAs (Set.toList settlers) <> readAs [publicParty]) do

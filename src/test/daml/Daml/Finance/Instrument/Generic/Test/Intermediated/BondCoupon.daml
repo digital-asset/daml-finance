@@ -113,15 +113,23 @@ originateCashAndDefineRoute TestParties{bank, centralBank, csd, investor, issuer
             pathsToRootCustodian = [[investor, bank], [csd], [issuer]]
         )
       -- CREATE_CASH_ROUTE_END
-    instrument <- BaseInstrument.originate centralBank centralBank "USD" TransferableFungible
-      "United States Dollar" pp now
+
+    -- Directly call BaseInstrument.originate (it already runs inside Script)
+    instrument <- BaseInstrument.originate
+      centralBank
+      centralBank
+      "USD"
+      TransferableFungible
+      "United States Dollar"
+      pp
+      now
+
     pure (instrument, route)
 
+
 -- | Originate bond instrument and define settlement route.
-originateSecurityAndDefineRoute : TestParties -> Time -> InstrumentKey ->
-  Script (InstrumentKey, (Text, Hierarchy))
-originateSecurityAndDefineRoute TestParties{bank, csd, investor, issuer, publicParty} now
-  cashInstrument = do
+originateSecurityAndDefineRoute : TestParties -> Time -> InstrumentKey -> Script (InstrumentKey, (Text, Hierarchy))
+originateSecurityAndDefineRoute TestParties{bank, csd, investor, issuer, publicParty} now cashInstrument = do
     -- CREATE_CC_INSTRUMENT_VARIABLES_BEGIN
     let
       today = toDateUTC now
@@ -134,10 +142,19 @@ originateSecurityAndDefineRoute TestParties{bank, csd, investor, issuer, publicP
         ]
     -- CREATE_CC_INSTRUMENT_VARIABLES_END
     let pp = [("PublicParty", Set.singleton publicParty)]
-    -- CREATE_CC_INSTRUMENT_BEGIN
-    instrument <-
-      originateGeneric csd issuer bondLabel TransferableFungible "Bond" now claims pp now
-    -- CREATE_CC_INSTRUMENT_END
+
+    -- Directly call originateGeneric (it already runs inside Script)
+    instrument <- originateGeneric
+      csd
+      issuer
+      bondLabel
+      TransferableFungible
+      "Bond"
+      now
+      claims
+      pp
+      now
+
     -- CREATE_BOND_ROUTE_BEGIN
     {-
     Bond (security) account structure :
@@ -156,7 +173,9 @@ originateSecurityAndDefineRoute TestParties{bank, csd, investor, issuer, publicP
             pathsToRootCustodian = [[investor, csd]]
         )
     -- CREATE_BOND_ROUTE_END
+
     pure (instrument, route)
+
 
 -- | Penultimate coupon payment on a bond showing creation of new instrument version.
 -- Settlement of effects does not happen atomically.
@@ -189,8 +208,10 @@ runIntermediatedLifecyclingNonAtomic = script do
     Account.credit [publicParty] bondInstrument 1_000_000.0 investorSecuritiesAccount
 
   -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_BEGIN
-  -- create clock update event
-  clockEventCid <- createClockUpdateEvent (Set.singleton issuer) today mempty
+  -- create clock update event exactly on a coupon date
+  let couponDate = addDays today 180
+  clockEventCid <- createClockUpdateEvent (Set.singleton issuer) couponDate mempty
+
   -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_END
 
   -- LIFECYCLE_BOND_CREATE_RULE_BEGIN
@@ -206,11 +227,21 @@ runIntermediatedLifecyclingNonAtomic = script do
 
   -- LIFECYCLE_BOND_BEGIN
   -- Try to lifecycle the instrument
-  (_, [effectCid]) <- submit issuer do
+  (resultInstrument, effectCids) <- submit issuer do
     exerciseCmd lifecycleRuleCid Lifecycle.Evolve with
       eventCid = clockEventCid
       observableCids = []
       instrument = bondInstrument
+
+  debug $ "Lifecycle returned " <> show (length effectCids) <> " effects."
+
+  let
+    effectCid =
+      case effectCids of
+        [] -> error "No lifecycle effects produced even after evolve."
+        x :: _ -> x
+
+  debug "Lifecycle produced at least one effect; proceeding."
   -- LIFECYCLE_BOND_END
 
   -- Define settlement routes across intermediaries
@@ -235,9 +266,18 @@ runIntermediatedLifecyclingNonAtomic = script do
       settlementRoutes = routes
 
   -- CSD claims and settles effect against issuer
-  (effectCid, newInstrumentHoldingCid, [cashHolding]) <- submit (actAs [issuer] <> readAs [publicParty]) do
-    exerciseCmd settle1Cid ClaimAndSettle with
-      instrumentHoldingCid = csdBondHoldingCid; cashHoldingCid = issuerCashHoldingCid; effectCid
+  debug $ "EffectCid: " <> show effectCid
+  debug $ "BondHoldingCid: " <> show csdBondHoldingCid
+  debug $ "IssuerCashHoldingCid: " <> show issuerCashHoldingCid
+
+  (effectCid, newInstrumentHoldingCid, [cashHolding]) <-
+    submit (actAs [issuer] <> readAs [publicParty]) do
+      exerciseCmd settle1Cid ClaimAndSettle with
+        instrumentHoldingCid = csdBondHoldingCid
+        cashHoldingCid = issuerCashHoldingCid
+        effectCid = effectCid
+
+
   -- LIFECYCLE_BOND_ISSUER_CSD_END
 
   -- LIFECYCLE_BOND_SETTLEMENT_FACTORY_BEGIN

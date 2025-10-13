@@ -26,6 +26,6 @@ echo -e "${boldWhite}Extracting dependencies for library ${project_name}...${col
 ${script_dir}/get-dependencies.sh ${project}/daml.yaml
 
 echo -e "${boldWhite}Compiling ${project_name}...${colour_off}"
-DAML_PROJECT=${project} daml build
+DAML_PROJECT=${project} dpm build
 
 echo -e "\n${cyan}Successfully built package ${project_name}.${colour_off}"
