@@ -133,12 +133,14 @@ originateSecurityAndDefineRoute TestParties{bank, csd, investor, issuer, publicP
     -- CREATE_CC_INSTRUMENT_VARIABLES_BEGIN
     let
       today = toDateUTC now
-      expiry = addDays today 180
+      firstCoupon  = addDays today 180
+      secondCoupon = addDays firstCoupon 180
+      expiry = secondCoupon
       bondLabel = "ABC.DE 4% p.a. " <> show expiry <> " Corp"
       claims = mapClaimToUTCTime $ andList
-        [ when (at today) $ scale (Const 0.02) $ one cashInstrument
-        , when (at expiry) $ scale (Const 0.02) $ one cashInstrument
-        , when (at expiry) $ scale (Const 1.0) $ one cashInstrument
+        [ when (at firstCoupon)  $ scale (Const 0.02) $ one cashInstrument
+        , when (at secondCoupon) $ scale (Const 0.02) $ one cashInstrument
+        , when (at secondCoupon) $ scale (Const 1.0)  $ one cashInstrument
         ]
     -- CREATE_CC_INSTRUMENT_VARIABLES_END
     let pp = [("PublicParty", Set.singleton publicParty)]
@@ -208,9 +210,9 @@ runIntermediatedLifecyclingNonAtomic = script do
     Account.credit [publicParty] bondInstrument 1_000_000.0 investorSecuritiesAccount
 
   -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_BEGIN
-  -- create clock update event exactly on a coupon date
-  let couponDate = addDays today 180
-  clockEventCid <- createClockUpdateEvent (Set.singleton issuer) couponDate mempty
+  -- create clock update event exactly on the first coupon date
+  let firstCoupon = addDays (toDateUTC now) 180
+  clockEventCid <- createClockUpdateEvent (Set.singleton issuer) firstCoupon mempty
 
   -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_END
 
@@ -233,15 +235,14 @@ runIntermediatedLifecyclingNonAtomic = script do
       observableCids = []
       instrument = bondInstrument
 
-  debug $ "Lifecycle returned " <> show (length effectCids) <> " effects."
-
   let
     effectCid =
       case effectCids of
-        [] -> error "No lifecycle effects produced even after evolve."
-        x :: _ -> x
+        [x] -> x
+        []  -> error "No effects produced by Lifecycle.Evolve"
+        xs  -> error ("Unexpected number of effects: " <> show (length xs))
 
-  debug "Lifecycle produced at least one effect; proceeding."
+
   -- LIFECYCLE_BOND_END
 
   -- Define settlement routes across intermediaries
@@ -251,11 +252,9 @@ runIntermediatedLifecyclingNonAtomic = script do
   -- Setup settlement contract between issuer and CSD
   -- In order for the workflow to be successful, we need to disclose the CSD's cash account to the
   -- Issuer.
-  -- Disclose CSD cash account to Issuer (exercise by contract-id, not by key)
   Account.submitExerciseInterfaceByKeyCmd @Disclosure.I [csd] [] csdCashAccount
     Disclosure.AddObservers with
-      disclosers = Set.singleton csd
-      observersToAdd = ("Issuer", Set.singleton issuer)
+      disclosers = Set.singleton csd; observersToAdd = ("Issuer", Set.singleton issuer)
 
   settle1Cid <- submit (actAs [csd, issuer]) do
     createCmd EffectSettlementService with
@@ -268,15 +267,9 @@ runIntermediatedLifecyclingNonAtomic = script do
       settlementRoutes = routes
 
   -- CSD claims and settles effect against issuer
-  debug $ "Before ClaimAndSettle: " 
-  (effectCid, newInstrumentHoldingCid, [cashHolding]) <-
-    submit (actAs [issuer] <> readAs [publicParty]) do
-      exerciseCmd settle1Cid ClaimAndSettle with
-        instrumentHoldingCid = csdBondHoldingCid
-        cashHoldingCid = issuerCashHoldingCid
-        effectCid = effectCid
-
-
+  (effectCid, newInstrumentHoldingCid, [cashHolding]) <- submit (actAs [issuer] <> readAs [publicParty]) do
+    exerciseCmd settle1Cid ClaimAndSettle with
+      instrumentHoldingCid = csdBondHoldingCid; cashHoldingCid = issuerCashHoldingCid; effectCid
   -- LIFECYCLE_BOND_ISSUER_CSD_END
 
   -- LIFECYCLE_BOND_SETTLEMENT_FACTORY_BEGIN
@@ -387,7 +380,8 @@ runIntermediatedLifecyclingAtomic = script do
     Account.credit [publicParty] bondInstrument 1_000_000.0 investorSecuritiesAccount
 
   -- create clock update event
-  clockEventCid <- createClockUpdateEvent (Set.singleton issuer) today mempty
+  let firstCoupon = addDays (toDateUTC now) 180
+  clockEventCid <- createClockUpdateEvent (Set.singleton issuer) firstCoupon mempty 
 
   -- Create a lifecycle rule
   lifecycleRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit csd do
@@ -399,11 +393,18 @@ runIntermediatedLifecyclingAtomic = script do
       description = "Rule to lifecycle a generic instrument"
 
   -- Try to lifecycle the instrument
-  (_, [effectCid]) <- submit issuer do
+  (resultInstrument, effectCids) <- submit issuer do
     exerciseCmd lifecycleRuleCid Lifecycle.Evolve with
       eventCid = clockEventCid
       observableCids = []
       instrument = bondInstrument
+
+  let
+    effectCid =
+      case effectCids of 
+        [x] -> x
+        []  -> error "Atomic: No effects produced by Lifecycle.Evolve"
+        xs  -> error ("Atomic: Unexpected number of effects: " <> show (length xs))
 
   -- Define settlement routes from CSD to Investor and create batch factory
   let routes = Map.fromList [cashRoute, bondRoute]
@@ -587,7 +588,6 @@ template EffectSettlementService
           provider = csd; observers = mempty; paths = settlementRoutes
         settlementFactoryCid <- create Factory with provider = csd; observers = mempty
 
-        debug $ "ClaimAndSettle:  Claim.Rule" 
         lifecycleClaimRuleCid <- create Claim.Rule with
           provider = issuer
           claimers = Set.fromList [issuer, csd]
@@ -596,7 +596,6 @@ template EffectSettlementService
           settlementFactoryCid = toInterfaceContractId settlementFactoryCid
           netInstructions = False
 
-        debug $ "ClaimAndSettle:  exercise Claim.ClaimEffect" 
         result <- exercise (toInterfaceContractId @Claim.I lifecycleClaimRuleCid)
           Claim.ClaimEffect with
             claimer = csd

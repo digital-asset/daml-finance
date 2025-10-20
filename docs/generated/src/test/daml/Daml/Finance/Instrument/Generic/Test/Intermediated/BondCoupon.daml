@@ -205,21 +205,12 @@ runIntermediatedLifecyclingNonAtomic = script do
   -- LIFECYCLE_BOND_CREATE_RULE_END
 
   -- LIFECYCLE_BOND_BEGIN
-  (resultInstrument, effectCids) <- submit issuer do
+  -- Try to lifecycle the instrument
+  (_, [effectCid]) <- submit issuer do
     exerciseCmd lifecycleRuleCid Lifecycle.Evolve with
       eventCid = clockEventCid
       observableCids = []
       instrument = bondInstrument
-
-  debug $ "Lifecycle returned " <> show (length effectCids) <> " effects."
-
-  let
-    effectCid =
-      case effectCids of
-        [] -> error "No lifecycle effects produced even after evolve."
-        x :: _ -> x
-
-  debug "Lifecycle produced at least one effect; proceeding."
   -- LIFECYCLE_BOND_END
 
   -- Define settlement routes across intermediaries
@@ -557,13 +548,14 @@ template EffectSettlementService
           provider = csd; observers = mempty; paths = settlementRoutes
         settlementFactoryCid <- create Factory with provider = csd; observers = mempty
 
+        -- Enable netting so coupons produce a single cash instruction
         lifecycleClaimRuleCid <- create Claim.Rule with
           provider = issuer
           claimers = Set.fromList [issuer, csd]
-          settlers = Set.singleton csd
+          settlers = Set.fromList [issuer, csd]
           routeProviderCid
           settlementFactoryCid = toInterfaceContractId settlementFactoryCid
-          netInstructions = False
+          netInstructions = True
 
         result <- exercise (toInterfaceContractId @Claim.I lifecycleClaimRuleCid)
           Claim.ClaimEffect with
@@ -575,39 +567,57 @@ template EffectSettlementService
         archive settlementFactoryCid
         archive lifecycleClaimRuleCid
 
-        let
-          [csdInstrumentInstructionCid, issuerInstrumentInstructionCid,
-            issuerCashInstructionCouponCid] = result.instructionCids
+        let instrs = result.instructionCids
+        case instrs of
+          -- CASH-ONLY COUPON (single instruction)
+          [cashInstrCid] -> do
+            -- Allocate issuer cash pledge
+            (_, _) <- exercise cashInstrCid Instruction.Allocate with
+              actors = Set.singleton issuer
+              allocation = Pledge cashHoldingCid
 
-        -- Allocate instructions
-        (csdInstrumentInstructionCid, _) <- exercise csdInstrumentInstructionCid
-          Instruction.Allocate with
-            actors = Set.singleton csd; allocation = Pledge instrumentHoldingCid
-        (issuerCashInstructionCouponCid, _) <- exercise issuerCashInstructionCouponCid
-          Instruction.Allocate with
-            actors = Set.singleton issuer; allocation = Pledge cashHoldingCid
-        (issuerInstrumentInstructionCid, _) <- exercise issuerInstrumentInstructionCid
-          Instruction.Allocate with actors = Set.singleton issuer; allocation = CreditReceiver
+            -- Approve cash delivery to CSD
+            cashInstrCid <- exercise cashInstrCid Instruction.Approve with
+              actors = Set.singleton csd
+              approval = TakeDelivery csdCashAccount
 
-        -- Approve instructions
-        csdInstrumentInstructionCid <- exercise csdInstrumentInstructionCid
-          Instruction.Approve with
-            actors = Set.singleton issuer; approval = DebitSender
-        issuerCashInstructionCouponCid <- exercise issuerCashInstructionCouponCid
-          Instruction.Approve with
-            actors = Set.singleton csd; approval = TakeDelivery csdCashAccount
-        issuerInstrumentInstructionCid <- exercise issuerInstrumentInstructionCid
-          Instruction.Approve with
-            actors = Set.singleton csd; approval = TakeDelivery securitiesAccount
+            -- Settle both sides
+            [csdCashHoldingCouponCid] <-
+              exercise result.batchCid Batch.Settle with actors = Set.fromList [issuer, csd]
 
-        -- Settle batch
-        [newInstrumentHoldingCid, investorCashHoldingCouponCid] <-
-          exercise result.batchCid Batch.Settle with actors = Set.singleton csd
+            -- Create effect for investor leg (no new instrument holding here)
+            newEffectCid <- exercise effectCid Effect.SetProviders with newProviders = Set.singleton csd
+            pure (newEffectCid, None, [csdCashHoldingCouponCid])
 
-        -- 2. create effect to be used by investors
-        newEffectCid <- exercise effectCid Effect.SetProviders with newProviders = Set.singleton csd
+          -- DvP CASE (three instructions: two for security, one for cash)
+          [csdInstrCid, issuerInstrCid, issuerCashInstrCid] -> do
+            -- Allocate
+            (_, _) <- exercise csdInstrCid Instruction.Allocate with
+              actors = Set.singleton csd; allocation = Pledge instrumentHoldingCid
+            (_, _) <- exercise issuerInstrCid Instruction.Allocate with
+              actors = Set.singleton issuer; allocation = CreditReceiver
+            (_, _) <- exercise issuerCashInstrInstrCid Instruction.Allocate with
+              actors = Set.singleton issuer; allocation = Pledge cashHoldingCid
 
-        pure (newEffectCid, Some newInstrumentHoldingCid, [investorCashHoldingCouponCid])
+            -- Approve
+            csdInstrCid <- exercise csdInstrCid Instruction.Approve with
+              actors = Set.singleton issuer; approval = DebitSender
+            issuerInstrCid <- exercise issuerInstrCid Instruction.Approve with
+              actors = Set.singleton csd; approval = TakeDelivery securitiesAccount
+            issuerCashInstrInstrCid <- exercise issuerCashInstrInstrCid Instruction.Approve with
+              actors = Set.singleton csd; approval = TakeDelivery csdCashAccount
+
+            -- Settle both sides
+            [newInstrumentHoldingCid, csdCashHoldingCouponCid] <-
+              exercise result.batchCid Batch.Settle with actors = Set.fromList [issuer, csd]
+
+            newEffectCid <- exercise effectCid Effect.SetProviders with newProviders = Set.singleton csd
+            pure (newEffectCid, Some newInstrumentHoldingCid, [csdCashHoldingCouponCid])
+
+          -- Unexpected
+          _ ->
+            failWithStatus (GeneralError "Unexpected number of instruction CIDs in ClaimAndSettle (expected 1 for coupon or 3 for DvP).")
+
 
 -- | HIDE
 setupParties : Script TestParties
