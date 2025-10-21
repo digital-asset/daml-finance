@@ -38,7 +38,7 @@ let
     osJFrog = "${os}-${arch}";
     hashes = {
                 #base64 hashes from update-daml-hashes
-      linux = "fazJpigiTxcmTOeg46+lDlB9ixMcU+lQSnFldiyMOYs=";
+      linux = "z7OwjoxUUq0LB3ZGnGFlliAPn6H0WgNnLkI9/fwlhrg=";
       macos = "rlSb8UVwVq8UMklMDD+FLTD51gs3Kh2Td1T9UchbTj4=";
     };
   };
