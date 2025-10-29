@@ -4,21 +4,23 @@
 module Daml.Finance.Holding.V4.Transferable where
 
 import DA.Set (fromList, singleton)
+import DA.TextMap qualified as TextMap
 import Daml.Finance.Holding.V4.Util (transferImpl)
-import Daml.Finance.Interface.Holding.V4.Holding qualified as Holding (I, View(..))
 import Daml.Finance.Interface.Holding.V4.Transferable qualified as Transferable (I, View(..))
 import Daml.Finance.Interface.Types.Common.V3.Types (AccountKey(..), InstrumentKey(..), PartiesMap)
 import Daml.Finance.Interface.Types.Common.V3.Types qualified as HoldingStandard (HoldingStandard(..))
 import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
-import Daml.Finance.Interface.Util.V3.Lockable qualified as Lockable (I, Lock(..), View(..), getLockers)
+import Daml.Finance.Interface.Util.V3.LockableSplice qualified as Lockable (I, Lock(..), View(..), getLockers)
 import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
 import Daml.Finance.Util.V4.Lockable (acquireImpl, isValidLock, releaseImpl)
+import Splice.Api.Token.HoldingV1 qualified as SpliceHolding
+import Splice.Api.Token.MetadataV1 qualified as SpliceMetadata
 
 -- | Type synonym for `Transferable`.
 type T = Transferable
 
 -- | Implementation of a transferable holding.
--- `Transferable` implements the interface `Transferable.I` (which requires `Holding.I`,
+-- `Transferable` implements the interface `Transferable.I` (which requires `SpliceHolding.Holding`,
 -- `Lockable.I`, and Disclosure.I` to be implemented), but not the `Fungible.I`.
 template Transferable
   with
@@ -51,8 +53,22 @@ template Transferable
       acquire = acquireImpl this.lock (\lock -> this with lock)
       release = releaseImpl this.lock (\lock -> this with lock)
 
-    interface instance Holding.I for Transferable where
-      view = Holding.View with instrument; account; amount
+    interface instance SpliceHolding.Holding for Transferable where
+      view = SpliceHolding.HoldingView with
+        owner = account.owner
+        instrumentId = SpliceHolding.InstrumentId with
+          admin = instrument.issuer
+          id    = show instrument.id
+        amount = amount
+        lock   = None   
+        meta   = SpliceMetadata.Metadata with
+          values = TextMap.fromList
+            [ ("depository", partyToText instrument.depository)
+            , ("version", instrument.version)
+            , ("holdingStandard", show instrument.holdingStandard)
+            , ("custodian", partyToText account.custodian)
+            , ("accountId", show account.id)
+            ]
 
     interface instance Transferable.I for Transferable where
       view = Transferable.View {}

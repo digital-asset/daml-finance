@@ -4,14 +4,17 @@
 module Daml.Finance.Account.V4.Account where
 
 import DA.Set qualified as Set (fromList, null, singleton)
+import DA.TextMap qualified as TextMap
 import Daml.Finance.Interface.Account.V4.Account qualified as Account (Controllers(..), Credit(..), Debit(..), I, View(..), accountKey, createReference, disclosureUpdateReference)
 import Daml.Finance.Interface.Account.V4.Factory qualified as AccountFactory (Create(..), I, View(..))
 import Daml.Finance.Interface.Holding.V4.Factory qualified as HoldingFactory (Create(..), I, exerciseInterfaceByKey)
-import Daml.Finance.Interface.Types.Common.V3.Types (HoldingFactoryKey(..), Id, PartiesMap)
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingFactoryKey(..), Id(..), PartiesMap)
 import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (AddObservers(..), I, RemoveObservers(..), View(..), flattenObservers)
-import Daml.Finance.Interface.Util.V3.Lockable qualified as Lockable (Acquire(..), I, Lock, Release(..), View(..), getLockers, mustNotBeLocked)
+import Daml.Finance.Interface.Util.V3.LockableSplice qualified as Lockable (Acquire(..), I, Lock, Release(..), View(..), getLockers, mustNotBeLocked)
 import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
 import Daml.Finance.Util.V4.Lockable (acquireImpl, isValidLock, releaseImpl)
+import Splice.Api.Token.HoldingV1 qualified as SpliceHolding
+import Splice.Api.Token.MetadataV1 qualified as SpliceMetadata
 
 -- | Type synonym for `Account`.
 type T = Account
@@ -58,7 +61,8 @@ template Account
       debit Account.Debit{holdingCid} = do
         Lockable.mustNotBeLocked this
         holding <- fetch holdingCid
-        assertMsg "Accounts must match" $ (view holding).account == Account.accountKey this
+        assertMsg "Custodian must match holding owner" $
+          (view holding).owner == custodian   
         archive holdingCid
 
     interface instance Lockable.I for Account where
@@ -79,6 +83,17 @@ template Account
             Disclosure.RemoveObservers with
               disclosers = Set.fromList $ signatory this
               observersToRemove = (context, Lockable.getLockers this)
+    
+    interface instance SpliceHolding.Holding for Account where
+      view = SpliceHolding.HoldingView
+        with
+          owner = custodian
+          instrumentId = SpliceHolding.InstrumentId with
+            admin = custodian
+            id = case id of Id t -> t
+          amount = 0.0
+          lock = None
+          meta = SpliceMetadata.Metadata with values = TextMap.empty
 
     interface instance Disclosure.I for Account where
       view = Disclosure.View with disclosureControllers = Set.fromList [custodian, owner]; observers

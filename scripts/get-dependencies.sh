@@ -76,8 +76,14 @@ else
         if ( ls ${package_root_dir}/${package_name}/.daml/dist/${file_name} 1> /dev/null 2>&1 ); then
           mkdir -p ${project_lib_dir}/${repo_name}/${tag} && cp ${package_root_dir}/${package_name}/.daml/dist/${file_name} ${project_root_dir}/${dependency_path}
         else
-          echo -e "${red}ERROR: Unable to locally locate dependency ${file_name}. Ensure this dependency has been successfully built.${colour_off}"
-          exit 1
+          # fallback to global repo-level .lib folder
+          if [[ -a ${root_dir}/.lib/splice/${file_name} ]]; then
+            echo "Using global shared splice dependency at ${root_dir}/.lib/splice/${file_name}"
+            mkdir -p ${project_lib_dir}/splice && cp ${root_dir}/.lib/splice/${file_name} ${project_root_dir}/${dependency_path}
+          else
+            echo -e "${red}ERROR: Unable to locally locate dependency ${file_name}. Ensure this dependency has been successfully built.${colour_off}"
+            exit 1
+          fi
         fi
       fi
 

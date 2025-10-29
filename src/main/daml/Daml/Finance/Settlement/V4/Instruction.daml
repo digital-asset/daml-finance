@@ -8,16 +8,16 @@ import DA.Set (Set)
 import DA.Set qualified as Set (fromList, insert, intersection, isSubsetOf, null, singleton, toList, union)
 import Daml.Finance.Interface.Account.V4.Account qualified as Account (Credit(..), Debit(..), I, R, disclose, exerciseInterfaceByKey, undisclose)
 import Daml.Finance.Interface.Account.V4.Util (getAccount)
-import Daml.Finance.Interface.Holding.V4.Holding qualified as Holding (I)
 import Daml.Finance.Interface.Holding.V4.Transferable qualified as Transferable (I, Transfer(..))
-import Daml.Finance.Interface.Holding.V4.Util qualified as Holding (disclose, getAmount, getInstrument, undisclose)
+import Daml.Finance.Interface.Holding.V4.Util qualified as Holding (getAmount, getInstrument)
 import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (Allocate(..), Approve(..), Cancel(..), Execute(..), I, View(..))
 import Daml.Finance.Interface.Settlement.V4.Types (Allocation(..), Approval(..), InstructionKey(..), RoutedStep)
-import Daml.Finance.Interface.Types.Common.V3.Types (AccountKey, Id(..), Parties, PartiesMap)
+import Daml.Finance.Interface.Types.Common.V3.Types (AccountKey, Id(..), Parties, PartiesMap, Id(..))
 import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
 import Daml.Finance.Interface.Util.V3.InterfaceKey (fetchInterfaceByKey)
-import Daml.Finance.Interface.Util.V3.Lockable qualified as Lockable (Acquire(..), I, LockType(..), Release(..))
+import Daml.Finance.Interface.Util.V3.LockableSplice qualified as Lockable (Acquire(..), I, LockType(..), Release(..))
 import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+import Splice.Api.Token.HoldingV1 qualified as SpliceHolding
 
 -- | Type synonym for `Instruction`.
 type T = Instruction
@@ -92,8 +92,8 @@ template Instruction
               Holding.getAmount holding == routedStep.quantity.amount
             assertMsg ("Pledged instrument must match. " <> context this) $
               Holding.getInstrument holding == routedStep.quantity.unit
-            holdingCid <- fromInterfaceContractId @Holding.I <$>
-              exercise (toInterfaceContractId @Lockable.I holdingCid)
+            holdingCid <- toInterfaceContractId @SpliceHolding.Holding <$>
+              exercise (fromInterfaceContractId @Lockable.I holdingCid)
                 Lockable.Acquire with
                   newLockers = Set.singleton instructor <> senderAccount.controllers.outgoing
                   context = context this
@@ -182,8 +182,8 @@ template Instruction
             -- Pass-throughs are consumed by the routedStep (*) below
             abort $ "Holding has not been passed through. " <> context this
           (Pledge holdingCid, a) -> do
-            holdingCid <- fromInterfaceContractId @Holding.I <$>
-              exercise (toInterfaceContractId @Lockable.I holdingCid) Lockable.Release with
+            holdingCid <- toInterfaceContractId @SpliceHolding.Holding <$>
+              exercise (fromInterfaceContractId @Lockable.I holdingCid) Lockable.Release with
                 context = context this
             holding <- fetch holdingCid
             let senderAccountKey = getAccount holding
@@ -287,26 +287,35 @@ undiscloseAccount this@Instruction {settlers} accountKey actors =
     addSignatories this actors
 
 -- | HIDE
-disclosePledge : Instruction -> ContractId Holding.I -> Set Party -> Update (ContractId Holding.I)
-disclosePledge this@Instruction {settlers} holdingCid actors = Holding.disclose @Holding.I
-  (context this, settlers) (addSignatories this actors) holdingCid
+disclosePledge : Instruction -> ContractId SpliceHolding.Holding -> Set Party -> Update (ContractId SpliceHolding.Holding)
+disclosePledge this@Instruction {settlers} holdingCid actors = do
+  let
+    _context = context this
+    _authorizedActors = addSignatories this actors
+    _settlers = settlers
+  pure holdingCid
 
 -- | HIDE
-undisclosePledge : Instruction -> ContractId Holding.I -> Set Party ->
-  Update (Optional (ContractId Holding.I))
-undisclosePledge this@Instruction {settlers} holdingCid actors = Holding.undisclose @Holding.I
-  (context this, settlers) (addSignatories this actors) holdingCid
+undisclosePledge : Instruction -> ContractId SpliceHolding.Holding -> Set Party ->
+  Update (Optional (ContractId SpliceHolding.Holding))
+undisclosePledge this@Instruction {settlers} holdingCid actors = do
+  let
+    _context = context this
+    _authorizedActors = addSignatories this actors
+    _settlers = settlers
+  pure None
 
 -- | HIDE
-releasePreviousAllocation : Instruction -> Parties -> Update (Optional (ContractId Holding.I))
+releasePreviousAllocation : Instruction -> Parties -> Update (Optional (ContractId SpliceHolding.Holding))
 releasePreviousAllocation this@Instruction {allocation; signedSenders} actors = do
   let allMustAuthorize = mustAuthorizeHelper True actors
   -- signed senders must agree to release previous allocation
   allMustAuthorize signedSenders
   case allocation of
     Pledge holdingCid -> do
-      holdingCid <- fromInterfaceContractId @Holding.I <$>
-        exercise (toInterfaceContractId @Lockable.I holdingCid) Lockable.Release with
+      let lockableCid = fromInterfaceContractId @Lockable.I holdingCid
+      holdingCid <- toInterfaceContractId @SpliceHolding.Holding <$>
+        exercise lockableCid Lockable.Release with
           context = context this
       holding <- fetch holdingCid
       let senderAccountKey = getAccount holding

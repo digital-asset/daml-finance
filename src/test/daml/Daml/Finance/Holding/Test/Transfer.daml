@@ -11,7 +11,7 @@ import Daml.Finance.Holding.Test.Common (TestInitialState(..), TestParties(..), 
 import Daml.Finance.Holding.V4.Factory qualified as Holding (Factory(..))
 import Daml.Finance.Interface.Holding.V4.Transferable qualified as Transferable (I, Transfer(..))
 import Daml.Finance.Interface.Types.Common.V3.Types (AccountKey(..), HoldingStandard(..), Id(..))
-import Daml.Finance.Interface.Util.V3.Lockable qualified as Lockable (Acquire(..), GetView(..), I, LockType(..), Release(..))
+import Daml.Finance.Interface.Util.V3.LockableSplice qualified as Lockable (Acquire(..), GetView(..), I, LockType(..), Release(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..))
 import Daml.Script
 
@@ -32,7 +32,7 @@ testTransfer useReentrantLockTransferService = script do
 
   -- Lock asset (with 2 contexts)
   lockableCid <- submit (actAs [issuer, locker]) do
-    exerciseCmd (toInterfaceContractId @Lockable.I issuerHoldingCid) Lockable.Acquire with
+    exerciseCmd (fromInterfaceContractId @Lockable.I issuerHoldingCid) Lockable.Acquire with
       newLockers = Set.singleton locker; context = "C1"; lockType = Lockable.Reentrant
   lockableCid <- submit (actAs [issuer, locker]) do
     exerciseCmd lockableCid Lockable.Acquire with
@@ -119,11 +119,13 @@ template ReentrantLockTransferService
         transferableCid <- fromInterfaceContractId @Transferable.I <$>
           optional (pure lockableCid) (releaseAll lockableCid) vLockable.lock
         -- Transfer
-        newLockableCid <- toInterfaceContractId @Lockable.I <$>
-          exercise transferableCid
-            Transferable.Transfer with
-              actors = Set.fromList [sender, receiverAccount.owner]
-              newOwnerAccount = receiverAccount
+        newTransferableCid <- exercise transferableCid
+          Transferable.Transfer with
+            actors = Set.fromList [sender, receiverAccount.owner]
+            newOwnerAccount = receiverAccount
+
+        -- Safely convert
+        let newLockableCid = toInterfaceContractId @Lockable.I newTransferableCid
         -- Reapply locks
         let
           reapplyLocks cid lock =

@@ -9,7 +9,6 @@ import DA.Set qualified as Set (fromList, singleton)
 import DA.Time (time)
 import Daml.Finance.Holding.V4.Factory qualified as Holding (Factory(..))
 import Daml.Finance.Holding.V4.TransferableFungible qualified as TransferableFungible (T)
-import Daml.Finance.Interface.Holding.V4.Holding qualified as Holding (I)
 import Daml.Finance.Interface.Holding.V4.Util (undisclose)
 import Daml.Finance.Interface.Settlement.V4.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.V4.Factory qualified as SettlementFactory (I, Instruct(..))
@@ -28,6 +27,7 @@ import Daml.Finance.Test.Util.Holding qualified as Holding (verifyNoObservers, v
 import Daml.Finance.Test.Util.HoldingFactory (createHoldingFactory)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
 import Daml.Script
+import Splice.Api.Token.HoldingV1 qualified as SpliceHolding
 
 data TestParties = TestParties
   with
@@ -189,8 +189,8 @@ run useDelegatee = script do
           createCmd AllocationDelegation with delegator = buyer; delegatee
         -- disclose
         let observerContext = ("delegation123", Set.singleton delegatee)
-        buyerCashCid <- fromInterfaceContractId @Holding.I <$> submit buyer do
-          exerciseCmd (toInterfaceContractId @Disclosure.I buyerCashCid)
+        buyerCashCid : ContractId SpliceHolding.Holding <- coerceContractId <$> submit buyer do
+          exerciseCmd (coerceInterfaceContractId @Disclosure.I @SpliceHolding.Holding buyerCashCid)
             Disclosure.AddObservers with
               disclosers = Set.singleton buyer; observersToAdd = observerContext
         buyerInstructionCid <- fromInterfaceContractId @Instruction.I <$> submit buyer do
@@ -297,9 +297,9 @@ template AllocationDelegation
     signatory delegator
     observer delegatee
 
-    choice OnBehalfAllocation : (ContractId Instruction.I, Optional (ContractId Holding.I))
+    choice OnBehalfAllocation : (ContractId Instruction.I, Optional (ContractId SpliceHolding.Holding))
       with
-        holdingCid : ContractId Holding.I
+        holdingCid : ContractId SpliceHolding.Holding
           -- ^ The holding to allocate.
         instructionCid : ContractId Instruction.I
           -- ^ The instruction that needs allocation.
@@ -308,8 +308,9 @@ template AllocationDelegation
           --   undisclose themselves from a holding.
       controller delegatee
       do
-        Some cid <- fmap (fromInterfaceContractId @TransferableFungible.T) <$>
-          undisclose (id, Set.singleton delegatee) (Set.singleton delegator) holdingCid
+        undisclosedCid : Optional (ContractId Disclosure.I) <- undisclose (id, Set.singleton delegatee) (Set.singleton delegator) (coerceContractId holdingCid)
+        let (Some cid) = fmap (fromInterfaceContractId @TransferableFungible.T) undisclosedCid
+          
         fungible <- fetch cid
         exercise instructionCid Instruction.Allocate with
           actors = Set.singleton delegator; allocation = Pledge $ toInterfaceContractId cid
