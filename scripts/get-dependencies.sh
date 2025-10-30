@@ -43,9 +43,7 @@ else
       fi
       continue
     fi
-
-
-
+    
     # TODO: Adjust the regex to match the new major-version-in-path structure
     # isValidPath=`awk '{ match($0, /^.lib\/[a-zA-Z\-]*\/([a-zA-Z\.]*\/v?[0-9\.]*|v?[0-9\.]*)\/[a-zA-Z0-9\.\-]*\.dar$/); print RLENGTH }' <<< ${dependency_path}`
     # if [[ ${isValidPath} -eq -1 ]]; then
