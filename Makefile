@@ -10,7 +10,6 @@ install:
 
 .PHONY: build
 build: install
-	
 	dpm build
 
 .PHONY: test
