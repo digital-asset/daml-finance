@@ -24,6 +24,49 @@ else
   for dependency_path in "${dependencies[@]}"; do
 
     echo "Processing dependency ${dependency_path}"
+        # Handle local daml-ctl and Token Standard DARs explicitly
+    if [[ "${dependency_path}" == *"daml-ctl"* ]]; then
+      echo "Detected daml-ctl dependency; ensuring local DAR is available..."
+      mkdir -p ${project_root_dir}/.lib/daml-ctl/v3.99.0.20251029.0
+      if [ ! -f "${project_root_dir}/.lib/daml-ctl/v3.99.0.20251029.0/daml-ctl-3.99.0.20251029.0.dar" ]; then
+        if [ -f "${root_dir}/../daml-ctl/.daml/dist/daml-ctl-3.99.0.20251029.0.dar" ]; then
+          cp "${root_dir}/../daml-ctl/.daml/dist/daml-ctl-3.99.0.20251029.0.dar" \
+             "${project_root_dir}/.lib/daml-ctl/v3.99.0.20251029.0/"
+          echo "Copied local daml-ctl DAR"
+        else
+          echo -e "${red}ERROR: daml-ctl DAR not found. Please build it via 'dpm build' in ../daml-ctl${colour_off}"
+          exit 1
+        fi
+      else
+        echo "daml-ctl DAR already present"
+      fi
+      continue
+    fi
+
+    if [[ "${dependency_path}" == *"splice-api-token-"* ]]; then
+      echo "Detected Token Standard dependency; ensuring local DARs are available..."
+      mkdir -p ${project_root_dir}/.lib/splice
+      TOKEN_DAR=$(basename "${dependency_path}")
+
+      if [ ! -f "${project_root_dir}/.lib/splice/${TOKEN_DAR}" ]; then
+        # Try local Splice-node directory (preferred for dev)
+        if [ -f "${root_dir}/../splice-node/dars/${TOKEN_DAR}" ]; then
+          cp "${root_dir}/../splice-node/dars/${TOKEN_DAR}" "${project_root_dir}/.lib/splice/"
+          echo "✔ Copied ${TOKEN_DAR} from local splice-node/dars/"
+        # Otherwise, fetch automatically from GitHub release (v0.4.20)
+        else
+          echo "Fetching ${TOKEN_DAR} from Splice 0.4.20 GitHub release..."
+          curl -Lf "https://github.com/digital-asset/decentralized-canton-sync/releases/download/v0.4.20/${TOKEN_DAR}" \
+            -o "${project_root_dir}/.lib/splice/${TOKEN_DAR}"
+          echo "✔ Downloaded ${TOKEN_DAR}"
+        fi
+      else
+        echo "✔ ${TOKEN_DAR} already present"
+      fi
+      continue
+    fi
+
+
 
     # TODO: Adjust the regex to match the new major-version-in-path structure
     # isValidPath=`awk '{ match($0, /^.lib\/[a-zA-Z\-]*\/([a-zA-Z\.]*\/v?[0-9\.]*|v?[0-9\.]*)\/[a-zA-Z0-9\.\-]*\.dar$/); print RLENGTH }' <<< ${dependency_path}`
