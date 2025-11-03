@@ -12,10 +12,12 @@ import Daml.Finance.Interface.Holding.V4.Transferable qualified as Transferable 
 import Daml.Finance.Interface.Util.V3.HoldingSplice qualified as Holding (getAmount, getInstrument)
 import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (Allocate(..), Approve(..), Cancel(..), Execute(..), I, View(..))
 import Daml.Finance.Interface.Settlement.V4.Types (Allocation(..), Approval(..), InstructionKey(..), RoutedStep)
-import Daml.Finance.Interface.Types.Common.V3.Types (AccountKey, Id(..), Parties, PartiesMap, Id(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (AccountKey, Id(..), Parties, PartiesMap, InstrumentQuantity)
 import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
 import Daml.Finance.Interface.Util.V3.InterfaceKey (fetchInterfaceByKey)
 import Daml.Finance.Interface.Util.V3.LockableSplice qualified as Lockable (Acquire(..), I, LockType(..), Release(..))
+import Daml.Finance.Interface.Util.V3.Common qualified as Common (qty)
+import Daml.Finance.Settlement.V4.Conversion (toInstrumentKey)
 import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
 import Splice.Api.Token.HoldingV1 qualified as SpliceHolding
 
@@ -69,7 +71,7 @@ template Instruction
       view = Instruction.View with
         instructor; consenters; settlers; batchId; id; routedStep; settlementTime
         allocation; approval; signedSenders; signedReceivers
-      allocate Instruction.Allocate{actors; allocation} = do
+      allocate Allocate{actors; allocation} = do
         let
           allMustAuthorize = mustAuthorizeHelper True actors
           atLeastOneMustAuthorize = mustAuthorizeHelper False actors
@@ -81,7 +83,10 @@ template Instruction
           Pledge holdingCid -> do
             holdingCid <- disclosePledge this holdingCid actors
             holding <- fetch holdingCid
-            let senderAccountKey = getAccount holding
+            let holdingI = toInterface @SpliceHolding.Holding holding
+
+            -- Sender account (linked to the investor, not custodian)
+            let senderAccountKey = getAccount holdingI
             senderAccount <- view <$>
               fetchInterfaceByKey @Account.R @Account.I senderAccountKey
             discloseAccount this senderAccountKey actors
@@ -89,9 +94,11 @@ template Instruction
             mustBe this Custodian senderAccount.custodian
             mustBe this Sender senderAccount.owner
             assertMsg ("Pledged amount must match. " <> context this) $
-              Holding.getAmount holding == routedStep.quantity.amount
+              Holding.getAmount holdingI == routedStep.quantity.amount
+
             assertMsg ("Pledged instrument must match. " <> context this) $
-              Holding.getInstrument holding == routedStep.quantity.unit
+              Holding.getInstrument holdingI == toInstrumentKey instructor routedStep.quantity.unit
+
             holdingCid <- toInterfaceContractId @SpliceHolding.Holding <$>
               exercise (fromInterfaceContractId @Lockable.I holdingCid)
                 Lockable.Acquire with
@@ -99,6 +106,8 @@ template Instruction
                   context = context this
                   lockType = Lockable.Semaphore
             pure $ Pledge holdingCid
+
+
           PassThroughFrom (passThroughAccountKey, fromInstructionKey) -> do
             discloseAccount this passThroughAccountKey actors
             passThroughAccount <- view <$>
@@ -125,7 +134,7 @@ template Instruction
           allocation = newAllocation
           signedSenders = if newAllocation == Unallocated then mempty else actors
         pure (newInstructionCid, releasedCid)
-      approve Instruction.Approve{actors; approval} = do
+      approve Approve{actors; approval} = do
         let
           allMustAuthorize = mustAuthorizeHelper True actors
           atLeastOneMustAuthorize = mustAuthorizeHelper False actors
@@ -163,7 +172,7 @@ template Instruction
         toInterfaceContractId <$> create this with
           approval
           signedReceivers = if approval == Unapproved then mempty else actors
-      execute Instruction.Execute{actors} = do
+      execute Execute{actors} = do
         let allMustAuthorize = mustAuthorizeHelper True actors
         allMustAuthorize $ Set.insert instructor consenters
         assertMsg ("Actors must intersect with settlers. " <> context this) $
@@ -186,7 +195,8 @@ template Instruction
               exercise (fromInterfaceContractId @Lockable.I holdingCid) Lockable.Release with
                 context = context this
             holding <- fetch holdingCid
-            let senderAccountKey = getAccount holding
+            let holdingI = toInterface @SpliceHolding.Holding holding
+            let senderAccountKey = getAccount holdingI
             case a of
               TakeDelivery receiverAccountKey -> do
                 let transferableCid = fromInterfaceContractId @Transferable.I holdingCid
@@ -218,7 +228,7 @@ template Instruction
                 -- (*) in case of a pass-through, the newly created holding is immediately allocated
                 -- to the next routedStep
                 exercise (toInterfaceContractId @Instruction.I toInstructionCid)
-                  Instruction.Allocate with
+                  Allocate with
                     actors = signedSenders <> signedReceivers; allocation = Pledge holdingCid
                 undiscloseAccount this senderAccountKey actors
                 undiscloseAccount this passThroughAccountKey actors
@@ -229,10 +239,11 @@ template Instruction
             case a of
               TakeDelivery receiverAccountKey -> do
                 mustBe this Custodian routedStep.sender
+                let legacyQty : InstrumentQuantity = Common.qty routedStep.quantity.amount (toInstrumentKey instructor routedStep.quantity.unit)
                 holdingCid <- Account.exerciseInterfaceByKey @Account.I
                   receiverAccountKey
                   routedStep.custodian
-                  Account.Credit with quantity = routedStep.quantity
+                  Account.Credit with quantity = legacyQty
                 undiscloseAccount this receiverAccountKey actors
                 -- disclose to actors (such that they can get the TemplateTypeRep in the Batch)
                 Some <$> disclosePledge this holdingCid actors
@@ -248,7 +259,7 @@ template Instruction
             case a of
               SettleOffledgerAcknowledge -> pure None
               _ -> abortOnOffledgerMix
-      cancel Instruction.Cancel{actors} = do
+      cancel Cancel{actors} = do
         let allMustAuthorize = mustAuthorizeHelper True actors
         allMustAuthorize $ Set.insert instructor consenters
         releasePreviousApproval this actors
@@ -318,7 +329,8 @@ releasePreviousAllocation this@Instruction {allocation; signedSenders} actors = 
         exercise lockableCid Lockable.Release with
           context = context this
       holding <- fetch holdingCid
-      let senderAccountKey = getAccount holding
+      let holdingI = toInterface @SpliceHolding.Holding holding 
+      let senderAccountKey = getAccount holdingI
       undiscloseAccount this senderAccountKey actors
       undisclosePledge this holdingCid actors
     PassThroughFrom (passThroughAccountKey, _) -> do

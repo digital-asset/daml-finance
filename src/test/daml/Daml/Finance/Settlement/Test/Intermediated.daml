@@ -14,10 +14,10 @@ import Daml.Finance.Interface.Settlement.V4.Batch qualified as Batch (Settle(..)
 import Daml.Finance.Interface.Settlement.V4.Factory qualified as SettlementFactory (I, Instruct(..))
 import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (Allocate(..), Approve(..), I)
 import Daml.Finance.Interface.Settlement.V4.RouteProvider qualified as RouteProvider (Discover(..), I)
-import Daml.Finance.Interface.Settlement.V4.Types (Allocation(..), Approval(..), Step(..))
+import Daml.Finance.Interface.Settlement.V4.Types qualified as SettlementTypes (Allocation(..), Approval(..), Step(..), Quantity(..))
 import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..))
-import Daml.Finance.Interface.Util.V3.Common (qty)
 import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (AddObservers(..), I, RemoveObservers(..))
+import Daml.Finance.Settlement.V4.Conversion (fromInstrumentKey)
 import Daml.Finance.Settlement.V4.Factory qualified as Settlement (Factory(..))
 import Daml.Finance.Settlement.V4.Hierarchy (Hierarchy(..))
 import Daml.Finance.Settlement.V4.RouteProvider.IntermediatedStatic (IntermediatedStatic(..))
@@ -143,13 +143,23 @@ run useDelegatee = script do
 
   -- Settlement steps
   let
-    cashQuantity = qty 200_000.0 cashInstrument
-    assetQuantity = qty 1_250.0 assetInstrument
+    cashQuantity = 
+      SettlementTypes.Quantity
+        with unit = fromInstrumentKey cashInstrument; amount = 200_000.0
+    assetQuantity = 
+      SettlementTypes.Quantity
+        with unit = fromInstrumentKey assetInstrument; amount = 1_250.0 
     steps =
-      [ -- Payment step
-        Step with sender = buyer; receiver = seller; quantity = cashQuantity
+       -- Payment step
+      [SettlementTypes.Step with
+          sender = buyer
+          receiver = seller
+          quantity = cashQuantity
         -- Delivery step
-      , Step with sender = seller; receiver = buyer; quantity = assetQuantity
+      , SettlementTypes.Step with 
+          sender = seller
+          receiver = buyer
+          quantity = assetQuantity
       ]
     settlementTime = time (addDays (toDateUTC now) 1) 0 0 0
 
@@ -212,56 +222,56 @@ run useDelegatee = script do
     else
       submit buyer do
         exerciseCmd buyerInstructionCid Instruction.Allocate with
-          actors = Set.singleton buyer; allocation = Pledge buyerCashCid
+          actors = Set.singleton buyer; allocation = SettlementTypes.Pledge buyerCashCid
   buyerInstructionCid <- submit bank1 do
     exerciseCmd buyerInstructionCid Instruction.Approve with
-      actors = Set.singleton bank1; approval = DebitSender
+      actors = Set.singleton bank1; approval = SettlementTypes.DebitSender
   bank2InstructionCid <- submit seller do
     exerciseCmd bank2InstructionCid Instruction.Approve with
-      actors = Set.singleton seller; approval = TakeDelivery sellerCashAccount
+      actors = Set.singleton seller; approval = SettlementTypes.TakeDelivery sellerCashAccount
   (bank2InstructionCid, _) <- submit bank2 do
     exerciseCmd bank2InstructionCid Instruction.Allocate with
-      actors = Set.singleton bank2; allocation = CreditReceiver
+      actors = Set.singleton bank2; allocation = SettlementTypes.CreditReceiver
   (bank1InstructionCid, _) <- submit (actAs [bank1, cb]) do
     exerciseCmd bank1InstructionCid Instruction.Allocate with
-      actors = Set.fromList [bank1, cb]; allocation = SettleOffledger
+      actors = Set.fromList [bank1, cb]; allocation = SettlementTypes.SettleOffledger
   bank1InstructionCid <- submit (actAs [bank2, cb]) do
     exerciseCmd bank1InstructionCid Instruction.Approve with
-      actors = Set.fromList [bank2, cb]; approval = SettleOffledgerAcknowledge
+      actors = Set.fromList [bank2, cb]; approval = SettlementTypes.SettleOffledgerAcknowledge
   (sellerInstructionCid, _) <- submit seller do
     exerciseCmd sellerInstructionCid Instruction.Allocate with
-      actors = Set.singleton seller; allocation = Pledge sellerAssetCid
+      actors = Set.singleton seller; allocation = SettlementTypes.Pledge sellerAssetCid
   sellerInstructionCid <- submit custodian1 do
     exerciseCmd sellerInstructionCid Instruction.Approve with
-      actors = Set.singleton custodian1; approval = DebitSender
+      actors = Set.singleton custodian1; approval = SettlementTypes.DebitSender
   (custodian1InstructionCid, _) <- submit custodian1 do
     exerciseCmd custodian1InstructionCid Instruction.Allocate with
-      actors = Set.singleton custodian1; allocation = Pledge custodian1AssetCid
+      actors = Set.singleton custodian1; allocation = SettlementTypes.Pledge custodian1AssetCid
   custodian1InstructionCid <- submit custodian2 do
      exerciseCmd custodian1InstructionCid Instruction.Approve with
-      actors = Set.singleton custodian2; approval = TakeDelivery custodian2DepoAccount
+      actors = Set.singleton custodian2; approval = SettlementTypes.TakeDelivery custodian2DepoAccount
   -- Can't settle batch before all `Instruction`s have been allocated and approved
   submitMustFail (actAs [agent] <> readAs [publicParty]) do
     exerciseCmd batchCid Batch.Settle with
       actors = Set.singleton agent
   (custodian2InstructionCid, _) <- submit custodian2 do
     exerciseCmd custodian2InstructionCid Instruction.Allocate with
-      actors = Set.singleton custodian2; allocation = CreditReceiver
+      actors = Set.singleton custodian2; allocation = SettlementTypes.CreditReceiver
   -- Buyer and Custodian2 approves instruction with an incompatible approval
   custodian2InstructionCid <- submit (actAs [buyer, custodian2]) do
     exerciseCmd custodian2InstructionCid Instruction.Approve with
-      actors = Set.fromList [buyer, custodian2]; approval = SettleOffledgerAcknowledge
+      actors = Set.fromList [buyer, custodian2]; approval = SettlementTypes.SettleOffledgerAcknowledge
   -- Settlement of batch must fail due to the incompatible approval
   submitMustFail (actAs [agent] <> readAs [publicParty]) do
     exerciseCmd batchCid Batch.Settle with actors = Set.singleton agent
   -- Buyer and Custodian2 unapproves the instruction
   custodian2InstructionCid <- submit (actAs [buyer, custodian2]) do
     exerciseCmd custodian2InstructionCid Instruction.Approve with
-      actors = Set.fromList [buyer, custodian2]; approval = Unapproved
+      actors = Set.fromList [buyer, custodian2]; approval = SettlementTypes.Unapproved
   -- Buyer approves her instruction with a compatible approval
   custodian2InstructionCid <- submit buyer do
     exerciseCmd custodian2InstructionCid Instruction.Approve with
-      actors = Set.singleton buyer; approval = TakeDelivery buyerDepoAccount
+      actors = Set.singleton buyer; approval = SettlementTypes.TakeDelivery buyerDepoAccount
 
   -- Set time
   --setTime settlementTime
@@ -313,4 +323,4 @@ template AllocationDelegation
           
         fungible <- fetch cid
         exercise instructionCid Instruction.Allocate with
-          actors = Set.singleton delegator; allocation = Pledge $ toInterfaceContractId cid
+          actors = Set.singleton delegator; allocation = SettlementTypes.Pledge $ toInterfaceContractId cid

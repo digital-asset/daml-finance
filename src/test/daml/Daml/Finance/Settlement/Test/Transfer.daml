@@ -16,10 +16,10 @@ import Daml.Finance.Interface.Settlement.V4.Batch qualified as Batch (Settle(..)
 import Daml.Finance.Interface.Settlement.V4.Factory qualified as SettlementFactory (I, Instruct(..))
 import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (Allocate(..), Approve(..), I)
 import Daml.Finance.Interface.Settlement.V4.RouteProvider qualified as RouteProvider (Discover(..), I)
-import Daml.Finance.Interface.Settlement.V4.Types (Allocation(..), Approval(..), InstructionKey(..), Step(..))
+import Daml.Finance.Interface.Settlement.V4.Types qualified as SettlementTypes (Allocation(..), Approval(..), Step(..), Quantity(..), InstructionKey(..))
 import Daml.Finance.Interface.Types.Common.V3.Types (AccountKey(..), HoldingStandard(..), Id(..))
-import Daml.Finance.Interface.Util.V3.Common (qty)
 import Daml.Finance.Interface.Util.V3.LockableSplice qualified as Lockable (I)
+import Daml.Finance.Settlement.V4.Conversion (fromInstrumentKey)
 import Daml.Finance.Settlement.V4.Factory qualified as Settlement (Factory(..))
 import Daml.Finance.Settlement.V4.Instruction qualified as Instruction (T)
 import Daml.Finance.Settlement.V4.RouteProvider.SingleCustodian (SingleCustodian(..))
@@ -85,7 +85,16 @@ run = script do
     submit bank do createCmd Settlement.Factory with provider = bank; observers = mempty
 
   -- Settlement step
-  let step = Step with sender; receiver; quantity = qty 200_000.0 cashInstrument
+  let
+    step =
+      SettlementTypes.Step with
+          sender   = sender
+          receiver = receiver
+          quantity = SettlementTypes.Quantity
+            with
+              unit   = fromInstrumentKey cashInstrument
+              amount = 200_000.0
+      
 
   -- Discover settlement route for the step
   routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit bank do
@@ -106,14 +115,17 @@ run = script do
       routedSteps
       settlementTime = None
 
+  debug $ "Before Allocation Instruction" 
   -- Allocate instruction
   (cashInstructionCid, _) <- submit sender do
     exerciseCmd cashInstructionCid Instruction.Allocate with
-      actors = Set.singleton sender; allocation = Pledge holdingCid
+      actors = Set.singleton sender; allocation = SettlementTypes.Pledge holdingCid
+
+  debug $ "After Allocation Instruction"
 
   -- Holding is locked
   Some cashInstruction <- queryInterfaceContractId sender cashInstructionCid
-  let Pledge holdingCid = cashInstruction.allocation
+  let SettlementTypes.Pledge holdingCid = cashInstruction.allocation
   Some lockable <- queryInterfaceContractId sender (fromInterfaceContractId @Lockable.I holdingCid)
   assertMsg "holding is locked" $ isSome lockable.lock
 
@@ -125,7 +137,7 @@ run = script do
   -- Cancel allocation
   (cashInstructionCid, Some holdingCid) <- submit sender do
     exerciseCmd cashInstructionCid Instruction.Allocate with
-      actors = Set.singleton sender; allocation = Unallocated
+      actors = Set.singleton sender; allocation = SettlementTypes.Unallocated
 
   -- Holding is not locked
   Some lockable <- queryInterfaceContractId sender (fromInterfaceContractId @Lockable.I holdingCid)
@@ -134,12 +146,12 @@ run = script do
   -- Allocate instruction
   (cashInstructionCid, _) <- submit sender do
     exerciseCmd cashInstructionCid Instruction.Allocate with
-      actors = Set.singleton sender; allocation = Pledge holdingCid
+      actors = Set.singleton sender; allocation = SettlementTypes.Pledge holdingCid
 
   -- Approve instruction
   cashInstructionCid <- submit receiver do
     exerciseCmd cashInstructionCid Instruction.Approve with
-      actors = Set.singleton receiver; approval = TakeDelivery receiverAccount
+      actors = Set.singleton receiver; approval = SettlementTypes.TakeDelivery receiverAccount
 
   -- Settle batch
   [cashHoldingCid] <- submit (actAs [bank] <> readAs [publicParty]) do
@@ -197,10 +209,24 @@ run2 = script do
     id1 = Id "transfer 1"
     id2 = Id "transfer 2"
     id3 = Id "transfer 3"
-    first = Step with sender; receiver; quantity = qty 100_000.0 cashInstrument
-    second = Step with sender; receiver; quantity = qty 200_000.0 cashInstrument
-    third = Step with sender; receiver; quantity = qty 300_000.0 cashInstrument
-
+    first = 
+      SettlementTypes.Step with
+          sender = sender
+          receiver = receiver
+          quantity = SettlementTypes.Quantity
+            with unit = fromInstrumentKey cashInstrument; amount = 100_000.0
+    second = 
+      SettlementTypes.Step with
+          sender = sender
+          receiver = receiver
+          quantity = SettlementTypes.Quantity
+            with unit = fromInstrumentKey cashInstrument; amount = 200_000.0
+    third = 
+      SettlementTypes.Step with
+          sender = sender
+          receiver = receiver
+          quantity = SettlementTypes.Quantity
+            with unit = fromInstrumentKey cashInstrument; amount = 300_000.0
   -- Discover settlement routes
   routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit bank do
     createCmd SingleCustodian with provider = bank; observers = mempty; custodian = bank
@@ -283,25 +309,25 @@ run2 = script do
   -- first
   (cashInstructionCid1, _) <- submit sender do
     exerciseCmd cashInstructionCid1 Instruction.Allocate with
-      actors = Set.singleton sender; allocation = Pledge holdingCid1
+      actors = Set.singleton sender; allocation = SettlementTypes.Pledge holdingCid1
   verifyAccountDisclosureContexts senderAccount [cashInstructionCid1]
   (cashInstructionCid1, Some holdingCid1) <- submit sender do
     exerciseCmd cashInstructionCid1 Instruction.Allocate with
-      actors = Set.singleton sender; allocation = Unallocated
+      actors = Set.singleton sender; allocation = SettlementTypes.Unallocated
   verifyAccountDisclosureContexts senderAccount []
   (cashInstructionCid1, _) <- submit sender do
     exerciseCmd cashInstructionCid1 Instruction.Allocate with
-      actors = Set.singleton sender; allocation = Pledge holdingCid1
+      actors = Set.singleton sender; allocation = SettlementTypes.Pledge holdingCid1
   verifyAccountDisclosureContexts senderAccount [cashInstructionCid1]
   -- second
   (cashInstructionCid2, _) <- submit sender do
     exerciseCmd cashInstructionCid2 Instruction.Allocate with
-      actors = Set.singleton sender; allocation = Pledge holdingCid2
+      actors = Set.singleton sender; allocation = SettlementTypes.Pledge holdingCid2
   verifyAccountDisclosureContexts senderAccount [cashInstructionCid1, cashInstructionCid2]
   -- third
   (cashInstructionCid3, _) <- submit sender do
     exerciseCmd cashInstructionCid3 Instruction.Allocate with
-      actors = Set.singleton sender; allocation = Pledge holdingCid3
+      actors = Set.singleton sender; allocation = SettlementTypes.Pledge holdingCid3
   verifyAccountDisclosureContexts senderAccount [cashInstructionCid1, cashInstructionCid2,
     cashInstructionCid3]
 
@@ -309,17 +335,17 @@ run2 = script do
   -- third
   cashInstructionCid3 <- submit receiver do
     exerciseCmd cashInstructionCid3 Instruction.Approve with
-      actors = Set.singleton receiver; approval = TakeDelivery receiverAccount
+      actors = Set.singleton receiver; approval = SettlementTypes.TakeDelivery receiverAccount
   verifyAccountDisclosureContexts receiverAccount [cashInstructionCid3]
   -- first
   cashInstructionCid1 <- submit receiver do
     exerciseCmd cashInstructionCid1 Instruction.Approve with
-      actors = Set.singleton receiver; approval = TakeDelivery receiverAccount
+      actors = Set.singleton receiver; approval = SettlementTypes.TakeDelivery receiverAccount
   verifyAccountDisclosureContexts receiverAccount [cashInstructionCid1, cashInstructionCid3]
   -- second
   cashInstructionCid2 <- submit receiver do
     exerciseCmd cashInstructionCid2 Instruction.Approve with
-      actors = Set.singleton receiver; approval = TakeDelivery receiverAccount
+      actors = Set.singleton receiver; approval = SettlementTypes.TakeDelivery receiverAccount
   verifyAccountDisclosureContexts receiverAccount [cashInstructionCid1, cashInstructionCid2,
     cashInstructionCid3]
 
@@ -383,7 +409,17 @@ run3 = script do
     createCmd Settlement.Factory with provider = bank; observers = Set.singleton publicParty
 
   -- Discover settlement
-  let step = Step with sender; receiver; quantity = qty 200_000.0 cashInstrument
+  let
+    step =
+      SettlementTypes.Step with
+        sender   = sender
+        receiver = receiver
+        quantity = SettlementTypes.Quantity
+          with
+            unit   = fromInstrumentKey cashInstrument
+            amount = 200_000.0
+
+
   routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit bank do
     createCmd SingleCustodian with provider = bank; observers = mempty; custodian = bank
   routedSteps <- submit bank do
@@ -405,12 +441,12 @@ run3 = script do
   -- Allocate instruction
   (cashInstructionCid, _) <- submit sender do
     exerciseCmd cashInstructionCid Instruction.Allocate with
-      actors = Set.singleton sender; allocation = Pledge holdingCid
+      actors = Set.singleton sender; allocation = SettlementTypes.Pledge holdingCid
 
   -- Approve instruction
   cashInstructionCid <- submit receiver do
     exerciseCmd cashInstructionCid Instruction.Approve with
-      actors = Set.singleton receiver; approval = TakeDelivery receiverAccount
+      actors = Set.singleton receiver; approval = SettlementTypes.TakeDelivery receiverAccount
 
   -- Settle batch
   -- either sender, receiver or both can settle
@@ -462,8 +498,22 @@ run4 = script do
 
   -- Settlement steps
   let
-    step1 = Step with sender; receiver; quantity = qty 200_000.0 cashInstrument1
-    step2 = Step with sender; receiver; quantity = qty 100_000.0 cashInstrument1
+    step1 =
+      SettlementTypes.Step with
+        sender   = sender
+        receiver = receiver
+        quantity = SettlementTypes.Quantity
+          with
+            unit   = fromInstrumentKey cashInstrument1
+            amount = 200_000.0
+    step2 =
+      SettlementTypes.Step with
+        sender   = sender
+        receiver = receiver
+        quantity = SettlementTypes.Quantity
+          with
+            unit   = fromInstrumentKey cashInstrument1
+            amount = 100_000.0
 
   -- Discover settlement routes
   routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit bank do
@@ -487,18 +537,18 @@ run4 = script do
   -- Allocate instruction
   (cashInstructionCid1, _) <- submit sender do
     exerciseCmd cashInstructionCid1 Instruction.Allocate with
-      actors = Set.singleton sender; allocation = Pledge holdingCid1
+      actors = Set.singleton sender; allocation = SettlementTypes.Pledge holdingCid1
   (cashInstructionCid2, _) <- submit sender do
     exerciseCmd cashInstructionCid2 Instruction.Allocate with
-      actors = Set.singleton sender; allocation = Pledge holdingCid2
+      actors = Set.singleton sender; allocation = SettlementTypes.Pledge holdingCid2
 
   -- Approve instruction
   cashInstructionCid1 <- submit receiver do
     exerciseCmd cashInstructionCid1 Instruction.Approve with
-      actors = Set.singleton receiver; approval = TakeDelivery receiverAccount
+      actors = Set.singleton receiver; approval = SettlementTypes.TakeDelivery receiverAccount
   cashInstructionCid2 <- submit receiver do
     exerciseCmd cashInstructionCid2 Instruction.Approve with
-      actors = Set.singleton receiver; approval = TakeDelivery receiverAccount
+      actors = Set.singleton receiver; approval = SettlementTypes.TakeDelivery receiverAccount
 
   -- Settle batch
   -- either sender, receiver or both can settle
@@ -549,8 +599,22 @@ run5 = script do
 
   -- Settlement steps
   let
-    step1 = Step with sender; receiver = ccp; quantity = qty 200_000.0 cashInstrument
-    step2 = Step with sender = ccp; receiver; quantity = qty 200_000.0 cashInstrument
+    step1 =
+      SettlementTypes.Step with
+        sender   = sender
+        receiver = ccp
+        quantity = SettlementTypes.Quantity
+          with
+            unit   = fromInstrumentKey cashInstrument
+            amount = 200_000.0
+    step2 =
+      SettlementTypes.Step with
+        sender   = ccp
+        receiver = receiver
+        quantity = SettlementTypes.Quantity
+          with
+            unit   = fromInstrumentKey cashInstrument
+            amount = 200_000.0
 
   -- Discover settlement routes
   routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit bank do
@@ -577,26 +641,39 @@ run5 = script do
   instructionCid2 <- submit receiver do
     exerciseCmd instructionCid2 Instruction.Approve with
       actors = Set.singleton receiver
-      approval = TakeDelivery receiverAccount
+      approval = SettlementTypes.TakeDelivery receiverAccount
 
   -- Approve with passthrough
   instructionCid1 <- submit ccp do
     exerciseCmd instructionCid1 Instruction.Approve with
       actors = Set.singleton ccp
-      approval = PassThroughTo
-        (ccpAccount, InstructionKey with instructor = bank; batchId = Id "transfer 1"; id = Id "0")
+      approval = SettlementTypes.PassThroughTo
+        (ccpAccount
+        , SettlementTypes.InstructionKey
+          with
+            instructor = bank
+            batchId = Id "transfer 1"
+            id = Id "0"
+        )
+
   -- Allocate with passthrough
   instructionCid2 <- submit ccp do
     exerciseCmd instructionCid2 Instruction.Allocate with
       actors = Set.singleton ccp
-      allocation = PassThroughFrom
-        (ccpAccount, InstructionKey with instructor = bank; batchId = Id "transfer 1"; id = Id "1")
+      allocation = SettlementTypes.PassThroughFrom
+        (ccpAccount
+        , SettlementTypes.InstructionKey
+          with
+            instructor = bank
+            batchId = Id "transfer 1"
+            id = Id "1"
+        )
 
   -- Allocate instruction
   (instructionCid1, _) <- submit sender do
     exerciseCmd instructionCid1 Instruction.Allocate with
       actors = Set.singleton sender
-      allocation = Pledge holdingCid
+      allocation = SettlementTypes.Pledge holdingCid
 
   -- Settle batch
   [cashHoldingCid] <- submit (actAs [settler] <> readAs [publicParty]) do

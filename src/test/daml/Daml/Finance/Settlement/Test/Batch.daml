@@ -10,9 +10,9 @@ import Daml.Finance.Interface.Settlement.V4.Batch qualified as Batch (Cancel(..)
 import Daml.Finance.Interface.Settlement.V4.Factory qualified as SettlementFactory (I, Instruct(..))
 import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (Allocate(..), Approve(..), Execute(..))
 import Daml.Finance.Interface.Settlement.V4.RouteProvider qualified as RouteProvider (Discover(..), I)
-import Daml.Finance.Interface.Settlement.V4.Types (Allocation(..), Approval(..), Step(..))
+import Daml.Finance.Interface.Settlement.V4.Types qualified as SettlementTypes (Allocation(..), Approval(..), Step(..), Quantity(..))
 import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..))
-import Daml.Finance.Interface.Util.V3.Common (qty)
+import Daml.Finance.Settlement.V4.Conversion (fromInstrumentKey)
 import Daml.Finance.Settlement.V4.Factory (Factory(..))
 import Daml.Finance.Settlement.V4.RouteProvider.SingleCustodian (SingleCustodian(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), createAccount, createFactory, credit)
@@ -88,8 +88,16 @@ run settleCashOnledger bankIsInstructor = script do
   -- Settlement steps
   let
     steps =
-      [ Step with sender = seller; receiver = buyer; quantity = qty 1_000.0 equityInstrument
-      , Step with sender = buyer; receiver = seller; quantity = qty 200_000.0 cashInstrument
+      [SettlementTypes.Step with
+          sender = seller
+          receiver = buyer
+          quantity = SettlementTypes.Quantity
+            with unit = fromInstrumentKey equityInstrument; amount = 1_000.0
+      , SettlementTypes.Step with
+          sender = buyer
+          receiver = seller
+          quantity = SettlementTypes.Quantity
+            with unit = fromInstrumentKey cashInstrument; amount = 200_000.0
       ]
 
   -- Discover settlement routes
@@ -135,10 +143,12 @@ run settleCashOnledger bankIsInstructor = script do
   -- Allocate and approve equity instruction
   (equityInstructionCid, _) <- submit seller do
     exerciseCmd equityInstructionCid Instruction.Allocate with
-      actors = Set.singleton seller; allocation = Pledge equityHoldingCid
+      actors = Set.singleton seller
+      allocation = SettlementTypes.Pledge equityHoldingCid
   equityInstructionCid <- submit buyer do
     exerciseCmd equityInstructionCid Instruction.Approve with
-      actors = Set.singleton buyer; approval = TakeDelivery buyerCustodyAccount
+      actors = Set.singleton buyer
+      approval = SettlementTypes.TakeDelivery buyerCustodyAccount
 
   -- Allocate and approve cash instruction
   cashInstructionCid <- if settleCashOnledger
@@ -148,19 +158,19 @@ run settleCashOnledger bankIsInstructor = script do
         cashHoldingCid <- Account.credit [publicParty] cashInstrument 200_000.0 buyerCashAccount
         (cashInstructionCid, _) <- submit buyer do
           exerciseCmd cashInstructionCid Instruction.Allocate with
-            actors = Set.singleton buyer; allocation = Pledge cashHoldingCid
+            actors = Set.singleton buyer; allocation = SettlementTypes.Pledge cashHoldingCid
         submit seller do
           exerciseCmd cashInstructionCid Instruction.Approve with
-            actors = Set.singleton seller; approval = TakeDelivery sellerCashAccount
+            actors = Set.singleton seller; approval = SettlementTypes.TakeDelivery sellerCashAccount
     else
       do
         -- Settle by off ledger transfer
         (cashInstructionCid, _) <- submit (actAs [buyer, bank]) do
           exerciseCmd cashInstructionCid Instruction.Allocate with
-            actors = Set.fromList [buyer, bank]; allocation = SettleOffledger
+            actors = Set.fromList [buyer, bank]; allocation = SettlementTypes.SettleOffledger
         submit (actAs [seller, bank]) do
           exerciseCmd cashInstructionCid Instruction.Approve with
-            actors = Set.fromList [seller, bank]; approval = SettleOffledgerAcknowledge
+            actors = Set.fromList [seller, bank]; approval = SettlementTypes.SettleOffledgerAcknowledge
 
   -- Settle batch
   -- neither the bank, nor seller, nor buyer can execute an instruction
