@@ -17,7 +17,7 @@ import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, Vie
 import Daml.Finance.Interface.Util.V3.InterfaceKey (fetchInterfaceByKey)
 import Daml.Finance.Interface.Util.V3.LockableSplice qualified as Lockable (Acquire(..), I, LockType(..), Release(..))
 import Daml.Finance.Interface.Util.V3.Common qualified as Common (qty)
-import Daml.Finance.Settlement.V4.Conversion (toInstrumentKey)
+import Daml.Finance.Settlement.V4.Conversion (toInstrumentKey, fromInstrumentKey)
 import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
 import Splice.Api.Token.HoldingV1 qualified as SpliceHolding
 
@@ -96,8 +96,12 @@ template Instruction
             assertMsg ("Pledged amount must match. " <> context this) $
               Holding.getAmount holdingI == routedStep.quantity.amount
 
-            assertMsg ("Pledged instrument must match. " <> context this) $
-              Holding.getInstrument holdingI == toInstrumentKey instructor routedStep.quantity.unit
+            --VERSION 2 !! --> COMPARE TWO INSTRUMENT IDs instead of InstrumentKey
+            let pledgedKey = Holding.getInstrument holdingI
+            let pledgedId = fromInstrumentKey pledgedKey
+
+            assertMsg ("Pledged instrument must match by InstrumentId. " <> context this) $
+              pledgedId == routedStep.quantity.unit
 
             holdingCid <- toInterfaceContractId @SpliceHolding.Holding <$>
               exercise (fromInterfaceContractId @Lockable.I holdingCid)
@@ -172,6 +176,7 @@ template Instruction
         toInterfaceContractId <$> create this with
           approval
           signedReceivers = if approval == Unapproved then mempty else actors
+
       execute Instruction.Execute{actors} = do
         let allMustAuthorize = mustAuthorizeHelper True actors
         allMustAuthorize $ Set.insert instructor consenters
@@ -190,7 +195,10 @@ template Instruction
           (PassThroughFrom _, _) -> do
             -- Pass-throughs are consumed by the routedStep (*) below
             abort $ "Holding has not been passed through. " <> context this
+          
           (Pledge holdingCid, a) -> do
+            debug ("Execute.Pledge on holdingCid: " <> show holdingCid <> " " <> context this)
+
             holdingCid <- toInterfaceContractId @SpliceHolding.Holding <$>
               exercise (fromInterfaceContractId @Lockable.I holdingCid) Lockable.Release with
                 context = context this
