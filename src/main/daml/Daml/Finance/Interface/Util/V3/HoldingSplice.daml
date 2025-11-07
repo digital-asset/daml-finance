@@ -4,19 +4,42 @@
 module Daml.Finance.Interface.Util.V3.HoldingSplice where
 
 import Splice.Api.Token.HoldingV1 qualified as SpliceHolding
+import DA.TextMap qualified as TextMap
+import DA.Optional (fromOptional)
 import Daml.Finance.Interface.Types.Common.V3.Types (InstrumentKey(..), Id(..), HoldingStandard(..), Parties)
 import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (AddObservers(..), I, RemoveObservers(..))
 
+-- Convert a text back to a Party. Inverse of partyToText.
+textToParty : Text -> Party
+textToParty t = case partyFromText t of
+  Some p -> p
+  None -> error ("Invalid Party text: " <> t)
+
+-- | Parse HoldingStandard from its textual form 
+parseHoldingStandard : Text -> HoldingStandard
+parseHoldingStandard t =
+  case t of
+    "TransferableFungible" -> TransferableFungible
+    "Transferable" -> Transferable
+    "Fungible" -> Fungible
+    "BaseHolding" -> BaseHolding
+    s -> error ("Unknown HoldingStandard: " <> s)
+
+
 -- Extract instrument metadata from a Splice Holding.
-getInstrument : (HasToInterface t SpliceHolding.Holding) => Party -> t -> InstrumentKey
-getInstrument issuerParty holding =
-  let instrId = (view $ toInterface @SpliceHolding.Holding holding).instrumentId
+getInstrument : (HasToInterface t SpliceHolding.Holding) => t -> InstrumentKey
+getInstrument holding =
+  let 
+    holdingView = view $ toInterface @SpliceHolding.Holding holding
+    instrId = holdingView.instrumentId
+    metaVals = holdingView.meta.values
+    lookup k = fromOptional ("Missing metadata: " <> k) (TextMap.lookup k metaVals)
   in InstrumentKey with
-      issuer = issuerParty
-      depository = instrId.admin
+      issuer = instrId.admin        
+      depository = textToParty (lookup "depository")   
       id = Id instrId.id
-      version = "0"
-      holdingStandard = TransferableFungible
+      version = lookup "version"
+      holdingStandard = parseHoldingStandard (lookup "holdingStandard")  
 
 -- Extract the current token amount.
 getAmount : (HasToInterface t SpliceHolding.Holding) => t -> Decimal
