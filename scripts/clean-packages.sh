@@ -6,7 +6,7 @@ root_dir=$(cd "$(dirname $0)"; cd ..; pwd -P)
 
 # Remove .lib directories in packages
 echo "Removing .lib/ directories in all packages"
-#rm -r ${root_dir}/package/*/daml/*/.lib/ 1> /dev/null 2>&1
+rm -r ${root_dir}/package/*/daml/*/.lib/ 1> /dev/null 2>&1
 
 echo "Removing .dars/ directory"
 rm -r ${root_dir}/.dars 1> /dev/null 2>&1
