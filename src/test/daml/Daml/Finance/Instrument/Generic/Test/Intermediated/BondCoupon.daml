@@ -36,6 +36,8 @@ import Daml.Finance.Test.Util.Instrument qualified as BaseInstrument (originate)
 import Daml.Finance.Test.Util.Time (createClockUpdateEvent)
 import Daml.Script
 import Splice.Api.Token.HoldingV1 qualified as SpliceHolding
+import Splice.Api.Token.HoldingV1 (InstrumentId(..))
+import Daml.Finance.Settlement.V4.Conversion (fromInstrumentKey)
 
 
 {-
@@ -91,7 +93,7 @@ data TestParties = TestParties
       -- ^ The public party. Every party can readAs the public party.
 
 -- | Originate USD cash instrument and define settlement route.
-originateCashAndDefineRoute : TestParties -> Time -> Script (InstrumentKey, (Text, Hierarchy))
+originateCashAndDefineRoute : TestParties -> Time -> Script (InstrumentKey, (InstrumentId, Hierarchy))
 originateCashAndDefineRoute TestParties{bank, centralBank, csd, investor, issuer, publicParty}
   now = do
     let
@@ -107,12 +109,6 @@ originateCashAndDefineRoute TestParties{bank, centralBank, csd, investor, issuer
                         \
                       Investor
       -}
-      route =
-        ( label
-        , Hierarchy with
-            rootCustodian = centralBank
-            pathsToRootCustodian = [[investor, bank], [csd], [issuer]]
-        )
       -- CREATE_CASH_ROUTE_END
 
     -- Directly call BaseInstrument.originate (it already runs inside Script)
@@ -125,60 +121,69 @@ originateCashAndDefineRoute TestParties{bank, centralBank, csd, investor, issuer
       pp
       now
 
-    pure (instrument, route)
+    -- Build the settlement hierarchy
+    let
+      hierarchy = Hierarchy with
+        rootCustodian = centralBank
+        pathsToRootCustodian = [[investor, bank], [csd], [issuer]]
+
+      -- Convert the InstrumentKey to InstrumentId for use as map key
+      instrumentId = fromInstrumentKey instrument
+
+    pure (instrument, (instrumentId, hierarchy))
 
 
 -- | Originate bond instrument and define settlement route.
-originateSecurityAndDefineRoute : TestParties -> Time -> InstrumentKey -> Script (InstrumentKey, (Text, Hierarchy))
+originateSecurityAndDefineRoute :
+  TestParties -> Time -> InstrumentKey -> Script (InstrumentKey, (InstrumentId, Hierarchy))
 originateSecurityAndDefineRoute TestParties{bank, csd, investor, issuer, publicParty} now cashInstrument = do
-    -- CREATE_CC_INSTRUMENT_VARIABLES_BEGIN
-    let
-      today = toDateUTC now
-      firstCoupon  = addDays today 180
-      secondCoupon = addDays firstCoupon 180
-      expiry = secondCoupon
-      bondLabel = "ABC.DE 4% p.a. " <> show expiry <> " Corp"
-      claims = mapClaimToUTCTime $ andList
-        [ when (at firstCoupon)  $ scale (Const 0.02) $ one cashInstrument
-        , when (at secondCoupon) $ scale (Const 0.02) $ one cashInstrument
-        , when (at secondCoupon) $ scale (Const 1.0)  $ one cashInstrument
-        ]
-    -- CREATE_CC_INSTRUMENT_VARIABLES_END
-    let pp = [("PublicParty", Set.singleton publicParty)]
+  -- CREATE_CC_INSTRUMENT_VARIABLES_BEGIN
+  let
+    today = toDateUTC now
+    firstCoupon  = addDays today 180
+    secondCoupon = addDays firstCoupon 180
+    expiry = secondCoupon
+    bondLabel = "ABC.DE 4% p.a. " <> show expiry <> " Corp"
+    claims = mapClaimToUTCTime $ andList
+      [ when (at firstCoupon)  $ scale (Const 0.02) $ one cashInstrument
+      , when (at secondCoupon) $ scale (Const 0.02) $ one cashInstrument
+      , when (at secondCoupon) $ scale (Const 1.0)  $ one cashInstrument
+      ]
+    pp = [("PublicParty", Set.singleton publicParty)]
+  -- CREATE_CC_INSTRUMENT_VARIABLES_END
 
-    -- Directly call originateGeneric (it already runs inside Script)
-    instrument <- originateGeneric
-      csd
-      issuer
-      bondLabel
-      TransferableFungible
-      "Bond"
-      now
-      claims
-      pp
-      now
+  -- Directly call originateGeneric (it already runs inside Script)
+  instrument <- originateGeneric
+    csd
+    issuer
+    bondLabel
+    TransferableFungible
+    "Bond"
+    now
+    claims
+    pp
+    now
 
-    -- CREATE_BOND_ROUTE_BEGIN
-    {-
-    Bond (security) account structure :
+  -- CREATE_BOND_ROUTE_BEGIN
+  {-
+  Bond (security) account structure :
 
-      Issuer
-        |
-        CSD
-        |
-      Investor
-    -}
-    let
-      route =
-        ( bondLabel
-        , Hierarchy with
-            rootCustodian = issuer
-            pathsToRootCustodian = [[investor, csd]]
-        )
-    -- CREATE_BOND_ROUTE_END
+    Issuer
+      |
+      CSD
+      |
+    Investor
+  -}
+  -- CREATE_BOND_ROUTE_END
 
-    pure (instrument, route)
+  -- Define hierarchy
+  let
+    hierarchy = Hierarchy with
+      rootCustodian = issuer
+      pathsToRootCustodian = [[investor, csd]]
+    instrumentId = fromInstrumentKey instrument
 
+  pure (instrument, (instrumentId, hierarchy))
 
 -- | Penultimate coupon payment on a bond showing creation of new instrument version.
 -- Settlement of effects does not happen atomically.
@@ -247,7 +252,9 @@ runIntermediatedLifecyclingNonAtomic = script do
   -- LIFECYCLE_BOND_END
 
   -- Define settlement routes across intermediaries
-  let routes = Map.fromList [cashRoute, bondRoute]
+  let
+    routes : Map InstrumentId Hierarchy
+    routes = Map.fromList [cashRoute, bondRoute]
 
   -- LIFECYCLE_BOND_ISSUER_CSD_BEGIN
   -- Setup settlement contract between issuer and CSD
@@ -277,7 +284,9 @@ runIntermediatedLifecyclingNonAtomic = script do
   -- investor claims effect against CSD
   routeProviderCid <- toInterfaceContractId <$> submit csd do
     createCmd IntermediatedStatic with
-      provider = csd; observers = Set.singleton investor; paths = routes
+      provider = csd
+      observers = Set.singleton investor
+      paths = routes
 
   settlementFactoryCid <- submit csd do
     toInterfaceContractId <$> createCmd Factory with
@@ -543,7 +552,7 @@ template EffectSettlementService
     csdCashAccount : AccountKey
       -- ^ Cash account of CSD @ Central Bank. Needs to be disclosed to the Issuer (ideally as part
       --   of the creation of this contract).
-    settlementRoutes : Map Text Hierarchy
+    settlementRoutes : Map InstrumentId Hierarchy
   where
     signatory csd, issuer
 
