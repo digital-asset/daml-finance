@@ -9,7 +9,7 @@ import DA.Set qualified as Set (fromList, insert, intersection, isSubsetOf, null
 import Daml.Finance.Interface.Account.V4.Account qualified as Account (Credit(..), Debit(..), I, R, disclose, exerciseInterfaceByKey, undisclose)
 import Daml.Finance.Interface.Account.V4.Util (getAccount)
 import Daml.Finance.Interface.Holding.V4.Transferable qualified as Transferable (I, Transfer(..))
-import Daml.Finance.Interface.Util.V3.HoldingSplice qualified as Holding (getAmount, getInstrument)
+import Daml.Finance.Interface.Util.V3.HoldingSplice qualified as Holding (getAmount)
 import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (Allocate(..), Approve(..), Cancel(..), Execute(..), I, View(..))
 import Daml.Finance.Interface.Settlement.V4.Types (Allocation(..), Approval(..), InstructionKey(..), RoutedStep)
 import Daml.Finance.Interface.Types.Common.V3.Types (AccountKey, Id(..), Parties, PartiesMap, InstrumentQuantity)
@@ -73,15 +73,20 @@ template Instruction
         allocation; approval; signedSenders; signedReceivers
 
       allocate Instruction.Allocate{actors; allocation} = do
-        debug $ "Inside Instruction.Allocate - instructor = " <> show instructor
-        debug $ "Step unit (fromInstrumentKey) - consenters = " <> show consenters
-        debug $ "Inside Instruction.Allocate - settlers = " <> show settlers
+        debug $ "Instruction.Allocate - Inside Instruction.Allocate - instructor = " <> show instructor
+        debug $ "Instruction.Allocate - Step unit (fromInstrumentKey) - consenters = " <> show consenters
+        debug $ "Instruction.Allocate - Inside Instruction.Allocate - settlers = " <> show settlers
+
+        debug $ "BEFORE LET" 
 
         let
           allMustAuthorize = mustAuthorizeHelper True actors
           atLeastOneMustAuthorize = mustAuthorizeHelper False actors
+        debug $ "afTER LET" 
 
+        debug $ "Instruction - Before - atLeastOneMustAuthorize $ Set.fromList [routedStep.custodian, routedStep.sender]" 
         atLeastOneMustAuthorize $ Set.fromList [routedStep.custodian, routedStep.sender]
+
         assertMsg ("Allocation must be new. " <> context this) $ allocation /= this.allocation
         releasedCid <- releasePreviousAllocation this actors
         
@@ -89,14 +94,8 @@ template Instruction
         newAllocation <- case allocation of
           
           Pledge oldHoldingCid -> do
-
-            debug $ "BEFORE DisclosePledge " 
+ 
             newHoldingCid <- disclosePledge this oldHoldingCid actors
-            debug $ "oldHoldingCid = " <> show oldHoldingCid
-            debug $ "newHoldingCid (after disclosure) = " <> show newHoldingCid
-
-            
-            debug $ "newHoldingCid after disclosePledge = " <> show newHoldingCid
 
             holding <- fetch newHoldingCid
             let holdingI = toInterface @SpliceHolding.Holding holding
@@ -106,18 +105,33 @@ template Instruction
             senderAccount <- view <$>
               fetchInterfaceByKey @Account.R @Account.I senderAccountKey
 
+            debug $ "Instruction - Before - discloseAccount this senderAccountKey actors" 
             discloseAccount this senderAccountKey actors
+
+            debug $ "Instruction - Before - allMustAuthorize senderAccount.controllers.outgoing" 
             allMustAuthorize senderAccount.controllers.outgoing
+
+            debug $ "Instruction - Before - mustBe this Custodian senderAccount.custodian" 
             mustBe this Custodian senderAccount.custodian
+
+            debug $ "Instruction - Before - mustBe this Sender senderAccount.owner" 
             mustBe this Sender senderAccount.owner
+            debug $ "Instruction - After - mustBe this Sender senderAccount.owner" 
+
+
+
+            debug $ "Instruction - Before - Pledged amount must match." 
             assertMsg ("Pledged amount must match. " <> context this) $
               Holding.getAmount holdingI == routedStep.quantity.amount
 
-            debug $ "Holding instrument = " <> show (Holding.getInstrument holdingI)
-            debug $ "Expected instrument = " <> show (toInstrumentKey instructor routedStep.quantity.unit)
+            let holdingView = view holdingI   
+            let expectedInstr = routedStep.quantity.unit
 
-            assertMsg ("Pledged instrument must match. " <> context this) $
-              Holding.getInstrument holdingI == toInstrumentKey instructor routedStep.quantity.unit
+            assertMsg ("Pledged instrument ID mismatch. " <> context this) $
+              holdingView.instrumentId.id == expectedInstr.id
+
+            assertMsg ("Pledged instrument issuer mismatch. " <> context this) $
+              holdingView.instrumentId.admin == expectedInstr.admin
 
             newLockedCid <- toInterfaceContractId @SpliceHolding.Holding <$>
               exercise (fromInterfaceContractId @Lockable.I newHoldingCid)
@@ -127,7 +141,6 @@ template Instruction
                   lockType = Lockable.Semaphore
 
             pure $ Pledge newLockedCid
-
 
           PassThroughFrom (passThroughAccountKey, fromInstructionKey) -> do
             discloseAccount this passThroughAccountKey actors

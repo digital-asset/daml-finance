@@ -39,7 +39,7 @@ let
     hashes = {
                 #base64 hashes from update-daml-hashes
       linux = "zQ93Y35SLnjT1ru2tGgaSgBH/D2vQZYBmOfACIfo0/U=";
-      macos = "XsJ/VjIkXydC842zZJq3v4MksFnw9ZBsGKR0ihrDxlc=";
+      macos = "5UFqEW/Z/UWcRB3pv63v1OtN37S6QQXmmTIgDd9F2IQ=";
     };
   };
 
