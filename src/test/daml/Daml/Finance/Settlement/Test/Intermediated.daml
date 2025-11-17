@@ -182,20 +182,29 @@ run useDelegatee = script do
   -- Instruct settlement
   settlementFactoryCid <- toInterfaceContractId @SettlementFactory.I <$> submit agent do
     createCmd Settlement.Factory with provider = agent; observers = mempty
-
-  (batchCid, [sellerInstructionCid, custodian1InstructionCid, custodian2InstructionCid,
-    buyerInstructionCid, bank1InstructionCid, bank2InstructionCid]): (ContractId Batch.I, [ContractId Instruction.I]) <-
-    submit agent do
-      exerciseCmd settlementFactoryCid SettlementFactory.Instruct with
-        instructor = agent
-        consenters = mempty
-        settlers = Set.singleton agent
-        id = Id "SHARE 200000.0@160.0USD DVP"
-        description = "Crosspayment"
-        contextId = None
-        routedSteps
-        settlementTime = Some settlementTime
-   
+  
+  debug "Intermediated - Before - settlementFactoryCid SettlementFactory.Instruct"
+  (batchCid,
+    [ buyerInstructionCid          -- Buyer → Bank1
+    , bank1InstructionCid          -- Bank1 → Bank2
+    , bank2InstructionCid          -- Bank2 → Seller
+    , sellerInstructionCid         -- Seller → Custodian1
+    , custodian1InstructionCid     -- Custodian1 → Custodian2
+    , custodian2InstructionCid     -- Custodian2 → Buyer
+    ]
+    ) : (ContractId Batch.I, [ContractId Instruction.I]) <-
+      submit agent do
+        exerciseCmd settlementFactoryCid SettlementFactory.Instruct with
+          instructor = agent
+          consenters = mempty
+          settlers = Set.singleton agent
+          id = Id "SHARE 200000.0@160.0USD DVP"
+          description = "Crosspayment"
+          contextId = None
+          routedSteps
+          settlementTime = Some settlementTime
+  
+  debug "Intermediated - After - settlementFactoryCid SettlementFactory.Instruct"
 
   -- Allocate and approve instructions
   (buyerInstructionCid, _) <-
@@ -208,15 +217,19 @@ run useDelegatee = script do
         -- disclose
         let observerContext = ("delegation123", Set.singleton delegatee)
 
+        debug "Intermediated - Before - buyerCashCid Disclosure.AddObservers "
         buyerCashCid : ContractId SpliceHolding.Holding <- coerceContractId <$> submit buyer do
           exerciseCmd (coerceInterfaceContractId @Disclosure.I @SpliceHolding.Holding buyerCashCid)
             Disclosure.AddObservers with
               disclosers = Set.singleton buyer; observersToAdd = observerContext
+        debug "Intermediated - After - buyerCashCid Disclosure.AddObservers "
 
+        debug "Intermediated - Before - buyerInstructionCid Disclosure.AddObservers "
         buyerInstructionCid <- fromInterfaceContractId @Instruction.I <$> submit buyer do
           exerciseCmd (toInterfaceContractId @Disclosure.I buyerInstructionCid)
             Disclosure.AddObservers with
               disclosers = Set.singleton buyer; observersToAdd = observerContext
+        debug "Intermediated - After - buyerInstructionCid Disclosure.AddObservers "
 
         Account.submitExerciseInterfaceByKeyCmd @Disclosure.I [buyer] [] buyerCashAccount
           Disclosure.AddObservers with
@@ -309,7 +322,8 @@ run useDelegatee = script do
   -- In wallclock mode, we skip manual time advancement
 
   -- Settle batch
-  [custodian2AssetCid, buyerAssetCid, sellerCashCid] <-
+  debug "Intermediated - Before - batchCid Batch.Settle "
+  [sellerCashCid, custodian2AssetCid, buyerAssetCid]  <-
     submit (actAs [agent] <> readAs [publicParty]) do
       exerciseCmd batchCid Batch.Settle with actors = Set.singleton agent
 

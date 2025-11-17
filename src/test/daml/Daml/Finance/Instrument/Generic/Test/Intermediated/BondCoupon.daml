@@ -8,6 +8,7 @@ import ContingentClaims.Core.V3.Observation (Observation(..))
 import DA.Assert ((===))
 import DA.Date (addDays, toDateUTC)
 import DA.Foldable qualified as F (forA_)
+import DA.List (head, (!!))
 import DA.Map (Map)
 import DA.Map qualified as Map (fromList)
 import DA.Set qualified as Set (fromList, singleton, toList)
@@ -19,7 +20,7 @@ import Daml.Finance.Interface.Lifecycle.V4.Effect qualified as Effect (GetView(.
 import Daml.Finance.Interface.Lifecycle.V4.Rule.Claim qualified as Claim (ClaimEffect(..), I)
 import Daml.Finance.Interface.Lifecycle.V4.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I)
 import Daml.Finance.Interface.Settlement.V4.Batch qualified as Batch (Settle(..))
-import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (Allocate(..), Approve(..), GetView(..))
 import Daml.Finance.Interface.Settlement.V4.Types qualified as SettlementTypes (Allocation(..), Approval(..), InstructionKey(..))
 import Daml.Finance.Interface.Types.Common.V3.Types (AccountKey, HoldingStandard(..), Id(..), InstrumentKey, Parties)
 import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (AddObservers(..), I)
@@ -34,8 +35,8 @@ import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding
 import Daml.Finance.Test.Util.HoldingFactory (createHoldingFactory)
 import Daml.Finance.Test.Util.Instrument qualified as BaseInstrument (originate)
 import Daml.Finance.Test.Util.Time (createClockUpdateEvent)
-import Daml.Script
-import Splice.Api.Token.HoldingV1 qualified as SpliceHolding
+import Daml.Script 
+import Splice.Api.Token.HoldingV1 qualified as SpliceHolding 
 
 {-
   This script distributes a bond to investors and showcases how the bond can be lifecycled to
@@ -193,7 +194,7 @@ runIntermediatedLifecyclingNonAtomic = script do
   -- create clock update event exactly on the first coupon date
   let firstCouponDate = addDays (toDateUTC now) 90
   debug $ "BC - Firing lifecycle at: " <> show today
-  clockEventCid <- createClockUpdateEvent (Set.singleton issuer) today mempty -- Important: need to replace "today" by firstCouponDate when we use Sandbox!
+  clockEventCid <- createClockUpdateEvent (Set.singleton issuer) firstCouponDate mempty -- Important: need to replace "today" by firstCouponDate when we use Sandbox!
 
 
   -- CREATE_CLOCK_FOR_BOND_LIFECYCLING_END
@@ -236,13 +237,13 @@ runIntermediatedLifecyclingNonAtomic = script do
   -- Issuer.
   Account.submitExerciseInterfaceByKeyCmd @Disclosure.I [csd] [] csdCashAccount
     Disclosure.AddObservers with
-      disclosers = Set.singleton csd; observersToAdd = ("Issuer", Set.singleton issuer)
+      disclosers = Set.singleton csd
+      observersToAdd = ("Issuer", Set.singleton issuer)
 
   settle1Cid <- submit (actAs [csd, issuer]) do
     createCmd EffectSettlementService with
       csd
       issuer
-      centralBank = Some centralBank
       instrumentId = bondInstrument.id
       securitiesAccount = csdAccountAtIssuer
       issuerCashAccount
@@ -251,19 +252,40 @@ runIntermediatedLifecyclingNonAtomic = script do
 
   -- CSD claims and settles effect against issuer
   debug " BC - Before - settle1Cid ClaimAndSettle"
-  (effectCid, newInstrumentHoldingCid, [cashHolding]) <- submit (actAs [issuer, csd, centralBank] <> readAs [publicParty]) do
+  (effectCid, newInstrumentHoldingCid, _) <- submit (actAs [issuer] <> readAs [publicParty]) do
     exerciseCmd settle1Cid ClaimAndSettle with
-      instrumentHoldingCid = csdBondHoldingCid; cashHoldingCid = issuerCashHoldingCid; effectCid
+      instrumentHoldingCid = csdBondHoldingCid
+      cashHoldingCid = issuerCashHoldingCid
+      effectCid
   debug " BC - After - settle1Cid ClaimAndSettle"
   -- LIFECYCLE_BOND_ISSUER_CSD_END
 
+  -- Find correct USD holding of CSD after ClaimAndSettle
+  holdings <- queryInterface @SpliceHolding.Holding csd
+
+  let cashHolding =
+        case [ cid
+            | (cid, Some v) <- holdings
+            , v.owner == csd
+            , v.instrumentId.admin == centralBank
+            , v.instrumentId.id == "USD"
+            ] of
+          cid :: _ -> cid
+          [] -> error "No USD cash holding found for CSD after ClaimAndSettle"
+
+  debug "Found USD cash holding for CSD:"
+  debug $ "  cashHolding = " <> show cashHolding
+
+
   -- LIFECYCLE_BOND_SETTLEMENT_FACTORY_BEGIN
   -- investor claims effect against CSD
+  debug " BC - Before - IntermediatedStatic"
   routeProviderCid <- toInterfaceContractId <$> submit csd do
     createCmd IntermediatedStatic with
       provider = csd
       observers = Set.singleton investor
       paths = routes
+  debug " BC - After - IntermediatedStatic"
 
   settlementFactoryCid <- submit csd do
     toInterfaceContractId <$> createCmd Factory with
@@ -289,23 +311,42 @@ runIntermediatedLifecyclingNonAtomic = script do
   -- LIFECYCLE_BOND_CSD_INVESTOR_END
 
   -- LIFECYCLE_BOND_ALLOCATE_APPROVE_SETTLE_BEGIN
+  debug " BC - Before - IFECYCLE_BOND_ALLOCATE_APPROVE_SETTLE_BEGIN"
+
   let
-    [investorBondInstructionCid, csdBondInstructionCid, csdCashInstructionCid,
-      bankCashInstructionCid] = result.instructionCids
+    [csdCashInstructionCid, bankCashInstructionCid, investorBondInstructionCid,
+      csdBondInstructionCid] = result.instructionCids
+
+  debug " BC - After - LIFECYCLE_BOND_ALLOCATE_APPROVE_SETTLE_BEGIN"
 
   -- Allocate instructions
+  debug " BC - Before - investorBondInstructionCid Instruction.Allocate"
   (investorBondInstructionCid, _) <- submit investor do
     exerciseCmd investorBondInstructionCid Instruction.Allocate with
-      actors = Set.singleton investor; allocation = SettlementTypes.Pledge investorBondHoldingCid
+      actors = Set.singleton investor
+      allocation = SettlementTypes.Pledge investorBondHoldingCid
+  debug " BC - After - investorBondInstructionCid Instruction.Allocate"
+
+  debug " BC - Before - csdBondInstructionCid Instruction.Allocate"
   (csdBondInstructionCid, _) <- submit csd do
     exerciseCmd csdBondInstructionCid Instruction.Allocate with
-      actors = Set.singleton csd; allocation = SettlementTypes.CreditReceiver
+      actors = Set.singleton csd
+      allocation = SettlementTypes.CreditReceiver
+  debug " BC - After - csdBondInstructionCid Instruction.Allocate"
+  
+  debug " BC - Before - csdCashInstructionCid Instruction.Allocate"
   (csdCashInstructionCid, _) <- submit csd do
     exerciseCmd csdCashInstructionCid Instruction.Allocate with
-      actors = Set.singleton csd; allocation = SettlementTypes.Pledge cashHolding
+      actors = Set.singleton csd
+      allocation = SettlementTypes.Pledge cashHolding
+  debug " BC - After - csdCashInstructionCid Instruction.Allocate"
+
+  debug " BC - Before - bankCashInstructionCid Instruction.Allocate"  
   (bankCashInstructionCid, _) <- submit bank do
     exerciseCmd bankCashInstructionCid Instruction.Allocate with
-      actors = Set.singleton bank; allocation = SettlementTypes.CreditReceiver
+      actors = Set.singleton bank
+      allocation = SettlementTypes.CreditReceiver
+  debug " BC - After - bankCashInstructionCid Instruction.Allocate" 
 
   -- Approve instructions
   investorBondInstructionCid <- submit csd do
@@ -321,20 +362,21 @@ runIntermediatedLifecyclingNonAtomic = script do
     exerciseCmd bankCashInstructionCid Instruction.Approve with
       actors = Set.singleton investor; approval = SettlementTypes.TakeDelivery investorCashAccount
 
-  -- Settle batch
-  [investorCashHoldingCid, bankCashHoldingCid, investorBondHoldingCid] <-
+  -- Settle batch 
+  [bankCashHoldingCid,investorCashHoldingCid ,investorBondHoldingCid ] <-
     submit (actAs (Set.toList settlers) <> readAs [publicParty]) do
       exerciseCmd result.batchCid Batch.Settle with actors = settlers
-  -- LIFECYCLE_BOND_ALLOCATE_APPROVE_SETTLE_END
 
-  -- Assert state
+  debug " BC - Before - verifyOwnerOfHolding" 
   Holding.verifyOwnerOfHolding
     [ (investor, investorBondHoldingCid)
-    , (bank, bankCashHoldingCid)
     , (investor, investorCashHoldingCid)
+    , (bank, bankCashHoldingCid)
     ]
+  debug " BC - After - verifyOwnerOfHolding" 
 
   pure ()
+
 
 -- | Penultimate coupon payment on a bond showing creation of new instrument version.
 -- The effect is claimed and settled atomically across the entire chain.
@@ -367,7 +409,7 @@ runIntermediatedLifecyclingAtomic = script do
     Account.credit [publicParty] bondInstrument 1_000_000.0 investorSecuritiesAccount
 
   -- create clock update event
-  let firstCoupon = addDays (toDateUTC now) 180
+  let firstCoupon = addDays (toDateUTC now) 90
   clockEventCid <- createClockUpdateEvent (Set.singleton issuer) firstCoupon mempty 
 
   -- Create a lifecycle rule
@@ -424,18 +466,20 @@ runIntermediatedLifecyclingAtomic = script do
 
   -- LIFECYCLE_BOND_ATOMIC_INSTRUCTIONS_BEGIN
   let
-    [   csdBondInstructionCid1      -- old bond from CSD to issuer
-      , investorBondInstructionCid  -- old bond from investor to CSD
-      , issuerBondInstructionCid    -- new bond from issuer to CSD
-      , csdBondInstructionCid2      -- new bond from CSD to investor
-      , issuerCashInstructionCid    -- coupon payment from issuer to CSD
+    [   issuerCashInstructionCid    -- coupon payment from issuer to CSD
       , csdCashInstructionCid       -- coupon payment from CSD to investor's bank
       , bankCashInstructionCid      -- coupon payment from investor's bank to investor
+      
+      , csdBondInstructionCid1      -- old bond from CSD to issuer
+      , issuerBondInstructionCid    -- new bond from issuer to CSD
+      , investorBondInstructionCid  -- old bond from investor to CSD
+      , csdBondInstructionCid2      -- new bond from CSD to investor
       ] = result.instructionCids
   -- LIFECYCLE_BOND_ATOMIC_INSTRUCTIONS_END
 
   Some issuerCashInstruction <-
     queryContractId csd $ fromInterfaceContractId @Instruction.T issuerCashInstructionCid
+
   let
     issuerCashInstructionKey = SettlementTypes.InstructionKey with
       instructor = issuerCashInstruction.instructor
@@ -451,25 +495,33 @@ runIntermediatedLifecyclingAtomic = script do
       id = csdCashInstruction.id
 
   -- Allocate instructions
+  debug "BC - Before - csdBondInstructionCid1 Instruction.Allocate "
   (csdBondInstructionCid1, _) <- submit csd do
     exerciseCmd csdBondInstructionCid1 Instruction.Allocate with
       actors = Set.singleton csd; allocation = SettlementTypes.Pledge csdBondHoldingCid
+  debug "BC - After - csdBondInstructionCid1 Instruction.Allocate "
+
   (issuerBondInstructionCid, _) <- submit issuer do
     exerciseCmd issuerBondInstructionCid Instruction.Allocate with
       actors = Set.singleton issuer; allocation = SettlementTypes.CreditReceiver
+
   (issuerCashInstructionCid, _) <- submit issuer do
     exerciseCmd issuerCashInstructionCid Instruction.Allocate with
       actors = Set.singleton issuer; allocation = SettlementTypes.Pledge issuerCashHoldingCid
+
   (investorBondInstructionCid, _) <- submit investor do
     exerciseCmd investorBondInstructionCid Instruction.Allocate with
       actors = Set.singleton investor; allocation = SettlementTypes.Pledge investorBondHoldingCid
+
   (csdBondInstructionCid2, _) <- submit csd do
     exerciseCmd csdBondInstructionCid2 Instruction.Allocate with
       actors = Set.singleton csd; allocation = SettlementTypes.CreditReceiver
+
   (csdCashInstructionCid, _) <- submit csd do
     exerciseCmd csdCashInstructionCid Instruction.Allocate with
       actors = Set.singleton csd
       allocation = SettlementTypes.PassThroughFrom (csdCashAccount, issuerCashInstructionKey)
+
   (bankCashInstructionCid, _) <- submit bank do
     exerciseCmd bankCashInstructionCid Instruction.Allocate with
       actors = Set.singleton bank; allocation = SettlementTypes.CreditReceiver
@@ -497,8 +549,8 @@ runIntermediatedLifecyclingAtomic = script do
     exerciseCmd bankCashInstructionCid Instruction.Approve with
       actors = Set.singleton investor; approval = SettlementTypes.TakeDelivery investorCashAccount
 
-  -- Settle batch
-  [csdBondHoldingCid, investorBondHoldingCid, bankCashHoldingCid, investorCashHoldingCid] <-
+  -- Settle batch 
+  [bankCashHoldingCid, investorCashHoldingCid, csdBondHoldingCid , investorBondHoldingCid] <-
     submit (actAs (Set.toList settlers) <> readAs [publicParty]) do
       exerciseCmd result.batchCid Batch.Settle with actors = settlers
 
@@ -521,7 +573,6 @@ template EffectSettlementService
       -- ^ Owner of the instrument holding. Acts as depository of the instrument.
     issuer : Party
       -- ^ Counterparty of the instrument holding. Issuer of the instrument.
-    centralBank : Optional Party
     instrumentId : Id
       -- ^ Defines the instrument to which the contract is applicable.
     securitiesAccount : AccountKey
@@ -589,16 +640,10 @@ template EffectSettlementService
         debug $ "BC - Created route provider = " <> show routeProviderCid
         debug $ "BC -Created settlement factory = " <> show settlementFactoryCid
 
-        let
-          allSettlers =
-            case centralBank of
-              Some cb -> Set.fromList [csd, issuer, cb]     
-              None -> Set.fromList [csd, issuer]
-
         lifecycleClaimRuleCid <- create Claim.Rule with
           provider = issuer
           claimers = Set.fromList [issuer, csd]
-          settlers = allSettlers
+          settlers = Set.singleton csd
           routeProviderCid
           settlementFactoryCid = toInterfaceContractId settlementFactoryCid
           netInstructions = False
@@ -610,6 +655,7 @@ template EffectSettlementService
             effectCid
             batchId = Id "EffectSettlement"
 
+
         archive settlementFactoryCid
         archive lifecycleClaimRuleCid
 
@@ -618,56 +664,93 @@ template EffectSettlementService
         debug $ "Instruction CIDs = " <> show result.instructionCids
 
     
+        -- let
+        --   [csdInstrumentInstructionCid, issuerInstrumentInstructionCid,
+        --     issuerCashInstructionCouponCid] = result.instructionCids
+
         let
-          [csdInstrumentInstructionCid, issuerInstrumentInstructionCid,
-            issuerCashInstructionCouponCid] = result.instructionCids
-        
-        let actorsForAllocate = Set.fromList [issuer, csd]
+          getUnitCid cid = do
+            v <- exercise cid Instruction.GetView with viewer = issuer
+            pure (cid, v.routedStep.quantity.unit.admin)
+
+        instrs <- mapA getUnitCid result.instructionCids
+
+        let
+            issuerInstrs = [cid | (cid, admin) <- instrs, admin == issuer]
+            cashInstrs   = [cid | (cid, admin) <- instrs, admin == issuerCashAccount.custodian]
+
+        let
+            csdInstrumentInstructionCid = head issuerInstrs
+            issuerInstrumentInstructionCid = issuerInstrs !! 1
+            issuerCashInstructionCouponCid = head cashInstrs
+
 
         
+        csdInstrumentInstruction <- fetch csdInstrumentInstructionCid
+        issuerInstrumentInstruction <- fetch issuerInstrumentInstructionCid
+        issuerCashInstructionCoupon <- fetch issuerCashInstructionCouponCid
+
+        debug "---- Instruction views (from ClaimEffect) ----"
+        F.forA_ result.instructionCids $ \cid -> do
+          v <- exercise cid Instruction.GetView with viewer = issuer
+          debug $
+            "Instruction id=" <> show v.id
+            <> " | sender="    <> show v.routedStep.sender
+            <> " | receiver="  <> show v.routedStep.receiver
+            <> " | custodian=" <> show v.routedStep.custodian
+            <> " | unit="      <> show v.routedStep.quantity.unit
+        debug "--------------------------------------------"
         
         -- Allocate instructions
         debug $ "Before - csdInstrumentInstructionCid Instruction.Allocate " 
         (csdInstrumentInstructionCid, _) <- exercise csdInstrumentInstructionCid
           Instruction.Allocate with
-            actors = actorsForAllocate
+            actors = Set.singleton csd
             allocation = SettlementTypes.Pledge instrumentHoldingCid
         debug $ "After - csdInstrumentInstructionCid Instruction.Allocate " 
 
         debug $ "Before - issuerCashInstructionCouponCid Instruction.Allocate " 
         (issuerCashInstructionCouponCid, _) <- exercise issuerCashInstructionCouponCid
           Instruction.Allocate with
-            actors = actorsForAllocate
+            actors = Set.singleton issuer
             allocation = SettlementTypes.Pledge cashHoldingCid
         debug $ "After - issuerCashInstructionCouponCid Instruction.Allocate " 
 
         debug $ "Before - issuerInstrumentInstructionCid Instruction.Allocate "
         (issuerInstrumentInstructionCid, _) <- exercise issuerInstrumentInstructionCid
           Instruction.Allocate with 
-            actors = actorsForAllocate
+            actors = Set.singleton issuer
             allocation = SettlementTypes.CreditReceiver
         debug $ "After - issuerInstrumentInstructionCid Instruction.Allocate "
 
 
         -- Approve instructions
+        debug $ "Before - csdInstrumentInstructionCid Instruction.Approve "
         csdInstrumentInstructionCid <- exercise csdInstrumentInstructionCid
           Instruction.Approve with
-            actors = Set.singleton csd
+            actors = Set.singleton issuer
             approval = SettlementTypes.DebitSender
+        debug $ "After - csdInstrumentInstructionCid Instruction.Approve "
 
+        debug $ "Before - issuerCashInstructionCouponCid Instruction.Approve "
         issuerCashInstructionCouponCid <- exercise issuerCashInstructionCouponCid
           Instruction.Approve with
             actors = Set.singleton csd
             approval = SettlementTypes.TakeDelivery csdCashAccount
+        debug $ "Before - issuerCashInstructionCouponCid Instruction.Approve "
 
+        debug $ "After - issuerInstrumentInstructionCid Instruction.Approve "
         issuerInstrumentInstructionCid <- exercise issuerInstrumentInstructionCid
           Instruction.Approve with
             actors = Set.singleton csd
             approval = SettlementTypes.TakeDelivery securitiesAccount
+        debug $ "After - issuerInstrumentInstructionCid Instruction.Approve "
 
         -- Settle batch
+        debug $ "Before - Settle batch "
         [newInstrumentHoldingCid, investorCashHoldingCouponCid] <-
           exercise result.batchCid Batch.Settle with actors = Set.singleton csd
+        debug $ "After - Settle batch "
 
         -- 2. create effect to be used by investors
         newEffectCid <- exercise effectCid Effect.SetProviders with newProviders = Set.singleton csd
