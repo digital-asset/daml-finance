@@ -10,11 +10,12 @@ import DA.Time (time)
 import Daml.Finance.Holding.V4.Factory qualified as Holding (Factory(..))
 import Daml.Finance.Interface.Settlement.V4.Batch qualified as Batch (Settle(..))
 import Daml.Finance.Interface.Settlement.V4.Factory qualified as SettlementFactory (I, Instruct(..))
-import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (Allocate(..), Approve(..), I, GetView(..))
 import Daml.Finance.Interface.Settlement.V4.RouteProvider qualified as RouteProvider (Discover(..), I)
-import Daml.Finance.Interface.Settlement.V4.Types (Allocation(..), Approval(..), Step(..))
+import Daml.Finance.Interface.Settlement.V4.Types qualified as SettlementTypes (Allocation(..), Approval(..), Step(..), Quantity(..))
 import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..))
-import Daml.Finance.Interface.Util.V3.Common (qty)
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, AddObservers(..))
+import Daml.Finance.Settlement.V4.Conversion (fromInstrumentKey)
 import Daml.Finance.Settlement.V4.Factory qualified as Settlement (Factory(..))
 import Daml.Finance.Settlement.V4.Hierarchy (Hierarchy(..))
 import Daml.Finance.Settlement.V4.RouteProvider.IntermediatedStatic (IntermediatedStatic(..))
@@ -25,6 +26,13 @@ import Daml.Finance.Test.Util.HoldingDuplicates.Factory qualified as HoldingV2 (
 import Daml.Finance.Test.Util.HoldingFactory (createHoldingFactory)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
 import Daml.Script
+import Splice.Api.Token.HoldingV1 qualified as SpliceHolding
+
+-- | Safe head function returning an Optional value
+headOpt : [a] -> Optional a
+headOpt xs = case xs of
+  x :: _ -> Some x
+  [] -> None
 
 -- | Parties involved in the test script.
 data TestParties = TestParties
@@ -115,8 +123,16 @@ run = script do
   -- Settlement steps
   let
     steps =
-      [ Step with sender = seller; receiver = buyer; quantity = qty 1_000.0 equityInstrument
-      , Step with sender = buyer; receiver = seller; quantity = qty 200_000.0 cashInstrument
+      [SettlementTypes.Step with
+          sender = seller
+          receiver = buyer
+          quantity = SettlementTypes.Quantity
+            with unit = fromInstrumentKey equityInstrument; amount = 1_000.0
+      , SettlementTypes.Step with
+          sender = buyer
+          receiver = seller
+          quantity = SettlementTypes.Quantity
+            with unit = fromInstrumentKey cashInstrument; amount = 200_000.0
       ]
     settlementTime = time (addDays (toDateUTC now) 1) 0 0 0
 
@@ -124,70 +140,134 @@ run = script do
   -- to Seller)
   let
     paths = Map.fromList
-      [ ("USD", Hierarchy with rootCustodian = cb; pathsToRootCustodian = [[buyer], [seller, bank]])
-      , ("AAPL", Hierarchy with rootCustodian = csd; pathsToRootCustodian = [[seller], [buyer]])
-      ]
+       [ ("USD", Hierarchy with rootCustodian = cb; pathsToRootCustodian = [[buyer], [seller, bank]])
+       , ("AAPL", Hierarchy with rootCustodian = csd; pathsToRootCustodian = [[seller], [buyer]])]
+  
   routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit buyer do
-    createCmd IntermediatedStatic with provider = buyer; paths; observers = mempty
+    createCmd IntermediatedStatic with 
+      provider = buyer
+      paths
+      observers = mempty
   routedSteps <- submit buyer do
     exerciseCmd routeProviderCid RouteProvider.Discover with
       discoverors = Set.singleton buyer; contextId = None; steps
 
   -- Instruct settlement
+  -- Before settlement: identifies which instructions correspond to which asset type (AAPL vs USD)
   settlementFactoryCid <- toInterfaceContractId @SettlementFactory.I <$> submit buyer do
     createCmd Settlement.Factory with provider = buyer; observers = mempty
-  (batchCid, [cashInstruction1Cid, cashInstruction2Cid, equityInstructionCid]) <-
-    submitMulti [buyer, seller] [] do
+
+  (batchCid, instructionCids) <-
+    submit (actAs [buyer, seller]) do
       exerciseCmd settlementFactoryCid SettlementFactory.Instruct with
         instructor = buyer
         consenters = Set.singleton seller
         settlers = Set.fromList [buyer, seller]
-        id = Id "APPL 1000@200.0USD"; description = "DVP"; contextId = None; routedSteps
-        settlementTime = Some settlementTime
+        id = Id "APPL 1000@200.0USD"; description = "DVP"; contextId = None
+        routedSteps; settlementTime = Some settlementTime
 
+  -- Inspect each instruction to determine its asset type
+  instrViews <- forA instructionCids $ \cid ->
+    submit buyer do
+      exerciseCmd cid Instruction.GetView with viewer = buyer
+
+  let
+    zipped = zip instructionCids instrViews
+
+    -- Identify by unit id
+    Some equityInstructionCid =
+      headOpt [ cid | (cid, v) <- zipped, v.routedStep.quantity.unit.id == "AAPL" ]
+    cashInstructionCids =
+      [ cid | (cid, v) <- zipped, v.routedStep.quantity.unit.id == "USD" ]
+    Some cashInstruction1Cid = headOpt cashInstructionCids
+    Some cashInstruction2Cid = headOpt (drop 1 cashInstructionCids)
+  
+  -- Ensure the custodian (CSD) can see the instruction and the holding
+  -- 1) Ensure CSD sees the instruction
+  equityInstructionCid <- fromInterfaceContractId @Instruction.I <$> submit seller do
+    exerciseCmd (toInterfaceContractId @Disclosure.I equityInstructionCid)
+      Disclosure.AddObservers with
+        disclosers = Set.singleton seller
+        observersToAdd = ("csd_allocation", Set.singleton csd)
+
+  -- 2) Ensure CSD sees the pledged holding, too
+  equityHoldingCid <- coerceInterfaceContractId @SpliceHolding.Holding @Disclosure.I <$> submit seller do
+    exerciseCmd (coerceInterfaceContractId @Disclosure.I @SpliceHolding.Holding equityHoldingCid)
+      Disclosure.AddObservers with
+        disclosers = Set.singleton seller
+        observersToAdd = ("csd_allocation", Set.singleton csd)
+ 
   -- Allocate instructions
   (equityInstructionCid, _) <- submit seller do
     exerciseCmd equityInstructionCid
-      Instruction.Allocate with actors = Set.singleton seller; allocation = Pledge equityHoldingCid
+      Instruction.Allocate with 
+        actors = Set.singleton seller
+        allocation = SettlementTypes.Pledge equityHoldingCid
+
   (cashInstruction1Cid, _) <- submit buyer do
     exerciseCmd cashInstruction1Cid
       Instruction.Allocate with
-        actors = Set.singleton buyer; allocation = Pledge buyerCashHoldingCid
+        actors = Set.singleton buyer
+        allocation = SettlementTypes.Pledge buyerCashHoldingCid
+
   (cashInstruction2Cid, _) <-  submit bank do
     exerciseCmd cashInstruction2Cid
-      Instruction.Allocate with actors = Set.singleton bank; allocation = CreditReceiver
+      Instruction.Allocate with 
+        actors = Set.singleton bank
+        allocation = SettlementTypes.CreditReceiver
 
   submitMustFail buyer do
     exerciseCmd cashInstruction1Cid
-      Instruction.Allocate with actors = Set.singleton buyer; allocation = CreditReceiver
+      Instruction.Allocate with 
+        actors = Set.singleton buyer
+        allocation = SettlementTypes.CreditReceiver
 
   -- Approve instructions
   equityInstructionCid <- submit buyer do
     exerciseCmd equityInstructionCid
       Instruction.Approve with
-        actors = Set.singleton buyer; approval = TakeDelivery buyerSecurityAccount
+        actors = Set.singleton buyer; approval = SettlementTypes.TakeDelivery buyerSecurityAccount
+
   cashInstruction1Cid <- submit bank do
     exerciseCmd cashInstruction1Cid
-      Instruction.Approve with actors = Set.singleton bank; approval = TakeDelivery bankCashAccount
+      Instruction.Approve with actors = Set.singleton bank; approval = SettlementTypes.TakeDelivery bankCashAccount
+
   cashInstruction2Cid <- submit seller do
     exerciseCmd cashInstruction2Cid
       Instruction.Approve with
-        actors = Set.singleton seller; approval = TakeDelivery sellerCashAccount
+        actors = Set.singleton seller; approval = SettlementTypes.TakeDelivery sellerCashAccount
 
   submitMustFail buyer do
     exerciseCmd equityInstructionCid
-      Instruction.Approve with actors = Set.singleton buyer; approval = DebitSender
-
-  -- Set time
-  setTime settlementTime
-
-  -- Settle batch
-  [bankCashHoldingCid, sellerCashHoldingCid, equityHoldingCid] <-
-    submitMulti [buyer] [publicParty] do
+      Instruction.Approve with actors = Set.singleton buyer; approval = SettlementTypes.DebitSender
+  
+  settledHoldings <-
+    submit (actAs [buyer] <> readAs [publicParty]) do
       exerciseCmd batchCid Batch.Settle with actors = Set.singleton buyer
+
+
+  -- Identify holdings based on instrument and owner
+  -- After settlement: identifies which new holdings correspond to which owner/instrument
+  let identifyHolding instr owner = do
+        cids <- forA settledHoldings \cid -> do
+          mView <- queryInterfaceContractId @SpliceHolding.Holding owner cid
+          case mView of
+            Some v ->
+              if v.instrumentId.id == instr && v.owner == owner
+                then pure [cid]   -- return directly
+                else pure []
+            None -> pure []
+        pure (concat cids)  -- flatten [[cid]] to [cid]
+
+  -- Extract each desired holding
+  Some equityHoldingCid <- headOpt <$> identifyHolding "AAPL" buyer
+  Some bankCashHoldingCid <- headOpt <$> identifyHolding "USD" bank
+  Some sellerCashHoldingCid <- headOpt <$> identifyHolding "USD" seller
+
 
   -- Assert state
   let ts = [(buyer, equityHoldingCid), (bank, bankCashHoldingCid), (seller, sellerCashHoldingCid)]
+
   Holding.verifyOwnerOfHolding ts
   Holding.verifyNoObservers ts
 

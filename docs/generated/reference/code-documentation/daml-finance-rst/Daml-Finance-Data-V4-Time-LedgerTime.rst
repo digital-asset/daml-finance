@@ -31,7 +31,7 @@ Templates
        - :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
        - The ledger time identifier\.
      * - description
-       - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+       - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
        - The ledger time description\.
      * - observers
        - :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`

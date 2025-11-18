@@ -30,15 +30,31 @@ Data Types
          - t
          - Payment time\.
        * - amount
-         - `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+         - `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
          - Amount of asset to be paid\.
        * - asset
          - a
          - Asset in which the payment is denominated\.
 
-  **instance** (`Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ t, `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ a) \=\> `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ (`Pending <type-contingentclaims-lifecycle-v3-lifecycle-pending-58851_>`_ t a)
+  **instance** (`Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ t, `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ a) \=\> `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ (`Pending <type-contingentclaims-lifecycle-v3-lifecycle-pending-58851_>`_ t a)
 
-  **instance** (`Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ t, `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ a) \=\> `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ (`Pending <type-contingentclaims-lifecycle-v3-lifecycle-pending-58851_>`_ t a)
+  **instance** (`Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ t, `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ a) \=\> `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ (`Pending <type-contingentclaims-lifecycle-v3-lifecycle-pending-58851_>`_ t a)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"amount\" (`Pending <type-contingentclaims-lifecycle-v3-lifecycle-pending-58851_>`_ t a) `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"asset\" (`Pending <type-contingentclaims-lifecycle-v3-lifecycle-pending-58851_>`_ t a) a
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"pending\" (`Result <type-contingentclaims-lifecycle-v3-lifecycle-result-98744_>`_ t a o) \[`Pending <type-contingentclaims-lifecycle-v3-lifecycle-pending-58851_>`_ t a\]
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"t\" (`Pending <type-contingentclaims-lifecycle-v3-lifecycle-pending-58851_>`_ t a) t
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"amount\" (`Pending <type-contingentclaims-lifecycle-v3-lifecycle-pending-58851_>`_ t a) `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"asset\" (`Pending <type-contingentclaims-lifecycle-v3-lifecycle-pending-58851_>`_ t a) a
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"pending\" (`Result <type-contingentclaims-lifecycle-v3-lifecycle-result-98744_>`_ t a o) \[`Pending <type-contingentclaims-lifecycle-v3-lifecycle-pending-58851_>`_ t a\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"t\" (`Pending <type-contingentclaims-lifecycle-v3-lifecycle-pending-58851_>`_ t a) t
 
 .. _type-contingentclaims-lifecycle-v3-lifecycle-result-98744:
 
@@ -64,9 +80,17 @@ Data Types
          - C t a o
          - The tree after lifecycled branches have been pruned\.
 
-  **instance** (`Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ a, `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ o, `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ t) \=\> `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ (`Result <type-contingentclaims-lifecycle-v3-lifecycle-result-98744_>`_ t a o)
+  **instance** (`Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ a, `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ o, `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ t) \=\> `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ (`Result <type-contingentclaims-lifecycle-v3-lifecycle-result-98744_>`_ t a o)
 
-  **instance** (`Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ t, `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ a, `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ o) \=\> `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ (`Result <type-contingentclaims-lifecycle-v3-lifecycle-result-98744_>`_ t a o)
+  **instance** (`Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ t, `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ a, `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ o) \=\> `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ (`Result <type-contingentclaims-lifecycle-v3-lifecycle-result-98744_>`_ t a o)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"pending\" (`Result <type-contingentclaims-lifecycle-v3-lifecycle-result-98744_>`_ t a o) \[`Pending <type-contingentclaims-lifecycle-v3-lifecycle-pending-58851_>`_ t a\]
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"remaining\" (`Result <type-contingentclaims-lifecycle-v3-lifecycle-result-98744_>`_ t a o) (C t a o)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"pending\" (`Result <type-contingentclaims-lifecycle-v3-lifecycle-result-98744_>`_ t a o) \[`Pending <type-contingentclaims-lifecycle-v3-lifecycle-pending-58851_>`_ t a\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"remaining\" (`Result <type-contingentclaims-lifecycle-v3-lifecycle-result-98744_>`_ t a o) (C t a o)
 
 Functions
 ---------
@@ -74,7 +98,7 @@ Functions
 .. _function-contingentclaims-lifecycle-v3-lifecycle-lifecycle-11948:
 
 `lifecycle <function-contingentclaims-lifecycle-v3-lifecycle-lifecycle-11948_>`_
-  \: (`Ord <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ t, `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ a, `CanAbort <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-lf-canabort-29060>`_ m) \=\> (o \-\> t \-\> m `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_) \-\> C t a o \-\> t \-\> t \-\> m (`Result <type-contingentclaims-lifecycle-v3-lifecycle-result-98744_>`_ t a o)
+  \: (`Ord <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ t, `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ a, `CanAbort <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-lf-canabort-29060>`_ m) \=\> (o \-\> t \-\> m `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_) \-\> C t a o \-\> t \-\> t \-\> m (`Result <type-contingentclaims-lifecycle-v3-lifecycle-result-98744_>`_ t a o)
 
   Collect claims falling due into a list, and return the tree with those nodes pruned\.
   ``m`` will typically be ``Update``\. It is parametrised so it can be run in a ``Script``\. The first
@@ -84,7 +108,7 @@ Functions
 .. _function-contingentclaims-lifecycle-v3-lifecycle-exercise-91455:
 
 `exercise <function-contingentclaims-lifecycle-v3-lifecycle-exercise-91455_>`_
-  \: (`Ord <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ t, `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ a, `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ o, `CanAbort <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-lf-canabort-29060>`_ m) \=\> (o \-\> t \-\> m `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_) \-\> (`Bool <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-bool-66265>`_, `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_) \-\> C t a o \-\> t \-\> t \-\> m (C t a o)
+  \: (`Ord <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ t, `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ a, `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ o, `CanAbort <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-lf-canabort-29060>`_ m) \=\> (o \-\> t \-\> m `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_) \-\> (`Bool <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-bool-66265>`_, `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_) \-\> C t a o \-\> t \-\> t \-\> m (C t a o)
 
   Acquire ``Anytime`` and ``Or`` nodes, by making an election\.
   Import this ``qualified`` to avoid clashes with ``Prelude.exercise``\.

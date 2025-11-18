@@ -5,6 +5,7 @@ module Daml.Finance.Holding.Test.Upgrade where
 
 import DA.Map qualified as Map (fromList)
 import DA.Set (singleton)
+import DA.Optional(isSome)
 import Daml.Finance.Holding.Test.Common (TestInitialState(..), TestParties(..), setupInitialState, setupParties)
 import Daml.Finance.Holding.V4.Factory qualified as Holding (Factory(..))
 import Daml.Finance.Holding.V4.Transferable qualified as Transferable (T)
@@ -19,13 +20,12 @@ import Daml.Script
 
 run : Script ()
 run = do
-  -- Create parties
+  -- 1. Create parties
   tp@TestParties{custodian; issuer; investor; locker; publicParty} <- setupParties
   let observers = Map.fromList [("PublicParty", singleton publicParty)]
 
-  -- Initialize state
-  TestInitialState {investorAccount; issuerAccount; issuerHoldingCid; accountFactoryCid;
-    holdingFactory} <-
+  -- 2. Initialize state
+  TestInitialState {investorAccount; issuerAccount; issuerHoldingCid; accountFactoryCid; holdingFactory} <-
     setupInitialState
       tp
       Holding.Factory with provider = custodian; id = Id "Holding Factory"; observers
@@ -33,20 +33,30 @@ run = do
       []
       Account.Owner
 
-  -- The custodian decides to upgrade to a new implementation of the transferable holding.
-  -- 1. The holding factory for the old version is archived.
+  -- 3. Remove old holding factory
   submitExerciseInterfaceByKeyCmd @HoldingFactory.I [custodian] [] holdingFactory
     HoldingFactory.Remove
-  -- 2. A holding factory for the new version is created (the key remains the same).
+
+  -- 4. Check if the old holding still exists
+  maybeOldHolding <- queryContractId custodian (fromInterfaceContractId @Transferable.T issuerHoldingCid)
+
+  assertMsg
+    "Old transferable holding not found after factory removal (may be expected if factory removal cascades)."
+    (isSome maybeOldHolding)
+
+  -- 5. Create the new holding factory
   createHoldingFactory $
     HoldingNew.Factory with provider = custodian; id = Id "Holding Factory"; observers
-  -- 3. Upon a transfer (to self), the transferable holding is upgraded to the new version.
-  Some _ <- queryContractId custodian $ fromInterfaceContractId @Transferable.T issuerHoldingCid
-  transferableCid <-
-    submitMulti [issuer] [publicParty] do
-      exerciseCmd (fromInterfaceContractId @Transferable.I issuerHoldingCid)
-        Transferable.Transfer with
-          actors = singleton issuer; newOwnerAccount = issuerAccount
-  Some _ <- queryContractId custodian $ fromInterfaceContractId @TransferableNew.T transferableCid
 
+  -- 6. Perform a transfer to self to trigger upgrade
+  newCid <- submit (actAs [issuer] <> readAs [publicParty]) do
+    exerciseCmd (fromInterfaceContractId @Transferable.I issuerHoldingCid)
+      Transferable.Transfer with
+        actors = singleton issuer
+        newOwnerAccount = issuerAccount
+
+  -- 7. Inspect the new upgraded holding
+  maybeNew <- queryContractId custodian (fromInterfaceContractId @TransferableNew.T newCid)
+
+  assertMsg "New transferable holding not found after upgrade." (isSome maybeNew)
   pure ()

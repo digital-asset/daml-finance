@@ -219,15 +219,20 @@ run = script do
   verifyNoLifecycleEffects [publicParty] (subtractDays firstPaymentDate 1) swapInstrument issuer
     [observableCid]
 
-  -- First payment date: Lifecycle and verify the lifecycle effects for fix and floating payments.
+    -- First payment date: Lifecycle and verify the lifecycle effects for fix and floating payments.
   let
     expectedConsumed = [qty 0.001675 cashInstrument]
     expectedProduced = [qty 0.0002283833 cashInstrument]
-  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    firstPaymentDate swapInstrument issuer [observableCid] expectedConsumed expectedProduced
+  maybeSwapInstrumentAfterFirstPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      firstPaymentDate swapInstrument issuer [observableCid] expectedConsumed expectedProduced
 
-  -- One day after the first payment date: try to lifecycle and verify that there are no lifecycle
-  -- effects.
+  swapInstrumentAfterFirstPayment <- case maybeSwapInstrumentAfterFirstPayment of
+    Some key -> pure key
+    None -> pure swapInstrument
+
+
+  -- One day after the first payment date: try to lifecycle and verify that there are no lifecycle effects.
   verifyNoLifecycleEffects [publicParty] (addDays firstPaymentDate 1)
     swapInstrumentAfterFirstPayment issuer [observableCid]
 
@@ -235,13 +240,18 @@ run = script do
   verifyNoLifecycleEffects [publicParty] (subtractDays maturityDate 1)
     swapInstrumentAfterFirstPayment issuer [observableCid]
 
-  -- Lifecycle on the second payment date, which is also the expiry date. Verify the lifecycle
-  -- effects for fix and floating payments.
+
+  -- Lifecycle on the second payment date, which is also the expiry date. Verify the lifecycle effects for fix and floating payments.
   let
     expectedConsumed = [qty 0.0049691667 cashInstrument]
     expectedProduced = [qty 0.0005030972 cashInstrument]
-  lifecycleAndVerifyPaymentEffects [publicParty] maturityDate swapInstrumentAfterFirstPayment
-    issuer [observableCid] expectedConsumed expectedProduced
+  maybeSwapInstrumentAfterFinalPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      maturityDate swapInstrumentAfterFirstPayment issuer [observableCid] expectedConsumed expectedProduced
+
+  swapInstrumentAfterFinalPayment <- case maybeSwapInstrumentAfterFinalPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterFirstPayment
 
   pure ()
 
@@ -278,6 +288,7 @@ runStubRateInterpolation = script do
       [ (dateToDateClockTime $ date 2022 Jan 06, 0.0010414)
       , (dateToDateClockTime $ date 2022 Mar 17, 0.002035)
       ]
+
     calendar =
       HolidayCalendarData with
         id = "USD"
@@ -408,9 +419,14 @@ runStubRateInterpolation = script do
     expectedConsumed = []
     -- interpolated stub rate from the ISDA paper
     expectedProduced = [qty 0.001867875 cashInstrument]
-  swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (addDays firstRegularPeriodDate 1) swapInstrument issuer observableCids expectedConsumed
-    expectedProduced
+  maybeSwapInstrumentAfterFirstPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (addDays firstRegularPeriodDate 1)
+      swapInstrument issuer observableCids expectedConsumed expectedProduced
+
+  swapInstrumentAfterFirstPayment <- case maybeSwapInstrumentAfterFirstPayment of
+    Some key -> pure key
+    None -> pure swapInstrument
 
   pure ()
 
@@ -453,7 +469,13 @@ runDualStubSampleTrade = script do
       , (dateToDateClockTime $ date 2023 Mar 16, 0.013)
       , (dateToDateClockTime $ date 2023 Jun 16, 0.013)
       ]
-    observationsLibor1M = Map.fromList [(dateToDateClockTime $ date 2023 Jun 16, 0.02)]
+    observationsLibor1M = Map.fromList
+      [ (dateToDateClockTime $ date 2022 Jan 06, 0.0020)
+      , (dateToDateClockTime $ date 2022 Sep 16, 0.015)
+      , (dateToDateClockTime $ date 2022 Dec 16, 0.016)
+      , (dateToDateClockTime $ date 2023 Mar 16, 0.017)
+      , (dateToDateClockTime $ date 2023 Jun 16, 0.02)
+      ]
     calendar =
       HolidayCalendarData with
         id = "USD"
@@ -642,40 +664,61 @@ runDualStubSampleTrade = script do
   let
     expectedConsumed = [qty 333.3333 cashInstrument]
     expectedProduced = [qty 250.0 cashInstrument]
-  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    firstRegularPeriodDate swapInstrument issuer observableCids expectedConsumed expectedProduced
+  maybeSwapInstrumentAfterFirstPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      firstRegularPeriodDate swapInstrument issuer observableCids expectedConsumed expectedProduced
+  
+  swapInstrumentAfterFirstPayment <- case maybeSwapInstrumentAfterFirstPayment of
+    Some key -> pure key
+    None -> pure swapInstrument
 
   -- Second payment date: Lifecycle and verify the floating payment (regular period, 3M).
   let
     expectedConsumed = []
     expectedProduced = [qty 4550.0 cashInstrument]
-  Some swapInstrumentAfterSecondPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    secondRegularPeriodDate swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed
-    expectedProduced
+  maybeSwapInstrumentAfterSecondPayment <- 
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      secondRegularPeriodDate swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed expectedProduced
+  
+  swapInstrumentAfterSecondPayment <- case maybeSwapInstrumentAfterSecondPayment of
+    Some key -> pure key
+    None -> pure swapInstrument
 
   -- Third payment date: Lifecycle and verify the floating payment (regular period, 3M).
   let
     expectedConsumed = []
     expectedProduced = [qty 4500.0 cashInstrument]
-  Some swapInstrumentAfterThirdPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    thirdRegularPeriodDate swapInstrumentAfterSecondPayment issuer observableCids expectedConsumed
-    expectedProduced
+  maybeSwapInstrumentAfterThirdPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      thirdRegularPeriodDate swapInstrumentAfterSecondPayment issuer observableCids expectedConsumed expectedProduced
+
+  swapInstrumentAfterThirdPayment <- case maybeSwapInstrumentAfterThirdPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterSecondPayment
 
   -- Fourth payment date: Lifecycle and verify the floating payment (regular period, 3M).
   let
     expectedConsumed = []
     expectedProduced = [qty 4600.0 cashInstrument]
-  Some swapInstrumentAfterFourthPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    lastRegularPeriodDate swapInstrumentAfterThirdPayment issuer observableCids expectedConsumed
-    expectedProduced
+  maybeSwapInstrumentAfterFourthPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      lastRegularPeriodDate swapInstrumentAfterThirdPayment issuer observableCids expectedConsumed expectedProduced
+
+  swapInstrumentAfterFourthPayment <- case maybeSwapInstrumentAfterFourthPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterThirdPayment
 
   -- Final payment date: Lifecycle and verify the fix and floating payments (stub period).
   let
     expectedConsumed = [qty 19944.4444 cashInstrument]
     expectedProduced = [qty 3267.3835 cashInstrument]
-  swapInstrumentAfterFinalPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    maturityDate swapInstrumentAfterFourthPayment issuer observableCids expectedConsumed
-    expectedProduced
+  maybeSwapInstrumentAfterFinalPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      maturityDate swapInstrumentAfterFourthPayment issuer observableCids expectedConsumed expectedProduced
+
+  swapInstrumentAfterFinalPayment <- case maybeSwapInstrumentAfterFinalPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterFourthPayment
 
   pure ()
 
@@ -710,6 +753,7 @@ runSeparatePaymentFrequencySampleTrade = script do
       , (dateToDateClockTime $ date 2023 Apr 24, 0.01)
       , (dateToDateClockTime $ date 2023 Oct 24, 0.01)
       ]
+
     observationsLibor1M = Map.fromList [(dateToDateClockTime $ date 2022 Oct 13, 0.02)]
     observationsLibor1D = Map.fromList [(dateToDateClockTime $ date 2022 Oct 13, 0.03)]
     holidayCalendarIds = ["USD"]
@@ -900,41 +944,64 @@ runSeparatePaymentFrequencySampleTrade = script do
   let
     expectedConsumed = [qty 2500.0 cashInstrument]
     expectedProduced = [qty 3416.6665 cashInstrument]
-  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    firstRegularPeriodDate swapInstrument issuer observableCids expectedConsumed expectedProduced
+  maybeSwapInstrumentAfterFirstPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      firstRegularPeriodDate swapInstrument issuer observableCids expectedConsumed expectedProduced
+
+  swapInstrumentAfterFirstPayment <- case maybeSwapInstrumentAfterFirstPayment of
+    Some key -> pure key
+    None -> pure swapInstrument
 
   -- Lifecycle and verify the fix payment (regular period, 3M).
   let
     expectedConsumed = [qty 25000.0 cashInstrument]
     expectedProduced = []
-  Some swapInstrumentAfterSecondPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2023 Jan 26) swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed
-    expectedProduced
+  maybeSwapInstrumentAfterSecondPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2023 Jan 26) swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed expectedProduced
+
+  swapInstrumentAfterSecondPayment <- case maybeSwapInstrumentAfterSecondPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterFirstPayment
 
   -- Lifecycle and verify the fix (regular period, 3M). The 6M float payment is calculated but only
   -- paid every 12M.
   let
     expectedConsumed = [qty 25000.0 cashInstrument]
     expectedProduced = []
-  Some swapInstrumentAfterThirdPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2023 Apr 26) swapInstrumentAfterSecondPayment issuer observableCids expectedConsumed
-    expectedProduced
+  maybeSwapInstrumentAfterThirdPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2023 Apr 26) swapInstrumentAfterSecondPayment issuer observableCids expectedConsumed expectedProduced
+
+  swapInstrumentAfterThirdPayment <- case maybeSwapInstrumentAfterThirdPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterSecondPayment
 
   -- Lifecycle and verify the fix payment (regular period, 3M).
   let
     expectedConsumed = [qty 25000.0 cashInstrument]
     expectedProduced = []
-  Some swapInstrumentAfterFourthPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2023 Jul 26) swapInstrumentAfterThirdPayment issuer observableCids expectedConsumed
-    expectedProduced
+  maybeSwapInstrumentAfterFourthPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2023 Jul 26) swapInstrumentAfterThirdPayment issuer observableCids expectedConsumed expectedProduced
+
+  swapInstrumentAfterFourthPayment <- case maybeSwapInstrumentAfterFourthPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterThirdPayment
 
   -- Lifecycle and verify the fix payment (regular period, 3M) + floating payment
   -- (regular period, 12M).
   let
     expectedConsumed = [qty 25000.0 cashInstrument]
     expectedProduced = [qty 63368.0555 cashInstrument]
-  lifecycleAndVerifyPaymentEffects [publicParty] (date 2023 Oct 26)
-    swapInstrumentAfterFourthPayment issuer observableCids expectedConsumed expectedProduced
+  maybeSwapInstrumentAfterFinalPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2023 Oct 26)
+      swapInstrumentAfterFourthPayment issuer observableCids expectedConsumed expectedProduced
+
+  swapInstrumentAfterFinalPayment <- case maybeSwapInstrumentAfterFinalPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterFourthPayment
 
   pure ()
 
@@ -1192,50 +1259,70 @@ runCurrencySwapSampleTrade = script do
     observers now swapStreams calendarDataProvider currencies issuerPartyRef publicParty
   let settlers = singleton custodian
 
-  -- Lifecycle and verify initial exchange of principal
+    -- Lifecycle and verify initial exchange of principal
   let
     expectedConsumed = [qty 5100000.0 cashInstrumentUsd]
     expectedProduced = [qty 5000000.0 cashInstrumentEur]
-  Some swapInstrumentAfterFirstPrincipalExchangePayment <- lifecycleAndVerifyPaymentEffects
-    [publicParty] (date 2022 Oct 17) swapInstrument issuer observableCids expectedConsumed
-    expectedProduced
+  maybeSwapInstrumentAfterFirstPrincipalExchangePayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2022 Oct 17) swapInstrument issuer observableCids expectedConsumed expectedProduced
+
+  swapInstrumentAfterFirstPrincipalExchangePayment <- case maybeSwapInstrumentAfterFirstPrincipalExchangePayment of
+    Some key -> pure key
+    None -> pure swapInstrument
+
 
   -- Lifecycle and verify Euribor vs Libor payment.
   let
-    expectedConsumed =
-      [qty 12777.778 cashInstrumentEur, qty 50000.0 cashInstrumentUsd]
+    expectedConsumed = [qty 12777.778 cashInstrumentEur, qty 50000.0 cashInstrumentUsd]
     expectedProduced = [qty 26066.66661 cashInstrumentUsd]
-  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2023 Jan 17) swapInstrumentAfterFirstPrincipalExchangePayment issuer observableCids
-    expectedConsumed expectedProduced
+  maybeSwapInstrumentAfterFirstPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2023 Jan 17) swapInstrumentAfterFirstPrincipalExchangePayment issuer observableCids expectedConsumed expectedProduced
+
+  swapInstrumentAfterFirstPayment <- case maybeSwapInstrumentAfterFirstPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterFirstPrincipalExchangePayment
+
 
   -- Lifecycle and verify Euribor vs Libor payment.
   let
-    expectedConsumed =
-      [qty 12500.0 cashInstrumentEur, qty 100000.0 cashInstrumentUsd]
+    expectedConsumed = [qty 12500.0 cashInstrumentEur, qty 100000.0 cashInstrumentUsd]
     expectedProduced = [qty 25750.0 cashInstrumentUsd]
-  Some swapInstrumentAfterSecondPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2023 Apr 17) swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed
-    expectedProduced
+  maybeSwapInstrumentAfterSecondPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2023 Apr 17) swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed expectedProduced
+
+  swapInstrumentAfterSecondPayment <- case maybeSwapInstrumentAfterSecondPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterFirstPayment
+
 
   -- Lifecycle and verify Euribor vs Libor payment.
   let
     expectedConsumed = [qty 12638.889 cashInstrumentEur]
-    expectedProduced =
-      [qty 26541.6669 cashInstrumentUsd, qty 50000.0 cashInstrumentUsd]
-  Some swapInstrumentAfterThirdPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2023 Jul 17) swapInstrumentAfterSecondPayment issuer observableCids expectedConsumed
-    expectedProduced
+    expectedProduced = [qty 26541.6669 cashInstrumentUsd, qty 50000.0 cashInstrumentUsd]
+  maybeSwapInstrumentAfterThirdPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2023 Jul 17) swapInstrumentAfterSecondPayment issuer observableCids expectedConsumed expectedProduced
 
-  -- Lifecycle and verify Euribor vs Libor payment.
+  swapInstrumentAfterThirdPayment <- case maybeSwapInstrumentAfterThirdPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterSecondPayment
+
+
+  -- Lifecycle and verify Euribor vs Libor payment (final period).
   let
-    expectedConsumed =
-      [qty 12777.778 cashInstrumentEur, qty 5000000.0 cashInstrumentEur]
-    expectedProduced = [qty 26577.77772 cashInstrumentUsd,
-      qty 5200000.0 cashInstrumentUsd]
-  swapInstrumentAfterFinalPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2023 Oct 17) swapInstrumentAfterThirdPayment issuer observableCids expectedConsumed
-    expectedProduced
+    expectedConsumed = [qty 12777.778 cashInstrumentEur, qty 5000000.0 cashInstrumentEur]
+    expectedProduced = [qty 26577.77772 cashInstrumentUsd, qty 5200000.0 cashInstrumentUsd]
+  maybeSwapInstrumentAfterFinalPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2023 Oct 17) swapInstrumentAfterThirdPayment issuer observableCids expectedConsumed expectedProduced
+
+  swapInstrumentAfterFinalPayment <- case maybeSwapInstrumentAfterFinalPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterThirdPayment
+
 
   pure ()
 
@@ -1277,7 +1364,16 @@ runAmortizingNotionalSampleTrade = script do
       , (dateToDateClockTime $ date 2023 Apr 18, 0.01)
       , (dateToDateClockTime $ date 2023 Jul 18, 0.01)
       , (dateToDateClockTime $ date 2023 Oct 18, 0.01)
+      , (dateToDateClockTime $ date 2024 Jan 18, 0.01)
+      , (dateToDateClockTime $ date 2024 Apr 18, 0.01)
+      , (dateToDateClockTime $ date 2024 Jul 18, 0.01)
+      , (dateToDateClockTime $ date 2024 Oct 17, 0.01)    
+      , (dateToDateClockTime $ date 2025 Jan 16, 0.01)    
+      , (dateToDateClockTime $ date 2025 Apr 17, 0.01)    
+      , (dateToDateClockTime $ date 2025 Jul 17, 0.01)    
+      , (dateToDateClockTime $ date 2025 Oct 16, 0.01)    
       ]
+
     observationsLibor1M = Map.fromList [(dateToDateClockTime $ date 2022 Oct 13, 0.02)]
     observationsLibor1D = Map.fromList [(dateToDateClockTime $ date 2022 Oct 13, 0.03)]
     calendar =
@@ -1503,30 +1599,43 @@ runAmortizingNotionalSampleTrade = script do
     observers now swapStreams calendarDataProvider currencies issuerPartyRef publicParty
   let settlers = singleton custodian
 
-  -- First payment date: Lifecycle and verify the fix and floating payments (stub period).
+    -- First payment date: Lifecycle and verify the fix and floating payments (stub period).
   let
     expectedConsumed = [qty 1222.222 cashInstrument]
     expectedProduced = [qty 833.3335 cashInstrument]
-  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2022 Oct 20) swapInstrument issuer observableCids expectedConsumed expectedProduced
+  maybeSwapInstrumentAfterFirstPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2022 Oct 20) swapInstrument issuer observableCids expectedConsumed expectedProduced
+
+  swapInstrumentAfterFirstPayment <- case maybeSwapInstrumentAfterFirstPayment of
+    Some key -> pure key
+    None -> pure swapInstrument
+
 
   -- Second payment date: Lifecycle and verify the floating payment (regular period, 3M).
   let
     expectedConsumed = [qty 11500.0002 cashInstrument]
     expectedProduced = []
-  Some swapInstrumentAfterSecondPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2023 Jan 20) swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed
-    expectedProduced
+  maybeSwapInstrumentAfterSecondPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2023 Jan 20) swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed expectedProduced
 
-  -- Third payment date: Lifecycle and verify the fix and floating payments (regular period,
-  -- 3M float vs 6M fix).
+  swapInstrumentAfterSecondPayment <- case maybeSwapInstrumentAfterSecondPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterFirstPayment
+
+
+  -- Third payment date: Lifecycle and verify the fix and floating payments (regular period, 3M float vs 6M fix).
   let
     expectedConsumed = [qty 11250.0 cashInstrument]
     expectedProduced = [qty 45000.0 cashInstrument]
-  swapInstrumentAfterThirdPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2023 Apr 20) swapInstrumentAfterSecondPayment issuer observableCids expectedConsumed
-    expectedProduced
+  maybeSwapInstrumentAfterThirdPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2023 Apr 20) swapInstrumentAfterSecondPayment issuer observableCids expectedConsumed expectedProduced
 
+  swapInstrumentAfterThirdPayment <- case maybeSwapInstrumentAfterThirdPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterSecondPayment
   pure ()
 
 -- fpml.org Example 1 - Fixed/Floating Single Currency Interest Rate Swap
@@ -1559,6 +1668,14 @@ runFpml1 = script do
       [ (dateToDateClockTime $ date 1994 Dec 12, 0.061)
       , (dateToDateClockTime $ date 1995 Jun 12, 0.063)
       , (dateToDateClockTime $ date 1995 Dec 12, 0.065)
+      , (dateToDateClockTime $ date 1996 Jun 12, 0.066)  
+      , (dateToDateClockTime $ date 1996 Dec 12, 0.067)  
+      , (dateToDateClockTime $ date 1997 Jun 12, 0.068)  
+      , (dateToDateClockTime $ date 1997 Dec 11, 0.069)  
+      , (dateToDateClockTime $ date 1998 Jun 11, 0.070)  
+      , (dateToDateClockTime $ date 1998 Dec 10, 0.071)  
+      , (dateToDateClockTime $ date 1999 Jun 10, 0.072)  
+      , (dateToDateClockTime $ date 1999 Dec 10, 0.073)  
       ]
     primaryBusinessCenters = ["DEFR"]
     calendar =
@@ -1723,21 +1840,29 @@ runFpml1 = script do
   swapInstrument <- originateFpmlSwap issuer issuer "SwapTest1" BaseHolding "Interest rate swap"
     observers now swapStreams calendarDataProvider currencies issuerPartyRef publicParty
 
-  -- First payment date: Lifecycle and verify the floating payment (regular period, 6M).
+    -- First payment date: Lifecycle and verify the floating payment (regular period, 6M).
   let
     expectedConsumed = []
     expectedProduced = [qty 1541944.445 cashInstrument]
-  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 1995 Jun 14) swapInstrument issuer observableCids expectedConsumed expectedProduced
+  maybeSwapInstrumentAfterFirstPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 1995 Jun 14) swapInstrument issuer observableCids expectedConsumed expectedProduced
 
-  -- Second payment date: Lifecycle and verify the fix and floating payments (regular period,
-  -- 6M float vs 12M fix).
+  swapInstrumentAfterFirstPayment <- case maybeSwapInstrumentAfterFirstPayment of
+    Some key -> pure key
+    None -> pure swapInstrument
+
+  -- Second payment date: Lifecycle and verify the fix and floating payments (regular period, 6M float vs 12M fix).
   let
     expectedConsumed = [qty 3000000.0 cashInstrument]
     expectedProduced = [qty 1601250.0 cashInstrument]
-  Some swapInstrumentAfterSecondPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 1995 Dec 14) swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed
-    expectedProduced
+  maybeSwapInstrumentAfterSecondPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 1995 Dec 14) swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed expectedProduced
+
+  swapInstrumentAfterSecondPayment <- case maybeSwapInstrumentAfterSecondPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterFirstPayment
 
   pure ()
 
@@ -1973,39 +2098,59 @@ runFpml2 = script do
   swapInstrument <- originateFpmlSwap issuer issuer "SwapTest1" BaseHolding "Interest rate swap"
     observers now swapStreams calendarDataProvider currencies issuerPartyRef publicParty
 
-  -- First payment date: Lifecycle and verify the floating payment (short stub period).
+    -- First payment date: Lifecycle and verify the floating payment (short stub period).
   let
     expectedConsumed = []
     expectedProduced = [qty 1228315.41 cashInstrument]
-  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 1995 Jun 14) swapInstrument issuer observableCids expectedConsumed expectedProduced
+  maybeSwapInstrumentAfterFirstPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 1995 Jun 14) swapInstrument issuer observableCids expectedConsumed expectedProduced
 
-  -- Second payment date: Lifecycle and verify the fix and floating payments (regular 6M float
-  -- period, short stub fix period).
+  swapInstrumentAfterFirstPayment <- case maybeSwapInstrumentAfterFirstPayment of
+    Some key -> pure key
+    None -> pure swapInstrument
+
+
+  -- Second payment date: Lifecycle and verify the fix and floating payments
+  -- (regular 6M float period, short stub fix period).
   let
     expectedConsumed = [qty 2733333.335 cashInstrument]
     expectedProduced = [qty 1601250.0 cashInstrument]
-  Some swapInstrumentAfterSecondPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 1995 Dec 14) swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed
-    expectedProduced
+  maybeSwapInstrumentAfterSecondPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 1995 Dec 14) swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed expectedProduced
 
-  -- Third payment date: Lifecycle and verify the floating payment (regular 6M period, amortized
-  -- notional).
+  swapInstrumentAfterSecondPayment <- case maybeSwapInstrumentAfterSecondPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterFirstPayment
+
+
+  -- Third payment date: Lifecycle and verify the floating payment
+  -- (regular 6M period, amortized notional).
   let
     expectedConsumed = []
     expectedProduced = [qty 1321666.668 cashInstrument]
-  Some swapInstrumentAfterThirdPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 1996 Jun 14) swapInstrumentAfterSecondPayment issuer observableCids expectedConsumed
-    expectedProduced
+  maybeSwapInstrumentAfterThirdPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 1996 Jun 14) swapInstrumentAfterSecondPayment issuer observableCids expectedConsumed expectedProduced
 
-  -- Fourth payment date: Lifecycle and verify the fix and floating payments (regular periods:
-  -- 6M float / 1Y fix, amortized notional).
+  swapInstrumentAfterThirdPayment <- case maybeSwapInstrumentAfterThirdPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterSecondPayment
+
+
+  -- Fourth payment date: Lifecycle and verify the fix and floating payments
+  -- (regular periods: 6M float / 1Y fix, amortized notional).
   let
     expectedConsumed = [qty 2413333.332 cashInstrument]
     expectedProduced = [qty 1336111.112 cashInstrument]
-  Some swapInstrumentAfterFourthPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 1996 Dec 16) swapInstrumentAfterThirdPayment issuer observableCids expectedConsumed
-    expectedProduced
+  maybeSwapInstrumentAfterFourthPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 1996 Dec 16) swapInstrumentAfterThirdPayment issuer observableCids expectedConsumed expectedProduced
+
+  swapInstrumentAfterFourthPayment <- case maybeSwapInstrumentAfterFourthPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterThirdPayment
 
   pure ()
 
@@ -2044,6 +2189,11 @@ runFpml3 = script do
       , (dateToDateClockTime $ date 2000 Oct 25, 0.067)
       , (dateToDateClockTime $ date 2001 Jan 25, 0.069)
       , (dateToDateClockTime $ date 2001 Apr 25, 0.071)
+      , (dateToDateClockTime $ date 2001 Jul 23, 0.048)   
+      , (dateToDateClockTime $ date 2001 Jul 25, 0.048)   
+      , (dateToDateClockTime $ date 2001 Oct 25, 0.049) 
+      , (dateToDateClockTime $ date 2002 Jan 24, 0.074)  
+      , (dateToDateClockTime $ date 2002 Jan 25, 0.050)
       ]
     primaryBusinessCenters = ["GBLO", "USNY"]
     calendar =
@@ -2219,21 +2369,30 @@ runFpml3 = script do
   swapInstrument <- originateFpmlSwap issuer issuer "SwapTest1" BaseHolding "Interest rate swap"
     observers now swapStreams calendarDataProvider currencies issuerPartyRef publicParty
 
-  -- First payment date: Lifecycle and verify the fix and floating payments (regular 6M period)
+    -- First payment date: Lifecycle and verify the fix and floating payments (regular 6M period)
   let
     expectedConsumed = [qty 2925000.0 cashInstrument]
     expectedProduced = [qty 3280064.30442675 cashInstrument]
-  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2000 Nov 3) swapInstrument issuer observableCids expectedConsumed expectedProduced
+  maybeSwapInstrumentAfterFirstPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2000 Nov 3) swapInstrument issuer observableCids expectedConsumed expectedProduced
+
+  swapInstrumentAfterFirstPayment <- case maybeSwapInstrumentAfterFirstPayment of
+    Some key -> pure key
+    None -> pure swapInstrument
+
 
   -- Second payment date: Lifecycle and verify the fix and floating payments (regular 6M period)
   let
     expectedConsumed = [qty 2925000.0 cashInstrument]
     expectedProduced = [qty 3465618.4062796481 cashInstrument]
-  Some swapInstrumentAfterSecondPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2001 May 4) swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed
-    expectedProduced
+  maybeSwapInstrumentAfterSecondPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2001 May 4) swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed expectedProduced
 
+  swapInstrumentAfterSecondPayment <- case maybeSwapInstrumentAfterSecondPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterFirstPayment
   pure ()
 
 -- Test Rate Rounding methods.
@@ -2293,6 +2452,14 @@ runCompounding = script do
       , (dateToDateClockTime $ date 2022 May 25, 0.045)
       , (dateToDateClockTime $ date 2022 Jun 23, 0.050)
       , (dateToDateClockTime $ date 2022 Jul 25, 0.000)
+      , (dateToDateClockTime $ date 2022 Aug 25, 0.039)
+      , (dateToDateClockTime $ date 2022 Sep 23, 0.001)
+      , (dateToDateClockTime $ date 2022 Oct 25, 0.025)
+      , (dateToDateClockTime $ date 2022 Nov 24, 0.011)
+      , (dateToDateClockTime $ date 2022 Dec 23, 0.010)
+      , (dateToDateClockTime $ date 2023 Jan 25, 0.023)
+      , (dateToDateClockTime $ date 2023 Feb 23, 0.013)
+      , (dateToDateClockTime $ date 2023 Mar 23, 0.009)
       ]
     primaryBusinessCenters = ["GBLO", "USNY"]
     calendar =
@@ -2403,12 +2570,19 @@ runCompounding = script do
   swapInstrument <- originateFpmlSwap issuer issuer "SwapTest1" BaseHolding "Interest rate swap"
     observers now swapStreams calendarDataProvider currencies issuerPartyRef publicParty
 
-  -- First payment date: Lifecycle and verify the floating payment (3 compounded 1M periods)
+  -- First payment date: Lifecycle and verify the floating payment (3 compounded 1M periods).
   let
     expectedConsumed = []
     expectedProduced = [qty 115439.654 cashInstrument]
-  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2022 Jul 27) swapInstrument issuer observableCids expectedConsumed expectedProduced
+
+  maybeSwapInstrumentAfterFirstPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2022 Jul 27) swapInstrument issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterFirstPayment <- case maybeSwapInstrumentAfterFirstPayment of
+    Some key -> pure key
+    None -> pure swapInstrument
 
   pure ()
 
@@ -2442,6 +2616,14 @@ runCompoundingFlat = script do
       , (dateToDateClockTime $ date 2022 May 25, 0.045)
       , (dateToDateClockTime $ date 2022 Jun 23, 0.050)
       , (dateToDateClockTime $ date 2022 Jul 25, 0.000)
+      , (dateToDateClockTime $ date 2022 Aug 25, 0.010)
+      , (dateToDateClockTime $ date 2022 Sep 23, 0.001)
+      , (dateToDateClockTime $ date 2022 Oct 25, 0.052)
+      , (dateToDateClockTime $ date 2022 Nov 24, 0.030)
+      , (dateToDateClockTime $ date 2022 Dec 23, 0.005)
+      , (dateToDateClockTime $ date 2023 Jan 25, 0.019)
+      , (dateToDateClockTime $ date 2023 Feb 23, 0.025)
+      , (dateToDateClockTime $ date 2023 Mar 23, 0.001)
       ]
     primaryBusinessCenters = ["GBLO", "USNY"]
     calendar =
@@ -2552,12 +2734,19 @@ runCompoundingFlat = script do
   swapInstrument <- originateFpmlSwap issuer issuer "SwapTest1" BaseHolding "Interest rate swap"
     observers now swapStreams calendarDataProvider currencies issuerPartyRef publicParty
 
-  -- First payment date: Lifecycle and verify the floating payment (3 compounded 1M periods)
+    -- First payment date: Lifecycle and verify the floating payment (3 compounded 1M periods).
   let
     expectedConsumed = []
     expectedProduced = [qty 115430.7421911761 cashInstrument]
-  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2022 Jul 27) swapInstrument issuer observableCids expectedConsumed expectedProduced
+
+  maybeSwapInstrumentAfterFirstPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2022 Jul 27) swapInstrument issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterFirstPayment <- case maybeSwapInstrumentAfterFirstPayment of
+    Some key -> pure key
+    None -> pure swapInstrument
 
   pure ()
 
@@ -2592,6 +2781,15 @@ runCompoundingSpreadSimple = script do
       , (dateToDateClockTime $ date 2022 May 25, 0.045)
       , (dateToDateClockTime $ date 2022 Jun 23, 0.050)
       , (dateToDateClockTime $ date 2022 Jul 25, 0.000)
+      , (dateToDateClockTime $ date 2022 Aug 25, 0.000)   
+      , (dateToDateClockTime $ date 2022 Sep 23, 0.000)   
+      , (dateToDateClockTime $ date 2022 Oct 25, 0.000)  
+      , (dateToDateClockTime $ date 2022 Nov 24, 0.000)   
+      , (dateToDateClockTime $ date 2022 Nov 25, 0.000)   
+      , (dateToDateClockTime $ date 2022 Dec 23, 0.000)   
+      , (dateToDateClockTime $ date 2023 Jan 25, 0.000)   
+      , (dateToDateClockTime $ date 2023 Feb 23, 0.000)   
+      , (dateToDateClockTime $ date 2023 Mar 23, 0.000)   
       ]
     primaryBusinessCenters = ["GBLO", "USNY"]
     calendar =
@@ -2702,13 +2900,19 @@ runCompoundingSpreadSimple = script do
   swapInstrument <- originateFpmlSwap issuer issuer "SwapTest1" BaseHolding "Interest rate swap"
     observers now swapStreams calendarDataProvider currencies issuerPartyRef publicParty
 
-  -- First payment date: Lifecycle and verify the floating payment (3 compounded 1M periods)
+    -- First payment date: Lifecycle and verify the floating payment (3 compounded 1M periods).
   let
     expectedConsumed = []
     expectedProduced = [qty 115420.659999 cashInstrument]
-  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2022 Jul 27) swapInstrument issuer observableCids expectedConsumed
-    expectedProduced
+
+  maybeSwapInstrumentAfterFirstPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2022 Jul 27) swapInstrument issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterFirstPayment <- case maybeSwapInstrumentAfterFirstPayment of
+    Some key -> pure key
+    None -> pure swapInstrument
 
   pure ()
 
@@ -2745,7 +2949,8 @@ runFpml4 = script do
       , (dateToDateClockTime $ date 2001 Apr 25, 0.069)
       , (dateToDateClockTime $ date 2001 Jul 25, 0.071)
       , (dateToDateClockTime $ date 2001 Oct 25, 0.073)
-      , (dateToDateClockTime $ date 2002 Jan 25, 0.075)
+      , (dateToDateClockTime $ date 2002 Jan 24, 0.075)  
+      , (dateToDateClockTime $ date 2002 Apr 25, 0.083)  
       ]
     primaryBusinessCenters = ["GBLO", "USNY"]
     calendar =
@@ -2910,53 +3115,95 @@ runFpml4 = script do
   swapInstrument <- originateFpmlSwap issuer issuer "SwapTest1" BaseHolding "Interest rate swap"
     observers now swapStreams calendarDataProvider currencies issuerPartyRef publicParty
 
-  -- First payment date: Lifecycle and verify a floating payment (regular 3M period)
+    -- First payment date: Lifecycle and verify a floating payment (regular 3M period)
   let
     expectedConsumed = []
     expectedProduced = [qty 1592500.0 cashInstrument]
-  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2000 Jul 27) swapInstrument issuer observableCids expectedConsumed expectedProduced
+
+  maybeSwapInstrumentAfterFirstPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2000 Jul 27) swapInstrument issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterFirstPayment <- case maybeSwapInstrumentAfterFirstPayment of
+    Some key -> pure key
+    None -> pure swapInstrument
+
 
   -- Second payment date: Lifecycle and verify the fix (6M) and floating payments (3M)
   let
     expectedConsumed = [qty 3000000.0 cashInstrument]
     expectedProduced = [qty 1661111.11 cashInstrument]
-  Some swapInstrumentAfterSecondPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2000 Oct 27) swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed
-    expectedProduced
+
+  maybeSwapInstrumentAfterSecondPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2000 Oct 27) swapInstrumentAfterFirstPayment issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterSecondPayment <- case maybeSwapInstrumentAfterSecondPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterFirstPayment
+
 
   -- Third payment date: Lifecycle and verify a floating payment (regular 3M period)
   let
     expectedConsumed = []
     expectedProduced = [qty 1749444.44 cashInstrument]
-  Some swapInstrumentAfterThirdPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2001 Jan 29) swapInstrumentAfterSecondPayment issuer observableCids expectedConsumed
-    expectedProduced
+
+  maybeSwapInstrumentAfterThirdPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2001 Jan 29) swapInstrumentAfterSecondPayment issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterThirdPayment <- case maybeSwapInstrumentAfterThirdPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterSecondPayment
+
 
   -- Fourth payment date: Lifecycle and verify the fix (6M) and floating payments (3M)
   let
     expectedConsumed = [qty 3000000.0 cashInstrument]
     expectedProduced = [qty 1686666.67 cashInstrument]
-  Some swapInstrumentAfterFourthPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2001 Apr 27) swapInstrumentAfterThirdPayment issuer observableCids expectedConsumed
-    expectedProduced
+
+  maybeSwapInstrumentAfterFourthPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2001 Apr 27) swapInstrumentAfterThirdPayment issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterFourthPayment <- case maybeSwapInstrumentAfterFourthPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterThirdPayment
+
 
   -- Fifth payment date: Lifecycle and verify a floating payment (regular 3M period)
   let
     expectedConsumed = []
     expectedProduced = [qty 1794722.22 cashInstrument]
-  Some swapInstrumentAfterFifthPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2001 Jul 29) swapInstrumentAfterFourthPayment issuer observableCids expectedConsumed
-    expectedProduced
+
+  maybeSwapInstrumentAfterFifthPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2001 Jul 29) swapInstrumentAfterFourthPayment issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterFifthPayment <- case maybeSwapInstrumentAfterFifthPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterFourthPayment
+
 
   -- Sixth payment date: Lifecycle and verify the fix (6M) and floating payments (3M)
   -- The fix rate is now higher, as configured in the step-up FpML element
   let
     expectedConsumed = [qty 3250000.0 cashInstrument]
     expectedProduced = [qty 1906111.11 cashInstrument]
-  Some swapInstrumentAfterSixthPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2001 Oct 29) swapInstrumentAfterFifthPayment issuer observableCids expectedConsumed
-    expectedProduced
+
+  maybeSwapInstrumentAfterSixthPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2001 Oct 29) swapInstrumentAfterFifthPayment issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterSixthPayment <- case maybeSwapInstrumentAfterSixthPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterFifthPayment
 
   pure ()
 
@@ -2986,12 +3233,16 @@ runFpml4a = script do
     calcPeriodMultiplierFloat = 3
     businessDayConvention = ModifiedFollowing
     observations = Map.fromList
-      -- Data for the SOFR Index (used for efficient computation of USD-SOFR-COMPOUND)
       [ (dateToDateClockTime $ date 2018 Nov 15, 1.01213)
       , (dateToDateClockTime $ date 2019 Feb 15, 1.01836)
       , (dateToDateClockTime $ date 2019 May 15, 1.02453)
       , (dateToDateClockTime $ date 2019 Aug 15, 1.03077)
       , (dateToDateClockTime $ date 2019 Nov 15, 1.03598)
+      , (dateToDateClockTime $ date 2020 Feb 17, 1.03398)
+      , (dateToDateClockTime $ date 2020 May 15, 1.03490)  
+      , (dateToDateClockTime $ date 2020 Aug 17, 1.03612)  
+      , (dateToDateClockTime $ date 2020 Nov 13, 1.03745)  
+      , (dateToDateClockTime $ date 2020 Nov 16, 1.03845) 
       ]
 
     primaryBusinessCenters = ["USNY"]
@@ -3171,33 +3422,60 @@ runFpml4a = script do
   let
     expectedConsumed = []
     expectedProduced = [qty 517851.0769994972 cashInstrument]
-  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2019 Feb 19) swapInstrument issuer observableCids expectedConsumed expectedProduced
+
+  maybeSwapInstrumentAfterFirstPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2019 Feb 19) swapInstrument issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterFirstPayment <- case maybeSwapInstrumentAfterFirstPayment of
+    Some key -> pure key
+    None -> pure swapInstrument
+
 
   -- Second payment date: Lifecycle and verify the fix (6M) and floating payments (3M)
   let
     expectedConsumed = [qty 562105.5546 cashInstrument]
     expectedProduced = [qty 526907.9878205855 cashInstrument]
-  Some swapInstrumentAfterSecondPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2019 May 17) swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed
-    expectedProduced
+
+  maybeSwapInstrumentAfterSecondPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2019 May 17) swapInstrumentAfterFirstPayment issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterSecondPayment <- case maybeSwapInstrumentAfterSecondPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterFirstPayment
+
 
   -- Third payment date: Lifecycle and verify a floating payment (regular 3M period)
   let
     expectedConsumed = []
     expectedProduced = [qty 512404.6240873736 cashInstrument]
-  Some swapInstrumentAfterThirdPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2019 Aug 19) swapInstrumentAfterSecondPayment issuer observableCids expectedConsumed
-    expectedProduced
+
+  maybeSwapInstrumentAfterThirdPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2019 Aug 19) swapInstrumentAfterSecondPayment issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterThirdPayment <- case maybeSwapInstrumentAfterThirdPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterSecondPayment
 
   -- Fourth payment date: Lifecycle and verify the fix (6M) and floating payments (3M)
   -- The fix rate is now higher, as configured in the step-up FpML element
   let
     expectedConsumed = [qty 659333.3362 cashInstrument]
     expectedProduced = [qty 425235.0783194869 cashInstrument]
-  Some swapInstrumentAfterFourthPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2019 Nov 19) swapInstrumentAfterThirdPayment issuer observableCids expectedConsumed
-    expectedProduced
+
+  maybeSwapInstrumentAfterFourthPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2019 Nov 19) swapInstrumentAfterThirdPayment issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterFourthPayment <- case maybeSwapInstrumentAfterFourthPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterThirdPayment
 
   pure ()
 
@@ -3422,27 +3700,41 @@ runFpml5 = script do
 
   -- First regular payment date: 7M long initial stub
   let
-    expectedConsumed = [qty 2285937.5025 cashInstrument]
-    expectedProduced = [qty 2274218.7525 cashInstrument]
-  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    firstRegularPeriodStartDate swapInstrument issuer observableCids expectedConsumed
-    expectedProduced
+    expectedConsumed = [qty 2_285_937.5025 cashInstrument]
+    expectedProduced = [qty 2_274_218.7525 cashInstrument]
+
+  maybeSwapInstrumentAfterFirstPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      firstRegularPeriodStartDate swapInstrument issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterFirstPayment <- case maybeSwapInstrumentAfterFirstPayment of
+    Some key -> pure key
+    None -> pure swapInstrument
 
   -- Fast-forward to the last regular payment date: lifecycle 4 years of fixed & floating payments
   let
-    expectedConsumed = [qty 15750000.0075 cashInstrument]
-    expectedProduced = [qty 22372916.6625 cashInstrument]
-  Some swapInstrumentAfterSecondPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    lastRegularPeriodEndDate swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed
-    expectedProduced
+    expectedConsumed = [qty 15_750_000.0075 cashInstrument]
+    expectedProduced = [qty 22_372_916.6625 cashInstrument]
+
+  maybeSwapInstrumentAfterSecondPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      lastRegularPeriodEndDate swapInstrumentAfterFirstPayment issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterSecondPayment <- case maybeSwapInstrumentAfterSecondPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterFirstPayment
 
   -- Maturity date: 3M short final stub
   let
-    expectedConsumed = [qty 984375.0 cashInstrument]
-    expectedProduced = [qty 1475833.335 cashInstrument]
-  swapInstrumentAfterThirdPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    maturityDate swapInstrumentAfterSecondPayment issuer observableCids expectedConsumed
-    expectedProduced
+    expectedConsumed = [qty 984_375.0 cashInstrument]
+    expectedProduced = [qty 1_475_833.335 cashInstrument]
+
+  maybeSwapInstrumentAfterThirdPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      maturityDate swapInstrumentAfterSecondPayment issuer observableCids
+      expectedConsumed expectedProduced
 
   pure ()
 
@@ -3666,47 +3958,74 @@ runFpml6 = script do
     observers now swapStreams calendarDataProvider currencies issuerPartyRef publicParty
   let settlers = singleton custodian
 
-  -- Issue date: Lifecycle initial exchange of principal
+    -- Issue date: Lifecycle initial exchange of principal
   let
-    expectedConsumed = [qty 1000000000.0 cashInstrumentJpyCid]
-    expectedProduced = [qty 10000000.0 cashInstrumentUsd]
-  Some swapInstrumentAfterFirstPrincipalExchangePayment <- lifecycleAndVerifyPaymentEffects
-    [publicParty] issueDate swapInstrument issuer observableCids expectedConsumed expectedProduced
+    expectedConsumed = [qty 1_000_000_000.0 cashInstrumentJpyCid]
+    expectedProduced = [qty 10_000_000.0 cashInstrumentUsd]
+
+  maybeSwapInstrumentAfterFirstPrincipalExchangePayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      issueDate swapInstrument issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterFirstPrincipalExchangePayment <- case maybeSwapInstrumentAfterFirstPrincipalExchangePayment of
+    Some key -> pure key
+    None -> pure swapInstrument
 
   -- First payment date: Lifecycle a 6M USD Libor payment
   let
-    expectedConsumed = [qty 237611.111 cashInstrumentUsd]
+    expectedConsumed = [qty 237_611.111 cashInstrumentUsd]
     expectedProduced = []
-  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 1995 Jun 14) swapInstrumentAfterFirstPrincipalExchangePayment issuer observableCids
-    expectedConsumed expectedProduced
+
+  maybeSwapInstrumentAfterFirstPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 1995 Jun 14) swapInstrumentAfterFirstPrincipalExchangePayment issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterFirstPayment <- case maybeSwapInstrumentAfterFirstPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterFirstPrincipalExchangePayment
 
   -- Second payment date: Lifecycle 6M USD Libor + 1Y fixed JPY payments
   let
-    expectedConsumed = [qty 305000.0 cashInstrumentUsd]
-    expectedProduced = [qty 60000000.0 cashInstrumentJpyCid]
-  Some swapInstrumentAfterSecondPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 1995 Dec 14) swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed
-    expectedProduced
+    expectedConsumed = [qty 305_000.0 cashInstrumentUsd]
+    expectedProduced = [qty 60_000_000.0 cashInstrumentJpyCid]
+
+  maybeSwapInstrumentAfterSecondPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 1995 Dec 14) swapInstrumentAfterFirstPayment issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterSecondPayment <- case maybeSwapInstrumentAfterSecondPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterFirstPayment
 
   -- Fast-forward to the second last payment date: lifecycle 3.5 years of fixed & floating payments
   let
-    expectedConsumed = [qty 2170499.998 cashInstrumentUsd]
-    expectedProduced = [qty 179999999.9 cashInstrumentJpyCid]
-  Some swapInstrumentAfterThirdPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 1999 Jun 14) swapInstrumentAfterSecondPayment issuer observableCids expectedConsumed
-    expectedProduced
+    expectedConsumed = [qty 2_170_499.998 cashInstrumentUsd]
+    expectedProduced = [qty 179_999_999.9 cashInstrumentJpyCid]
 
-  -- Maturity date: Lifecycle final exhange of principal + fixed & floating payments
+  maybeSwapInstrumentAfterThirdPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 1999 Jun 14) swapInstrumentAfterSecondPayment issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterThirdPayment <- case maybeSwapInstrumentAfterThirdPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterSecondPayment
+
+  -- Maturity date: Lifecycle final exchange of principal + fixed & floating payments
   let
-    expectedConsumed = [qty 315166.667 cashInstrumentUsd,
-      qty 10000000.0 cashInstrumentUsd]
-    expectedProduced = [qty 60000000.0 cashInstrumentJpyCid,
-      qty 1000000000.0 cashInstrumentJpyCid]
-  swapInstrumentAfterFinalPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    maturityDate swapInstrumentAfterThirdPayment issuer observableCids expectedConsumed
-    expectedProduced
+    expectedConsumed = [ qty 315_166.667 cashInstrumentUsd
+      , qty 10_000_000.0 cashInstrumentUsd ]
+    expectedProduced = [ qty 60_000_000.0 cashInstrumentJpyCid
+      , qty 1_000_000_000.0 cashInstrumentJpyCid]
 
+  maybeSwapInstrumentAfterFinalPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      maturityDate swapInstrumentAfterThirdPayment issuer observableCids
+      expectedConsumed expectedProduced
+  
   pure ()
 
 -- fpml.org Example 7 - Fixed/Floating Overnight Interest Rate Swap (OIS)
@@ -3892,19 +4211,34 @@ runFpml7 = script do
   swapInstrument <- originateFpmlSwap issuer issuer "SwapTest1" BaseHolding "Interest rate swap"
     observers now swapStreams calendarDataProvider currencies issuerPartyRef publicParty
 
-  -- Adjusted maturity date: Lifecycle fixed payment
+    -- Adjusted maturity date: Lifecycle fixed payment
   let
-    expectedConsumed = [qty 1289166.67 cashInstrument]
+    expectedConsumed = [qty 1_289_166.67 cashInstrument]
     expectedProduced = []
-  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2001 Apr 30) swapInstrument issuer observableCids expectedConsumed expectedProduced
+
+  maybeSwapInstrumentAfterFirstPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2001 Apr 30) swapInstrument issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterFirstPayment <- case maybeSwapInstrumentAfterFirstPayment of
+    Some key -> pure key
+    None -> pure swapInstrument
 
   -- Adjusted maturity date + 1: Lifecycle floating payment
   let
     expectedConsumed = []
-    expectedProduced = [qty 1250000.0 cashInstrument]
-  swapInstrumentAfterSecondPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2001 May 1) swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed
-    expectedProduced
+    expectedProduced = [qty 1_250_000.0 cashInstrument]
+
+  maybeSwapInstrumentAfterSecondPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2001 May 1) swapInstrumentAfterFirstPayment issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterSecondPayment <- case maybeSwapInstrumentAfterSecondPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterFirstPayment
 
   pure ()
+
+

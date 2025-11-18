@@ -31,21 +31,41 @@ Data Types
          - :ref:`PeriodEnum <type-daml-finance-interface-types-date-v3-rollconvention-periodenum-45289>`
          - The unit of the date offset, e\.g\. D means that the date offset is specified in days\.
        * - periodMultiplier
-         - `Int <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
+         - `Int <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
          - The number of days (if period is D) before or after the base date the fixing is observed\.
        * - dayType
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `DayTypeEnum <type-daml-finance-interface-types-date-v3-dateoffset-daytypeenum-48232_>`_
+         - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `DayTypeEnum <type-daml-finance-interface-types-date-v3-dateoffset-daytypeenum-48232_>`_
          - Indicate whether the date offset is given in Business days or Calendar days\.
        * - businessDayConvention
          - :ref:`BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112>`
          - Business day convention that describes how a non\-business day is adjusted\.
        * - businessCenters
-         - \[`Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_\]
+         - \[`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_\]
          - The identifiers of the holiday calendars to be used for date adjustment (if any)\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `DateOffset <type-daml-finance-interface-types-date-v3-dateoffset-dateoffset-75159_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `DateOffset <type-daml-finance-interface-types-date-v3-dateoffset-dateoffset-75159_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `DateOffset <type-daml-finance-interface-types-date-v3-dateoffset-dateoffset-75159_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `DateOffset <type-daml-finance-interface-types-date-v3-dateoffset-dateoffset-75159_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"businessCenters\" `DateOffset <type-daml-finance-interface-types-date-v3-dateoffset-dateoffset-75159_>`_ \[`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_\]
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"businessDayConvention\" `DateOffset <type-daml-finance-interface-types-date-v3-dateoffset-dateoffset-75159_>`_ :ref:`BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112>`
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"dayType\" `DateOffset <type-daml-finance-interface-types-date-v3-dateoffset-dateoffset-75159_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `DayTypeEnum <type-daml-finance-interface-types-date-v3-dateoffset-daytypeenum-48232_>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"period\" `DateOffset <type-daml-finance-interface-types-date-v3-dateoffset-dateoffset-75159_>`_ :ref:`PeriodEnum <type-daml-finance-interface-types-date-v3-rollconvention-periodenum-45289>`
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"periodMultiplier\" `DateOffset <type-daml-finance-interface-types-date-v3-dateoffset-dateoffset-75159_>`_ `Int <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"businessCenters\" `DateOffset <type-daml-finance-interface-types-date-v3-dateoffset-dateoffset-75159_>`_ \[`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"businessDayConvention\" `DateOffset <type-daml-finance-interface-types-date-v3-dateoffset-dateoffset-75159_>`_ :ref:`BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"dayType\" `DateOffset <type-daml-finance-interface-types-date-v3-dateoffset-dateoffset-75159_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `DayTypeEnum <type-daml-finance-interface-types-date-v3-dateoffset-daytypeenum-48232_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"period\" `DateOffset <type-daml-finance-interface-types-date-v3-dateoffset-dateoffset-75159_>`_ :ref:`PeriodEnum <type-daml-finance-interface-types-date-v3-rollconvention-periodenum-45289>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"periodMultiplier\" `DateOffset <type-daml-finance-interface-types-date-v3-dateoffset-dateoffset-75159_>`_ `Int <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
 
 .. _type-daml-finance-interface-types-date-v3-dateoffset-daytypeenum-48232:
 
@@ -66,6 +86,10 @@ Data Types
 
     When calculating the number of days between two dates the count includes all calendar days\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `DayTypeEnum <type-daml-finance-interface-types-date-v3-dateoffset-daytypeenum-48232_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `DayTypeEnum <type-daml-finance-interface-types-date-v3-dateoffset-daytypeenum-48232_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `DayTypeEnum <type-daml-finance-interface-types-date-v3-dateoffset-daytypeenum-48232_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `DayTypeEnum <type-daml-finance-interface-types-date-v3-dateoffset-daytypeenum-48232_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"dayType\" `DateOffset <type-daml-finance-interface-types-date-v3-dateoffset-dateoffset-75159_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `DayTypeEnum <type-daml-finance-interface-types-date-v3-dateoffset-daytypeenum-48232_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"dayType\" `DateOffset <type-daml-finance-interface-types-date-v3-dateoffset-dateoffset-75159_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `DayTypeEnum <type-daml-finance-interface-types-date-v3-dateoffset-daytypeenum-48232_>`_)

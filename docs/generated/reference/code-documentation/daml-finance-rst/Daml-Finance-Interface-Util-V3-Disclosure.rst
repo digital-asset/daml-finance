@@ -25,7 +25,7 @@ Interfaces
 
     Controller\: disclosers
 
-    Returns\: `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_
+    Returns\: `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_
 
     .. list-table::
        :widths: 15 10 30
@@ -38,7 +38,7 @@ Interfaces
          - :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
          - Party calling this choice\.
        * - observersToAdd
-         - (`Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_, :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`)
+         - (`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_, :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`)
          - Parties to add as observers to the contract and the corresponding observer context\. If the observer context already exists, the new set of parties is added to the old one\.
 
   + **Choice** Archive
@@ -67,7 +67,7 @@ Interfaces
          - Type
          - Description
        * - viewer
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party retrieving the view\.
 
   + .. _type-daml-finance-interface-util-v3-disclosure-removeobservers-4683:
@@ -80,7 +80,7 @@ Interfaces
 
     Controller\: disclosers
 
-    Returns\: `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_)
+    Returns\: `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_)
 
     .. list-table::
        :widths: 15 10 30
@@ -93,7 +93,7 @@ Interfaces
          - :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
          - Parties calling this choice\.
        * - observersToRemove
-         - (`Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_, :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`)
+         - (`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_, :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`)
          - Parties to be removed from the contract observers and the corresponding observer context\.
 
   + .. _type-daml-finance-interface-util-v3-disclosure-setobservers-68580:
@@ -104,7 +104,7 @@ Interfaces
 
     Controller\: disclosers
 
-    Returns\: `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_
+    Returns\: `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_
 
     .. list-table::
        :widths: 15 10 30
@@ -120,15 +120,15 @@ Interfaces
          - :ref:`PartiesMap <type-daml-finance-interface-types-common-v3-types-partiesmap-43006>`
          - Observers to set for this contract\. This overrides the existing observers\. The parties are mapped by a specific key\. The textual key is the \"observation context\" of the disclosure\. This allows processes to add/remove parties for their specific purpose, without affecting others\.
 
-  + **Method addObservers \:** `AddObservers <type-daml-finance-interface-util-v3-disclosure-addobservers-68807_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_)
+  + **Method addObservers \:** `AddObservers <type-daml-finance-interface-util-v3-disclosure-addobservers-68807_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_)
 
     Implementation of the ``AddObservers`` choice\.
 
-  + **Method removeObservers \:** `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_ \-\> `RemoveObservers <type-daml-finance-interface-util-v3-disclosure-removeobservers-4683_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_))
+  + **Method removeObservers \:** `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_ \-\> `RemoveObservers <type-daml-finance-interface-util-v3-disclosure-removeobservers-4683_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_))
 
     Implementation of the ``RemoveObservers`` choice\.
 
-  + **Method setObservers \:** `SetObservers <type-daml-finance-interface-util-v3-disclosure-setobservers-68580_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_)
+  + **Method setObservers \:** `SetObservers <type-daml-finance-interface-util-v3-disclosure-setobservers-68580_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_)
 
     Implementation of the ``SetObservers`` choice\.
 
@@ -149,7 +149,7 @@ Data Types
 
   Type synonym for ``View``\.
 
-  **instance** `HasFromAnyView <https://docs.daml.com/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_ `V <type-daml-finance-interface-util-v3-disclosure-v-30650_>`_
+  **instance** `HasFromAnyView <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_ `V <type-daml-finance-interface-util-v3-disclosure-v-30650_>`_
 
 .. _type-daml-finance-interface-util-v3-disclosure-view-81206:
 
@@ -175,9 +175,17 @@ Data Types
          - :ref:`PartiesMap <type-daml-finance-interface-types-common-v3-types-partiesmap-43006>`
          - Observers with context\. The parties are mapped by a specific key\. The textual key is the \"observation context\" of the disclosure\. This allows processes to add/remove parties for their specific purpose, without affecting others\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-util-v3-disclosure-view-81206_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-util-v3-disclosure-view-81206_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-util-v3-disclosure-view-81206_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-util-v3-disclosure-view-81206_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"disclosureControllers\" `View <type-daml-finance-interface-util-v3-disclosure-view-81206_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"observers\" `View <type-daml-finance-interface-util-v3-disclosure-view-81206_>`_ :ref:`PartiesMap <type-daml-finance-interface-types-common-v3-types-partiesmap-43006>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"disclosureControllers\" `View <type-daml-finance-interface-util-v3-disclosure-view-81206_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"observers\" `View <type-daml-finance-interface-util-v3-disclosure-view-81206_>`_ :ref:`PartiesMap <type-daml-finance-interface-types-common-v3-types-partiesmap-43006>`
 
 Functions
 ---------
@@ -185,17 +193,17 @@ Functions
 .. _function-daml-finance-interface-util-v3-disclosure-setobservers-71616:
 
 `setObservers <function-daml-finance-interface-util-v3-disclosure-setobservers-71616_>`_
-  \: `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_ \-\> `SetObservers <type-daml-finance-interface-util-v3-disclosure-setobservers-68580_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_)
+  \: `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_ \-\> `SetObservers <type-daml-finance-interface-util-v3-disclosure-setobservers-68580_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_)
 
 .. _function-daml-finance-interface-util-v3-disclosure-addobservers-65651:
 
 `addObservers <function-daml-finance-interface-util-v3-disclosure-addobservers-65651_>`_
-  \: `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_ \-\> `AddObservers <type-daml-finance-interface-util-v3-disclosure-addobservers-68807_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_)
+  \: `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_ \-\> `AddObservers <type-daml-finance-interface-util-v3-disclosure-addobservers-68807_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_)
 
 .. _function-daml-finance-interface-util-v3-disclosure-removeobservers-95863:
 
 `removeObservers <function-daml-finance-interface-util-v3-disclosure-removeobservers-95863_>`_
-  \: `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_ \-\> `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_ \-\> `RemoveObservers <type-daml-finance-interface-util-v3-disclosure-removeobservers-4683_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_))
+  \: `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_ \-\> `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_ \-\> `RemoveObservers <type-daml-finance-interface-util-v3-disclosure-removeobservers-4683_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Disclosure <type-daml-finance-interface-util-v3-disclosure-disclosure-91672_>`_))
 
 .. _function-daml-finance-interface-util-v3-disclosure-flattenobservers-40218:
 

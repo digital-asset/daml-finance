@@ -44,7 +44,7 @@ Interfaces
          - Type
          - Description
        * - actor
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The flexible controller of the choice\.
        * - quantity
          - :ref:`InstrumentQuantity <type-daml-finance-interface-types-common-v3-types-instrumentquantity-36264>`
@@ -68,7 +68,7 @@ Interfaces
          - Type
          - Description
        * - viewer
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party retrieving the view\.
 
   + .. _type-daml-finance-interface-lifecycle-v4-effect-setproviders-39879:
@@ -79,7 +79,7 @@ Interfaces
 
     Controller\: (DA\.Internal\.Record\.getField @\"providers\" (view this)), newProviders
 
-    Returns\: `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Effect <type-daml-finance-interface-lifecycle-v4-effect-effect-33904_>`_
+    Returns\: `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Effect <type-daml-finance-interface-lifecycle-v4-effect-effect-33904_>`_
 
     .. list-table::
        :widths: 15 10 30
@@ -92,11 +92,11 @@ Interfaces
          - :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
          - The new provider\.
 
-  + **Method calculate \:** `Calculate <type-daml-finance-interface-lifecycle-v4-effect-calculate-57344_>`_ \-\> `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Effect <type-daml-finance-interface-lifecycle-v4-effect-effect-33904_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `CalculationResult <type-daml-finance-interface-lifecycle-v4-effect-calculationresult-17392_>`_
+  + **Method calculate \:** `Calculate <type-daml-finance-interface-lifecycle-v4-effect-calculate-57344_>`_ \-\> `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Effect <type-daml-finance-interface-lifecycle-v4-effect-effect-33904_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `CalculationResult <type-daml-finance-interface-lifecycle-v4-effect-calculationresult-17392_>`_
 
     Implementation of the ``Calculate`` choice\.
 
-  + **Method setProviders \:** `SetProviders <type-daml-finance-interface-lifecycle-v4-effect-setproviders-39879_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Effect <type-daml-finance-interface-lifecycle-v4-effect-effect-33904_>`_)
+  + **Method setProviders \:** `SetProviders <type-daml-finance-interface-lifecycle-v4-effect-setproviders-39879_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Effect <type-daml-finance-interface-lifecycle-v4-effect-effect-33904_>`_)
 
     Implementation of the ``SetProviders`` choice\.
 
@@ -127,11 +127,19 @@ Data Types
          - \[:ref:`InstrumentQuantity <type-daml-finance-interface-types-common-v3-types-instrumentquantity-36264>`\]
          - Produced quantities\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `CalculationResult <type-daml-finance-interface-lifecycle-v4-effect-calculationresult-17392_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `CalculationResult <type-daml-finance-interface-lifecycle-v4-effect-calculationresult-17392_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `CalculationResult <type-daml-finance-interface-lifecycle-v4-effect-calculationresult-17392_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `CalculationResult <type-daml-finance-interface-lifecycle-v4-effect-calculationresult-17392_>`_
 
-  **instance** HasMethod `Effect <type-daml-finance-interface-lifecycle-v4-effect-effect-33904_>`_ \"calculate\" (`Calculate <type-daml-finance-interface-lifecycle-v4-effect-calculate-57344_>`_ \-\> `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Effect <type-daml-finance-interface-lifecycle-v4-effect-effect-33904_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `CalculationResult <type-daml-finance-interface-lifecycle-v4-effect-calculationresult-17392_>`_)
+  **instance** HasMethod `Effect <type-daml-finance-interface-lifecycle-v4-effect-effect-33904_>`_ \"calculate\" (`Calculate <type-daml-finance-interface-lifecycle-v4-effect-calculate-57344_>`_ \-\> `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Effect <type-daml-finance-interface-lifecycle-v4-effect-effect-33904_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `CalculationResult <type-daml-finance-interface-lifecycle-v4-effect-calculationresult-17392_>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"consumed\" `CalculationResult <type-daml-finance-interface-lifecycle-v4-effect-calculationresult-17392_>`_ \[:ref:`InstrumentQuantity <type-daml-finance-interface-types-common-v3-types-instrumentquantity-36264>`\]
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"produced\" `CalculationResult <type-daml-finance-interface-lifecycle-v4-effect-calculationresult-17392_>`_ \[:ref:`InstrumentQuantity <type-daml-finance-interface-types-common-v3-types-instrumentquantity-36264>`\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"consumed\" `CalculationResult <type-daml-finance-interface-lifecycle-v4-effect-calculationresult-17392_>`_ \[:ref:`InstrumentQuantity <type-daml-finance-interface-types-common-v3-types-instrumentquantity-36264>`\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"produced\" `CalculationResult <type-daml-finance-interface-lifecycle-v4-effect-calculationresult-17392_>`_ \[:ref:`InstrumentQuantity <type-daml-finance-interface-types-common-v3-types-instrumentquantity-36264>`\]
 
 .. _type-daml-finance-interface-lifecycle-v4-effect-i-48349:
 
@@ -140,11 +148,15 @@ Data Types
 
   Type synonym for ``Effect``\.
 
-  **instance** HasMethod :ref:`Election <type-daml-finance-interface-lifecycle-v4-election-election-99800>` \"apply\" (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`Election <type-daml-finance-interface-lifecycle-v4-election-election-99800>` \-\> :ref:`Apply <type-daml-finance-interface-lifecycle-v4-election-apply-6828>` \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>`, \[`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-v4-effect-i-48349_>`_\]))
+  **instance** HasMethod :ref:`Election <type-daml-finance-interface-lifecycle-v4-election-election-99800>` \"apply\" (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`Election <type-daml-finance-interface-lifecycle-v4-election-election-99800>` \-\> :ref:`Apply <type-daml-finance-interface-lifecycle-v4-election-apply-6828>` \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>`, \[`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-v4-effect-i-48349_>`_\]))
 
-  **instance** HasMethod :ref:`Exercisable <type-daml-finance-interface-lifecycle-v4-election-exercisable-36259>` \"applyElection\" (:ref:`ApplyElection <type-daml-finance-interface-lifecycle-v4-election-applyelection-69809>` \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>`, \[`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-v4-effect-i-48349_>`_\]))
+  **instance** HasMethod :ref:`Exercisable <type-daml-finance-interface-lifecycle-v4-election-exercisable-36259>` \"applyElection\" (:ref:`ApplyElection <type-daml-finance-interface-lifecycle-v4-election-applyelection-69809>` \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>`, \[`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-v4-effect-i-48349_>`_\]))
 
-  **instance** HasMethod :ref:`Lifecycle <type-daml-finance-interface-lifecycle-v4-rule-lifecycle-lifecycle-50587>` \"evolve\" (:ref:`Evolve <type-daml-finance-interface-lifecycle-v4-rule-lifecycle-evolve-32221>` \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>`, \[`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-v4-effect-i-48349_>`_\]))
+  **instance** HasMethod :ref:`Lifecycle <type-daml-finance-interface-lifecycle-v4-rule-lifecycle-lifecycle-50587>` \"evolve\" (:ref:`Evolve <type-daml-finance-interface-lifecycle-v4-rule-lifecycle-evolve-32221>` \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>`, \[`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-v4-effect-i-48349_>`_\]))
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"effectCid\" :ref:`ClaimEffect <type-daml-finance-interface-lifecycle-v4-rule-claim-claimeffect-78754>` (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-v4-effect-i-48349_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"effectCid\" :ref:`ClaimEffect <type-daml-finance-interface-lifecycle-v4-rule-claim-claimeffect-78754>` (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-v4-effect-i-48349_>`_)
 
 .. _type-daml-finance-interface-lifecycle-v4-effect-v-50682:
 
@@ -153,7 +165,7 @@ Data Types
 
   Type synonym for ``View``\.
 
-  **instance** `HasFromAnyView <https://docs.daml.com/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Effect <type-daml-finance-interface-lifecycle-v4-effect-effect-33904_>`_ `V <type-daml-finance-interface-lifecycle-v4-effect-v-50682_>`_
+  **instance** `HasFromAnyView <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Effect <type-daml-finance-interface-lifecycle-v4-effect-effect-33904_>`_ `V <type-daml-finance-interface-lifecycle-v4-effect-v-50682_>`_
 
 .. _type-daml-finance-interface-lifecycle-v4-effect-view-53622:
 
@@ -179,16 +191,16 @@ Data Types
          - :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>`
          - The target instrument\. A holding on this instrument is required to claim the effect\. For example, in the case of a swap instrument, this would be the original instrument version before lifecycling, that contains the current swap payment\.
        * - producedInstrument
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>`
+         - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>`
          - The produced instrument, if it exists\. For example, in the case of a swap instrument, this would be the new instrument version after lifecycling, that does not contain the current swap payment\. If there are no more claims remaining after the current lifecycling, this would be None\.
        * - id
          - :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
          - A textual identifier\.
        * - description
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          - A human readable description of the Effect\.
        * - settlementTime
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
+         - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
          - The effect's settlement time (if any)\.
        * - otherConsumed
          - \[:ref:`InstrumentQuantity <type-daml-finance-interface-types-common-v3-types-instrumentquantity-36264>`\]
@@ -197,9 +209,41 @@ Data Types
          - \[:ref:`InstrumentQuantity <type-daml-finance-interface-types-common-v3-types-instrumentquantity-36264>`\]
          - Produced quantities (in additon to the produced instrument)\. For example, in the case of a fix vs floating rate swap, this could be a 3M Euribor floating payment\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-lifecycle-v4-effect-view-53622_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-lifecycle-v4-effect-view-53622_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-lifecycle-v4-effect-view-53622_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-lifecycle-v4-effect-view-53622_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"description\" `View <type-daml-finance-interface-lifecycle-v4-effect-view-53622_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"id\" `View <type-daml-finance-interface-lifecycle-v4-effect-view-53622_>`_ :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"otherConsumed\" `View <type-daml-finance-interface-lifecycle-v4-effect-view-53622_>`_ \[:ref:`InstrumentQuantity <type-daml-finance-interface-types-common-v3-types-instrumentquantity-36264>`\]
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"otherProduced\" `View <type-daml-finance-interface-lifecycle-v4-effect-view-53622_>`_ \[:ref:`InstrumentQuantity <type-daml-finance-interface-types-common-v3-types-instrumentquantity-36264>`\]
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"producedInstrument\" `View <type-daml-finance-interface-lifecycle-v4-effect-view-53622_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>`)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"providers\" `View <type-daml-finance-interface-lifecycle-v4-effect-view-53622_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"settlementTime\" `View <type-daml-finance-interface-lifecycle-v4-effect-view-53622_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"targetInstrument\" `View <type-daml-finance-interface-lifecycle-v4-effect-view-53622_>`_ :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"description\" `View <type-daml-finance-interface-lifecycle-v4-effect-view-53622_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"id\" `View <type-daml-finance-interface-lifecycle-v4-effect-view-53622_>`_ :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"otherConsumed\" `View <type-daml-finance-interface-lifecycle-v4-effect-view-53622_>`_ \[:ref:`InstrumentQuantity <type-daml-finance-interface-types-common-v3-types-instrumentquantity-36264>`\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"otherProduced\" `View <type-daml-finance-interface-lifecycle-v4-effect-view-53622_>`_ \[:ref:`InstrumentQuantity <type-daml-finance-interface-types-common-v3-types-instrumentquantity-36264>`\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"producedInstrument\" `View <type-daml-finance-interface-lifecycle-v4-effect-view-53622_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>`)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"providers\" `View <type-daml-finance-interface-lifecycle-v4-effect-view-53622_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"settlementTime\" `View <type-daml-finance-interface-lifecycle-v4-effect-view-53622_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"targetInstrument\" `View <type-daml-finance-interface-lifecycle-v4-effect-view-53622_>`_ :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>`
 
 Functions
 ---------
@@ -207,9 +251,9 @@ Functions
 .. _function-daml-finance-interface-lifecycle-v4-effect-setproviders-76675:
 
 `setProviders <function-daml-finance-interface-lifecycle-v4-effect-setproviders-76675_>`_
-  \: `Effect <type-daml-finance-interface-lifecycle-v4-effect-effect-33904_>`_ \-\> `SetProviders <type-daml-finance-interface-lifecycle-v4-effect-setproviders-39879_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Effect <type-daml-finance-interface-lifecycle-v4-effect-effect-33904_>`_)
+  \: `Effect <type-daml-finance-interface-lifecycle-v4-effect-effect-33904_>`_ \-\> `SetProviders <type-daml-finance-interface-lifecycle-v4-effect-setproviders-39879_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Effect <type-daml-finance-interface-lifecycle-v4-effect-effect-33904_>`_)
 
 .. _function-daml-finance-interface-lifecycle-v4-effect-calculate-88708:
 
 `calculate <function-daml-finance-interface-lifecycle-v4-effect-calculate-88708_>`_
-  \: `Effect <type-daml-finance-interface-lifecycle-v4-effect-effect-33904_>`_ \-\> `Calculate <type-daml-finance-interface-lifecycle-v4-effect-calculate-57344_>`_ \-\> `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Effect <type-daml-finance-interface-lifecycle-v4-effect-effect-33904_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `CalculationResult <type-daml-finance-interface-lifecycle-v4-effect-calculationresult-17392_>`_
+  \: `Effect <type-daml-finance-interface-lifecycle-v4-effect-effect-33904_>`_ \-\> `Calculate <type-daml-finance-interface-lifecycle-v4-effect-calculate-57344_>`_ \-\> `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Effect <type-daml-finance-interface-lifecycle-v4-effect-effect-33904_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `CalculationResult <type-daml-finance-interface-lifecycle-v4-effect-calculationresult-17392_>`_

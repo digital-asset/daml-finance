@@ -199,21 +199,85 @@ Data Types
 
   **instance** Recursive (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (ClaimF t x a o)
 
-  **instance** (`Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ a, `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ x, `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ o, `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ t) \=\> `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o)
+  **instance** (`Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ a, `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ x, `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ o, `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ t) \=\> `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o)
 
-  **instance** (`Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ t, `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ x, `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ a, `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ o) \=\> `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o)
+  **instance** (`Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ t, `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ x, `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ a, `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ o) \=\> `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o)
 
-  **instance** `Monoid <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-prelude-monoid-6742>`_ (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o)
+  **instance** `Monoid <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-prelude-monoid-6742>`_ (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o)
 
-  **instance** `Semigroup <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-prelude-semigroup-78998>`_ (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o)
+  **instance** `Semigroup <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-prelude-semigroup-78998>`_ (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"a1\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"a2\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"as\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) \[`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o\]
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"claim\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"electable\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (`Electable <type-contingentclaims-core-v3-internal-claim-electable-24443_>`_ t x a o)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"failure\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"k\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (:ref:`Observation <type-contingentclaims-core-v3-observation-observation-12406>` t x o)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"or1\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (`Electable <type-contingentclaims-core-v3-internal-claim-electable-24443_>`_ t x a o)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"or2\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (`Electable <type-contingentclaims-core-v3-internal-claim-electable-24443_>`_ t x a o)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"ors\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) \[`Electable <type-contingentclaims-core-v3-internal-claim-electable-24443_>`_ t x a o\]
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"predicate\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (`Inequality <type-contingentclaims-core-v3-internal-claim-inequality-10348_>`_ t x o)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"success\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"a1\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"a2\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"as\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) \[`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"claim\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"electable\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (`Electable <type-contingentclaims-core-v3-internal-claim-electable-24443_>`_ t x a o)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"failure\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"k\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (:ref:`Observation <type-contingentclaims-core-v3-observation-observation-12406>` t x o)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"or1\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (`Electable <type-contingentclaims-core-v3-internal-claim-electable-24443_>`_ t x a o)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"or2\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (`Electable <type-contingentclaims-core-v3-internal-claim-electable-24443_>`_ t x a o)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"ors\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) \[`Electable <type-contingentclaims-core-v3-internal-claim-electable-24443_>`_ t x a o\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"predicate\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (`Inequality <type-contingentclaims-core-v3-internal-claim-inequality-10348_>`_ t x o)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"success\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o)
 
 .. _type-contingentclaims-core-v3-internal-claim-electable-24443:
 
 **type** `Electable <type-contingentclaims-core-v3-internal-claim-electable-24443_>`_ t x a o
-  \= (`Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_, `Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o)
+  \= (`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_, `Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o)
 
   Type synonym for sub\-trees that can be elected in an ``Or`` or ``Anytime`` node\.
   The textual tag is used to identify each sub\-tree when an election is made\.
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"electable\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (`Electable <type-contingentclaims-core-v3-internal-claim-electable-24443_>`_ t x a o)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"or1\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (`Electable <type-contingentclaims-core-v3-internal-claim-electable-24443_>`_ t x a o)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"or2\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (`Electable <type-contingentclaims-core-v3-internal-claim-electable-24443_>`_ t x a o)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"ors\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) \[`Electable <type-contingentclaims-core-v3-internal-claim-electable-24443_>`_ t x a o\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"electable\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (`Electable <type-contingentclaims-core-v3-internal-claim-electable-24443_>`_ t x a o)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"or1\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (`Electable <type-contingentclaims-core-v3-internal-claim-electable-24443_>`_ t x a o)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"or2\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (`Electable <type-contingentclaims-core-v3-internal-claim-electable-24443_>`_ t x a o)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"ors\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) \[`Electable <type-contingentclaims-core-v3-internal-claim-electable-24443_>`_ t x a o\]
 
 .. _type-contingentclaims-core-v3-internal-claim-inequality-10348:
 
@@ -241,6 +305,14 @@ Data Types
 
     ``True`` when ``o(t) ≤ o'(t)``, ``False`` otherwise, for a pair of observations ``o``, ``o'``\.
 
-  **instance** (`Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ t, `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ x, `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ o) \=\> `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ (`Inequality <type-contingentclaims-core-v3-internal-claim-inequality-10348_>`_ t x o)
+  **instance** (`Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ t, `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ x, `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ o) \=\> `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ (`Inequality <type-contingentclaims-core-v3-internal-claim-inequality-10348_>`_ t x o)
 
-  **instance** (`Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ t, `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ x, `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ o) \=\> `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ (`Inequality <type-contingentclaims-core-v3-internal-claim-inequality-10348_>`_ t x o)
+  **instance** (`Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ t, `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ x, `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ o) \=\> `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ (`Inequality <type-contingentclaims-core-v3-internal-claim-inequality-10348_>`_ t x o)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"predicate\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (`Inequality <type-contingentclaims-core-v3-internal-claim-inequality-10348_>`_ t x o)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"predicate\" (ClaimF t x a o b) (`Inequality <type-contingentclaims-core-v3-internal-claim-inequality-10348_>`_ t x o)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"predicate\" (`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050_>`_ t x a o) (`Inequality <type-contingentclaims-core-v3-internal-claim-inequality-10348_>`_ t x o)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"predicate\" (ClaimF t x a o b) (`Inequality <type-contingentclaims-core-v3-internal-claim-inequality-10348_>`_ t x o)

@@ -5,6 +5,8 @@ module Daml.Finance.Settlement.V4.Factory where
 
 import DA.List (mapAccumL)
 import DA.Map (fromList)
+import qualified DA.TextMap as TextMap
+import DA.Fail (failWithStatus, FailureStatus(..), invalidArgument)
 import Daml.Finance.Interface.Settlement.V4.Factory qualified as SettlementFactory (I, Instruct(..), View(..))
 import Daml.Finance.Interface.Settlement.V4.Types (Allocation(..), Approval(..))
 import Daml.Finance.Interface.Types.Common.V3.Types (Id(..), Parties)
@@ -48,14 +50,27 @@ template Factory
             instructions = snd $ mapAccumL createInstruction 0 routedSteps
             instructionIds = map (.id) instructions
           instructionCids <- mapA (fmap toInterfaceContractId . create) instructions
-          batchCid <- toInterfaceContractId <$>
-            create Batch with
-              instructor
-              consenters
-              settlers
-              id
-              description
-              contextId
-              routedStepsWithInstructionId = zip routedSteps instructionIds
-              settlementTime
-          pure (batchCid, instructionCids)
+
+          -- Enforce uniqueness: prevent duplicate batch IDs (query fallback)
+          existingBatch <- lookupByKey @Batch (instructor, id)
+          case existingBatch of
+            Some _ -> do
+              failWithStatus
+                FailureStatus
+                  { errorId  = "daml.finance/duplicate-batch-id"
+                  , category = invalidArgument
+                  , message  = "Batch id already exists"
+                  , meta     = TextMap.empty
+                  }
+            None -> do
+              batchCid <- toInterfaceContractId <$>
+                create Batch with
+                  instructor
+                  consenters
+                  settlers
+                  id
+                  description
+                  contextId
+                  routedStepsWithInstructionId = zip routedSteps instructionIds
+                  settlementTime
+              pure (batchCid, instructionCids)

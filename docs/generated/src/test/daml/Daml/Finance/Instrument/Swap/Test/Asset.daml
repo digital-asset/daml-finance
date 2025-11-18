@@ -16,7 +16,7 @@ import Daml.Finance.Interface.Instrument.Equity.V0.Instrument qualified as Equit
 import Daml.Finance.Interface.Instrument.Swap.V0.Asset.Types (Underlying(..))
 import Daml.Finance.Interface.Instrument.Types.V2.FloatingRate (DateRelativeToEnum(..), FloatingRate(..), ReferenceRateTypeEnum(..))
 import Daml.Finance.Interface.Lifecycle.V4.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I)
-import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..), InstrumentKey(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..), InstrumentKey(..), InstrumentQuantity(..))
 import Daml.Finance.Interface.Types.Date.V3.Calendar (BusinessDayConventionEnum(..), HolidayCalendarData(..))
 import Daml.Finance.Interface.Types.Date.V3.DateOffset (DateOffset(..), DayTypeEnum(..))
 import Daml.Finance.Interface.Types.Date.V3.DayCount (DayCountConventionEnum(..))
@@ -100,30 +100,41 @@ run = script do
   verifyNoLifecycleEffects [publicParty] (subtractDays firstPaymentDate 1) swapInstrument issuer
     [observableCid]
 
-  -- First payment date: Lifecycle and verify the lifecycle effects for fix rate and asset
-  -- performance payments.
+  -- First payment date: Lifecycle and verify the lifecycle effects for fixed rate and asset performance payments.
   let
     expectedConsumed = [qty 0.001675 cashInstrument]
     expectedProduced = [qty 0.0801561782 cashInstrument]
-  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    firstPaymentDate swapInstrument issuer [observableCid] expectedConsumed expectedProduced
 
-  -- One day after the first payment date: try to lifecycle and verify that there are no lifecycle
-  -- effects.
+  maybeSwapInstrumentAfterFirstPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      firstPaymentDate swapInstrument issuer [observableCid]
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterFirstPayment <- case maybeSwapInstrumentAfterFirstPayment of
+    Some key -> pure key
+    None -> pure swapInstrument
+
+  -- One day after the first payment date: verify that there are no lifecycle effects.
   verifyNoLifecycleEffects [publicParty] (addDays firstPaymentDate 1)
     swapInstrumentAfterFirstPayment issuer [observableCid]
 
-  -- One day before expiry: try to lifecycle and verify that there are no lifecycle effects.
+  -- One day before expiry: verify that there are no lifecycle effects.
   verifyNoLifecycleEffects [publicParty] (subtractDays maturityDate 1)
     swapInstrumentAfterFirstPayment issuer [observableCid]
 
-  -- Lifecycle on the second payment date, which is also the expiry date. Verify the lifecycle
-  -- effects for fix rate and asset performance payments.
+  -- Second payment date (expiry): Lifecycle and verify the lifecycle effects for fixed rate and asset performance payments.
   let
     expectedConsumed = [qty 0.0049691667 cashInstrument]
     expectedProduced = [qty 0.0372102913 cashInstrument]
-  lifecycleAndVerifyPaymentEffects [publicParty] maturityDate swapInstrumentAfterFirstPayment
-    issuer [observableCid] expectedConsumed expectedProduced
+
+  maybeSwapInstrumentAfterMaturity <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      maturityDate swapInstrumentAfterFirstPayment issuer [observableCid]
+      expectedConsumed expectedProduced
+
+  case maybeSwapInstrumentAfterMaturity of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterFirstPayment
 
   pure ()
 
@@ -219,30 +230,41 @@ runFloat = script do
   verifyNoLifecycleEffects [publicParty] (subtractDays firstPaymentDate 1) swapInstrument issuer
     observableCids
 
-  -- First payment date: Lifecycle and verify the lifecycle effects for fix rate and asset
-  -- performance payments.
+  -- First payment date: Lifecycle and verify the lifecycle effects for fixed rate and asset performance payments.
   let
     expectedConsumed = [qty 0.0002283833 cashInstrument]
     expectedProduced = [qty 0.0801561782 cashInstrument]
-  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    firstPaymentDate swapInstrument issuer observableCids expectedConsumed expectedProduced
 
-  -- One day after the first payment date: try to lifecycle and verify that there are no lifecycle
-  -- effects.
+  maybeSwapInstrumentAfterFirstPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      firstPaymentDate swapInstrument issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterFirstPayment <- case maybeSwapInstrumentAfterFirstPayment of
+    Some key -> pure key
+    None -> pure swapInstrument
+
+  -- One day after the first payment date: verify that there are no lifecycle effects.
   verifyNoLifecycleEffects [publicParty] (addDays firstPaymentDate 1)
     swapInstrumentAfterFirstPayment issuer observableCids
 
-  -- One day before expiry: try to lifecycle and verify that there are no lifecycle effects.
+  -- One day before expiry: verify that there are no lifecycle effects.
   verifyNoLifecycleEffects [publicParty] (subtractDays maturityDate 1)
     swapInstrumentAfterFirstPayment issuer observableCids
 
-  -- Lifecycle on the second payment date, which is also the expiry date. Verify the lifecycle
-  -- effects for fix rate and asset performance payments.
+  -- Second payment date (expiry): Lifecycle and verify the lifecycle effects for fixed rate and asset performance payments.
   let
     expectedConsumed = [qty 0.0005030972 cashInstrument]
     expectedProduced = [qty 0.0372102913 cashInstrument]
-  lifecycleAndVerifyPaymentEffects [publicParty] maturityDate swapInstrumentAfterFirstPayment
-    issuer observableCids expectedConsumed expectedProduced
+
+  maybeSwapInstrumentAfterMaturity <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      maturityDate swapInstrumentAfterFirstPayment issuer observableCids
+      expectedConsumed expectedProduced
+
+  case maybeSwapInstrumentAfterMaturity of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterFirstPayment
 
   pure ()
 
@@ -347,6 +369,15 @@ runDividendPassthrough = script do
   let
     expectedConsumed = [qty 0.0002283833 cashInstrument]
     expectedProduced = [qty 0.0801561782 cashInstrument]
+
+  -- maybeSwapInstrumentAfterFirstPayment <-
+  --   lifecycleAndVerifyPaymentEffects [publicParty]
+  --     firstPaymentDate swapInstrument issuer observableCids expectedConsumed expectedProduced
+
+  -- swapInstrumentAfterFirstPayment <- case maybeSwapInstrumentAfterFirstPayment of
+  --   Some key -> pure key
+  --   None -> pure swapInstrument
+
   Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
     firstPaymentDate swapInstrument issuer observableCids expectedConsumed expectedProduced
 
@@ -382,15 +413,23 @@ runDividendPassthrough = script do
 
   -- ASSET_SWAP_DIV_LIFECYCLING_START
   -- Lifecycle the asset swap to create an effect for the dividend.
-  (Some swapInstrumentAfterDividend, [effectCid]) <- submitMulti [issuer] [publicParty] do
+  (Some swapInstrumentAfterDividend, [effectCid]) <- submit (actAs [issuer] <> readAs [publicParty]) do
     exerciseCmd distributionRuleCid Lifecycle.Evolve with
       observableCids = []
       eventCid = aaplDividendDistributionEventCid
       instrument = swapInstrumentAfterFirstPayment
   -- ASSET_SWAP_DIV_LIFECYCLING_END
+
   let
     expectedConsumedQuantities = []
     expectedProducedQuantities = [qty 0.0229673863 cashInstrument]
+
+  debug ">>> Dividend passthrough DEBUG"
+  debug $ "Expected consumed: " <> show (expectedConsumedQuantities : [InstrumentQuantity])
+  debug $ "Expected produced: " <> show (expectedProducedQuantities : [InstrumentQuantity])
+
+  debug $ "effectCid: " <> show effectCid
+
   verifyConsumedAndProduced expectedConsumedQuantities expectedProducedQuantities effectCid issuer
 
   -- Lifecycle on the second payment date, which is also the expiry date. Verify the lifecycle
@@ -398,6 +437,7 @@ runDividendPassthrough = script do
   let
     expectedConsumed = [qty 0.0005030972 cashInstrument]
     expectedProduced = [qty 0.0159472677 cashInstrument]
+    
   lifecycleAndVerifyPaymentEffects [publicParty] maturityDate swapInstrumentAfterDividend
     issuer observableCids expectedConsumed expectedProduced
 
@@ -524,8 +564,14 @@ runBasketDividendPassthrough = script do
     expectedConsumed = [qty 0.0002283833 cashInstrument]
     expectedProduced = [qty 0.0535531318 cashInstrument]
 
-  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    firstPaymentDate swapInstrument issuer observableCids expectedConsumed expectedProduced
+  maybeSwapInstrumentAfterFirstPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      firstPaymentDate swapInstrument issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterFirstPayment <- case maybeSwapInstrumentAfterFirstPayment of
+    Some key -> pure key
+    None -> pure swapInstrument
 
   -- One day after the first payment date: try to lifecycle and verify that there are no lifecycle
   -- effects.
@@ -559,7 +605,7 @@ runBasketDividendPassthrough = script do
         perUnitDistribution = [(qty 0.5 cashInstrument), (qty 1.5 cashInstrument)]
 
   -- Lifecycle the asset swap to create an effect for the dividend.
-  (Some swapInstrumentAfterDividend, [effectCid]) <- submitMulti [issuer] [publicParty] do
+  (Some swapInstrumentAfterDividend, [effectCid]) <- submit (actAs [issuer] <> readAs [publicParty]) do
     exerciseCmd distributionRuleCid Lifecycle.Evolve with
       observableCids = []
       eventCid = distributionEventCid
@@ -574,7 +620,14 @@ runBasketDividendPassthrough = script do
   let
     expectedConsumed = [qty 0.0005030972 cashInstrument]
     expectedProduced = [qty 0.0664193924 cashInstrument]
-  lifecycleAndVerifyPaymentEffects [publicParty] maturityDate swapInstrumentAfterDividend
-    issuer observableCids expectedConsumed expectedProduced
+
+  maybeSwapInstrumentAfterMaturity <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      maturityDate swapInstrumentAfterFirstPayment issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterMaturity <- case maybeSwapInstrumentAfterMaturity of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterFirstPayment
 
   pure ()

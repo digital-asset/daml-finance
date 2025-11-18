@@ -26,7 +26,7 @@ Interfaces
 
     Controller\: (DA\.Internal\.Record\.getField @\"controllers\" (view this)), newLockers
 
-    Returns\: `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Lockable <type-daml-finance-interface-util-v3-lockable-lockable-79556_>`_
+    Returns\: `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Lockable <type-daml-finance-interface-util-v3-lockable-lockable-79556_>`_
 
     .. list-table::
        :widths: 15 10 30
@@ -39,7 +39,7 @@ Interfaces
          - :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
          - Parties which restrain the contract's ability to perform specified actions\.
        * - context
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          - Reason for acquiring a lock\.
        * - lockType
          - `LockType <type-daml-finance-interface-util-v3-lockable-locktype-58900_>`_
@@ -71,7 +71,7 @@ Interfaces
          - Type
          - Description
        * - viewer
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party retrieving the view\.
 
   + .. _type-daml-finance-interface-util-v3-lockable-release-15493:
@@ -82,7 +82,7 @@ Interfaces
 
     Controller\: getLockers this
 
-    Returns\: `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Lockable <type-daml-finance-interface-util-v3-lockable-lockable-79556_>`_
+    Returns\: `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Lockable <type-daml-finance-interface-util-v3-lockable-lockable-79556_>`_
 
     .. list-table::
        :widths: 15 10 30
@@ -92,14 +92,14 @@ Interfaces
          - Type
          - Description
        * - context
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          -
 
-  + **Method acquire \:** `Acquire <type-daml-finance-interface-util-v3-lockable-acquire-20270_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Lockable <type-daml-finance-interface-util-v3-lockable-lockable-79556_>`_)
+  + **Method acquire \:** `Acquire <type-daml-finance-interface-util-v3-lockable-acquire-20270_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Lockable <type-daml-finance-interface-util-v3-lockable-lockable-79556_>`_)
 
     Implementation of the ``Acquire`` choice\.
 
-  + **Method release \:** `Release <type-daml-finance-interface-util-v3-lockable-release-15493_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Lockable <type-daml-finance-interface-util-v3-lockable-lockable-79556_>`_)
+  + **Method release \:** `Release <type-daml-finance-interface-util-v3-lockable-release-15493_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Lockable <type-daml-finance-interface-util-v3-lockable-lockable-79556_>`_)
 
     Implementation of the ``Release`` choice\.
 
@@ -134,15 +134,31 @@ Data Types
          - :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
          - Parties which are locking the contract\.
        * - context
-         - `Set <https://docs.daml.com/daml/stdlib/DA-Set.html#type-da-set-types-set-90436>`_ `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Set <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Set.html#type-da-set-types-set-90436>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          - Context of the lock, explaining why this lock is held by the locking parties\. If the lock is reentrant, there may be more than one locking context for the set of lockers\.
        * - lockType
          - `LockType <type-daml-finance-interface-util-v3-lockable-locktype-58900_>`_
          - The type of lock applied\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `Lock <type-daml-finance-interface-util-v3-lockable-lock-18728_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `Lock <type-daml-finance-interface-util-v3-lockable-lock-18728_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `Lock <type-daml-finance-interface-util-v3-lockable-lock-18728_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `Lock <type-daml-finance-interface-util-v3-lockable-lock-18728_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"context\" `Lock <type-daml-finance-interface-util-v3-lockable-lock-18728_>`_ (`Set <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Set.html#type-da-set-types-set-90436>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"lock\" `View <type-daml-finance-interface-util-v3-lockable-view-77974_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Lock <type-daml-finance-interface-util-v3-lockable-lock-18728_>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"lockType\" `Lock <type-daml-finance-interface-util-v3-lockable-lock-18728_>`_ `LockType <type-daml-finance-interface-util-v3-lockable-locktype-58900_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"lockers\" `Lock <type-daml-finance-interface-util-v3-lockable-lock-18728_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"context\" `Lock <type-daml-finance-interface-util-v3-lockable-lock-18728_>`_ (`Set <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Set.html#type-da-set-types-set-90436>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"lock\" `View <type-daml-finance-interface-util-v3-lockable-view-77974_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Lock <type-daml-finance-interface-util-v3-lockable-lock-18728_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"lockType\" `Lock <type-daml-finance-interface-util-v3-lockable-lock-18728_>`_ `LockType <type-daml-finance-interface-util-v3-lockable-locktype-58900_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"lockers\" `Lock <type-daml-finance-interface-util-v3-lockable-lock-18728_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
 
 .. _type-daml-finance-interface-util-v3-lockable-locktype-58900:
 
@@ -162,9 +178,17 @@ Data Types
 
     A mutual exclusion lock where the same lockers may lock a contract multiple times\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `LockType <type-daml-finance-interface-util-v3-lockable-locktype-58900_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `LockType <type-daml-finance-interface-util-v3-lockable-locktype-58900_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `LockType <type-daml-finance-interface-util-v3-lockable-locktype-58900_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `LockType <type-daml-finance-interface-util-v3-lockable-locktype-58900_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"lockType\" `Acquire <type-daml-finance-interface-util-v3-lockable-acquire-20270_>`_ `LockType <type-daml-finance-interface-util-v3-lockable-locktype-58900_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"lockType\" `Lock <type-daml-finance-interface-util-v3-lockable-lock-18728_>`_ `LockType <type-daml-finance-interface-util-v3-lockable-locktype-58900_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"lockType\" `Acquire <type-daml-finance-interface-util-v3-lockable-acquire-20270_>`_ `LockType <type-daml-finance-interface-util-v3-lockable-locktype-58900_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"lockType\" `Lock <type-daml-finance-interface-util-v3-lockable-lock-18728_>`_ `LockType <type-daml-finance-interface-util-v3-lockable-locktype-58900_>`_
 
 .. _type-daml-finance-interface-util-v3-lockable-v-6042:
 
@@ -173,7 +197,7 @@ Data Types
 
   Type synonym for ``View``\.
 
-  **instance** `HasFromAnyView <https://docs.daml.com/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Lockable <type-daml-finance-interface-util-v3-lockable-lockable-79556_>`_ `V <type-daml-finance-interface-util-v3-lockable-v-6042_>`_
+  **instance** `HasFromAnyView <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Lockable <type-daml-finance-interface-util-v3-lockable-lockable-79556_>`_ `V <type-daml-finance-interface-util-v3-lockable-v-6042_>`_
 
 .. _type-daml-finance-interface-util-v3-lockable-view-77974:
 
@@ -193,15 +217,23 @@ Data Types
          - Type
          - Description
        * - lock
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Lock <type-daml-finance-interface-util-v3-lockable-lock-18728_>`_
+         - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Lock <type-daml-finance-interface-util-v3-lockable-lock-18728_>`_
          - An optional lock, indicating if it is locked or not\.
        * - controllers
          - :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
          - All parties whose authorization is required to acquire a lock\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-util-v3-lockable-view-77974_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-util-v3-lockable-view-77974_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-util-v3-lockable-view-77974_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-util-v3-lockable-view-77974_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"controllers\" `View <type-daml-finance-interface-util-v3-lockable-view-77974_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"lock\" `View <type-daml-finance-interface-util-v3-lockable-view-77974_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Lock <type-daml-finance-interface-util-v3-lockable-lock-18728_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"controllers\" `View <type-daml-finance-interface-util-v3-lockable-view-77974_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"lock\" `View <type-daml-finance-interface-util-v3-lockable-view-77974_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Lock <type-daml-finance-interface-util-v3-lockable-lock-18728_>`_)
 
 Functions
 ---------
@@ -209,23 +241,23 @@ Functions
 .. _function-daml-finance-interface-util-v3-lockable-acquire-83170:
 
 `acquire <function-daml-finance-interface-util-v3-lockable-acquire-83170_>`_
-  \: `Lockable <type-daml-finance-interface-util-v3-lockable-lockable-79556_>`_ \-\> `Acquire <type-daml-finance-interface-util-v3-lockable-acquire-20270_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Lockable <type-daml-finance-interface-util-v3-lockable-lockable-79556_>`_)
+  \: `Lockable <type-daml-finance-interface-util-v3-lockable-lockable-79556_>`_ \-\> `Acquire <type-daml-finance-interface-util-v3-lockable-acquire-20270_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Lockable <type-daml-finance-interface-util-v3-lockable-lockable-79556_>`_)
 
 .. _function-daml-finance-interface-util-v3-lockable-release-93513:
 
 `release <function-daml-finance-interface-util-v3-lockable-release-93513_>`_
-  \: `Lockable <type-daml-finance-interface-util-v3-lockable-lockable-79556_>`_ \-\> `Release <type-daml-finance-interface-util-v3-lockable-release-15493_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Lockable <type-daml-finance-interface-util-v3-lockable-lockable-79556_>`_)
+  \: `Lockable <type-daml-finance-interface-util-v3-lockable-lockable-79556_>`_ \-\> `Release <type-daml-finance-interface-util-v3-lockable-release-15493_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Lockable <type-daml-finance-interface-util-v3-lockable-lockable-79556_>`_)
 
 .. _function-daml-finance-interface-util-v3-lockable-getlockers-25940:
 
 `getLockers <function-daml-finance-interface-util-v3-lockable-getlockers-25940_>`_
-  \: `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ t `Lockable <type-daml-finance-interface-util-v3-lockable-lockable-79556_>`_ \=\> t \-\> :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
+  \: `HasToInterface <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ t `Lockable <type-daml-finance-interface-util-v3-lockable-lockable-79556_>`_ \=\> t \-\> :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
 
   Retrieves the lockers of a ``Lockable``\.
 
 .. _function-daml-finance-interface-util-v3-lockable-mustnotbelocked-7241:
 
 `mustNotBeLocked <function-daml-finance-interface-util-v3-lockable-mustnotbelocked-7241_>`_
-  \: `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ i `Lockable <type-daml-finance-interface-util-v3-lockable-lockable-79556_>`_ \=\> i \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ ()
+  \: `HasToInterface <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ i `Lockable <type-daml-finance-interface-util-v3-lockable-lockable-79556_>`_ \=\> i \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ ()
 
   Asserts that a lockable is not locked\.

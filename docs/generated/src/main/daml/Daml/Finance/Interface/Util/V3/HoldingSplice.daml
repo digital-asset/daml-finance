@@ -1,0 +1,67 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Interface.Util.V3.HoldingSplice where
+
+import Splice.Api.Token.HoldingV1 qualified as SpliceHolding
+import DA.TextMap qualified as TextMap
+import DA.Optional (fromOptional)
+import Daml.Finance.Interface.Types.Common.V3.Types (InstrumentKey(..), Id(..), HoldingStandard(..), Parties)
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (AddObservers(..), I, RemoveObservers(..))
+
+-- Convert a text back to a Party. Inverse of partyToText.
+textToParty : Text -> Party
+textToParty t = case partyFromText t of
+  Some p -> p
+  None -> error ("Invalid Party text: " <> t)
+
+-- | Parse HoldingStandard from its textual form 
+parseHoldingStandard : Text -> HoldingStandard
+parseHoldingStandard t =
+  case t of
+    "TransferableFungible" -> TransferableFungible
+    "Transferable" -> Transferable
+    "Fungible" -> Fungible
+    "BaseHolding" -> BaseHolding
+    s -> error ("Unknown HoldingStandard: " <> s)
+
+
+-- Extract instrument metadata from a Splice Holding.
+getInstrument : (HasToInterface t SpliceHolding.Holding) => t -> InstrumentKey
+getInstrument holding =
+  let 
+    holdingView = view $ toInterface @SpliceHolding.Holding holding
+    instrId = holdingView.instrumentId
+    metaVals = holdingView.meta.values
+    lookup k = fromOptional ("Missing metadata: " <> k) (TextMap.lookup k metaVals)
+  in InstrumentKey with
+      issuer = instrId.admin        
+      depository = textToParty (lookup "depository")   
+      id = Id instrId.id
+      version = lookup "version"
+      holdingStandard = parseHoldingStandard (lookup "holdingStandard")  
+
+-- Extract the current token amount.
+getAmount : (HasToInterface t SpliceHolding.Holding) => t -> Decimal
+getAmount holding = (view $ toInterface @SpliceHolding.Holding holding).amount
+
+-- Disclosure helpers (reuse existing logic).
+disclose :
+  ( HasInterfaceTypeRep i
+  , HasToInterface i Disclosure.I
+  , HasFromInterface i Disclosure.I
+  )
+  => (Text, Parties) -> Parties -> ContractId i -> Update (ContractId i)
+disclose observersToAdd disclosers cid = fromInterfaceContractId <$>
+  exercise (toInterfaceContractId @Disclosure.I cid) Disclosure.AddObservers with
+    disclosers; observersToAdd
+
+undisclose :
+  ( HasInterfaceTypeRep i
+  , HasToInterface i Disclosure.I
+  , HasFromInterface i Disclosure.I
+  )
+  => (Text, Parties) -> Parties -> ContractId i -> Update (Optional (ContractId i))
+undisclose observersToRemove disclosers cid = fmap fromInterfaceContractId <$>
+  exercise (toInterfaceContractId @Disclosure.I cid) Disclosure.RemoveObservers with
+    disclosers; observersToRemove

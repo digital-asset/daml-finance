@@ -36,7 +36,7 @@ Interfaces
 
     Controller\: actors
 
-    Returns\: `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
+    Returns\: `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
 
     .. list-table::
        :widths: 15 10 30
@@ -67,10 +67,10 @@ Interfaces
          - Type
          - Description
        * - viewer
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party retrieving the view\.
 
-  + **Method getTime \:** `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
+  + **Method getTime \:** `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
 
     Implementation of the ``GetTime`` choice\.
 
@@ -91,7 +91,7 @@ Data Types
 
   Type synonym for ``View``\.
 
-  **instance** `HasFromAnyView <https://docs.daml.com/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `TimeObservable <type-daml-finance-interface-lifecycle-v4-observable-timeobservable-timeobservable-60264_>`_ `V <type-daml-finance-interface-lifecycle-v4-observable-timeobservable-v-7863_>`_
+  **instance** `HasFromAnyView <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `TimeObservable <type-daml-finance-interface-lifecycle-v4-observable-timeobservable-timeobservable-60264_>`_ `V <type-daml-finance-interface-lifecycle-v4-observable-timeobservable-v-7863_>`_
 
 .. _type-daml-finance-interface-lifecycle-v4-observable-timeobservable-view-74477:
 
@@ -117,9 +117,17 @@ Data Types
          - :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
          - Textual reference to the observable\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-lifecycle-v4-observable-timeobservable-view-74477_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-lifecycle-v4-observable-timeobservable-view-74477_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-lifecycle-v4-observable-timeobservable-view-74477_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-lifecycle-v4-observable-timeobservable-view-74477_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"id\" `View <type-daml-finance-interface-lifecycle-v4-observable-timeobservable-view-74477_>`_ :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"providers\" `View <type-daml-finance-interface-lifecycle-v4-observable-timeobservable-view-74477_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"id\" `View <type-daml-finance-interface-lifecycle-v4-observable-timeobservable-view-74477_>`_ :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"providers\" `View <type-daml-finance-interface-lifecycle-v4-observable-timeobservable-view-74477_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
 
 Functions
 ---------
@@ -127,4 +135,4 @@ Functions
 .. _function-daml-finance-interface-lifecycle-v4-observable-timeobservable-gettime-11676:
 
 `getTime <function-daml-finance-interface-lifecycle-v4-observable-timeobservable-gettime-11676_>`_
-  \: `TimeObservable <type-daml-finance-interface-lifecycle-v4-observable-timeobservable-timeobservable-60264_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
+  \: `TimeObservable <type-daml-finance-interface-lifecycle-v4-observable-timeobservable-timeobservable-60264_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_

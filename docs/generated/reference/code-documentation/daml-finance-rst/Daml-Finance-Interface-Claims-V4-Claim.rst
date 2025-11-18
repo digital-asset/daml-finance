@@ -44,7 +44,7 @@ Interfaces
          - Type
          - Description
        * - actor
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party retrieving the claims\.
 
   + .. _type-daml-finance-interface-claims-v4-claim-getview-95007:
@@ -65,10 +65,10 @@ Interfaces
          - Type
          - Description
        * - viewer
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party retrieving the view\.
 
-  + **Method getClaims \:** `GetClaims <type-daml-finance-interface-claims-v4-claim-getclaims-15445_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ \[:ref:`TaggedClaim <type-daml-finance-interface-claims-v4-types-taggedclaim-85831>`\]
+  + **Method getClaims \:** `GetClaims <type-daml-finance-interface-claims-v4-claim-getclaims-15445_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ \[:ref:`TaggedClaim <type-daml-finance-interface-claims-v4-types-taggedclaim-85831>`\]
 
     The list of claims representing the instrument\.
 
@@ -89,7 +89,7 @@ Data Types
 
   Type synonym for ``View``\.
 
-  **instance** `HasFromAnyView <https://docs.daml.com/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Claim <type-daml-finance-interface-claims-v4-claim-claim-91182_>`_ `V <type-daml-finance-interface-claims-v4-claim-v-42696_>`_
+  **instance** `HasFromAnyView <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Claim <type-daml-finance-interface-claims-v4-claim-claim-91182_>`_ `V <type-daml-finance-interface-claims-v4-claim-v-42696_>`_
 
 .. _type-daml-finance-interface-claims-v4-claim-view-18692:
 
@@ -109,12 +109,16 @@ Data Types
          - Type
          - Description
        * - acquisitionTime
-         - `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
+         - `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
          - The claim's acquisition time\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-claims-v4-claim-view-18692_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-claims-v4-claim-view-18692_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-claims-v4-claim-view-18692_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-claims-v4-claim-view-18692_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"acquisitionTime\" `View <type-daml-finance-interface-claims-v4-claim-view-18692_>`_ `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"acquisitionTime\" `View <type-daml-finance-interface-claims-v4-claim-view-18692_>`_ `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
 
 Functions
 ---------
@@ -122,12 +126,12 @@ Functions
 .. _function-daml-finance-interface-claims-v4-claim-getclaims-87153:
 
 `getClaims <function-daml-finance-interface-claims-v4-claim-getclaims-87153_>`_
-  \: `Claim <type-daml-finance-interface-claims-v4-claim-claim-91182_>`_ \-\> `GetClaims <type-daml-finance-interface-claims-v4-claim-getclaims-15445_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ \[:ref:`TaggedClaim <type-daml-finance-interface-claims-v4-types-taggedclaim-85831>`\]
+  \: `Claim <type-daml-finance-interface-claims-v4-claim-claim-91182_>`_ \-\> `GetClaims <type-daml-finance-interface-claims-v4-claim-getclaims-15445_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ \[:ref:`TaggedClaim <type-daml-finance-interface-claims-v4-types-taggedclaim-85831>`\]
 
 .. _function-daml-finance-interface-claims-v4-claim-getclaim-68311:
 
 `getClaim <function-daml-finance-interface-claims-v4-claim-getclaim-68311_>`_
-  \: `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_ \-\> `Claim <type-daml-finance-interface-claims-v4-claim-claim-91182_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ :ref:`C <type-daml-finance-interface-claims-v4-types-c-76802>`
+  \: `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_ \-\> `Claim <type-daml-finance-interface-claims-v4-claim-claim-91182_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ :ref:`C <type-daml-finance-interface-claims-v4-types-c-76802>`
 
   Retrieves the single claim representing the template\. An error is thrown if there are zero or
   more than one claims\.
@@ -135,6 +139,6 @@ Functions
 .. _function-daml-finance-interface-claims-v4-claim-getacquisitiontime-25831:
 
 `getAcquisitionTime <function-daml-finance-interface-claims-v4-claim-getacquisitiontime-25831_>`_
-  \: `Claim <type-daml-finance-interface-claims-v4-claim-claim-91182_>`_ \-\> `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
+  \: `Claim <type-daml-finance-interface-claims-v4-claim-claim-91182_>`_ \-\> `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
 
   Retrieves the claim's acquisition time\.
