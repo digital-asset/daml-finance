@@ -15,7 +15,7 @@ Templates
 
   Implementation of a fungible holding\.
   The ``Fungible`` template implements the interface ``Fungible.I`` (which requires
-  ``SpliceHolding.Holding``, ``Lockable.I``, and ``Disclosure.I`` to be implemented), but not the ``Transferable.I``\.
+  ``Api.HoldingV1.Holding``, ``Lockable.I``, and ``Disclosure.I`` to be implemented), but not the ``Transferable.I``\.
 
   Signatory\: (DA\.Internal\.Record\.getField @\"custodian\" account), (DA\.Internal\.Record\.getField @\"owner\" account), Lockable\.getLockers this
 
@@ -36,7 +36,7 @@ Templates
        - `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
        - Number of units\.
      * - lock
-       - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`Lock <type-daml-finance-interface-util-v3-lockablesplice-lock-9150>`
+       - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`Lock <type-daml-finance-interface-util-v3-lockable-lock-18728>`
        - An optional lock for the holding\.
      * - observers
        - :ref:`PartiesMap <type-daml-finance-interface-types-common-v3-types-partiesmap-43006>`
@@ -54,7 +54,7 @@ Templates
 
   + **interface instance** :ref:`I <type-daml-finance-interface-util-v3-disclosure-i-28317>` **for** `Fungible <type-daml-finance-holding-v4-fungible-fungible-67336_>`_
 
-  + **interface instance** :ref:`I <type-daml-finance-interface-util-v3-lockablesplice-i-56603>` **for** `Fungible <type-daml-finance-holding-v4-fungible-fungible-67336_>`_
+  + **interface instance** :ref:`I <type-daml-finance-interface-util-v3-lockable-i-3709>` **for** `Fungible <type-daml-finance-holding-v4-fungible-fungible-67336_>`_
 
   + **interface instance** Holding **for** `Fungible <type-daml-finance-holding-v4-fungible-fungible-67336_>`_
 

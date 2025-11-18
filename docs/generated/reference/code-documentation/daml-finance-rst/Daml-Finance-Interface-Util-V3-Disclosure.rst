@@ -216,3 +216,15 @@ Functions
   .. code-block:: daml
 
     observer $ flattenObservers observers
+
+.. _function-daml-finance-interface-util-v3-disclosure-disclose-91797:
+
+`disclose <function-daml-finance-interface-util-v3-disclosure-disclose-91797_>`_
+  \: (`HasInterfaceTypeRep <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfacetyperep-84221>`_ i, `HasToInterface <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ i `I <type-daml-finance-interface-util-v3-disclosure-i-28317_>`_, `HasFromInterface <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ i `I <type-daml-finance-interface-util-v3-disclosure-i-28317_>`_) \=\> (`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_, :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`) \-\> :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>` \-\> `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ i \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ i)
+
+  Disclosure helpers (reuse existing logic)\.
+
+.. _function-daml-finance-interface-util-v3-disclosure-undisclose-42918:
+
+`undisclose <function-daml-finance-interface-util-v3-disclosure-undisclose-42918_>`_
+  \: (`HasInterfaceTypeRep <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfacetyperep-84221>`_ i, `HasToInterface <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ i `I <type-daml-finance-interface-util-v3-disclosure-i-28317_>`_, `HasFromInterface <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-interface-hasfrominterface-43863>`_ i `I <type-daml-finance-interface-util-v3-disclosure-i-28317_>`_) \=\> (`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_, :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`) \-\> :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>` \-\> `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ i \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ i))

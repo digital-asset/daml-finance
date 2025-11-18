@@ -17,12 +17,12 @@ import Daml.Finance.Interface.Holding.V4.Transferable qualified as Transferable 
 import Daml.Finance.Interface.Util.V3.HoldingSplice (getAmount)
 import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..))
 import Daml.Finance.Interface.Util.V3.Common (verify)
-import Daml.Finance.Interface.Util.V3.LockableSplice qualified as Lockable (Acquire(..), I, LockType(..), Release(..))
+import Daml.Finance.Interface.Util.V3.Lockable qualified as Lockable (Acquire(..), I, LockType(..), Release(..))
 import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..), submitExerciseInterfaceByKeyCmd, submitMustFailExerciseInterfaceByKeyCmd)
 import Daml.Finance.Test.Util.Common (validateAssertionFailure)
 import Daml.Finance.Test.Util.Holding qualified as Holding (verifyOwnerOfHolding)
 import Daml.Script
-import Splice.Api.Token.HoldingV1 qualified as SpliceHolding
+import Splice.Api.Token.HoldingV1 qualified as Api.HoldingV1
 
 run : Script ()
 run = script do
@@ -41,25 +41,25 @@ run = script do
     Account.Owner
 
   -- Lock asset
-  lockableCid <- submit (actAs [issuer, locker]) do
+  lockableCid <- submit [issuer, locker] do
     exerciseCmd (fromInterfaceContractId @Lockable.I issuerHoldingCid)
       Lockable.Acquire with
         newLockers = Set.singleton locker; context = "Test Lock"; lockType = Lockable.Semaphore
 
   -- Cannot split
   submitMustFail issuer do
-    exerciseCmd (fromInterfaceContractId @Fungible.I (toInterfaceContractId @SpliceHolding.Holding lockableCid)) Fungible.Split with
+    exerciseCmd (fromInterfaceContractId @Fungible.I (toInterfaceContractId @Api.HoldingV1.Holding lockableCid)) Fungible.Split with
       amounts = [500.0, 250.0]
 
   -- Cannot transfer
   submitMustFail (actAs [issuer, investor]) do
-    exerciseCmd (fromInterfaceContractId @Transferable.I (toInterfaceContractId @SpliceHolding.Holding lockableCid))
+    exerciseCmd (fromInterfaceContractId @Transferable.I (toInterfaceContractId @Api.HoldingV1.Holding lockableCid))
       Transferable.Transfer with
         actors = Set.fromList [issuer, investor]; newOwnerAccount = investorAccount
 
   -- Cannot debit
   Account.submitMustFailExerciseInterfaceByKeyCmd @Account.I [custodian, issuer] [] issuerAccount $
-    Account.Debit with holdingCid = toInterfaceContractId @SpliceHolding.Holding lockableCid
+    Account.Debit with holdingCid = toInterfaceContractId @Api.HoldingV1.Holding lockableCid
 
   -- Unlock asset
   fungibleCid <- fromInterfaceContractId @Fungible.I <$> submit locker do
@@ -168,16 +168,16 @@ run = script do
   let
     transferableCid =
       fromInterfaceContractId @Transferable.I
-        (toInterfaceContractId @SpliceHolding.Holding fungibleCid)
+        (toInterfaceContractId @Api.HoldingV1.Holding fungibleCid)
         
-  transferableCid <- submit (actAs [issuer, investor] <> readAs [publicParty]) do
+  transferableCid <- submit (actAs [issuer, investor] <> readAs publicParty) do
     exerciseCmd transferableCid
       Transferable.Transfer with
         actors = Set.fromList [issuer, investor]
         newOwnerAccount = investorAccount
 
   -- Assert state
-  Holding.verifyOwnerOfHolding [(investor, toInterfaceContractId @SpliceHolding.Holding transferableCid)]
+  Holding.verifyOwnerOfHolding [(investor, toInterfaceContractId @Api.HoldingV1.Holding transferableCid)]
 
   -- Debit asset
   Account.submitExerciseInterfaceByKeyCmd @Account.I [custodian, investor] [] investorAccount $
@@ -189,7 +189,7 @@ run = script do
 verifyAmountPreserving : CanAssert m => [Fungible.I] -> [Fungible.I] -> m ()
 verifyAmountPreserving newFungibles previousFungibles = do
   let
-    sumAmounts fungibles = sum $ getAmount <$> fungibles
+    sumAmounts fungibles = sum $ getAmount . toInterface @Api.HoldingV1.Holding <$> fungibles
     new = sumAmounts newFungibles
     previous = sumAmounts previousFungibles
   verify (new == previous) $ "Fungible::"

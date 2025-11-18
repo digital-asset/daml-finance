@@ -29,7 +29,6 @@ Here is a complete list of modules in the financial library:
 * :doc:`Daml.Finance.Data.V4.Time.DateClock.Types <Daml-Finance-Data-V4-Time-DateClock-Types>`
 * :doc:`Daml.Finance.Data.V4.Time.DateClockUpdate <Daml-Finance-Data-V4-Time-DateClockUpdate>`
 * :doc:`Daml.Finance.Data.V4.Time.LedgerTime <Daml-Finance-Data-V4-Time-LedgerTime>`
-* :doc:`Daml.Finance.Holding.V4.BaseHolding <Daml-Finance-Holding-V4-BaseHolding>`
 * :doc:`Daml.Finance.Holding.V4.Factory <Daml-Finance-Holding-V4-Factory>`
 * :doc:`Daml.Finance.Holding.V4.Fungible <Daml-Finance-Holding-V4-Fungible>`
 * :doc:`Daml.Finance.Holding.V4.Transferable <Daml-Finance-Holding-V4-Transferable>`
@@ -188,7 +187,6 @@ Here is a complete list of modules in the financial library:
 * :doc:`Daml.Finance.Interface.Util.V3.HoldingSplice <Daml-Finance-Interface-Util-V3-HoldingSplice>`
 * :doc:`Daml.Finance.Interface.Util.V3.InterfaceKey <Daml-Finance-Interface-Util-V3-InterfaceKey>`
 * :doc:`Daml.Finance.Interface.Util.V3.Lockable <Daml-Finance-Interface-Util-V3-Lockable>`
-* :doc:`Daml.Finance.Interface.Util.V3.LockableSplice <Daml-Finance-Interface-Util-V3-LockableSplice>`
 * :doc:`Daml.Finance.Lifecycle.V4.Effect <Daml-Finance-Lifecycle-V4-Effect>`
 * :doc:`Daml.Finance.Lifecycle.V4.Election <Daml-Finance-Lifecycle-V4-Election>`
 * :doc:`Daml.Finance.Lifecycle.V4.ElectionEffect <Daml-Finance-Lifecycle-V4-ElectionEffect>`
@@ -212,5 +210,4 @@ Here is a complete list of modules in the financial library:
 * :doc:`Daml.Finance.Util.V4.Date.Schedule <Daml-Finance-Util-V4-Date-Schedule>`
 * :doc:`Daml.Finance.Util.V4.Disclosure <Daml-Finance-Util-V4-Disclosure>`
 * :doc:`Daml.Finance.Util.V4.Lockable <Daml-Finance-Util-V4-Lockable>`
-* :doc:`Daml.Finance.Util.V4.LockableGeneric <Daml-Finance-Util-V4-LockableGeneric>`
 

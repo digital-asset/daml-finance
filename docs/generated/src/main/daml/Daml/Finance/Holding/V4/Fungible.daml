@@ -3,17 +3,18 @@
 
 module Daml.Finance.Holding.V4.Fungible where
 
-import DA.Set (fromList, singleton)
+import DA.Set (fromList, singleton, toList)
+import DA.Text (intercalate)
 import DA.TextMap qualified as TextMap
 import Daml.Finance.Holding.V4.Util (mergeImpl, splitImpl)
 import Daml.Finance.Interface.Holding.V4.Fungible qualified as Fungible (I, View(..))
 import Daml.Finance.Interface.Types.Common.V3.Types (AccountKey(..), InstrumentKey(..), PartiesMap)
 import Daml.Finance.Interface.Types.Common.V3.Types qualified as HoldingStandard (HoldingStandard(..))
 import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
-import Daml.Finance.Interface.Util.V3.LockableSplice qualified as Lockable (I, Lock(..), View(..), getLockers)
+import Daml.Finance.Interface.Util.V3.Lockable qualified as Lockable (I, Lock(..), View(..), getLockers)
 import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
 import Daml.Finance.Util.V4.Lockable (acquireImpl, isValidLock, releaseImpl)
-import Splice.Api.Token.HoldingV1 qualified as SpliceHolding
+import Splice.Api.Token.HoldingV1 qualified as Api.HoldingV1
 import Splice.Api.Token.MetadataV1 qualified as SpliceMetadata
 
 -- | Type synonym for `Fungible`.
@@ -21,7 +22,7 @@ type T = Fungible
 
 -- | Implementation of a fungible holding.
 -- The `Fungible` template implements the interface `Fungible.I` (which requires
--- `SpliceHolding.Holding`, `Lockable.I`, and `Disclosure.I` to be implemented), but not the `Transferable.I`.
+-- `Api.HoldingV1.Holding`, `Lockable.I`, and `Disclosure.I` to be implemented), but not the `Transferable.I`.
 template Fungible
   with
     instrument : InstrumentKey
@@ -53,22 +54,36 @@ template Fungible
       acquire = acquireImpl this.lock (\lock -> this with lock)
       release = releaseImpl this.lock (\lock -> this with lock)
 
-    interface instance SpliceHolding.Holding for Fungible where
-      view = SpliceHolding.HoldingView with
-        owner = account.owner
-        instrumentId = SpliceHolding.InstrumentId with
-          admin = instrument.issuer
-          id    = show instrument.id
-        amount = amount
-        lock   = None   
-        meta   = SpliceMetadata.Metadata with
-          values = TextMap.fromList
-            [ ("depository", partyToText instrument.depository)
-            , ("version", instrument.version)
-            , ("holdingStandard", show instrument.holdingStandard)
-            , ("custodian", partyToText account.custodian)
-            , ("accountId", show account.id)
-            ]
+    interface instance Api.HoldingV1.Holding for Fungible where
+      view =
+        let
+          lockView : Lockable.View
+          lockView = view (toInterface @Lockable.I this)
+          
+        in Api.HoldingV1.HoldingView with
+          owner = account.owner
+          instrumentId = Api.HoldingV1.InstrumentId with
+            admin = instrument.issuer
+            id = show instrument.id
+          amount = amount
+          
+          lock = case lockView.lock of
+            None -> None
+            Some l ->
+              Some Api.HoldingV1.Lock with
+                holders = toList l.lockers
+                expiresAt = None      -- Not present in LockableSplice
+                expiresAfter = None   -- Not present in LockableSplice
+                context = Some (intercalate ", " (toList l.context))
+
+          meta = SpliceMetadata.Metadata with
+            values = TextMap.fromList
+              [ ("depository", partyToText instrument.depository)
+              , ("version", instrument.version)
+              , ("holdingStandard", show instrument.holdingStandard)
+              , ("custodian", partyToText account.custodian)
+              , ("accountId", show account.id)
+              ]
 
     interface instance Fungible.I for Fungible where
       view = Fungible.View with modifiers = singleton account.owner

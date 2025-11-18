@@ -31,7 +31,7 @@ Templates
        - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
        - The account owner\.
      * - lock
-       - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`Lock <type-daml-finance-interface-util-v3-lockablesplice-lock-9150>`
+       - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`Lock <type-daml-finance-interface-util-v3-lockable-lock-18728>`
        - An optional lock for the account\.
      * - controllers
        - :ref:`Controllers <type-daml-finance-interface-account-v4-account-controllers-59817>`
@@ -61,7 +61,7 @@ Templates
 
   + **interface instance** :ref:`I <type-daml-finance-interface-util-v3-disclosure-i-28317>` **for** `Account <type-daml-finance-account-v4-account-account-35720_>`_
 
-  + **interface instance** :ref:`I <type-daml-finance-interface-util-v3-lockablesplice-i-56603>` **for** `Account <type-daml-finance-account-v4-account-account-35720_>`_
+  + **interface instance** :ref:`I <type-daml-finance-interface-util-v3-lockable-i-3709>` **for** `Account <type-daml-finance-account-v4-account-account-35720_>`_
 
   + **interface instance** Holding **for** `Account <type-daml-finance-account-v4-account-account-35720_>`_
 

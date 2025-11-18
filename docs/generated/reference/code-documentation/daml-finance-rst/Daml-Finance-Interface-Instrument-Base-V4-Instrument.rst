@@ -215,7 +215,6 @@ Functions
   \: `HasToInterface <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ t Holding \=\> t \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `Instrument <type-daml-finance-interface-instrument-base-v4-instrument-instrument-74494_>`_
 
   Fetch instrument from holding\.
-  | Fetch instrument from holding\.
 
 .. _function-daml-finance-interface-instrument-base-v4-instrument-exerciseinterfacebykey-98720:
 
