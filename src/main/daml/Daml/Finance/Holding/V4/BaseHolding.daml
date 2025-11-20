@@ -1,13 +1,11 @@
 -- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
-module Daml.Finance.Holding.V4.Transferable where
+module Daml.Finance.Holding.V4.BaseHolding where
 
 import DA.Set (fromList, singleton, toList)
 import DA.Text (intercalate)
 import DA.TextMap qualified as TextMap
-import Daml.Finance.Holding.V4.Util (transferImpl)
-import Daml.Finance.Interface.Holding.V4.Transferable qualified as Transferable (I, View(..))
 import Daml.Finance.Interface.Types.Common.V3.Types (AccountKey(..), InstrumentKey(..), PartiesMap)
 import Daml.Finance.Interface.Types.Common.V3.Types qualified as HoldingStandard (HoldingStandard(..))
 import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
@@ -17,13 +15,14 @@ import Daml.Finance.Util.V4.Lockable (acquireImpl, isValidLock, releaseImpl)
 import Splice.Api.Token.HoldingV1 qualified as Api.HoldingV1
 import Splice.Api.Token.MetadataV1 qualified as SpliceMetadata
 
--- | Type synonym for `Transferable`.
-type T = Transferable
 
--- | Implementation of a transferable holding.
--- `Transferable` implements the interface `Transferable.I` (which requires `Api.HoldingV1.Holding`,
--- `Lockable.I`, and Disclosure.I` to be implemented), but not the `Fungible.I`.
-template Transferable
+-- | Type synonym for `BaseHolding`.
+type T = BaseHolding
+
+-- | Implementation of a `BaseHolding`.
+-- `BaseHolding` implements the interface `Api.HoldingV1.Holding` (which requires `Lockable.I` and
+-- `Disclosure.I` to be implemented), but neither `Fungible.I` nor `Transferable.I`.
+template BaseHolding
   with
     instrument : InstrumentKey
       -- ^ The instrument of which units are held.
@@ -40,21 +39,23 @@ template Transferable
     observer Disclosure.flattenObservers observers
 
     ensure
-      amount > 0.0 && isValidLock lock && instrument.holdingStandard == HoldingStandard.Transferable
+      amount > 0.0 && isValidLock lock && instrument.holdingStandard == HoldingStandard.BaseHolding
 
-    interface instance Disclosure.I for Transferable where
+    interface instance Disclosure.I for BaseHolding where
       view = Disclosure.View with
         disclosureControllers = fromList [account.owner, account.custodian]; observers
       setObservers = setObserversImpl @_ @Disclosure.I this None
       addObservers = addObserversImpl @_ @Disclosure.I this None
       removeObservers = removeObserversImpl @_ @Disclosure.I this None
 
-    interface instance Lockable.I for Transferable where
+    interface instance Lockable.I for BaseHolding where
       view = Lockable.View with lock; controllers = singleton account.owner
       acquire = acquireImpl this.lock (\lock -> this with lock)
       release = releaseImpl this.lock (\lock -> this with lock)
 
-    interface instance Api.HoldingV1.Holding for Transferable where
+    -- interface instance Holding.I for BaseHolding where
+    --   view = Holding.View with instrument; account; amount
+    interface instance Api.HoldingV1.Holding for BaseHolding where
       view =
         let
           lockView : Lockable.View
@@ -84,7 +85,3 @@ template Transferable
               , ("custodian", partyToText account.custodian)
               , ("accountId", show account.id)
               ]
-
-    interface instance Transferable.I for Transferable where
-      view = Transferable.View {}
-      transfer = transferImpl $ toInterface this

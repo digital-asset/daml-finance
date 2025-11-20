@@ -73,59 +73,52 @@ template Instruction
         allocation; approval; signedSenders; signedReceivers
 
       allocate Instruction.Allocate{actors; allocation} = do
-        debug $ "Instruction.Allocate - Inside Instruction.Allocate - instructor = " <> show instructor
-        debug $ "Instruction.Allocate - Step unit (fromInstrumentKey) - consenters = " <> show consenters
-        debug $ "Instruction.Allocate - Inside Instruction.Allocate - settlers = " <> show settlers
-
-        debug $ "BEFORE LET" 
-
         let
           allMustAuthorize = mustAuthorizeHelper True actors
           atLeastOneMustAuthorize = mustAuthorizeHelper False actors
-        debug $ "afTER LET" 
 
-        debug $ "Instruction - Before - atLeastOneMustAuthorize $ Set.fromList [routedStep.custodian, routedStep.sender]" 
         atLeastOneMustAuthorize $ Set.fromList [routedStep.custodian, routedStep.sender]
         
         assertMsg ("Allocation must be new. " <> context this) $ allocation /= this.allocation
+
+        debug $ "ALLOCATE: BEFORE releasePreviousAllocation. this.allocation = " <> show this.allocation
         releasedCid <- releasePreviousAllocation this actors
+        debug $ "ALLOCATE: AFTER releasePreviousAllocation. releasedCid = " <> show releasedCid
+
         
         -- allocate
-        debug "Instruction - Before - newAllocation"
         newAllocation <- case allocation of
           
           Pledge oldHoldingCid -> do
+            debug $ "ALLOCATE: Entering Pledge branch with oldHoldingCid = " <> show oldHoldingCid
 
-            debug "Instruction - Before - newHoldingCid"
+            debug  "ALLOCATE - before -  disclosePledge this oldHoldingCid actors "
             newHoldingCid <- disclosePledge this oldHoldingCid actors
+            debug $ "ALLOCATE - after -  disclosePledge this oldHoldingCid actors =  " <> show newHoldingCid
 
             holding <- fetch newHoldingCid
             let holdingI = toInterface @Api.HoldingV1.Holding holding
 
             -- Sender account (linked to the investor, not custodian)
+            debug  "ALLOCATE - before -  senderAccountKey "
             let senderAccountKey = getAccount holdingI
+
+            debug  "ALLOCATE - before -  etchInterfaceByKey @Account.R @Account.I senderAccountKey "
             senderAccount <- view <$>
               fetchInterfaceByKey @Account.R @Account.I senderAccountKey
 
-            debug $ "Instruction - Before - discloseAccount this senderAccountKey actors" 
+            debug  "ALLOCATE - before -  discloseAccount this senderAccountKey actors "
             discloseAccount this senderAccountKey actors
 
-            debug $ "Instruction - Before - allMustAuthorize senderAccount.controllers.outgoing" 
+            debug  "ALLOCATE - before -  allMustAuthorize senderAccount.controllers.outgoing "
             allMustAuthorize senderAccount.controllers.outgoing
 
-            debug $ "Instruction - Before - mustBe this Custodian senderAccount.custodian" 
-            debug $ "senderAccount.custodian = " <> show senderAccount.custodian
-            debug $ "routedStep.custodian    = " <> show routedStep.custodian
-
+            debug  "ALLOCATE - before -  mustBe this Custodian senderAccount.custodian "
             mustBe this Custodian senderAccount.custodian
 
-            debug $ "Instruction - Before - mustBe this Sender senderAccount.owner" 
+            debug  "ALLOCATE - before -  mustBe this Sender senderAccount.owner "
             mustBe this Sender senderAccount.owner
-            debug $ "Instruction - After - mustBe this Sender senderAccount.owner" 
 
-
-
-            debug $ "Instruction - Before - Pledged amount must match." 
             assertMsg ("Pledged amount must match. " <> context this) $
               Holding.getAmount holdingI == routedStep.quantity.amount
 
@@ -138,8 +131,9 @@ template Instruction
             assertMsg ("Pledged instrument issuer mismatch. " <> context this) $
               holdingView.instrumentId.admin == expectedInstr.admin
 
-            newLockedCid <- toInterfaceContractId @Api.HoldingV1.Holding <$>
-              exercise (fromInterfaceContractId @Lockable.I newHoldingCid)
+            debug  "ALLOCATE - before -  newLockedCid "
+            newLockedCid <- coerceInterfaceContractId @Api.HoldingV1.Holding @Lockable.I <$>
+              exercise (coerceInterfaceContractId @Lockable.I @Api.HoldingV1.Holding newHoldingCid)
                 Lockable.Acquire with
                   newLockers = Set.singleton instructor <> senderAccount.controllers.outgoing
                   context = context this
@@ -148,6 +142,7 @@ template Instruction
             pure $ Pledge newLockedCid
 
           PassThroughFrom (passThroughAccountKey, fromInstructionKey) -> do
+            debug "inside PassThroughFrom"
             discloseAccount this passThroughAccountKey actors
             passThroughAccount <- view <$>
               fetchInterfaceByKey @Account.R @Account.I passThroughAccountKey
@@ -161,17 +156,25 @@ template Instruction
             mustBe this Custodian fromInstruction.routedStep.custodian
             mustBe this Sender fromInstruction.routedStep.receiver
             pure allocation
+
           CreditReceiver -> do
+            debug "inside CreditReceiver"
             allMustAuthorize $ Set.singleton routedStep.custodian
             pure allocation
+
           SettleOffledger -> do
+            debug "inside SettleOffledger"
             allMustAuthorize $ Set.fromList [routedStep.custodian, routedStep.sender]
             pure allocation
-          Unallocated ->
+
+          Unallocated -> do
+            debug "ALLOCATE - Entering Unallocated branch"
             pure allocation
+
         newInstructionCid <- toInterfaceContractId <$> create this with
           allocation = newAllocation
           signedSenders = if newAllocation == Unallocated then mempty else actors
+
         pure (newInstructionCid, releasedCid)
       approve Instruction.Approve{actors; approval} = do
         let
@@ -226,18 +229,25 @@ template Instruction
         case (allocation, approval) of
           (Unallocated, Unapproved) ->
             abort $ "Instruction must be allocated and approved. " <> context this
+
           (Unallocated, _) -> abort $ "Instruction must be allocated. " <> context this
+
           (_, Unapproved) -> abortUnapproved
+
           (PassThroughFrom _, _) -> do
             -- Pass-throughs are consumed by the routedStep (*) below
             abort $ "Holding has not been passed through. " <> context this
+
           (Pledge holdingCid, a) -> do
-            holdingCid <- toInterfaceContractId @Api.HoldingV1.Holding <$>
-              exercise (fromInterfaceContractId @Lockable.I holdingCid) Lockable.Release with
+            debug $ "EXECUTE: Entering Pledge execute with holdingCid = " <> show holdingCid
+            holdingCid <- coerceInterfaceContractId @Api.HoldingV1.Holding @Lockable.I <$>
+              exercise (coerceInterfaceContractId @Lockable.I @Api.HoldingV1.Holding holdingCid) Lockable.Release with
                 context = context this
+                
             holding <- fetch holdingCid
             let holdingI = toInterface @Api.HoldingV1.Holding holding
             let senderAccountKey = getAccount holdingI
+
             case a of
               TakeDelivery receiverAccountKey -> do
                 let transferableCid = fromInterfaceContractId @Transferable.I holdingCid
@@ -363,17 +373,47 @@ releasePreviousAllocation this@Instruction {allocation; signedSenders} actors = 
   let allMustAuthorize = mustAuthorizeHelper True actors
   -- signed senders must agree to release previous allocation
   allMustAuthorize signedSenders
+
   case allocation of
     Pledge holdingCid -> do
-      let lockableCid = fromInterfaceContractId @Lockable.I holdingCid
-      holdingCid <- toInterfaceContractId @Api.HoldingV1.Holding <$>
+      debug $ "RELEASE-PREV: Incoming holdingCid = " <> show holdingCid
+      -- Convert Holding → Lockable
+      let lockableCid : ContractId Lockable.I = coerceInterfaceContractId  @Lockable.I @Api.HoldingV1.Holding holdingCid
+      debug $ "RELEASE-PREV: lockableCid = " <> show lockableCid
+
+      -- Release the lock (returns Lockable CID)
+      releasedLockableCid <-
         exercise lockableCid Lockable.Release with
           context = context this
-      holding <- fetch holdingCid
+      debug $ "RELEASE-PREV: Release returned LOCKABLE = " <> show releasedLockableCid
+
+      -- Convert Lockable → Holding
+      let releasedHoldingCid : ContractId Api.HoldingV1.Holding = coerceInterfaceContractId @Api.HoldingV1.Holding @Lockable.I releasedLockableCid
+      debug $ "RELEASE-PREV: Released holdingCid (converted) = " <> show releasedHoldingCid
+
+      -- Fetch holding to get account
+      holding <- fetch releasedHoldingCid
+      debug $ "RELEASE-PREV: Fetched holding after release"
+
       let holdingI = toInterface @Api.HoldingV1.Holding holding 
       let senderAccountKey = getAccount holdingI
+      debug $ "RELEASE-PREV: senderAccountKey = " <> show senderAccountKey
+
+      debug "RELEASE-PREV: undiscloseAccount ..."
       undiscloseAccount this senderAccountKey actors
-      undisclosePledge this holdingCid actors
+
+      debug "RELEASE-PREV: undisclosePledge ..."
+      mUndisclosed <- undisclosePledge this releasedHoldingCid actors
+
+      let 
+        finalCid =
+          case mUndisclosed of
+            Some cid' -> cid'                
+            None -> releasedHoldingCid  
+
+      debug $ "RELEASE-PREV: Returning Some " <> show finalCid
+      pure (Some finalCid)
+
     PassThroughFrom (passThroughAccountKey, _) -> do
       undiscloseAccount this passThroughAccountKey actors
       pure None
