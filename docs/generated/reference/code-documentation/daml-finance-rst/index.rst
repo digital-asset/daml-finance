@@ -29,6 +29,7 @@ Here is a complete list of modules in the financial library:
 * :doc:`Daml.Finance.Data.V4.Time.DateClock.Types <Daml-Finance-Data-V4-Time-DateClock-Types>`
 * :doc:`Daml.Finance.Data.V4.Time.DateClockUpdate <Daml-Finance-Data-V4-Time-DateClockUpdate>`
 * :doc:`Daml.Finance.Data.V4.Time.LedgerTime <Daml-Finance-Data-V4-Time-LedgerTime>`
+* :doc:`Daml.Finance.Holding.V4.BaseHolding <Daml-Finance-Holding-V4-BaseHolding>`
 * :doc:`Daml.Finance.Holding.V4.Factory <Daml-Finance-Holding-V4-Factory>`
 * :doc:`Daml.Finance.Holding.V4.Fungible <Daml-Finance-Holding-V4-Fungible>`
 * :doc:`Daml.Finance.Holding.V4.Transferable <Daml-Finance-Holding-V4-Transferable>`
@@ -93,7 +94,6 @@ Here is a complete list of modules in the financial library:
 * :doc:`Daml.Finance.Interface.Data.V4.Reference.Time <Daml-Finance-Interface-Data-V4-Reference-Time>`
 * :doc:`Daml.Finance.Interface.Holding.V4.Factory <Daml-Finance-Interface-Holding-V4-Factory>`
 * :doc:`Daml.Finance.Interface.Holding.V4.Fungible <Daml-Finance-Interface-Holding-V4-Fungible>`
-* :doc:`Daml.Finance.Interface.Holding.V4.Holding <Daml-Finance-Interface-Holding-V4-Holding>`
 * :doc:`Daml.Finance.Interface.Holding.V4.Transferable <Daml-Finance-Interface-Holding-V4-Transferable>`
 * :doc:`Daml.Finance.Interface.Instrument.Base.V4.Instrument <Daml-Finance-Interface-Instrument-Base-V4-Instrument>`
 * :doc:`Daml.Finance.Interface.Instrument.Bond.V3.Callable.Factory <Daml-Finance-Interface-Instrument-Bond-V3-Callable-Factory>`

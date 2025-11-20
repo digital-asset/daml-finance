@@ -46,6 +46,8 @@ Data Types
 
   **instance** HasMethod :ref:`Account <type-daml-finance-interface-account-v4-account-account-93407>` \"getKey\" `AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962_>`_
 
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"account\" :ref:`BaseHolding <type-daml-finance-holding-v4-baseholding-baseholding-18612>` `AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962_>`_
+
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"account\" :ref:`Fungible <type-daml-finance-holding-v4-fungible-fungible-67336>` `AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962_>`_
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"account\" :ref:`Transferable <type-daml-finance-holding-v4-transferable-transferable-12222>` `AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962_>`_
@@ -56,8 +58,6 @@ Data Types
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"account\" :ref:`Create <type-daml-finance-interface-holding-v4-factory-create-84550>` `AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962_>`_
 
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"account\" :ref:`View <type-daml-finance-interface-holding-v4-holding-view-10906>` `AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962_>`_
-
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"custodian\" `AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962_>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"id\" `AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962_>`_ `Id <type-daml-finance-interface-types-common-v3-types-id-28519_>`_
@@ -65,6 +65,8 @@ Data Types
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"newOwnerAccount\" :ref:`Transfer <type-daml-finance-interface-holding-v4-transferable-transfer-3593>` `AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962_>`_
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"owner\" `AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962_>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"account\" :ref:`BaseHolding <type-daml-finance-holding-v4-baseholding-baseholding-18612>` `AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962_>`_
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"account\" :ref:`Fungible <type-daml-finance-holding-v4-fungible-fungible-67336>` `AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962_>`_
 
@@ -75,8 +77,6 @@ Data Types
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"account\" :ref:`Create <type-daml-finance-interface-account-v4-factory-create-72130>` `AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962_>`_
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"account\" :ref:`Create <type-daml-finance-interface-holding-v4-factory-create-84550>` `AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"account\" :ref:`View <type-daml-finance-interface-holding-v4-holding-view-10906>` `AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962_>`_
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"custodian\" `AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962_>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
 
@@ -212,6 +212,14 @@ Data Types
     ``Holding.I``, but not ``Transferable.I``\. These holdings are interchangeable, suitable for
     scenarios where asset fungibility is crucial, but do not have the transfer capability
     between parties via a custodian\.
+
+  .. _constr-daml-finance-interface-types-common-v3-types-baseholding-71474:
+
+  `BaseHolding <constr-daml-finance-interface-types-common-v3-types-baseholding-71474_>`_
+
+    Represents the class of holdings which implement only ``Holding.I`` and neither
+    ``Transferable.I`` nor ``Fungible.I``\. This class encompasses basic holdings without the
+    functionalities of custodian\-based transferability or fungibility\.
 
   **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `HoldingStandard <type-daml-finance-interface-types-common-v3-types-holdingstandard-63293_>`_
 
@@ -755,6 +763,8 @@ Data Types
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"id\" `InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717_>`_ `Id <type-daml-finance-interface-types-common-v3-types-id-28519_>`_
 
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"instrument\" :ref:`BaseHolding <type-daml-finance-holding-v4-baseholding-baseholding-18612>` `InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717_>`_
+
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"instrument\" :ref:`Fungible <type-daml-finance-holding-v4-fungible-fungible-67336>` `InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717_>`_
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"instrument\" :ref:`Transferable <type-daml-finance-holding-v4-transferable-transferable-12222>` `InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717_>`_
@@ -762,8 +772,6 @@ Data Types
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"instrument\" :ref:`TransferableFungible <type-daml-finance-holding-v4-transferablefungible-transferablefungible-50906>` `InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717_>`_
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"instrument\" :ref:`Create <type-daml-finance-interface-holding-v4-factory-create-84550>` `InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"instrument\" :ref:`View <type-daml-finance-interface-holding-v4-holding-view-10906>` `InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717_>`_
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"instrument\" :ref:`Callable <type-daml-finance-interface-instrument-bond-v3-callable-types-callable-12794>` `InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717_>`_
 
@@ -939,6 +947,8 @@ Data Types
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"id\" `InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717_>`_ `Id <type-daml-finance-interface-types-common-v3-types-id-28519_>`_
 
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"instrument\" :ref:`BaseHolding <type-daml-finance-holding-v4-baseholding-baseholding-18612>` `InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717_>`_
+
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"instrument\" :ref:`Fungible <type-daml-finance-holding-v4-fungible-fungible-67336>` `InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717_>`_
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"instrument\" :ref:`Transferable <type-daml-finance-holding-v4-transferable-transferable-12222>` `InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717_>`_
@@ -946,8 +956,6 @@ Data Types
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"instrument\" :ref:`TransferableFungible <type-daml-finance-holding-v4-transferablefungible-transferablefungible-50906>` `InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717_>`_
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"instrument\" :ref:`Create <type-daml-finance-interface-holding-v4-factory-create-84550>` `InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"instrument\" :ref:`View <type-daml-finance-interface-holding-v4-holding-view-10906>` `InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717_>`_
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"instrument\" :ref:`Callable <type-daml-finance-interface-instrument-bond-v3-callable-types-callable-12794>` `InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717_>`_
 
@@ -1488,6 +1496,8 @@ Data Types
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"observers\" :ref:`HolidayCalendar <type-daml-finance-data-v4-reference-holidaycalendar-holidaycalendar-24871>` `PartiesMap <type-daml-finance-interface-types-common-v3-types-partiesmap-43006_>`_
 
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"observers\" :ref:`BaseHolding <type-daml-finance-holding-v4-baseholding-baseholding-18612>` `PartiesMap <type-daml-finance-interface-types-common-v3-types-partiesmap-43006_>`_
+
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"observers\" :ref:`Factory <type-daml-finance-holding-v4-factory-factory-39768>` `PartiesMap <type-daml-finance-interface-types-common-v3-types-partiesmap-43006_>`_
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"observers\" :ref:`Fungible <type-daml-finance-holding-v4-fungible-fungible-67336>` `PartiesMap <type-daml-finance-interface-types-common-v3-types-partiesmap-43006_>`_
@@ -1677,6 +1687,8 @@ Data Types
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"observers\" :ref:`Factory <type-daml-finance-data-v4-reference-holidaycalendar-factory-82307>` `PartiesMap <type-daml-finance-interface-types-common-v3-types-partiesmap-43006_>`_
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"observers\" :ref:`HolidayCalendar <type-daml-finance-data-v4-reference-holidaycalendar-holidaycalendar-24871>` `PartiesMap <type-daml-finance-interface-types-common-v3-types-partiesmap-43006_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"observers\" :ref:`BaseHolding <type-daml-finance-holding-v4-baseholding-baseholding-18612>` `PartiesMap <type-daml-finance-interface-types-common-v3-types-partiesmap-43006_>`_
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"observers\" :ref:`Factory <type-daml-finance-holding-v4-factory-factory-39768>` `PartiesMap <type-daml-finance-interface-types-common-v3-types-partiesmap-43006_>`_
 

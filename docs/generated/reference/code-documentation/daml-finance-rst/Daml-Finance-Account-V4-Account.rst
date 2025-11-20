@@ -63,8 +63,6 @@ Templates
 
   + **interface instance** :ref:`I <type-daml-finance-interface-util-v3-lockable-i-3709>` **for** `Account <type-daml-finance-account-v4-account-account-35720_>`_
 
-  + **interface instance** Holding **for** `Account <type-daml-finance-account-v4-account-account-35720_>`_
-
 .. _type-daml-finance-account-v4-account-factory-19307:
 
 **template** `Factory <type-daml-finance-account-v4-account-factory-19307_>`_
