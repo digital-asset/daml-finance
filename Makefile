@@ -10,16 +10,16 @@ install:
 
 .PHONY: build
 build: install
-	daml build
+	dpm build
 
 .PHONY: test
 test: build
-	daml test
+	dpm test
 
 .PHONY: clean
 clean:
 	-rm -rf .lib/
-	daml clean
+	dpm clean
 
 #########################
 # Packages (./packages) #
@@ -35,11 +35,11 @@ build-packages: clean-packages
 
 .PHONY: build-java-packages
 build-java-packages: build-packages
-	daml codegen java -o .dars/.java .dars/*
+	dpm codegen-java -o .dars/.java .dars/*
 
 .PHONY: build-js-packages
 build-js-packages: build-packages
-	daml codegen js -o .dars/.js .dars/*
+	dpm codegen-js -o .dars/.js .dars/*
 
 .PHONY: test-packages
 test-packages: build-packages
@@ -101,19 +101,19 @@ ci-build:
 ci-build-java:
 	@nix-shell \
 		--pure \
-		--run 'daml codegen java -o .dars/.java .dars/*'
+		--run 'dpm codegen-java -o .dars/.java .dars/*'
 
 .PHONY: ci-build-js
 ci-build-js:
 	@nix-shell \
 		--pure \
-		--run 'daml codegen js -o .dars/.js .dars/*'
+		--run 'dpm codegen-js -o .dars/.js .dars/*'
 
 .PHONY: ci-test
 ci-test:
 	@nix-shell \
 		--pure \
-		--run 'daml test; ./$(SCRIPTS_DIR)/test-packages.sh'
+		--run 'dpm test; ./$(SCRIPTS_DIR)/test-packages.sh'
 
 .PHONY: ci-validate
 ci-validate:
@@ -188,9 +188,11 @@ DAML_SRC := $(shell find src/main/daml -name '*.daml')
 SDK_VERSION := $(shell yq e '.sdk-version' daml.yaml)
 DAML_ROOT := $(shell if [ -z ${DAML_HOME} ]; then echo ~/.daml; else echo ${DAML_HOME}; fi)
 
+DPM_HOME := $(shell if [ -z $${DPM_HOME} ]; then echo $$HOME/.dpm; else echo $${DPM_HOME}; fi)
+
 .PHONY: doc-code-json
 doc-code-json: $(DAML_SRC)
-	daml damlc docs \
+	dpm docs \
 		--output=docs/build/daml-finance.json \
 		--package-name=daml-finance \
 		--format Json \
@@ -198,7 +200,7 @@ doc-code-json: $(DAML_SRC)
 
 .PHONY: doc-code
 doc-code: doc-code-json
-	daml damlc docs \
+	dpm docs \
 		--output=docs/build/daml-finance-rst \
 		--output-hoogle=docs/build/daml-finance-hoogle.txt \
 		--input-format=json \
@@ -209,8 +211,10 @@ doc-code: doc-code-json
 		--index-template=docs/code-documentation-templates/base-rst-index-template.rst \
 		--hoogle-template=docs/code-documentation-templates/base-hoogle-template.txt \
 		--base-url=https://docs.daml.com/daml-finance/reference/code-documentation/daml-finance-rst \
-		--input-anchor=$(DAML_ROOT)/sdk/$(SDK_VERSION)/damlc/resources/daml-base-anchors.json \
+		--input-anchor=$(DPM_HOME)/sdk/$(SDK_VERSION)/damlc/resources/daml-base-anchors.json \
 		docs/build/daml-finance.json
+	
+# Comment: --input-anchor=$(DAML_ROOT)/sdk/$(SDK_VERSION)/damlc/resources/daml-base-anchors.json \
 
 .PHONY: clean-docs
 clean-docs:

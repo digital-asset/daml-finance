@@ -10,6 +10,9 @@ let
   build_daml = import ./nix/daml.nix;
   packell = import ./nix/packell.nix;
 
+  #Load custom dpm derivation
+  dpm = import ./nix/dpm.nix { inherit pkgs; };
+
   damlYaml = builtins.fromJSON (builtins.readFile (pkgs.runCommand "daml.yaml.json" { yamlFile = ./daml.yaml; } ''
     ${pkgs.yj}/bin/yj < "$yamlFile" > $out
   ''));
@@ -21,14 +24,14 @@ let
 
 # Daml SDK on macOS is only available on x86 architecture
   arch =
-    if pkgs.stdenv.isDarwin then "x86_64" else   
+    if pkgs.stdenv.isDarwin then "x86_64" else
     if pkgs.stdenv.hostPlatform.system == "x86_64-linux" then "x86_64" else
     if pkgs.stdenv.hostPlatform.system == "aarch64-linux" then "aarch64"
     else ""; #for plain `linux.tar.gz`
 
   daml = build_daml {
     stdenv = pkgs.stdenv;
-    jdk = pkgs.openjdk17_headless;    
+    jdk = pkgs.openjdk17_headless;
     sdkVersion = damlYaml.sdk-version;
     damlVersion = damlYaml.daml-version;
     tarPath = damlYaml.daml-tar-path or null;
@@ -49,6 +52,7 @@ pkgs.mkShell {
   SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
   buildInputs = [
     daml
+    dpm
     (packell { pkgs = pkgsGhc; stdenv = pkgsGhc.stdenv; version = "0.0.2"; })
     pkgs.bash
     pkgs.binutils # cp, grep, etc.
