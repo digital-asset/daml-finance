@@ -13,7 +13,7 @@ echo "Running package tests..."
 packages_yaml=${root_dir}/package/packages.yaml
 test_package_paths=($(yq e '.local.packages | to_entries | map(.value.package.path) | .[] | select(. == "test/daml*")' ${packages_yaml}))
 for test_package_path in "${test_package_paths[@]}"; do
-  daml test --project-root ${root_dir}/package/${test_package_path}
+  dpm test --project-root ${root_dir}/package/${test_package_path}
 done
 
 echo ""

@@ -10,6 +10,9 @@ let
   build_daml = import ./nix/daml.nix;
   packell = import ./nix/packell.nix;
 
+  #Load custom dpm derivation
+  dpm = import ./nix/dpm.nix { inherit pkgs; };
+
   damlYaml = builtins.fromJSON (builtins.readFile (pkgs.runCommand "daml.yaml.json" { yamlFile = ./daml.yaml; } ''
     ${pkgs.yj}/bin/yj < "$yamlFile" > $out
   ''));
@@ -39,7 +42,7 @@ let
     hashes = {
                 #base64 hashes from update-daml-hashes
       linux = "uEhjXsZb6zL6Wygsdi6+lO0Nara6HlbVwqQZIVW2208=";
-      macos = "5UFqEW/Z/UWcRB3pv63v1OtN37S6QQXmmTIgDd9F2IQ=";
+      macos = "QBANxKeeMqBQh5yjgSzCVXOMYLGYYwo/7dx02zDxoNU=";
     };
   };
 
@@ -48,6 +51,7 @@ pkgs.mkShell {
   SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
   buildInputs = [
     daml
+    dpm
     (packell { pkgs = pkgsGhc; stdenv = pkgsGhc.stdenv; version = "0.0.2"; })
     pkgs.bash
     pkgs.binutils # cp, grep, etc.
