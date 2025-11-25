@@ -4,17 +4,17 @@
 module Daml.Finance.Account.V4.Account where
 
 import DA.Set qualified as Set (fromList, null, singleton)
-import DA.TextMap qualified as TextMap
+import Daml.Finance.Holding.V4.Util (metaLookup)
 import Daml.Finance.Interface.Account.V4.Account qualified as Account (Controllers(..), Credit(..), Debit(..), I, View(..), accountKey, createReference, disclosureUpdateReference)
 import Daml.Finance.Interface.Account.V4.Factory qualified as AccountFactory (Create(..), I, View(..))
 import Daml.Finance.Interface.Holding.V4.Factory qualified as HoldingFactory (Create(..), I, exerciseInterfaceByKey)
 import Daml.Finance.Interface.Types.Common.V3.Types (HoldingFactoryKey(..), Id(..), PartiesMap)
 import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (AddObservers(..), I, RemoveObservers(..), View(..), flattenObservers)
-import Daml.Finance.Interface.Util.V3.LockableSplice qualified as Lockable (Acquire(..), I, Lock, Release(..), View(..), getLockers, mustNotBeLocked)
+import Daml.Finance.Interface.Util.V3.Lockable qualified as Lockable (Acquire(..), I, Lock, Release(..), View(..), getLockers, mustNotBeLocked)
 import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
 import Daml.Finance.Util.V4.Lockable (acquireImpl, isValidLock, releaseImpl)
-import Splice.Api.Token.HoldingV1 qualified as SpliceHolding
-import Splice.Api.Token.MetadataV1 qualified as SpliceMetadata
+import Splice.Api.Token.HoldingV1 qualified as Api.HoldingV1
+import Splice.Api.Token.MetadataV1 ()
 
 -- | Type synonym for `Account`.
 type T = Account
@@ -48,6 +48,7 @@ template Account
     interface instance Account.I for Account where
       view = Account.View with custodian; id; owner; description; controllers
       getKey = Account.accountKey this
+
       credit Account.Credit{quantity} = do
         Lockable.mustNotBeLocked this
         HoldingFactory.exerciseInterfaceByKey @HoldingFactory.I
@@ -58,13 +59,28 @@ template Account
             account = Account.accountKey this
             amount = quantity.amount
             observers = mempty
+
       debit Account.Debit{holdingCid} = do
         Lockable.mustNotBeLocked this
         holding <- fetch holdingCid
-        assertMsg "Holding owner must match account owner" $
-          (view holding).owner == owner   
-        archive holdingCid
 
+        -- 1. Owner
+        assertMsg "Holding owner must match account owner" $
+          (view holding).owner == owner
+        
+        -- 2. Metadata lookup helper
+        let holdingView = view (toInterface @Api.HoldingV1.Holding holding)
+        let holdingMeta = metaLookup holdingView.meta
+
+        -- 3. Custodian
+        assertMsg "Holding custodian must match account custodian" $
+          holdingMeta "custodian" == partyToText custodian  
+
+        -- 4. Account ID
+        assertMsg "Holding accountId must match account accountId" $
+          holdingMeta "accountId" == show id  
+
+        archive holdingCid
 
     interface instance Lockable.I for Account where
       view = Lockable.View with lock; controllers = Set.singleton custodian
@@ -85,16 +101,16 @@ template Account
               disclosers = Set.fromList $ signatory this
               observersToRemove = (context, Lockable.getLockers this)
     
-    interface instance SpliceHolding.Holding for Account where
-      view = SpliceHolding.HoldingView
-        with
-          owner = custodian
-          instrumentId = SpliceHolding.InstrumentId with
-            admin = custodian
-            id = case id of Id t -> t
-          amount = 0.0
-          lock = None
-          meta = SpliceMetadata.Metadata with values = TextMap.empty
+    -- interface instance Api.HoldingV1.Holding for Account where
+    --   view = Api.HoldingV1.HoldingView
+    --     with
+    --       owner = custodian
+    --       instrumentId = Api.HoldingV1.InstrumentId with
+    --         admin = custodian
+    --         id = case id of Id t -> t
+    --       amount = 0.0
+    --       lock = None
+    --       meta = SpliceMetadata.Metadata with values = TextMap.empty
 
     interface instance Disclosure.I for Account where
       view = Disclosure.View with disclosureControllers = Set.fromList [custodian, owner]; observers

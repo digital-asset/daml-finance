@@ -29,16 +29,16 @@ Templates
        - :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
        - Providers of the event\.
      * - date
-       - `Date <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
+       - `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
        - The updated clock data\.
      * - eventTime
-       - `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
+       - `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
        - The event time\.
      * - id
        - :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
        - Event identifier\.
      * - description
-       - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+       - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
        - Event description\.
      * - observers
        - :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`

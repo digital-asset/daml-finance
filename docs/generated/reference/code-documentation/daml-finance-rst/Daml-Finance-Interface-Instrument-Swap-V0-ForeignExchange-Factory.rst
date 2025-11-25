@@ -33,7 +33,7 @@ Interfaces
 
     Controller\: (DA\.Internal\.Record\.getField @\"depository\" (DA\.Internal\.Record\.getField @\"instrument\" foreignExchange)), (DA\.Internal\.Record\.getField @\"issuer\" (DA\.Internal\.Record\.getField @\"instrument\" foreignExchange))
 
-    Returns\: `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-instrument-swap-v0-foreignexchange-instrument-i-60062>`
+    Returns\: `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-instrument-swap-v0-foreignexchange-instrument-i-60062>`
 
     .. list-table::
        :widths: 15 10 30
@@ -49,7 +49,7 @@ Interfaces
          - :ref:`PartiesMap <type-daml-finance-interface-types-common-v3-types-partiesmap-43006>`
          - The instrument's observers\.
 
-  + **Method create' \:** `Create <type-daml-finance-interface-instrument-swap-v0-foreignexchange-factory-create-93054_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-instrument-swap-v0-foreignexchange-instrument-i-60062>`)
+  + **Method create' \:** `Create <type-daml-finance-interface-instrument-swap-v0-foreignexchange-factory-create-93054_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-instrument-swap-v0-foreignexchange-instrument-i-60062>`)
 
     Implementation of ``Create`` choice\.
 
@@ -70,7 +70,7 @@ Data Types
 
   Type synonym for ``View``\.
 
-  **instance** `HasFromAnyView <https://docs.daml.com/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Factory <type-daml-finance-interface-instrument-swap-v0-foreignexchange-factory-factory-72691_>`_ `V <type-daml-finance-interface-instrument-swap-v0-foreignexchange-factory-v-25921_>`_
+  **instance** `HasFromAnyView <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Factory <type-daml-finance-interface-instrument-swap-v0-foreignexchange-factory-factory-72691_>`_ `V <type-daml-finance-interface-instrument-swap-v0-foreignexchange-factory-v-25921_>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-foreignexchange-factory-view-9847:
 
@@ -90,12 +90,16 @@ Data Types
          - Type
          - Description
        * - provider
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The provider of the ``Factory``\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-instrument-swap-v0-foreignexchange-factory-view-9847_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-instrument-swap-v0-foreignexchange-factory-view-9847_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-instrument-swap-v0-foreignexchange-factory-view-9847_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-instrument-swap-v0-foreignexchange-factory-view-9847_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"provider\" `View <type-daml-finance-interface-instrument-swap-v0-foreignexchange-factory-view-9847_>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"provider\" `View <type-daml-finance-interface-instrument-swap-v0-foreignexchange-factory-view-9847_>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
 
 Functions
 ---------
@@ -103,4 +107,4 @@ Functions
 .. _function-daml-finance-interface-instrument-swap-v0-foreignexchange-factory-createtick-98726:
 
 `create' <function-daml-finance-interface-instrument-swap-v0-foreignexchange-factory-createtick-98726_>`_
-  \: `Factory <type-daml-finance-interface-instrument-swap-v0-foreignexchange-factory-factory-72691_>`_ \-\> `Create <type-daml-finance-interface-instrument-swap-v0-foreignexchange-factory-create-93054_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-instrument-swap-v0-foreignexchange-instrument-i-60062>`)
+  \: `Factory <type-daml-finance-interface-instrument-swap-v0-foreignexchange-factory-factory-72691_>`_ \-\> `Create <type-daml-finance-interface-instrument-swap-v0-foreignexchange-factory-create-93054_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-instrument-swap-v0-foreignexchange-instrument-i-60062>`)

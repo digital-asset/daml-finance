@@ -8,17 +8,14 @@ import DA.Map qualified as Map (fromList)
 import DA.Set qualified as Set (fromList, singleton)
 import DA.Time (time)
 import Daml.Finance.Holding.V4.Factory qualified as Holding (Factory(..))
-import Daml.Finance.Holding.V4.TransferableFungible qualified as TransferableFungible (T)
-import Daml.Finance.Interface.Holding.V4.Holding qualified as Holding (I)
-import Daml.Finance.Interface.Holding.V4.Util (undisclose)
-import Daml.Finance.Interface.Settlement.V4.Batch qualified as Batch (Settle(..))
+import Daml.Finance.Interface.Settlement.V4.Batch qualified as Batch (Settle(..), I)
 import Daml.Finance.Interface.Settlement.V4.Factory qualified as SettlementFactory (I, Instruct(..))
-import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (Allocate(..), Approve(..), I)
+import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (Allocate(..), Approve(..), I, GetView(..))
 import Daml.Finance.Interface.Settlement.V4.RouteProvider qualified as RouteProvider (Discover(..), I)
-import Daml.Finance.Interface.Settlement.V4.Types (Allocation(..), Approval(..), Step(..))
+import Daml.Finance.Interface.Settlement.V4.Types qualified as SettlementTypes (Allocation(..), Approval(..), Step(..), Quantity(..))
 import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..))
-import Daml.Finance.Interface.Util.V3.Common (qty)
-import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (AddObservers(..), I, RemoveObservers(..))
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (AddObservers(..), I, RemoveObservers(..), undisclose)
+import Daml.Finance.Settlement.V4.Conversion (fromInstrumentKey)
 import Daml.Finance.Settlement.V4.Factory qualified as Settlement (Factory(..))
 import Daml.Finance.Settlement.V4.Hierarchy (Hierarchy(..))
 import Daml.Finance.Settlement.V4.RouteProvider.IntermediatedStatic (IntermediatedStatic(..))
@@ -28,6 +25,7 @@ import Daml.Finance.Test.Util.Holding qualified as Holding (verifyNoObservers, v
 import Daml.Finance.Test.Util.HoldingFactory (createHoldingFactory)
 import Daml.Finance.Test.Util.Instrument qualified as Instrument (originate)
 import Daml.Script
+import Splice.Api.Token.HoldingV1 qualified as Api.HoldingV1
 
 data TestParties = TestParties
   with
@@ -143,13 +141,23 @@ run useDelegatee = script do
 
   -- Settlement steps
   let
-    cashQuantity = qty 200_000.0 cashInstrument
-    assetQuantity = qty 1_250.0 assetInstrument
+    cashQuantity = 
+      SettlementTypes.Quantity
+        with unit = fromInstrumentKey cashInstrument; amount = 200_000.0
+    assetQuantity = 
+      SettlementTypes.Quantity
+        with unit = fromInstrumentKey assetInstrument; amount = 1_250.0 
     steps =
-      [ -- Payment step
-        Step with sender = buyer; receiver = seller; quantity = cashQuantity
+       -- Payment step
+      [SettlementTypes.Step with
+          sender = buyer
+          receiver = seller
+          quantity = cashQuantity
         -- Delivery step
-      , Step with sender = seller; receiver = buyer; quantity = assetQuantity
+      , SettlementTypes.Step with 
+          sender = seller
+          receiver = buyer
+          quantity = assetQuantity
       ]
     settlementTime = time (addDays (toDateUTC now) 1) 0 0 0
 
@@ -160,9 +168,12 @@ run useDelegatee = script do
     deliveryRoute = Hierarchy with
       rootCustodian = csd
       pathsToRootCustodian = [[buyer, custodian2], [seller, custodian1]]
+
     paths = Map.fromList [("USD", paymentRoute), ("SHARE", deliveryRoute)]
+
   routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit agent do
     createCmd IntermediatedStatic with provider = agent; paths; observers = mempty
+
   routedSteps <- submit agent do
     exerciseCmd routeProviderCid RouteProvider.Discover with
       discoverors = Set.singleton agent; contextId = None; steps
@@ -170,16 +181,27 @@ run useDelegatee = script do
   -- Instruct settlement
   settlementFactoryCid <- toInterfaceContractId @SettlementFactory.I <$> submit agent do
     createCmd Settlement.Factory with provider = agent; observers = mempty
-  (batchCid, [sellerInstructionCid, custodian1InstructionCid, custodian2InstructionCid,
-    buyerInstructionCid, bank1InstructionCid, bank2InstructionCid]) <-
-    submit agent do
-      exerciseCmd settlementFactoryCid SettlementFactory.Instruct with
-        instructor = agent
-        consenters = mempty
-        settlers = Set.singleton agent
-        id = Id "SHARE 200000.0@160.0USD DVP"; description = "Crosspayment"; contextId = None
-        routedSteps; settlementTime = Some settlementTime
-
+  
+  (batchCid,
+    [ buyerInstructionCid          -- Buyer → Bank1
+    , bank1InstructionCid          -- Bank1 → Bank2
+    , bank2InstructionCid          -- Bank2 → Seller
+    , sellerInstructionCid         -- Seller → Custodian1
+    , custodian1InstructionCid     -- Custodian1 → Custodian2
+    , custodian2InstructionCid     -- Custodian2 → Buyer
+    ]
+    ) : (ContractId Batch.I, [ContractId Instruction.I]) <-
+      submit agent do
+        exerciseCmd settlementFactoryCid SettlementFactory.Instruct with
+          instructor = agent
+          consenters = mempty
+          settlers = Set.singleton agent
+          id = Id "SHARE 200000.0@160.0USD DVP"
+          description = "Crosspayment"
+          contextId = None
+          routedSteps
+          settlementTime = Some settlementTime
+  
   -- Allocate and approve instructions
   (buyerInstructionCid, _) <-
     if useDelegatee then
@@ -187,88 +209,113 @@ run useDelegatee = script do
         -- delegate
         delegationCid <- submit buyer do
           createCmd AllocationDelegation with delegator = buyer; delegatee
+
         -- disclose
         let observerContext = ("delegation123", Set.singleton delegatee)
-        buyerCashCid <- fromInterfaceContractId @Holding.I <$> submit buyer do
-          exerciseCmd (toInterfaceContractId @Disclosure.I buyerCashCid)
+
+        buyerCashCid : ContractId Api.HoldingV1.Holding <- coerceContractId <$> submit buyer do
+          exerciseCmd (coerceInterfaceContractId @Disclosure.I @Api.HoldingV1.Holding buyerCashCid)
             Disclosure.AddObservers with
               disclosers = Set.singleton buyer; observersToAdd = observerContext
+
         buyerInstructionCid <- fromInterfaceContractId @Instruction.I <$> submit buyer do
           exerciseCmd (toInterfaceContractId @Disclosure.I buyerInstructionCid)
             Disclosure.AddObservers with
               disclosers = Set.singleton buyer; observersToAdd = observerContext
+
         Account.submitExerciseInterfaceByKeyCmd @Disclosure.I [buyer] [] buyerCashAccount
           Disclosure.AddObservers with
-            disclosers = Set.singleton buyer; observersToAdd = observerContext
-        -- allocate (on behalf of buyer)
+            disclosers = Set.singleton buyer
+            observersToAdd = observerContext
+
         t <- submit delegatee do
           exerciseCmd delegationCid OnBehalfAllocation with
-            id = observerContext._1; instructionCid = buyerInstructionCid; holdingCid = buyerCashCid
+            id = observerContext._1
+            instructionCid = buyerInstructionCid
+            holdingCid = buyerCashCid
+
+          
         -- undisclose
         Account.submitExerciseInterfaceByKeyCmd @Disclosure.I [buyer] [] buyerCashAccount
           Disclosure.RemoveObservers with
-            disclosers = Set.singleton buyer; observersToRemove = observerContext
+            disclosers = Set.singleton buyer
+            observersToRemove = observerContext
         pure t
     else
       submit buyer do
         exerciseCmd buyerInstructionCid Instruction.Allocate with
-          actors = Set.singleton buyer; allocation = Pledge buyerCashCid
+          actors = Set.singleton buyer
+          allocation = SettlementTypes.Pledge buyerCashCid
+
   buyerInstructionCid <- submit bank1 do
     exerciseCmd buyerInstructionCid Instruction.Approve with
-      actors = Set.singleton bank1; approval = DebitSender
+      actors = Set.singleton bank1
+      approval = SettlementTypes.DebitSender
+
   bank2InstructionCid <- submit seller do
     exerciseCmd bank2InstructionCid Instruction.Approve with
-      actors = Set.singleton seller; approval = TakeDelivery sellerCashAccount
+      actors = Set.singleton seller
+      approval = SettlementTypes.TakeDelivery sellerCashAccount
+
   (bank2InstructionCid, _) <- submit bank2 do
     exerciseCmd bank2InstructionCid Instruction.Allocate with
-      actors = Set.singleton bank2; allocation = CreditReceiver
-  (bank1InstructionCid, _) <- submitMulti [bank1, cb] [] do
+      actors = Set.singleton bank2
+      allocation = SettlementTypes.CreditReceiver
+
+  (bank1InstructionCid, _) <- submit [bank1, cb] do
     exerciseCmd bank1InstructionCid Instruction.Allocate with
-      actors = Set.fromList [bank1, cb]; allocation = SettleOffledger
-  bank1InstructionCid <- submitMulti [bank2, cb] [] do
+      actors = Set.fromList [bank1, cb]
+      allocation = SettlementTypes.SettleOffledger
+
+  bank1InstructionCid <- submit [bank2, cb] do
     exerciseCmd bank1InstructionCid Instruction.Approve with
-      actors = Set.fromList [bank2, cb]; approval = SettleOffledgerAcknowledge
+      actors = Set.fromList [bank2, cb]
+      approval = SettlementTypes.SettleOffledgerAcknowledge
+
   (sellerInstructionCid, _) <- submit seller do
     exerciseCmd sellerInstructionCid Instruction.Allocate with
-      actors = Set.singleton seller; allocation = Pledge sellerAssetCid
+      actors = Set.singleton seller
+      allocation = SettlementTypes.Pledge sellerAssetCid
+
   sellerInstructionCid <- submit custodian1 do
     exerciseCmd sellerInstructionCid Instruction.Approve with
-      actors = Set.singleton custodian1; approval = DebitSender
+      actors = Set.singleton custodian1; approval = SettlementTypes.DebitSender
   (custodian1InstructionCid, _) <- submit custodian1 do
     exerciseCmd custodian1InstructionCid Instruction.Allocate with
-      actors = Set.singleton custodian1; allocation = Pledge custodian1AssetCid
+      actors = Set.singleton custodian1; allocation = SettlementTypes.Pledge custodian1AssetCid
   custodian1InstructionCid <- submit custodian2 do
      exerciseCmd custodian1InstructionCid Instruction.Approve with
-      actors = Set.singleton custodian2; approval = TakeDelivery custodian2DepoAccount
+      actors = Set.singleton custodian2; approval = SettlementTypes.TakeDelivery custodian2DepoAccount
   -- Can't settle batch before all `Instruction`s have been allocated and approved
-  submitMultiMustFail [agent] [publicParty] do
+  submitMustFail (actAs [agent] <> readAs [publicParty]) do
     exerciseCmd batchCid Batch.Settle with
       actors = Set.singleton agent
   (custodian2InstructionCid, _) <- submit custodian2 do
     exerciseCmd custodian2InstructionCid Instruction.Allocate with
-      actors = Set.singleton custodian2; allocation = CreditReceiver
+      actors = Set.singleton custodian2; allocation = SettlementTypes.CreditReceiver
   -- Buyer and Custodian2 approves instruction with an incompatible approval
-  custodian2InstructionCid <- submitMulti [buyer, custodian2] [] do
+  custodian2InstructionCid <- submit [buyer, custodian2] do
     exerciseCmd custodian2InstructionCid Instruction.Approve with
-      actors = Set.fromList [buyer, custodian2]; approval = SettleOffledgerAcknowledge
+      actors = Set.fromList [buyer, custodian2]; approval = SettlementTypes.SettleOffledgerAcknowledge
   -- Settlement of batch must fail due to the incompatible approval
-  submitMultiMustFail [agent] [publicParty] do
+  submitMustFail (actAs [agent] <> readAs [publicParty]) do
     exerciseCmd batchCid Batch.Settle with actors = Set.singleton agent
   -- Buyer and Custodian2 unapproves the instruction
-  custodian2InstructionCid <- submitMulti [buyer, custodian2] [] do
+  custodian2InstructionCid <- submit [buyer, custodian2] do
     exerciseCmd custodian2InstructionCid Instruction.Approve with
-      actors = Set.fromList [buyer, custodian2]; approval = Unapproved
+      actors = Set.fromList [buyer, custodian2]; approval = SettlementTypes.Unapproved
   -- Buyer approves her instruction with a compatible approval
   custodian2InstructionCid <- submit buyer do
     exerciseCmd custodian2InstructionCid Instruction.Approve with
-      actors = Set.singleton buyer; approval = TakeDelivery buyerDepoAccount
+      actors = Set.singleton buyer; approval = SettlementTypes.TakeDelivery buyerDepoAccount
 
   -- Set time
-  setTime settlementTime
+  --setTime settlementTime
+  -- In wallclock mode, we skip manual time advancement
 
   -- Settle batch
-  [custodian2AssetCid, buyerAssetCid, sellerCashCid] <-
-    submitMulti [agent] [publicParty] do
+  [sellerCashCid, custodian2AssetCid, buyerAssetCid]  <-
+    submit (actAs agent <> readAs publicParty) do
       exerciseCmd batchCid Batch.Settle with actors = Set.singleton agent
 
   -- Assert state
@@ -284,8 +331,8 @@ setupParties = do
     publicParty] <- createParties ["CentralBank", "CSD", "Bank 1", "Bank 2", "Custodian 2",
     "Custodian 1", "Issuer", "Buyer", "Seller", "Agent", "Delegatee", "Provider", "PublicParty"]
   pure TestParties with
-    cb; csd; bank1; bank2; custodian2; custodian1; issuer; buyer; seller; agent; delegatee; provider
-    publicParty
+    cb; csd; bank1; bank2; custodian2; custodian1; issuer; buyer; seller; agent; delegatee; provider; publicParty
+
 
 -- | Grants the `delegatee` the right to allocate holdings on behalf of the `delegator`
 template AllocationDelegation
@@ -296,9 +343,9 @@ template AllocationDelegation
     signatory delegator
     observer delegatee
 
-    choice OnBehalfAllocation : (ContractId Instruction.I, Optional (ContractId Holding.I))
+    choice OnBehalfAllocation : (ContractId Instruction.I, Optional (ContractId Api.HoldingV1.Holding))
       with
-        holdingCid : ContractId Holding.I
+        holdingCid : ContractId Api.HoldingV1.Holding
           -- ^ The holding to allocate.
         instructionCid : ContractId Instruction.I
           -- ^ The instruction that needs allocation.
@@ -307,8 +354,31 @@ template AllocationDelegation
           --   undisclose themselves from a holding.
       controller delegatee
       do
-        Some cid <- fmap (fromInterfaceContractId @TransferableFungible.T) <$>
-          undisclose (id, Set.singleton delegatee) (Set.singleton delegator) holdingCid
-        fungible <- fetch cid
-        exercise instructionCid Instruction.Allocate with
-          actors = Set.singleton delegator; allocation = Pledge $ toInterfaceContractId cid
+        _ <- exercise instructionCid Instruction.GetView with viewer = delegatee
+
+        -- Convert to Disclosure interface (explicit coercion)
+        let holdingDisclosureCid : ContractId Disclosure.I =
+              coerceInterfaceContractId @Disclosure.I @Api.HoldingV1.Holding holdingCid
+
+        -- Undisclose the delegatee (removes their observation context)
+        Some undisclosedDiscCid <-
+          Disclosure.undisclose
+            (id, Set.singleton delegatee)
+            (Set.singleton delegator)
+            holdingDisclosureCid
+
+        -- Convert the new Disclosure.I CID back into Api.HoldingV1.Holding
+        let undisclosedHoldingCid : ContractId Api.HoldingV1.Holding =
+              coerceInterfaceContractId @Api.HoldingV1.Holding @Disclosure.I undisclosedDiscCid
+
+        -- Perform allocation (pledge) using the *new undisclosed* holding
+        (instructionCid', _) <-
+          exercise instructionCid Instruction.Allocate with
+            actors = Set.singleton delegator
+            allocation = SettlementTypes.Pledge
+              (toInterfaceContractId @Api.HoldingV1.Holding undisclosedHoldingCid)
+
+        -- Return the new instruction and the new holding
+        pure (instructionCid', Some undisclosedHoldingCid)
+
+   

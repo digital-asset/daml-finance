@@ -17,12 +17,12 @@ import Daml.Finance.Interface.Types.Common.V3.Types (InstrumentKey(..), Id(..) )
 import Daml.Finance.Interface.Types.Common.V3.Types qualified as HoldingStandard (HoldingStandard(..) )
 import Daml.Finance.Interface.Util.V3.Common (qty, verify)
 import Daml.Finance.Interface.Util.V3.InterfaceKey (fetchInterfaceByKey)
-import Daml.Finance.Interface.Util.V3.LockableSplice qualified as Lockable (mustNotBeLocked, I)
-import Splice.Api.Token.HoldingV1 qualified as SpliceHolding
+import Daml.Finance.Interface.Util.V3.Lockable qualified as Lockable (mustNotBeLocked, I)
+import Splice.Api.Token.HoldingV1 qualified as Api.HoldingV1
 import Splice.Api.Token.MetadataV1 qualified as SpliceMetadata
 
-instrumentFromSplice : SpliceHolding.InstrumentId -> InstrumentKey
-instrumentFromSplice SpliceHolding.InstrumentId{admin, id} =
+instrumentFromSplice : Api.HoldingV1.InstrumentId -> InstrumentKey
+instrumentFromSplice Api.HoldingV1.InstrumentId{admin, id} =
   InstrumentKey with
     issuer = admin
     depository = admin
@@ -39,8 +39,8 @@ transferImpl : Transferable.I -> ContractId Transferable.I -> Transferable.Trans
   -> Update (ContractId Transferable.I)
 transferImpl this self Transferable.Transfer{actors; newOwnerAccount} = do
   let
-    holdingCid = toInterfaceContractId @SpliceHolding.Holding self
-    holding = toInterface @SpliceHolding.Holding this
+    holdingCid = toInterfaceContractId @Api.HoldingV1.Holding self
+    holding = toInterface @Api.HoldingV1.Holding this
     vHolding = view holding
     lookupMeta = metaLookup (getField @"meta" vHolding)
     custodianTxt = lookupMeta "custodian"
@@ -79,7 +79,7 @@ splitImpl :
   , HasToInterface t Fungible.I
   ) => Fungible.I -> (Decimal -> t) -> Fungible.Split -> Update Fungible.SplitResult
 splitImpl this setAmount Fungible.Split{amounts} = do
-  let vHolding = view . toInterface @SpliceHolding.Holding $ this
+  let vHolding = view . toInterface @Api.HoldingV1.Holding $ this
   Lockable.mustNotBeLocked this
   let spawn = fmap toInterfaceContractId . create . setAmount
   splitCids <- forA amounts spawn
@@ -103,19 +103,19 @@ mergeImpl :
   -> Fungible.Merge
   -> Update (ContractId Fungible.I)
 mergeImpl this getAmount setAmount Fungible.Merge{fungibleCids} = do
-  let vHolding = view . toInterface @SpliceHolding.Holding$ this
+  let vHolding = view . toInterface @Api.HoldingV1.Holding $ this
   Lockable.mustNotBeLocked this
   assertMsg "List of fungibles must be non-empty" . not . null $ fungibleCids
   let
     currentSignatories = fromList . signatory . setAmount $ vHolding.amount
-    current = view . toInterface @SpliceHolding.Holding . toInterface @Fungible.I . setAmount $ vHolding.amount
+    current = view . toInterface @Api.HoldingV1.Holding . toInterface @Fungible.I . setAmount $ vHolding.amount
     aggregate aggregatedAmount fungibleCid = do
       Some (otherHoldingCid, otherHolding) <- fetchFromInterface @t fungibleCid
       let
-        otherBase = toInterface @SpliceHolding.Holding . toInterface @Fungible.I $ otherHolding
+        otherBase = toInterface @Api.HoldingV1.Holding . toInterface @Fungible.I $ otherHolding
         other = view otherBase
       assertMsg "Instrument must match" $ other.instrumentId == current.instrumentId
-      assertMsg "Owner must match"      $ other.owner == current.owner
+      assertMsg "Owner must match" $ other.owner == current.owner
       assertMsg "Signatories must match" $ fromList (signatory otherHolding) == currentSignatories
       Lockable.mustNotBeLocked (toInterface @Lockable.I otherHolding)
       archive otherHoldingCid

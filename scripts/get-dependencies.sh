@@ -35,7 +35,7 @@ else
         # Try local Splice-node directory (preferred for dev)
         if [ -f "${root_dir}/lib/${TOKEN_DAR}" ]; then
           cp "${root_dir}/lib/${TOKEN_DAR}" "${project_root_dir}/.lib/splice/"
-          echo "Copied ${TOKEN_DAR} from local splice-node/dars/"
+          echo "Copied ${TOKEN_DAR} from lib file"    # TODO - Source from gitHub not "lib" file
         # Otherwise, fetch automatically from GitHub release (v0.4.20)
         fi
       else

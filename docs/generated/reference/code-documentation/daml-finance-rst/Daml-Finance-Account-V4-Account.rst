@@ -25,13 +25,13 @@ Templates
        - Type
        - Description
      * - custodian
-       - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+       - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
        - The account provider\.
      * - owner
-       - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+       - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
        - The account owner\.
      * - lock
-       - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`Lock <type-daml-finance-interface-util-v3-lockable-lock-18728>`
+       - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`Lock <type-daml-finance-interface-util-v3-lockable-lock-18728>`
        - An optional lock for the account\.
      * - controllers
        - :ref:`Controllers <type-daml-finance-interface-account-v4-account-controllers-59817>`
@@ -40,7 +40,7 @@ Templates
        - :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
        - Identifier of the account\.
      * - description
-       - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+       - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
        - Description of the account\.
      * - holdingFactory
        - :ref:`HoldingFactoryKey <type-daml-finance-interface-types-common-v3-types-holdingfactorykey-40007>`
@@ -79,7 +79,7 @@ Templates
        - Type
        - Description
      * - provider
-       - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+       - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
        - The factory's provider\.
      * - observers
        - :ref:`PartiesMap <type-daml-finance-interface-types-common-v3-types-partiesmap-43006>`

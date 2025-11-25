@@ -43,7 +43,7 @@ Interfaces
          - Type
          - Description
        * - viewer
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party retrieving the view\.
 
 
@@ -57,7 +57,7 @@ Data Types
 
   Type synonym for ``Instrument``\.
 
-  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-instrument-swap-v0-fpml-factory-factory-93528>` \"create'\" (:ref:`Create <type-daml-finance-interface-instrument-swap-v0-fpml-factory-create-21327>` \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-instrument-swap-v0-fpml-instrument-i-31607_>`_))
+  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-instrument-swap-v0-fpml-factory-factory-93528>` \"create'\" (:ref:`Create <type-daml-finance-interface-instrument-swap-v0-fpml-factory-create-21327>` \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-instrument-swap-v0-fpml-instrument-i-31607_>`_))
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-instrument-v-25120:
 
@@ -66,7 +66,7 @@ Data Types
 
   Type synonym for ``View``\.
 
-  **instance** `HasFromAnyView <https://docs.daml.com/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Instrument <type-daml-finance-interface-instrument-swap-v0-fpml-instrument-instrument-32406_>`_ `V <type-daml-finance-interface-instrument-swap-v0-fpml-instrument-v-25120_>`_
+  **instance** `HasFromAnyView <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Instrument <type-daml-finance-interface-instrument-swap-v0-fpml-instrument-instrument-32406_>`_ `V <type-daml-finance-interface-instrument-swap-v0-fpml-instrument-v-25120_>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-instrument-view-90652:
 
@@ -89,6 +89,10 @@ Data Types
          - :ref:`Fpml <type-daml-finance-interface-instrument-swap-v0-fpml-types-fpml-35949>`
          - Attributes of a swap specified as FpML swapStreams\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-instrument-swap-v0-fpml-instrument-view-90652_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-instrument-swap-v0-fpml-instrument-view-90652_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-instrument-swap-v0-fpml-instrument-view-90652_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-instrument-swap-v0-fpml-instrument-view-90652_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"fpml\" `View <type-daml-finance-interface-instrument-swap-v0-fpml-instrument-view-90652_>`_ :ref:`Fpml <type-daml-finance-interface-instrument-swap-v0-fpml-types-fpml-35949>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"fpml\" `View <type-daml-finance-interface-instrument-swap-v0-fpml-instrument-view-90652_>`_ :ref:`Fpml <type-daml-finance-interface-instrument-swap-v0-fpml-types-fpml-35949>`

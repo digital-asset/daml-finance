@@ -34,7 +34,7 @@ Interfaces
 
     Controller\: actors
 
-    Returns\: \[`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-holding-v4-holding-i-25641>`\]
+    Returns\: \[`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ Holding\]
 
     .. list-table::
        :widths: 15 10 30
@@ -65,7 +65,7 @@ Interfaces
          - Type
          - Description
        * - viewer
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party retrieving the view\.
 
   + .. _type-daml-finance-interface-settlement-v4-batch-settle-93506:
@@ -76,7 +76,7 @@ Interfaces
 
     Controller\: actors
 
-    Returns\: \[`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-holding-v4-holding-i-25641>`\]
+    Returns\: \[`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ Holding\]
 
     .. list-table::
        :widths: 15 10 30
@@ -89,11 +89,11 @@ Interfaces
          - :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
          - The parties settling the batch\.
 
-  + **Method cancel \:** `Cancel <type-daml-finance-interface-settlement-v4-batch-cancel-13653_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ \[`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-holding-v4-holding-i-25641>`\]
+  + **Method cancel \:** `Cancel <type-daml-finance-interface-settlement-v4-batch-cancel-13653_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ \[`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ Holding\]
 
     Implementation of the ``Cancel`` choice\.
 
-  + **Method settle \:** `Settle <type-daml-finance-interface-settlement-v4-batch-settle-93506_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ \[`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-holding-v4-holding-i-25641>`\]
+  + **Method settle \:** `Settle <type-daml-finance-interface-settlement-v4-batch-settle-93506_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ \[`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ Holding\]
 
     Implementation of the ``Settle`` choice\.
 
@@ -107,7 +107,11 @@ Data Types
 
   Type synonym for ``Batch``\.
 
-  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-settlement-v4-factory-factory-87188>` \"instruct\" (:ref:`Instruct <type-daml-finance-interface-settlement-v4-factory-instruct-82391>` \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-settlement-v4-batch-i-86753_>`_, \[`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-v4-instruction-i-65587>`\]))
+  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-settlement-v4-factory-factory-87188>` \"instruct\" (:ref:`Instruct <type-daml-finance-interface-settlement-v4-factory-instruct-82391>` \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-settlement-v4-batch-i-86753_>`_, \[`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-v4-instruction-i-65587>`\]))
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"batchCid\" :ref:`ClaimResult <type-daml-finance-interface-lifecycle-v4-rule-claim-claimresult-10226>` (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-settlement-v4-batch-i-86753_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"batchCid\" :ref:`ClaimResult <type-daml-finance-interface-lifecycle-v4-rule-claim-claimresult-10226>` (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-settlement-v4-batch-i-86753_>`_)
 
 .. _type-daml-finance-interface-settlement-v4-batch-v-54326:
 
@@ -116,7 +120,7 @@ Data Types
 
   Type synonym for ``View``\.
 
-  **instance** `HasFromAnyView <https://docs.daml.com/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Batch <type-daml-finance-interface-settlement-v4-batch-batch-20548_>`_ `V <type-daml-finance-interface-settlement-v4-batch-v-54326_>`_
+  **instance** `HasFromAnyView <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Batch <type-daml-finance-interface-settlement-v4-batch-batch-20548_>`_ `V <type-daml-finance-interface-settlement-v4-batch-v-54326_>`_
 
 .. _type-daml-finance-interface-settlement-v4-batch-view-11618:
 
@@ -136,7 +140,7 @@ Data Types
          - Type
          - Description
        * - instructor
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - Party instructing settlement (and the creation of the ``Batch``)\.
        * - consenters
          - :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
@@ -148,21 +152,53 @@ Data Types
          - :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
          - Batch identifier\.
        * - description
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          - Batch description\.
        * - contextId
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
+         - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
          - Identifier to link a batch to a context (e\.g\. the ``Effect`` it originated from)\.
        * - routedSteps
          - \[:ref:`RoutedStep <type-daml-finance-interface-settlement-v4-types-routedstep-26293>`\]
          - Routed settlement steps\.
        * - settlementTime
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
+         - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
          - Settlement time (if any)\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-settlement-v4-batch-view-11618_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-settlement-v4-batch-view-11618_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-settlement-v4-batch-view-11618_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-settlement-v4-batch-view-11618_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"consenters\" `View <type-daml-finance-interface-settlement-v4-batch-view-11618_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"contextId\" `View <type-daml-finance-interface-settlement-v4-batch-view-11618_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"description\" `View <type-daml-finance-interface-settlement-v4-batch-view-11618_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"id\" `View <type-daml-finance-interface-settlement-v4-batch-view-11618_>`_ :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"instructor\" `View <type-daml-finance-interface-settlement-v4-batch-view-11618_>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"routedSteps\" `View <type-daml-finance-interface-settlement-v4-batch-view-11618_>`_ \[:ref:`RoutedStep <type-daml-finance-interface-settlement-v4-types-routedstep-26293>`\]
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"settlementTime\" `View <type-daml-finance-interface-settlement-v4-batch-view-11618_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"settlers\" `View <type-daml-finance-interface-settlement-v4-batch-view-11618_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"consenters\" `View <type-daml-finance-interface-settlement-v4-batch-view-11618_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"contextId\" `View <type-daml-finance-interface-settlement-v4-batch-view-11618_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"description\" `View <type-daml-finance-interface-settlement-v4-batch-view-11618_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"id\" `View <type-daml-finance-interface-settlement-v4-batch-view-11618_>`_ :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"instructor\" `View <type-daml-finance-interface-settlement-v4-batch-view-11618_>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"routedSteps\" `View <type-daml-finance-interface-settlement-v4-batch-view-11618_>`_ \[:ref:`RoutedStep <type-daml-finance-interface-settlement-v4-types-routedstep-26293>`\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"settlementTime\" `View <type-daml-finance-interface-settlement-v4-batch-view-11618_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"settlers\" `View <type-daml-finance-interface-settlement-v4-batch-view-11618_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
 
 Functions
 ---------
@@ -170,9 +206,9 @@ Functions
 .. _function-daml-finance-interface-settlement-v4-batch-settle-38134:
 
 `settle <function-daml-finance-interface-settlement-v4-batch-settle-38134_>`_
-  \: `Batch <type-daml-finance-interface-settlement-v4-batch-batch-20548_>`_ \-\> `Settle <type-daml-finance-interface-settlement-v4-batch-settle-93506_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ \[`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-holding-v4-holding-i-25641>`\]
+  \: `Batch <type-daml-finance-interface-settlement-v4-batch-batch-20548_>`_ \-\> `Settle <type-daml-finance-interface-settlement-v4-batch-settle-93506_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ \[`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ Holding\]
 
 .. _function-daml-finance-interface-settlement-v4-batch-cancel-24825:
 
 `cancel <function-daml-finance-interface-settlement-v4-batch-cancel-24825_>`_
-  \: `Batch <type-daml-finance-interface-settlement-v4-batch-batch-20548_>`_ \-\> `Cancel <type-daml-finance-interface-settlement-v4-batch-cancel-13653_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ \[`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-holding-v4-holding-i-25641>`\]
+  \: `Batch <type-daml-finance-interface-settlement-v4-batch-batch-20548_>`_ \-\> `Cancel <type-daml-finance-interface-settlement-v4-batch-cancel-13653_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ \[`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ Holding\]

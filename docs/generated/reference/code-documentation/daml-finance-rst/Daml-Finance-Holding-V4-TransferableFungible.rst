@@ -15,7 +15,7 @@ Templates
 
   Implementation of a transferable and fungible holding\.
   The ``TransferableFungible`` template implements the interface ``Fungible.I`` and ``Transferable.I``
-  (which requires ``Holding.I``, ``Lockable.I``, and ``Disclosure.I`` to be implemented)\.
+  (which requires ``Api.HoldingV1.Holding``, ``Lockable.I``, and ``Disclosure.I`` to be implemented)\.
 
   Signatory\: (DA\.Internal\.Record\.getField @\"custodian\" account), (DA\.Internal\.Record\.getField @\"owner\" account), Lockable\.getLockers this
 
@@ -33,10 +33,10 @@ Templates
        - :ref:`AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962>`
        - The account at which the holding is held\. Defines the holding's owner and custodian\.
      * - amount
-       - `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+       - `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
        - Number of units\.
      * - lock
-       - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`Lock <type-daml-finance-interface-util-v3-lockable-lock-18728>`
+       - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`Lock <type-daml-finance-interface-util-v3-lockable-lock-18728>`
        - An optional lock for the holding\.
      * - observers
        - :ref:`PartiesMap <type-daml-finance-interface-types-common-v3-types-partiesmap-43006>`
@@ -52,13 +52,13 @@ Templates
 
   + **interface instance** :ref:`I <type-daml-finance-interface-holding-v4-fungible-i-95581>` **for** `TransferableFungible <type-daml-finance-holding-v4-transferablefungible-transferablefungible-50906_>`_
 
-  + **interface instance** :ref:`I <type-daml-finance-interface-holding-v4-holding-i-25641>` **for** `TransferableFungible <type-daml-finance-holding-v4-transferablefungible-transferablefungible-50906_>`_
-
   + **interface instance** :ref:`I <type-daml-finance-interface-holding-v4-transferable-i-68214>` **for** `TransferableFungible <type-daml-finance-holding-v4-transferablefungible-transferablefungible-50906_>`_
 
   + **interface instance** :ref:`I <type-daml-finance-interface-util-v3-disclosure-i-28317>` **for** `TransferableFungible <type-daml-finance-holding-v4-transferablefungible-transferablefungible-50906_>`_
 
   + **interface instance** :ref:`I <type-daml-finance-interface-util-v3-lockable-i-3709>` **for** `TransferableFungible <type-daml-finance-holding-v4-transferablefungible-transferablefungible-50906_>`_
+
+  + **interface instance** Holding **for** `TransferableFungible <type-daml-finance-holding-v4-transferablefungible-transferablefungible-50906_>`_
 
 Data Types
 ----------

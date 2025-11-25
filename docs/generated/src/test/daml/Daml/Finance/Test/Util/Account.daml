@@ -5,18 +5,34 @@
 
 module Daml.Finance.Test.Util.Account where
 
-import DA.Assert ((===))
+import DA.Assert ()
 import DA.List (head)
 import DA.Map qualified as Map (fromList)
 import DA.Set qualified as Set (fromList, singleton)
+import DA.TextMap qualified as TextMap
+import DA.Optional(fromSome, fromOptional)
 import Daml.Finance.Account.V4.Account qualified as Account (Factory(..))
 import Daml.Finance.Interface.Account.V4.Account qualified as Account (Controllers(..), Credit(..), Debit(..), GetCid(..), I, R)
 import Daml.Finance.Interface.Account.V4.Factory qualified as AccountFactory (Create(..), I)
-import Daml.Finance.Interface.Holding.V4.Holding qualified as Holding (GetView(..), I)
 import Daml.Finance.Interface.Types.Common.V3.Types (AccountKey(..), HoldingFactoryKey, Id(..), InstrumentKey, Parties)
 import Daml.Finance.Interface.Util.V3.Common (qty)
 import Daml.Finance.Test.Util.Common (submitExerciseInterfaceByKeyCmdHelper, submitMustFailExerciseInterfaceByKeyCmdHelper)
-import Daml.Script
+import Daml.Script (Script, queryInterfaceContractId, submit,createCmd, actAs, readAs, exerciseCmd) 
+import Splice.Api.Token.HoldingV1 qualified as Api.HoldingV1
+
+-- | Reconstruct an AccountKey from a Splice HoldingView.
+getAccountFromSplice : Api.HoldingV1.HoldingView -> AccountKey
+getAccountFromSplice v =
+  let
+    metaVals = getField @"values" (getField @"meta" v)
+    custodianTxt = fromOptional "" (TextMap.lookup "custodian" metaVals)
+    accountIdTxt = fromOptional "" (TextMap.lookup "accountId" metaVals)
+  in
+    AccountKey with
+      custodian = fromSome (partyFromText custodianTxt)
+      owner = v.owner
+      id = Id accountIdTxt
+
 
 -- | Options for transfer controllers.
 data ControlledBy
@@ -51,19 +67,19 @@ createFactory provider observers = submit provider do
 -- | Create `Account`.
 createAccount : Text -> [Party] -> ContractId AccountFactory.I -> HoldingFactoryKey ->
   [(Text, Parties)] -> ControlledBy -> Party -> Party -> Script AccountKey
-createAccount description readAs accpountFactoryCid holdingFactory observers controlledBy custodian
+createAccount description readers accpountFactoryCid holdingFactory observers controlledBy custodian
   owner = do
     let
       account = AccountKey with
         custodian; owner; id = Id $ show owner <> "@" <> show custodian <> "/" <> description
-    submitMulti [custodian, owner] readAs do
+    submit (actAs [custodian, owner] <> readAs readers) do
       exerciseCmd accpountFactoryCid AccountFactory.Create with
         account; holdingFactory; controllers = toControllers custodian owner controlledBy
         observers = Map.fromList observers; description
     pure account
 
 -- | Credit an `Account`.
-credit : [Party] -> InstrumentKey -> Decimal -> AccountKey -> Script (ContractId Holding.I)
+credit : [Party] -> InstrumentKey -> Decimal -> AccountKey -> Script (ContractId Api.HoldingV1.Holding)
 credit readAs instrument amount account =
   submitExerciseInterfaceByKeyCmdHelper @Account.R @Account.I [account.custodian, account.owner]
   readAs account
@@ -71,13 +87,22 @@ credit readAs instrument amount account =
   (Account.Credit with quantity = qty amount instrument)
 
 -- | Debit an `Account`.
-debit : [Party] -> Party -> ContractId Holding.I -> Script ()
+debit : [Party] -> Party -> ContractId Api.HoldingV1.Holding -> Script ()
 debit readAs holder holdingCid = do
-  v <- submit holder do exerciseCmd holdingCid Holding.GetView with viewer = holder
-  v.account.owner === holder
+  opt <- queryInterfaceContractId holder holdingCid
+  hv <- case opt of
+    Some hv -> pure hv        -- iv :: Api.HoldingV1.Holding  -> view :: HoldingView
+    None -> abort "Holding not found"
+  assertMsg "Owner mismatch" (getField @"owner" hv == holder)
   submitExerciseInterfaceByKeyCmdHelper @Account.R @Account.I
-    [v.account.custodian, holder] readAs v.account
-    (Account.GetCid with viewer = holder) (Account.Debit with holdingCid)
+    [ fromSome (partyFromText (fromSome (TextMap.lookup "custodian"
+        (getField @"values" (getField @"meta" hv))))),
+      holder
+    ]
+    readAs
+    (getAccountFromSplice hv)
+    (Account.GetCid with viewer = holder)
+    (Account.Debit with holdingCid)
 
 -- | Utilty function for exercising an interface by key.
 submitExerciseInterfaceByKeyCmd : forall t2 c2 b.

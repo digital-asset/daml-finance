@@ -47,7 +47,7 @@ Interfaces
          - Type
          - Description
        * - viewer
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party retrieving the view\.
 
   + .. _type-daml-finance-interface-lifecycle-v4-observable-numericobservable-observe-90440:
@@ -58,7 +58,7 @@ Interfaces
 
     Controller\: actors
 
-    Returns\: `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+    Returns\: `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
 
     .. list-table::
        :widths: 15 10 30
@@ -71,10 +71,10 @@ Interfaces
          - :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
          - Parties calling this 'Observe' choice\.
        * - t
-         - `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
+         - `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
          - Time at which the value is observed\.
 
-  + **Method observe \:** `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+  + **Method observe \:** `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
 
     Implementation of the ``Observe`` choice\.
 
@@ -88,6 +88,18 @@ Data Types
 
   Type synonym for ``Observable``\.
 
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"observableCids\" :ref:`Apply <type-daml-finance-interface-lifecycle-v4-election-apply-6828>` \[`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-v4-observable-numericobservable-i-61855_>`_\]
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"observableCids\" :ref:`ApplyElection <type-daml-finance-interface-lifecycle-v4-election-applyelection-69809>` \[`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-v4-observable-numericobservable-i-61855_>`_\]
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"observableCids\" :ref:`Evolve <type-daml-finance-interface-lifecycle-v4-rule-lifecycle-evolve-32221>` \[`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-v4-observable-numericobservable-i-61855_>`_\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"observableCids\" :ref:`Apply <type-daml-finance-interface-lifecycle-v4-election-apply-6828>` \[`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-v4-observable-numericobservable-i-61855_>`_\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"observableCids\" :ref:`ApplyElection <type-daml-finance-interface-lifecycle-v4-election-applyelection-69809>` \[`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-v4-observable-numericobservable-i-61855_>`_\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"observableCids\" :ref:`Evolve <type-daml-finance-interface-lifecycle-v4-rule-lifecycle-evolve-32221>` \[`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-v4-observable-numericobservable-i-61855_>`_\]
+
 .. _type-daml-finance-interface-lifecycle-v4-observable-numericobservable-v-85848:
 
 **type** `V <type-daml-finance-interface-lifecycle-v4-observable-numericobservable-v-85848_>`_
@@ -95,7 +107,7 @@ Data Types
 
   Type synonym for ``View``\.
 
-  **instance** `HasFromAnyView <https://docs.daml.com/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `NumericObservable <type-daml-finance-interface-lifecycle-v4-observable-numericobservable-numericobservable-46728_>`_ `V <type-daml-finance-interface-lifecycle-v4-observable-numericobservable-v-85848_>`_
+  **instance** `HasFromAnyView <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `NumericObservable <type-daml-finance-interface-lifecycle-v4-observable-numericobservable-numericobservable-46728_>`_ `V <type-daml-finance-interface-lifecycle-v4-observable-numericobservable-v-85848_>`_
 
 .. _type-daml-finance-interface-lifecycle-v4-observable-numericobservable-view-29492:
 
@@ -115,15 +127,23 @@ Data Types
          - Type
          - Description
        * - provider
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - Party providing the observations\.
        * - id
          - :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
          - Textual reference to the observable\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-lifecycle-v4-observable-numericobservable-view-29492_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-lifecycle-v4-observable-numericobservable-view-29492_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-lifecycle-v4-observable-numericobservable-view-29492_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-lifecycle-v4-observable-numericobservable-view-29492_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"id\" `View <type-daml-finance-interface-lifecycle-v4-observable-numericobservable-view-29492_>`_ :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"provider\" `View <type-daml-finance-interface-lifecycle-v4-observable-numericobservable-view-29492_>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"id\" `View <type-daml-finance-interface-lifecycle-v4-observable-numericobservable-view-29492_>`_ :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"provider\" `View <type-daml-finance-interface-lifecycle-v4-observable-numericobservable-view-29492_>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
 
 Functions
 ---------
@@ -131,4 +151,4 @@ Functions
 .. _function-daml-finance-interface-lifecycle-v4-observable-numericobservable-observe-58380:
 
 `observe <function-daml-finance-interface-lifecycle-v4-observable-numericobservable-observe-58380_>`_
-  \: `NumericObservable <type-daml-finance-interface-lifecycle-v4-observable-numericobservable-numericobservable-46728_>`_ \-\> `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+  \: `NumericObservable <type-daml-finance-interface-lifecycle-v4-observable-numericobservable-numericobservable-46728_>`_ \-\> `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_

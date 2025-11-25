@@ -16,7 +16,7 @@ Typeclasses
   .. _function-contingentclaims-valuation-v0-stochastic-localvar-89955:
 
   `localVar <function-contingentclaims-valuation-v0-stochastic-localvar-89955_>`_
-    \: `Int <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_ \-\> t
+    \: `Int <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_ \-\> t
 
     Produce a local identifier of type ``t``, subindexed by ``i``\.
 
@@ -31,7 +31,7 @@ Data Types
 
   .. _constr-contingentclaims-valuation-v0-stochastic-const-71966:
 
-  `Const <constr-contingentclaims-valuation-v0-stochastic-const-71966_>`_ `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+  `Const <constr-contingentclaims-valuation-v0-stochastic-const-71966_>`_ `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
 
 
   .. _constr-contingentclaims-valuation-v0-stochastic-ident-86121:
@@ -51,7 +51,7 @@ Data Types
          - Type
          - Description
        * - name
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          -
        * - process
          - `Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t
@@ -130,9 +130,41 @@ Data Types
 
   **instance** Recursive (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t) (`ExprF <type-contingentclaims-valuation-v0-stochastic-exprf-29267_>`_ t)
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ t \=\> `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t)
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ t \=\> `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t)
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ t \=\> `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t)
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ t \=\> `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"dW\" (`Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t) (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"dt\" (`Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t) (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"filtration\" (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t) t
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"lowerBound\" (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t) t
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"name\" (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t) `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"process\" (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t) (`Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"rv\" (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t) (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"tau\" (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t) t
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"dW\" (`Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t) (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"dt\" (`Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t) (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"filtration\" (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t) t
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"lowerBound\" (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t) t
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"name\" (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t) `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"process\" (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t) (`Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"rv\" (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t) (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"tau\" (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t) t
 
 .. _type-contingentclaims-valuation-v0-stochastic-exprf-29267:
 
@@ -143,7 +175,7 @@ Data Types
 
   .. _constr-contingentclaims-valuation-v0-stochastic-constf-84247:
 
-  `ConstF <constr-contingentclaims-valuation-v0-stochastic-constf-84247_>`_ `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+  `ConstF <constr-contingentclaims-valuation-v0-stochastic-constf-84247_>`_ `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
 
 
   .. _constr-contingentclaims-valuation-v0-stochastic-identf-45154:
@@ -163,7 +195,7 @@ Data Types
          - Type
          - Description
        * - name
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          -
        * - process
          - `Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t
@@ -279,11 +311,43 @@ Data Types
 
   **instance** Recursive (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t) (`ExprF <type-contingentclaims-valuation-v0-stochastic-exprf-29267_>`_ t)
 
-  **instance** `Functor <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-base-functor-31205>`_ (`ExprF <type-contingentclaims-valuation-v0-stochastic-exprf-29267_>`_ t)
+  **instance** `Functor <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-base-functor-31205>`_ (`ExprF <type-contingentclaims-valuation-v0-stochastic-exprf-29267_>`_ t)
 
-  **instance** `Foldable <https://docs.daml.com/daml/stdlib/DA-Foldable.html#class-da-foldable-foldable-25994>`_ (`ExprF <type-contingentclaims-valuation-v0-stochastic-exprf-29267_>`_ t)
+  **instance** `Foldable <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Foldable.html#class-da-foldable-foldable-25994>`_ (`ExprF <type-contingentclaims-valuation-v0-stochastic-exprf-29267_>`_ t)
 
-  **instance** `Traversable <https://docs.daml.com/daml/stdlib/DA-Traversable.html#class-da-traversable-traversable-18144>`_ (`ExprF <type-contingentclaims-valuation-v0-stochastic-exprf-29267_>`_ t)
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"filtration\" (`ExprF <type-contingentclaims-valuation-v0-stochastic-exprf-29267_>`_ t x) t
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"lhs\" (`ExprF <type-contingentclaims-valuation-v0-stochastic-exprf-29267_>`_ t x) x
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"lowerBound\" (`ExprF <type-contingentclaims-valuation-v0-stochastic-exprf-29267_>`_ t x) t
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"name\" (`ExprF <type-contingentclaims-valuation-v0-stochastic-exprf-29267_>`_ t x) `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"process\" (`ExprF <type-contingentclaims-valuation-v0-stochastic-exprf-29267_>`_ t x) (`Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"rhs\" (`ExprF <type-contingentclaims-valuation-v0-stochastic-exprf-29267_>`_ t x) x
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"rv\" (`ExprF <type-contingentclaims-valuation-v0-stochastic-exprf-29267_>`_ t x) x
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"tau\" (`ExprF <type-contingentclaims-valuation-v0-stochastic-exprf-29267_>`_ t x) t
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"filtration\" (`ExprF <type-contingentclaims-valuation-v0-stochastic-exprf-29267_>`_ t x) t
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"lhs\" (`ExprF <type-contingentclaims-valuation-v0-stochastic-exprf-29267_>`_ t x) x
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"lowerBound\" (`ExprF <type-contingentclaims-valuation-v0-stochastic-exprf-29267_>`_ t x) t
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"name\" (`ExprF <type-contingentclaims-valuation-v0-stochastic-exprf-29267_>`_ t x) `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"process\" (`ExprF <type-contingentclaims-valuation-v0-stochastic-exprf-29267_>`_ t x) (`Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"rhs\" (`ExprF <type-contingentclaims-valuation-v0-stochastic-exprf-29267_>`_ t x) x
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"rv\" (`ExprF <type-contingentclaims-valuation-v0-stochastic-exprf-29267_>`_ t x) x
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"tau\" (`ExprF <type-contingentclaims-valuation-v0-stochastic-exprf-29267_>`_ t x) t
+
+  **instance** `Traversable <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Traversable.html#class-da-traversable-traversable-18144>`_ (`ExprF <type-contingentclaims-valuation-v0-stochastic-exprf-29267_>`_ t)
 
 .. _type-contingentclaims-valuation-v0-stochastic-process-65587:
 
@@ -310,9 +374,25 @@ Data Types
          - `Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t
          -
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ t \=\> `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ (`Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t)
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ t \=\> `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ (`Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t)
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ t \=\> `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ (`Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t)
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ t \=\> `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ (`Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"dW\" (`Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t) (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"dt\" (`Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t) (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"process\" (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t) (`Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"process\" (`ExprF <type-contingentclaims-valuation-v0-stochastic-exprf-29267_>`_ t x) (`Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"dW\" (`Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t) (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"dt\" (`Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t) (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"process\" (`Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t) (`Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"process\" (`ExprF <type-contingentclaims-valuation-v0-stochastic-exprf-29267_>`_ t x) (`Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t)
 
 Functions
 ---------
@@ -334,7 +414,7 @@ Functions
 .. _function-contingentclaims-valuation-v0-stochastic-fapf-50426:
 
 `fapf <function-contingentclaims-valuation-v0-stochastic-fapf-50426_>`_
-  \: (`Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ a, `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ a, `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ o, `IsIdentifier <class-contingentclaims-valuation-v0-stochastic-isidentifier-37443_>`_ t) \=\> a \-\> (a \-\> `Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t) \-\> (a \-\> a \-\> `Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t) \-\> (o \-\> `Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t) \-\> t \-\> :ref:`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050>` t `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_ a o \-\> `Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t
+  \: (`Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ a, `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ a, `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ o, `IsIdentifier <class-contingentclaims-valuation-v0-stochastic-isidentifier-37443_>`_ t) \=\> a \-\> (a \-\> `Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t) \-\> (a \-\> a \-\> `Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t) \-\> (o \-\> `Process <type-contingentclaims-valuation-v0-stochastic-process-65587_>`_ t) \-\> t \-\> :ref:`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050>` t `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_ a o \-\> `Expr <type-contingentclaims-valuation-v0-stochastic-expr-82442_>`_ t
 
   Converts a ``Claim`` into the Fundamental Asset Pricing Formula\. The ϵ expressions are defined as
   E1\-E10 in the Eber/Peyton\-Jones paper\.

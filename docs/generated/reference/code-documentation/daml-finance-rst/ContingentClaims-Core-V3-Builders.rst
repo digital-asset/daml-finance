@@ -12,7 +12,7 @@ Functions
 .. _function-contingentclaims-core-v3-builders-unrolldates-49024:
 
 `unrollDates <function-contingentclaims-core-v3-builders-unrolldates-49024_>`_
-  \: `Int <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_ \-\> `Int <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_ \-\> \[`Month <https://docs.daml.com/daml/stdlib/DA-Date.html#type-da-date-types-month-22803>`_\] \-\> `Int <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_ \-\> \[`Date <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_\]
+  \: `Int <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_ \-\> `Int <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_ \-\> \[`Month <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Date.html#type-da-date-types-month-22803>`_\] \-\> `Int <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_ \-\> \[`Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_\]
 
   Helper function to generate a series of fixing dates, e\.g\. for coupon payments in ``fixed``\.
   This assumes ``fixingMonths`` and ``fixingDates`` are ordered\.
