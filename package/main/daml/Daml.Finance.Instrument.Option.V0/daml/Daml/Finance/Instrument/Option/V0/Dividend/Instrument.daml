@@ -1,0 +1,101 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Option.V0.Dividend.Instrument where
+
+import DA.Date (daysSinceEpochToDate)
+import DA.Set (singleton)
+import Daml.Finance.Claims.V3.Util.Builders (createDividendOptionClaim)
+import Daml.Finance.Data.V4.Time.DateClock (dateToDateClockTime)
+import Daml.Finance.Interface.Claims.V4.Claim qualified as Claim (GetClaims(..), I, View(..))
+import Daml.Finance.Interface.Claims.V4.Dynamic.Instrument qualified as DynamicInstrument (CreateNewVersion(..), I, View(..))
+import Daml.Finance.Interface.Claims.V4.Types (EventData)
+import Daml.Finance.Interface.Instrument.Base.V4.Instrument qualified as BaseInstrument (I, View(..), createReference, disclosureUpdateReference, instrumentKey)
+import Daml.Finance.Interface.Instrument.Option.V0.Dividend.Instrument qualified as DividendOption (I, View(..))
+import Daml.Finance.Interface.Instrument.Option.V0.Dividend.Types (Dividend(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id, InstrumentQuantity, PartiesMap)
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+
+-- | Type synonym for `Instrument`.
+type T = Instrument
+
+-- | This template models a physically settled Dividend option.
+-- The holder gets to choose to receive the dividend in cash or in a different form (in shares
+-- and/or in a foreign currency).
+template Instrument
+  with
+    depository : Party
+      -- ^ The depository of the instrument.
+    issuer : Party
+      -- ^ The issuer of the instrument.
+    id : Id
+      -- ^ An identifier of the instrument.
+    version : Text
+      -- ^ The instrument's version.
+    holdingStandard : HoldingStandard
+      -- ^ The holding standard for holdings referencing this instrument.
+    description : Text
+      -- ^ A description of the instrument.
+    expiryDate : Date
+      -- ^ The expiry date of the option.
+    cashQuantity : InstrumentQuantity
+      -- ^ Dividend paid in cash
+    sharesQuantity : Optional InstrumentQuantity
+      -- ^ Dividend paid in shares (if applicable)
+    fxQuantity : Optional InstrumentQuantity
+      -- ^ Dividend paid in a foreign currency (if applicable)
+    observers : PartiesMap
+      -- ^ The observers of the instrument.
+    lastEventTimestamp : Time
+      -- ^ (Market) time of the last recorded lifecycle event. If no event has occurred yet, the
+      --   time of creation should be used.
+    prevEvents : [EventData]
+      -- ^ A list of previous elections that have been lifecycled on this instrument so far.
+  where
+    signatory depository, issuer
+    observer Disclosure.flattenObservers observers
+
+    interface instance Claim.I for Instrument where
+      view = Claim.View with acquisitionTime = dateToDateClockTime $ daysSinceEpochToDate 0
+      getClaims Claim.GetClaims{actor} = do
+        -- get the initial claims tree (as of the instrument's acquisition time)
+        let
+          optionsClaim = createDividendOptionClaim dateToDateClockTime expiryDate cashQuantity
+            sharesQuantity fxQuantity
+        pure [optionsClaim]
+
+    interface instance BaseInstrument.I for Instrument where
+      view = BaseInstrument.View with
+        depository; issuer; id; version; holdingStandard; description
+        validAsOf = lastEventTimestamp
+      getKey = BaseInstrument.instrumentKey this
+
+    interface instance DividendOption.I for Instrument where
+      view = DividendOption.View with
+        dividend = Dividend with
+          instrument = BaseInstrument.instrumentKey this
+          description
+          expiryDate
+          cashQuantity
+          sharesQuantity
+          fxQuantity
+          lastEventTimestamp
+          prevEvents
+
+    interface instance DynamicInstrument.I for Instrument where
+      view = DynamicInstrument.View with lifecycler = issuer; lastEventTimestamp; prevEvents = []
+      createNewVersion DynamicInstrument.CreateNewVersion{version; lastEventTimestamp;
+        prevEvents} = do
+          cid <- create this with version; lastEventTimestamp; prevEvents
+          BaseInstrument.createReference issuer $ toInterfaceContractId cid
+          pure $ toInterfaceContractId cid
+
+    interface instance Disclosure.I for Instrument where
+      view = Disclosure.View with disclosureControllers = singleton issuer; observers
+      setObservers = setObserversImpl @Instrument this $
+        Some . BaseInstrument.disclosureUpdateReference $ BaseInstrument.instrumentKey this
+      addObservers = addObserversImpl @Instrument this $
+        Some . BaseInstrument.disclosureUpdateReference $ BaseInstrument.instrumentKey this
+      removeObservers = removeObserversImpl this .
+        Some . BaseInstrument.disclosureUpdateReference $ BaseInstrument.instrumentKey this

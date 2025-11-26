@@ -1,0 +1,80 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Data.V4.Time.DateClock where
+
+import DA.Date (addDays)
+import DA.Time (time)
+import Daml.Finance.Data.V4.Time.DateClock.Types (Unit(..))
+import Daml.Finance.Data.V4.Time.DateClockUpdate (DateClockUpdateEvent(..))
+import Daml.Finance.Interface.Data.V4.Reference.Time qualified as Time (Advance(..), I, Rewind(..), View(..))
+import Daml.Finance.Interface.Lifecycle.V4.Event.Time qualified as TimeEvent (I)
+import Daml.Finance.Interface.Lifecycle.V4.Observable.TimeObservable qualified as TimeObservable (I, View(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (Id, Parties)
+import Daml.Finance.Interface.Types.Date.V3.Classes (HasUTCTimeConversion(..))
+
+-- | Type synonym for `DateClock`.
+type T = DateClock
+
+-- | A `DateClock` is a template used to keep track of the current date.
+-- It implements the `Time` rule interface to be able to advance and rewind business time. It also
+-- implements the `TimeObservable` interface. Specifically, each date `D` is mapped to
+-- `D 00:00:00 UTC`. If your use-case involves working across multiple time zones, you may need to
+--  define multiple `DateClock` templates with specific time conversions.
+template DateClock
+  with
+    providers : Parties
+      -- ^ The clock's providers.
+    date : Unit
+      -- ^ The clock's date.
+    id : Id
+      -- ^ The clock's identifier.
+    description : Text
+      -- ^ The clock's description.
+    observers : Parties
+      -- ^ Observers.
+  where
+    signatory providers
+    observer observers
+
+    interface instance TimeObservable.I for DateClock where
+      view = TimeObservable.View with providers; id
+      getTime =
+        let Unit currentDate = date
+        in pure $ time currentDate 0 0 0
+
+    interface instance Time.I for DateClock where
+      view = Time.View with providers; id
+      advance self Time.Advance{eventId; eventDescription} =
+        moveClock this self eventId eventDescription 1
+      rewind self Time.Rewind{eventId; eventDescription} =
+        moveClock this self eventId eventDescription (-1)
+
+-- | HIDE
+moveClock : DateClock -> ContractId Time.I -> Id -> Text -> Int ->
+  Update (ContractId Time.I, ContractId TimeEvent.I)
+moveClock this@DateClock {date; providers; observers} self eventId eventDescription offset = do
+  let
+    Unit currentDate = date
+    newDate = addDays currentDate offset
+    clock = this with date = Unit newDate
+  archive self
+  clockCid <- toInterfaceContractId <$> create clock
+  eventCid <- toInterfaceContractId <$> create DateClockUpdateEvent with
+    providers
+    observers
+    id = eventId
+    description = eventDescription
+    eventTime = toUTCTime clock
+    date = newDate
+  pure (clockCid, eventCid)
+
+instance HasUTCTimeConversion DateClock where
+  toUTCTime clock = toUTCTime clock.date
+
+instance Ord DateClock where
+  compare x y = compare x.date y.date
+
+-- | Maps a `Date` to `Time` using the rule in the `DateClock`.
+dateToDateClockTime : Date -> Time
+dateToDateClockTime = toUTCTime . Unit

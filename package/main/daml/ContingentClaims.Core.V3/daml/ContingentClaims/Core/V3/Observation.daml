@@ -1,0 +1,152 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module ContingentClaims.Core.V3.Observation where
+
+import DA.Foldable (Foldable(..))
+import DA.Traversable (Traversable(..))
+import Daml.Control.Recursion (Corecursive(..), Recursive(..), cataM, embed, project)
+import Prelude hiding (key, pure, (.))
+import qualified Prelude (pure)
+
+-- | HIDE
+type T = Observation
+
+-- | Implementation of market observables.
+-- Conceptually it is helpful to think of this as the type `t -> x`, or `t -> Update x`.
+data Observation t x o
+  = Const with value: x
+      -- ^ A numerical constant, e.g. `10.0`.
+  | Observe with key: o
+      -- ^ A named parameter, e.g. "LIBOR 3M".
+  | ObserveAt with key: o, t: t
+      -- ^ A named parameter, e.g. "LIBOR 3M", observed at an explicit point in time.
+  | Add (Observation t x o, Observation t x o)
+      -- ^ Sum of two observations.
+  | Neg (Observation t x o)
+      -- ^ Opposite of an observation.
+  | Mul (Observation t x o, Observation t x o)
+      -- ^ Product of two observations.
+  | Div (Observation t x o, Observation t x o)
+      -- ^ Division of two observations.
+  deriving (Eq, Functor)
+
+-- | HIDE
+data ObservationF t x o b
+  = ConstF with value: x
+  | ObserveF with key: o
+  | AddF (b, b)
+  | NegF (b)
+  | MulF (b, b)
+  | DivF (b, b)
+  | ObserveAtF with key: o, t: t
+  deriving (Eq, Show, Functor)
+
+instance Recursive (Observation t x o) (ObservationF t x o) where
+  project (Const value) = ConstF value
+  project (Observe key) = ObserveF key
+  project (ObserveAt key t) = ObserveAtF key t
+  project (Add (x, x')) = AddF (x, x')
+  project (Neg x) = NegF x
+  project (Mul (x, x')) = MulF (x, x')
+  project (Div (x, x')) = DivF (x, x')
+
+instance Corecursive (Observation t x o) (ObservationF t x o) where
+  embed (ConstF value) = Const value
+  embed (ObserveF key) = Observe key
+  embed (ObserveAtF key t) = ObserveAt key t
+  embed (AddF (x, x')) = Add (x, x)
+  embed (NegF x) = Neg x
+  embed (MulF (x, x')) = Mul (x, x')
+  embed (DivF (x, x')) = Div (x, x')
+
+-- | Smart constructor for `Const`. Lifts a constant to an observation.
+pure : x -> Observation t x o
+pure = Const
+
+-- | Smart constructor for `Observe`. Looks up the value of `o`.
+observe : o -> Observation t x o
+observe = Observe
+
+-- | Reify the `Observation` into an observation function.
+-- This function is used to convert an abstract observation, e.g. `LIBOR 3M + 0.005` to the actual
+-- observation function `t -> m x`.
+eval : (Ord t, Number x, Divisible x, CanAbort m)
+  => (o -> t -> m x) -> Observation t x o -> t -> m x
+eval doObserve obs t = cataM alg obs
+  where
+    alg = \case
+      ConstF x -> Prelude.pure x
+      ObserveF key -> doObserve key t
+      ObserveAtF key t' | t' > t -> abort "Trying to observe in the future."
+      ObserveAtF key t' -> doObserve key t'
+      AddF (x, x') -> Prelude.pure $ x Prelude.+ x'
+      NegF x -> Prelude.pure $ negate x
+      MulF (x, x') -> Prelude.pure $ x * x'
+      DivF (x, x') -> Prelude.pure $ x / x'
+
+-- | The functor map operation _and_ also map any parameters to keys.
+-- For example, could map the param "spot" to an ISIN code "GB123456789".
+-- Also contra-maps time parameter, i.e. from relative time values to absolute ones.
+--
+-- @ mapParams identity = bimap
+--
+mapParams : (i -> t)
+          -> (o -> o')
+          -> (x -> x')
+          -> Observation i x o -> Observation t x' o'
+mapParams h g f = cata \case
+  ConstF x -> Const (f x)
+  ObserveF key -> Observe (g key)
+  ObserveAtF key i -> ObserveAt (g key) (h i)
+  AddF (b, b') -> Add (b, b')
+  NegF b -> Neg b
+  MulF (b, b') -> Mul (b, b')
+  DivF (b, b') -> Div (b, b')
+
+instance Additive x => Additive (Observation t x o) where
+  aunit = Const aunit
+  (+) = curry Add
+  negate = Neg
+
+instance Multiplicative x => Multiplicative (Observation t x o) where
+  munit = Const munit
+  (*) = curry Mul
+  x ^ 0 = munit
+  x ^ 1 = x
+  x ^ 2 = x * x
+  x ^ _ = error "Observation: power operator < 0 and > 2 not implemented"
+
+instance (Additive x, Multiplicative x) => Number (Observation t x o) where
+
+instance Multiplicative x => Divisible (Observation t x o) where
+  (/) = curry Div
+
+instance Foldable (ObservationF t x o) where
+  foldr f seed (ConstF _) = seed
+  foldr f seed (ObserveF _) = seed
+  foldr f seed (ObserveAtF _ _) = seed
+  foldr f seed (NegF b) = f b seed
+  foldr f seed (AddF (b, b')) = f b $ f b' seed
+  foldr f seed (MulF (b, b')) = f b $ f b' seed
+  foldr f seed (DivF (b, b')) = f b $ f b' seed
+
+instance Traversable (ObservationF t x o) where
+  sequence (ConstF x) = Prelude.pure $ ConstF x
+  sequence (ObserveF key) = Prelude.pure $ ObserveF key
+  sequence (ObserveAtF key t) = Prelude.pure $ ObserveAtF key t
+  sequence (NegF m) = NegF <$> m
+  sequence (AddF (m, m')) = curry AddF <$> m <*> m'
+  sequence (MulF (m, m')) = curry MulF <$> m <*> m'
+  sequence (DivF (m, m')) = curry DivF <$> m <*> m'
+
+instance (Show t, Show x, Show o) => Show (Observation t x o) where
+  show = cata \case
+    ConstF x -> "Const " <> show x
+    ObserveF a -> "Observe " <> show a
+    ObserveAtF a t -> "Observe " <> show a <> "at " <> show t
+    AddF ss -> pair "Add" ss
+    NegF s -> "Neg (" <> s <> ")"
+    MulF ss -> pair "Mul" ss
+    DivF ss -> pair "Div" ss
+    where pair o (s, s') = o <> " (" <> s <> ", " <> s' <> ")"

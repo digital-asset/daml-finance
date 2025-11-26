@@ -1,0 +1,47 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Lifecycle.V4.Rule.Util where
+
+import DA.Either (partitionEithers)
+import DA.List (head)
+import Daml.Finance.Interface.Types.Common.V3.Types (InstrumentKey, InstrumentQuantity)
+import Daml.Finance.Interface.Util.V3.Common (qty)
+import Daml.Finance.Util.V4.Common (sortAndGroupOn)
+
+-- | Type used to record pending payments.
+data Pending = Pending
+  with
+    instrument : InstrumentKey
+    amount : Decimal
+  deriving (Eq, Show)
+
+-- | Merge consumed and produced instruments into a list of pending settlements.
+-- This will only reproduce instrument and quantity, not tag or time.
+mergeConsumedAndProduced : [InstrumentQuantity] -> [InstrumentQuantity] -> [Pending]
+mergeConsumedAndProduced consumed produced = pendingConsumed ++ pendingProduced where
+  pendingConsumed = map (\q -> Pending with instrument = q.unit, amount = -1.0 * q.amount) consumed
+  pendingProduced = map (\q -> Pending with instrument = q.unit, amount = q.amount) produced
+
+-- | Map pending settlements into corresponding instrument quantities and split them into consumed
+-- and produced. Pending items with an amount of `0.0` are discarded.
+splitPending : [Pending] -> ([InstrumentQuantity], [InstrumentQuantity])
+splitPending = partitionEithers . foldr f [] where
+  f p acc | p.amount < 0.0 = Left (qty (- 1.0 * p.amount) p.instrument) :: acc
+  f p acc | p.amount > 0.0 = Right (qty p.amount p.instrument) :: acc
+  f _ acc = acc
+
+-- | Net pending payments on the same instrument (regardless of tags).
+net : [Pending] -> [Pending]
+net pending =
+  let
+    groupedPending = sortAndGroupOn (.instrument) pending
+    createPendingNode p =
+      let
+        aggregatedAmount = foldl (\acc e -> acc + e.amount) 0.0 p
+      in
+        Pending with
+          instrument = (.instrument) $ head p
+          amount = aggregatedAmount
+  in
+    map createPendingNode groupedPending

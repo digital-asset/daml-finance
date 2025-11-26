@@ -1,0 +1,137 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Swap.V0.Currency.Instrument where
+
+import DA.Date (daysSinceEpochToDate)
+import DA.Set (singleton)
+import Daml.Finance.Claims.V3.Util.Builders (createFixRatePaymentClaims)
+import Daml.Finance.Data.V4.Reference.HolidayCalendar (getHolidayCalendars, rollSchedule)
+import Daml.Finance.Data.V4.Time.DateClock (dateToDateClockTime)
+import Daml.Finance.Interface.Claims.V4.Claim qualified as Claim (GetClaims(..), I, View(..))
+import Daml.Finance.Interface.Claims.V4.Dynamic.Instrument qualified as DynamicInstrument (CreateNewVersion(..), I, View(..))
+import Daml.Finance.Interface.Instrument.Base.V4.Instrument qualified as BaseInstrument (I, View(..), createReference, disclosureUpdateReference, instrumentKey)
+import Daml.Finance.Interface.Instrument.Swap.V0.Currency.Instrument qualified as CurrencySwap (I, View(..))
+import Daml.Finance.Interface.Instrument.Swap.V0.Currency.Types (CurrencySwap(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..), InstrumentKey(..), PartiesMap)
+import Daml.Finance.Interface.Types.Date.V3.DayCount (DayCountConventionEnum)
+import Daml.Finance.Interface.Types.Date.V3.Schedule (PeriodicSchedule(..))
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+
+-- | Type synonym for `Instrument`.
+type T = Instrument
+
+-- | This template models a currency swap.
+-- It pays a fix vs fix rate (in different currencies) at the end of every payment period.
+-- The principal in the foreign currency is calculated using an fx rate and the principal amount in
+-- the base currency. The principal is not exchanged.
+-- For example: USD 1000k principal, fx rate 1.10 -> EUR 1100k principal
+--              3% fix rate on USD 1000k vs
+--              2% fix rate on EUR 1100k
+template Instrument
+  with
+    depository : Party
+      -- ^ The depository of the instrument.
+    issuer : Party
+      -- ^ The issuer of the instrument.
+    id : Id
+      -- ^ An identifier of the instrument.
+    version : Text
+      -- ^ The instrument's version.
+    holdingStandard : HoldingStandard
+      -- ^ The holding standard for holdings referencing this instrument.
+    description : Text
+      -- ^ A description of the instrument.
+    ownerReceivesBase : Bool
+      -- ^ Indicate whether a holding owner of this instrument receives the base currency leg or the
+      --   foreign currency leg of the swap.
+    baseRate : Decimal
+      -- ^ The interest rate of the base currency. For example, in case of "3% in USD" this should
+      --   be 0.03.
+    foreignRate : Decimal
+      -- ^ The interest rate of the foreign currency. For example, in case of "2% in EUR" this
+      --   should be 0.02.
+    periodicSchedule : PeriodicSchedule
+      -- ^ The schedule for the periodic swap payments.
+    holidayCalendarIds : [Text]
+      -- ^ The identifiers of the holiday calendars to be used for the swap payment schedule.
+    calendarDataProvider : Party
+      -- ^ The reference data provider to use for the holiday calendar.
+    dayCountConvention : DayCountConventionEnum
+      -- ^ The day count convention used to calculate day count fractions. For example: Act360.
+    baseCurrency : InstrumentKey
+      -- ^ The base currency of the swap. For example, in the case of USD this should be a USD cash
+      --   instrument.
+    foreignCurrency : InstrumentKey
+      -- ^ The foreign currency of the swap. For example, in case of EUR this should be a EUR cash
+      --   instrument.
+    fxRate : Decimal
+      -- ^ The fx rate used to convert from the base currency principal amount to the foreign
+      --   currency principal amount.
+    observers : PartiesMap
+      -- ^ The observers of the instrument.
+    lastEventTimestamp : Time
+      -- ^ (Market) time of the last recorded lifecycle event. If no event has occurred yet, the
+      --   time of creation should be used.
+  where
+    signatory depository, issuer
+    observer Disclosure.flattenObservers observers
+
+    interface instance Claim.I for Instrument where
+      view = Claim.View with acquisitionTime = dateToDateClockTime $ daysSinceEpochToDate 0
+      getClaims Claim.GetClaims{actor} = do
+        -- get the initial claims tree (as of the swap's acquisition time)
+        let getCalendars = getHolidayCalendars actor calendarDataProvider
+        schedule <- fst <$> rollSchedule getCalendars periodicSchedule holidayCalendarIds
+        let
+          useAdjustedDatesForDcf = True
+          notional = 1.0
+          issuerPaysForeignLeg = not ownerReceivesBase
+          foreignRateInclFxPrincipalAdjustmentFactor = foreignRate * fxRate
+          baseLegClaims = createFixRatePaymentClaims dateToDateClockTime schedule periodicSchedule
+            useAdjustedDatesForDcf baseRate ownerReceivesBase dayCountConvention notional
+            baseCurrency
+          foreignLegClaims = createFixRatePaymentClaims dateToDateClockTime schedule
+            periodicSchedule useAdjustedDatesForDcf foreignRateInclFxPrincipalAdjustmentFactor
+            issuerPaysForeignLeg dayCountConvention notional foreignCurrency
+        pure [baseLegClaims, foreignLegClaims]
+
+    interface instance BaseInstrument.I for Instrument where
+      view = BaseInstrument.View with
+        depository; issuer; id; version; holdingStandard; description
+        validAsOf = lastEventTimestamp
+      getKey = BaseInstrument.instrumentKey this
+
+    interface instance CurrencySwap.I for Instrument where
+      view = CurrencySwap.View with
+        currencySwap = CurrencySwap with
+          instrument = BaseInstrument.instrumentKey this
+          description
+          ownerReceivesBase
+          baseRate
+          foreignRate
+          periodicSchedule
+          holidayCalendarIds
+          calendarDataProvider
+          dayCountConvention
+          baseCurrency
+          foreignCurrency
+          fxRate
+          lastEventTimestamp
+
+    interface instance DynamicInstrument.I for Instrument where
+      view = DynamicInstrument.View with lifecycler = issuer; lastEventTimestamp; prevEvents = []
+      createNewVersion DynamicInstrument.CreateNewVersion{version; lastEventTimestamp} = do
+        cid <- create this with version; lastEventTimestamp
+        BaseInstrument.createReference issuer $ toInterfaceContractId cid
+        pure $ toInterfaceContractId cid
+
+    interface instance Disclosure.I for Instrument where
+      view = Disclosure.View with disclosureControllers = singleton issuer; observers
+      setObservers = setObserversImpl this . Some . BaseInstrument.disclosureUpdateReference $
+        BaseInstrument.instrumentKey this
+      addObservers = addObserversImpl this . Some . BaseInstrument.disclosureUpdateReference $
+        BaseInstrument.instrumentKey this
+      removeObservers = removeObserversImpl this . Some . BaseInstrument.disclosureUpdateReference $
+        BaseInstrument.instrumentKey this

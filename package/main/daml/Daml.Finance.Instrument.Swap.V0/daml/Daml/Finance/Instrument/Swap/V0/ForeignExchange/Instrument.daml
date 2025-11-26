@@ -1,0 +1,113 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Swap.V0.ForeignExchange.Instrument where
+
+import DA.Date (daysSinceEpochToDate)
+import DA.Set (singleton)
+import Daml.Finance.Claims.V3.Util.Builders (createFxAdjustedPrincipalClaim)
+import Daml.Finance.Data.V4.Time.DateClock (dateToDateClockTime)
+import Daml.Finance.Interface.Claims.V4.Claim qualified as Claim (I, View(..))
+import Daml.Finance.Interface.Claims.V4.Dynamic.Instrument qualified as DynamicInstrument (CreateNewVersion(..), I, View(..))
+import Daml.Finance.Interface.Instrument.Base.V4.Instrument qualified as BaseInstrument (I, View(..), createReference, disclosureUpdateReference, instrumentKey)
+import Daml.Finance.Interface.Instrument.Swap.V0.ForeignExchange.Instrument qualified as ForeignExchange (I, View(..))
+import Daml.Finance.Interface.Instrument.Swap.V0.ForeignExchange.Types (ForeignExchange(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..), InstrumentKey(..), PartiesMap)
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+
+-- | Type synonym for `Instrument`.
+type T = Instrument
+
+-- | This template models a foreign exchange swap (FX Swap).
+-- It has two legs: an initial FX transaction and a final FX transaction.
+-- The instrument has a base currency and a foreign currency.
+-- The convention is that a holding owner receives the foreign currency in the initial transaction
+-- (and pays it in the final transaction).
+-- Both FX rates and transaction dates are predetermined between the counterparties.
+-- For example: USD 1000k vs EUR 1100k (fx rate: 1.10) today
+--              USD 1000k vs EUR 1200k (fx rate: 1.20) in 6 months
+template Instrument
+  with
+    depository : Party
+      -- ^ The depository of the instrument.
+    issuer : Party
+      -- ^ The issuer of the instrument.
+    id : Id
+      -- ^ An identifier of the instrument.
+    version : Text
+      -- ^ The instrument's version.
+    holdingStandard : HoldingStandard
+      -- ^ The holding standard for holdings referencing this instrument.
+    description : Text
+      -- ^ A description of the instrument.
+    firstFxRate : Decimal
+      -- ^ The fx rate used for the first swap payment.
+    finalFxRate : Decimal
+      -- ^ The fx rate used for the final swap payment.
+    issueDate : Date
+      -- ^ The date when the swap was issued.
+    firstPaymentDate : Date
+      -- ^ The first payment date of the swap.
+    maturityDate : Date
+      -- ^ The final payment date of the swap.
+    baseCurrency : InstrumentKey
+      -- ^ The base currency of the swap, which will be exchanged to another (foreign) currency on
+      --   the first payment date. For example, in case of USD this should be a USD cash instrument.
+    foreignCurrency : InstrumentKey
+      -- ^ The foreign currency of the swap. For example, in case of EUR this should be a EUR cash
+      --   instrument.
+    observers : PartiesMap
+      -- ^ The observers of the instrument.
+    lastEventTimestamp : Time
+      -- ^ (Market) time of the last recorded lifecycle event. If no event has occurred yet, the
+      --   time of creation should be used.
+  where
+    signatory depository, issuer
+    observer Disclosure.flattenObservers observers
+
+    interface instance Claim.I for Instrument where
+      view = Claim.View with acquisitionTime = dateToDateClockTime $ daysSinceEpochToDate 0
+      getClaims _ = do
+        -- get the initial claims tree (as of the swap's acquisition time)
+        let
+          notional = 1.0
+          baseCurrencyFirstPayment = createFxAdjustedPrincipalClaim dateToDateClockTime False 1.0
+            notional baseCurrency firstPaymentDate
+          foreignCurrencyFirstPayment = createFxAdjustedPrincipalClaim dateToDateClockTime True
+            firstFxRate notional foreignCurrency firstPaymentDate
+          baseCurrencyFinalPayment = createFxAdjustedPrincipalClaim dateToDateClockTime True 1.0
+            notional baseCurrency maturityDate
+          foreignCurrencyFinalPayment = createFxAdjustedPrincipalClaim dateToDateClockTime False
+            finalFxRate notional foreignCurrency maturityDate
+        pure [baseCurrencyFirstPayment, foreignCurrencyFirstPayment, baseCurrencyFinalPayment,
+          foreignCurrencyFinalPayment]
+
+    interface instance BaseInstrument.I for Instrument where
+      view = BaseInstrument.View with
+        depository; issuer; id; version; holdingStandard; description
+        validAsOf = lastEventTimestamp
+      getKey = BaseInstrument.instrumentKey this
+
+    interface instance ForeignExchange.I for Instrument where
+      view = ForeignExchange.View with
+        foreignExchange = ForeignExchange with
+          instrument = BaseInstrument.instrumentKey this
+          description; firstFxRate; finalFxRate; issueDate
+          firstPaymentDate; maturityDate; baseCurrency; foreignCurrency; lastEventTimestamp
+
+    interface instance DynamicInstrument.I for Instrument where
+      view = DynamicInstrument.View with lifecycler = issuer; lastEventTimestamp; prevEvents = []
+      createNewVersion DynamicInstrument.CreateNewVersion{version; lastEventTimestamp} = do
+        cid <- create this with version; lastEventTimestamp
+        BaseInstrument.createReference issuer $ toInterfaceContractId cid
+        pure $ toInterfaceContractId cid
+
+    interface instance Disclosure.I for Instrument where
+      view = Disclosure.View with disclosureControllers = singleton issuer; observers
+      setObservers = setObserversImpl this . Some . BaseInstrument.disclosureUpdateReference $
+        BaseInstrument.instrumentKey this
+      addObservers = addObserversImpl this . Some . BaseInstrument.disclosureUpdateReference $
+        BaseInstrument.instrumentKey this
+      removeObservers = removeObserversImpl this . Some . BaseInstrument.disclosureUpdateReference $
+        BaseInstrument.instrumentKey this

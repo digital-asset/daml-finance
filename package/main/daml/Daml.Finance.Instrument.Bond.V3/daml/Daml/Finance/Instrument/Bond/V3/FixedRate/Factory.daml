@@ -1,0 +1,66 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Bond.V3.FixedRate.Factory where
+
+import DA.Set (singleton)
+import Daml.Finance.Instrument.Bond.V3.FixedRate.Instrument qualified as FixedRateBond (Instrument(..))
+import Daml.Finance.Interface.Claims.V4.Claim qualified as Claim (GetClaims(..), I, getClaims)
+import Daml.Finance.Interface.Instrument.Base.V4.Instrument qualified as BaseInstrument (createReference)
+import Daml.Finance.Interface.Instrument.Bond.V3.FixedRate.Factory qualified as FixedRateBondFactory (Create(..), I, View(..))
+import Daml.Finance.Interface.Instrument.Bond.V3.FixedRate.Types (FixedRate(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (PartiesMap)
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+
+-- | Type synonym for `Factory`.
+type T = Factory
+
+-- | Factory template for instrument creation.
+template Factory
+  with
+    provider : Party
+      -- ^ The factory's provider.
+    observers : PartiesMap
+      -- ^ The factory's observers.
+  where
+    signatory provider
+    observer Disclosure.flattenObservers observers
+
+    interface instance FixedRateBondFactory.I for Factory where
+      view = FixedRateBondFactory.View with provider
+      create' FixedRateBondFactory.Create{
+        fixedRate = FixedRate{instrument; description; couponRate; periodicSchedule;
+          holidayCalendarIds; calendarDataProvider; dayCountConvention; currency; notional;
+          lastEventTimestamp};
+        observers} = do
+          let
+            fixedRateBondInstrument = FixedRateBond.Instrument with
+              depository = instrument.depository
+              issuer = instrument.issuer
+              id = instrument.id
+              version = instrument.version
+              holdingStandard = instrument.holdingStandard
+              description
+              couponRate
+              periodicSchedule
+              holidayCalendarIds
+              calendarDataProvider
+              dayCountConvention
+              currency
+              notional
+              lastEventTimestamp
+              observers
+          cid <- toInterfaceContractId <$> create fixedRateBondInstrument
+          BaseInstrument.createReference instrument.depository $ toInterfaceContractId cid
+          -- Get the claims in order to run the associated checks (e.g. verify that the schedules
+          -- are valid).
+          Claim.getClaims (toInterface @Claim.I fixedRateBondInstrument) $
+            Claim.GetClaims with actor = instrument.issuer
+          pure cid
+
+    interface instance Disclosure.I for Factory where
+      view = Disclosure.View with disclosureControllers = singleton provider; observers
+      setObservers = setObserversImpl @Factory @Disclosure.I this None
+      addObservers = addObserversImpl @Factory @Disclosure.I this None
+      removeObservers = removeObserversImpl @Factory @Disclosure.I this None

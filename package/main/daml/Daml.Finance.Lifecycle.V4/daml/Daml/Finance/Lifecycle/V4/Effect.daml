@@ -1,0 +1,72 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Lifecycle.V4.Effect where
+
+import DA.Assert ((===))
+import Daml.Finance.Interface.Lifecycle.V4.Effect qualified as Effect (Calculate(..), CalculationResult(..), I, SetProviders(..), View(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (Id, InstrumentKey, InstrumentQuantity(..), Parties, PartiesMap)
+import Daml.Finance.Interface.Util.V3.Common (qty, scale)
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+
+-- | Type synonym for `Effect`.
+type T = Effect
+
+-- | A contract encoding the consequences of a lifecycle event for one unit of the target
+-- instrument.
+template Effect
+  with
+    providers : Parties
+      -- ^ The effect provider.
+    id : Id
+      -- ^ The effect's identifier.
+    description : Text
+      -- ^ The effect's description.
+    targetInstrument : InstrumentKey
+      -- ^ The target instrument. A holding on this instrument is required to claim the effect.
+      --   For example, in the case of a swap instrument, this would be the original instrument
+      --   version before lifecycling, that contains the current swap payment.
+    producedInstrument : Optional InstrumentKey
+      -- ^ The produced instrument, if it exists.
+      --   For example, in the case of a swap instrument, this would be the new instrument
+      --   version after lifecycling, that does not contain the current swap payment.
+      --   If there are no more claims remaining after the current lifecycling, this would be None.
+    otherConsumed : [InstrumentQuantity]
+      -- ^ Consumed quantities (in addition to the target instrument).
+      --   For example, in the case of a fix vs floating rate swap, this could be a 2.5% fix
+      --   payment.
+    otherProduced : [InstrumentQuantity]
+      -- ^ Produced quantities (in additon to the produced instrument).
+      --   For example, in the case of a fix vs floating rate swap, this could be a 3M Euribor
+      --   floating payment.
+    settlementTime : Optional Time
+      -- ^ The effect's settlement time (if any).
+    observers : PartiesMap
+      -- ^ Observers.
+  where
+    signatory providers
+    observer Disclosure.flattenObservers observers
+
+    interface instance Effect.I for Effect where
+      view = Effect.View with
+        providers; id; description; targetInstrument; producedInstrument; otherConsumed
+        otherProduced; settlementTime
+
+      calculate Effect.Calculate{quantity} _ = do
+        quantity.unit === targetInstrument
+        let scaleAll = fmap . scale $ quantity.amount
+        pure Effect.CalculationResult with
+          consumed = scaleAll $ qty 1.0 targetInstrument :: otherConsumed
+          produced = scaleAll $ case producedInstrument of
+            Some pi -> qty 1.0 pi :: otherProduced
+            None -> otherProduced
+
+      setProviders Effect.SetProviders{newProviders} =
+        toInterfaceContractId <$> create this with providers = newProviders
+
+    interface instance Disclosure.I for Effect where
+      view = Disclosure.View with disclosureControllers = providers; observers
+      setObservers = setObserversImpl @Effect @Disclosure.I this None
+      addObservers = addObserversImpl @Effect @Disclosure.I this None
+      removeObservers = removeObserversImpl @Effect @Disclosure.I this None

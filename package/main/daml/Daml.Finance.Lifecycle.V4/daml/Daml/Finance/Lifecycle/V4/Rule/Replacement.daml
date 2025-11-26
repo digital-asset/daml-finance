@@ -1,0 +1,56 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Lifecycle.V4.Rule.Replacement where
+
+import DA.Map (fromList)
+import Daml.Finance.Interface.Instrument.Base.V4.Instrument qualified as BaseInstrument (GetView(..), I, exerciseInterfaceByKey)
+import Daml.Finance.Interface.Lifecycle.V4.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I, View(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (Id(..), Parties)
+import Daml.Finance.Lifecycle.V4.Effect (Effect(..))
+import Daml.Finance.Lifecycle.V4.Event.Replacement qualified as Replacement (Event)
+
+-- | Type synonym for `Rule`.
+type T = Rule
+
+-- | Rule contract that defines the replacement of units of an instrument with a basket of other
+-- instruments (e.g. stock merger).
+template Rule
+  with
+    providers : Parties
+      -- ^ Providers of the replacement rule.
+    lifecycler : Party
+      -- ^ Party performing the lifecycling.
+    observers : Parties
+      -- ^ Observers.
+    id : Id
+      -- ^ Identifier for the rule contract.
+    description : Text
+      -- ^ Textual description.
+  where
+    signatory providers
+    observer observers, lifecycler
+
+    interface instance Lifecycle.I for Rule where
+      view = Lifecycle.View with lifecycler; id; description
+      evolve Lifecycle.Evolve{eventCid; instrument} = do
+        replacement <- fetch $ fromInterfaceContractId @Replacement.Event eventCid
+        assertMsg "The input instrument must match the replacement's target instrument"
+          $ instrument == replacement.targetInstrument
+
+        -- Check that the targetInstrument is active
+        BaseInstrument.exerciseInterfaceByKey @BaseInstrument.I replacement.targetInstrument
+          lifecycler BaseInstrument.GetView with viewer = lifecycler
+
+        effectCid <- toInterfaceContractId <$>
+          create Effect with
+            providers = replacement.providers
+            id = replacement.id
+            description = replacement.description
+            targetInstrument = replacement.targetInstrument
+            producedInstrument = None
+            otherConsumed = []
+            otherProduced = replacement.perUnitReplacement
+            settlementTime = Some replacement.effectiveTime
+            observers = fromList [("RuleObservers", observers)]
+        pure (None, [effectCid])

@@ -1,0 +1,343 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+-- | This module includes utility functions used to build contingent claim trees that represent
+-- specific payoffs. A `Schedule` is usually used as an input to these utility functions. Given
+-- that schedules are defined in terms of dates, a claim where the time parameter is `Date`
+-- is returned. These are then mapped to claims where the time parameter is `Time` using a
+-- (user-provided) conversion function.
+module Daml.Finance.Claims.V3.Util.Builders where
+
+import ContingentClaims.Core.V3.Builders (european)
+import ContingentClaims.Core.V3.Claim (Claim, Inequality(..), and, andList, at, cond, give, one, orList, scale, until, upTo, when, zero, (<=))
+import ContingentClaims.Core.V3.Observation (Observation(..))
+import DA.Date (addDays)
+import DA.Foldable (foldMap)
+import Daml.Finance.Claims.V3.Util (toTime)
+import Daml.Finance.Claims.V3.Util.Date (convertImplicitDcfToActualDcf)
+import Daml.Finance.Interface.Claims.V4.Types (Deliverable, Observable, TaggedClaim(..))
+import Daml.Finance.Interface.Instrument.Types.V2.FloatingRate (DateRelativeToEnum(..), FloatingRate, ReferenceRateTypeEnum(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (InstrumentQuantity)
+import Daml.Finance.Interface.Types.Date.V3.Calendar (HolidayCalendarData)
+import Daml.Finance.Interface.Types.Date.V3.DateOffset (DateOffset, DayTypeEnum(..))
+import Daml.Finance.Interface.Types.Date.V3.DayCount (DayCountConventionEnum)
+import Daml.Finance.Interface.Types.Date.V3.RollConvention (PeriodEnum(..))
+import Daml.Finance.Interface.Types.Date.V3.Schedule (PeriodicSchedule(..), Schedule, SchedulePeriod)
+import Daml.Finance.Util.V4.Date.Calendar (addBusinessDays, adjustDate)
+import Daml.Finance.Util.V4.Date.DayCount (calcPeriodDcf)
+import Prelude hiding (and, or, zero, (<=))
+
+type O = Observation Date Decimal Observable
+type C = Claim Date Decimal Deliverable Observable
+type FixingDates = DateOffset -- FixingDates is the name used in the FpML schema
+
+-- | Convert the claims to UTCTime and tag them.
+prepareAndTagClaims : (Date -> Time) -> [C] ->
+  Text -> TaggedClaim
+prepareAndTagClaims dateToTime cs tag =
+  let claim = toTime dateToTime $ andList cs
+  in TaggedClaim with tag; claim
+
+-- FIXED_RATE_BOND_COUPON_CLAIMS_BEGIN
+createFixRatePaymentClaimsList : Schedule -> PeriodicSchedule -> Bool -> Decimal -> Bool ->
+  DayCountConventionEnum -> Decimal -> Deliverable -> [C]
+createFixRatePaymentClaimsList schedule periodicSchedule useAdjustedDatesForDcf couponRate
+  ownerReceives dayCountConvention notional cashInstrument =
+    let
+      couponDatesAdjusted = map (.adjustedEndDate) schedule
+      couponAmounts = map (\p ->
+          couponRate *
+          (calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf
+            periodicSchedule.terminationDate periodicSchedule.frequency)
+        ) schedule
+      couponClaimAmounts = andList $
+        zipWith
+          (\d a ->
+            when (TimeGte d) $ scale (Const a) $ scale (Const notional) $ one cashInstrument
+          ) couponDatesAdjusted couponAmounts
+    in
+      [if ownerReceives then couponClaimAmounts else give couponClaimAmounts]
+-- FIXED_RATE_BOND_COUPON_CLAIMS_END
+
+-- | Calculate a fix rate amount for each payment date and create claims.
+createFixRatePaymentClaims : (Date -> Time) -> Schedule -> PeriodicSchedule -> Bool -> Decimal ->
+  Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> TaggedClaim
+createFixRatePaymentClaims dateToTime schedule periodicSchedule useAdjustedDatesForDcf
+  couponRate ownerReceives dayCountConvention notional cashInstrument =
+    let
+      couponClaims = createFixRatePaymentClaimsList schedule periodicSchedule useAdjustedDatesForDcf
+        couponRate ownerReceives dayCountConvention notional cashInstrument
+    in prepareAndTagClaims dateToTime couponClaims "Fix rate payment"
+
+-- | Calculate a floating rate amount for each payment date and create claims.
+-- This is a general function that supports both LIBOR and SOFR-COMPOUND reference rates.
+-- It also supports a fix rate spread. If no floating rate is provided, only the fix spread is used,
+-- i.e. fix rate claims are created.
+createRatePaymentClaims : (Date -> Time) -> Schedule -> PeriodicSchedule -> Bool ->
+  Decimal -> Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> Optional FloatingRate ->
+  HolidayCalendarData -> TaggedClaim
+createRatePaymentClaims dateToTime schedule periodicSchedule useAdjustedDatesForDcf
+  floatingRateSpread ownerReceives dayCountConvention notional cashInstrument floatingRate
+  fixingCalendars =
+  let
+    notionalAmount = scale (Const notional) $ one cashInstrument
+    couponClaimAmounts = andList $ map (\p ->
+        when (TimeGte p.adjustedEndDate)
+        $ calculateRatePayment p dayCountConvention useAdjustedDatesForDcf periodicSchedule
+            floatingRate floatingRateSpread notionalAmount fixingCalendars None None
+      ) schedule
+    couponClaims = if ownerReceives then couponClaimAmounts else give couponClaimAmounts
+  in prepareAndTagClaims dateToTime [couponClaims] "Floating rate payment"
+
+-- | HIDE Calculate the coupon claim for a current period p out of a PeriodicSchedule
+calculateRatePayment : SchedulePeriod -> DayCountConventionEnum -> Bool -> PeriodicSchedule ->
+  Optional FloatingRate -> Decimal -> C -> HolidayCalendarData -> Optional Decimal ->
+  Optional Decimal -> C
+calculateRatePayment p dayCountConvention useAdjustedDatesForDcf periodicSchedule
+  floatingRate couponRate notionalAmount fixingCalendars capRate
+  floorRate =
+  let
+    dcf = Const $ calcPeriodDcf dayCountConvention p useAdjustedDatesForDcf
+      periodicSchedule.terminationDate periodicSchedule.frequency
+    cpn = case floatingRate of
+      None -> scale ((Const couponRate) * dcf) notionalAmount
+      Some fr -> case fr.referenceRateType of
+        SingleFixing resetRelativeTo -> rateAfterCapAndFloor
+          where
+            baseDate = case (useAdjustedDatesForDcf, resetRelativeTo) of
+              (True, CalculationPeriodStartDate) -> p.adjustedStartDate
+              (True, CalculationPeriodEndDate) -> p.adjustedEndDate
+              (False, CalculationPeriodStartDate) -> p.unadjustedStartDate
+              (False, CalculationPeriodEndDate) -> p.unadjustedEndDate
+            resetDate = calculateFixingDate baseDate fr.fixingDates fixingCalendars dayShift
+            -- FLOATING_RATE_BOND_COUPON_CLAIMS_BEGIN
+            observedFloatingRate = ObserveAt fr.referenceRateId resetDate
+            -- FLOATING_RATE_BOND_COUPON_CLAIMS_END
+            rateAfterCapAndFloor = capAndFloorRate observedFloatingRate capRate floorRate dcf
+              notionalAmount couponRate
+        CompoundedIndex dcfConventionImpl -> rateAfterCapAndFloor
+          where
+            baseStartDate = if useAdjustedDatesForDcf then p.adjustedStartDate
+              else p.unadjustedStartDate
+            resetDateStart = calculateFixingDate baseStartDate fr.fixingDates fixingCalendars
+              dayShift
+            baseEndDate = if useAdjustedDatesForDcf then p.adjustedEndDate
+              else p.unadjustedEndDate
+            resetDateEnd = calculateFixingDate baseEndDate fr.fixingDates fixingCalendars
+              dayShift
+            compoundedFloatingRate = ObserveAt fr.referenceRateId resetDateEnd /
+              ObserveAt fr.referenceRateId resetDateStart - Const 1.0
+            dcfConversionFactor = convertImplicitDcfToActualDcf dcf p useAdjustedDatesForDcf
+              periodicSchedule dcfConventionImpl
+            rateAfterCapAndFloor = capAndFloorRate compoundedFloatingRate capRate floorRate
+              dcfConversionFactor notionalAmount couponRate
+        where
+          dayShift = if fr.fixingDates.period == D then fr.fixingDates.periodMultiplier
+            else error "Only daily periods supported"
+  in cpn
+
+-- | HIDE Calculate the fixing date by using a day shift (if applicable) and then adjusting the
+-- date.
+calculateFixingDate : Date -> FixingDates -> HolidayCalendarData -> Int -> Date
+calculateFixingDate baseDate fixingDates fixingCalendars dayShift =
+  let
+    resetDateUnadjStart = case fixingDates.dayType of
+      None -> baseDate
+      Some Business -> addBusinessDays fixingCalendars dayShift baseDate
+      Some Calendar -> addDays baseDate dayShift
+  in
+    adjustDate fixingCalendars fixingDates.businessDayConvention resetDateUnadjStart
+
+-- | HIDE Apply a cap and a floor to a floating rate claim.
+capAndFloorRate : O -> Optional Decimal -> Optional Decimal -> O -> C -> Decimal -> C
+capAndFloorRate observedFloatingRate capRate floorRate dcf notionalAmount couponRate =
+  let
+    regularRate = observedFloatingRate + Const couponRate
+    regularRateClaim = scale (regularRate * dcf) notionalAmount
+    rateAfterCap = case capRate of
+      None -> regularRateClaim
+      Some cap -> cond capCondition capRateClaim regularRateClaim
+        where
+          capCondition = Const cap <= regularRate
+          capRateClaim = scale (Const cap * dcf) notionalAmount
+    rateAfterCapAndFloor = case floorRate of
+      None -> rateAfterCap
+      Some floor -> cond floorCondition floorRateClaim rateAfterCap
+        where
+          floorCondition = regularRate <= Const floor
+          floorRateClaim = scale (Const floor * dcf) notionalAmount
+  in rateAfterCapAndFloor
+
+-- | Calculate a fix rate amount (if a credit event has not yet happened) for each payment date and
+-- create claims.
+createConditionalCreditFixRatePaymentClaims : (Date -> Time) -> Schedule -> PeriodicSchedule ->
+  Bool -> Decimal -> Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> Observable ->
+  TaggedClaim
+createConditionalCreditFixRatePaymentClaims dateToTime schedule periodicSchedule
+  useAdjustedDatesForDcf couponRate ownerReceives dayCountConvention notional
+  cashInstrument defaultProbabilityReferenceId
+  = let
+      couponClaims = createFixRatePaymentClaimsList schedule periodicSchedule useAdjustedDatesForDcf
+        couponRate ownerReceives dayCountConvention notional cashInstrument
+      creditEvent = Lte (Const 1.0, Observe defaultProbabilityReferenceId)
+      couponClaimUntilCreditEvent =
+        when (TimeGte periodicSchedule.effectiveDate)
+        $ until creditEvent
+        $ andList couponClaims
+    in
+      prepareAndTagClaims dateToTime [couponClaimUntilCreditEvent]
+        "Fix rate payment (unless credit event has occurred)"
+
+-- | Calculate a (1-recoveryRate) payment if a credit event just happened and create claims.
+createCreditEventPaymentClaims : (Date -> Time) -> Bool -> Decimal -> Deliverable -> Observable ->
+  Observable -> PeriodicSchedule -> TaggedClaim
+createCreditEventPaymentClaims dateToTime ownerReceives notional cashInstrument
+  defaultProbabilityReferenceId recoveryRateReferenceId periodicSchedule =
+  let
+    creditEvent = Lte (Const 1.0, Observe defaultProbabilityReferenceId)
+    payoffAmount =
+      scale ((Const 1.0 - Observe recoveryRateReferenceId) * Const notional)
+      $ one cashInstrument
+    payoff = if ownerReceives then payoffAmount else give payoffAmount
+    creditEventClaim =
+      when (TimeGte periodicSchedule.effectiveDate)
+      $ when creditEvent
+      $ when (upTo periodicSchedule.terminationDate) payoff
+  in prepareAndTagClaims dateToTime [creditEventClaim] "Credit event payment"
+
+-- ASSET_PERFORMANCE_CLAIMS_BEGIN
+-- | Calculate the asset performance for each payment date and create claims.
+-- The performance is calculated using the weighted performance of the basket underlyings from the
+-- start date to the end date of each payment period.
+-- The reference asset Observables need to contain the appropriate type of fixings:
+--   - unadjusted fixings in case of a price return asset swap
+--   - adjusted fixings in case of a total return asset swap
+createAssetPerformancePaymentClaims : (Date -> Time) -> Schedule -> PeriodicSchedule -> Bool ->
+  Bool -> DayCountConventionEnum -> Decimal -> Deliverable -> [(Text, Decimal)]
+  -> TaggedClaim
+createAssetPerformancePaymentClaims dateToTime schedule periodicSchedule useAdjustedDatesForDcf
+  ownerReceives dayCountConvention notional cashInstrument underlyingRefsAndWeights =
+  let
+    assetClaimAmounts = foldMap (\p ->
+      let
+        calcBasketPerformance acc (referenceAssetId, weight) =
+          Const weight * (Observe referenceAssetId /
+          ObserveAt referenceAssetId p.adjustedStartDate - Const 1.0) + acc
+        basketPerformance = foldl calcBasketPerformance (Const 0.0) underlyingRefsAndWeights
+      in
+        when (TimeGte p.adjustedEndDate)
+          $ scale (Const notional * basketPerformance)
+          $ one cashInstrument
+      ) schedule
+    assetClaims = if ownerReceives then assetClaimAmounts else give assetClaimAmounts
+  in
+    prepareAndTagClaims dateToTime [assetClaims] "Asset performance payment"
+-- ASSET_PERFORMANCE_CLAIMS_END
+
+-- FIXED_RATE_BOND_REDEMPTION_CLAIM_BEGIN
+-- | Create an FX adjusted principal claim.
+-- This can be used for both FX swaps (using the appropriate FX rate) and single currency bonds
+-- (setting the FX rate to 1.0).
+createFxAdjustedPrincipalClaim : (Date -> Time) -> Bool -> Decimal -> Decimal -> Deliverable ->
+  Date -> TaggedClaim
+createFxAdjustedPrincipalClaim dateToTime ownerReceives fxRateMultiplier notional
+  cashInstrument valueDate =
+  let
+    fxLegClaimAmount = when (TimeGte valueDate)
+                       $ scale (Const fxRateMultiplier)
+                       $ scale (Const notional)
+                       $ one cashInstrument
+    fxLegClaim = if ownerReceives then fxLegClaimAmount else give fxLegClaimAmount
+  in
+    prepareAndTagClaims dateToTime [fxLegClaim] "Principal payment"
+-- FIXED_RATE_BOND_REDEMPTION_CLAIM_END
+
+-- | Create the claim for a long vanilla option (cash-settled, automatically exercised).
+createVanillaOptionClaim : (Date -> Time) -> Decimal -> Observable -> Deliverable -> Date -> Bool
+  -> Optional Decimal -> Decimal -> C
+createVanillaOptionClaim dateToTime strike spot cashInstrument expiryDate isCall
+  referenceLevel notionalMultiplier =
+  let
+    intrinsicValueAbs = if isCall then Observe spot - Const strike
+                                  else Const strike - Observe spot
+    intrinsicValue = case referenceLevel of
+      Some ref -> intrinsicValueAbs / Const ref
+      None -> intrinsicValueAbs
+    exercised = scale (Const notionalMultiplier * intrinsicValue) $ one cashInstrument
+    notExercised = zero
+    autoExerciseCondition = if isCall then Lte (Const strike, Observe spot)
+                                      else Lte (Observe spot, Const strike)
+  in
+    when (TimeGte expiryDate) $ cond autoExerciseCondition exercised notExercised
+
+-- | Create the claim for a cash-settled, automatically exercised option (long or short).
+createEuropeanCashClaim : (Date -> Time) -> Bool -> Decimal -> Observable -> Deliverable -> Date ->
+  Bool -> Optional Decimal -> Decimal -> TaggedClaim
+createEuropeanCashClaim dateToTime isLong strike spot cashInstrument expiryDate
+  isCall referenceLevel notionalMultiplier =
+  let
+    claimAmount = createVanillaOptionClaim dateToTime strike spot cashInstrument expiryDate isCall
+      referenceLevel notionalMultiplier
+    claim = if isLong then claimAmount else give claimAmount
+  in
+    prepareAndTagClaims dateToTime [claim] "European option payment"
+
+-- | Create the claim for a barrier option (automatically exercised, cash-settled).
+createBarrierEuropeanCashClaim : (Date -> Time) -> Bool -> Decimal -> Observable -> Deliverable
+  -> Date -> Bool -> Decimal -> Date -> Bool -> Bool -> Optional Decimal -> Decimal -> TaggedClaim
+createBarrierEuropeanCashClaim dateToTime isLong strike spot cashInstrument
+  expiryDate isCall barrier barrierStartDate isDown isOut referenceLevel notionalMultiplier =
+  let
+    barrierEvent = if isDown then Lte (Observe spot, Const barrier)
+                             else Lte (Const barrier, Observe spot)
+    vanillaOption = createVanillaOptionClaim dateToTime strike spot cashInstrument expiryDate isCall
+      referenceLevel notionalMultiplier
+    barrierClaimAmountExclStartDate = if isOut
+      then vanillaOption `and` when barrierEvent (when (TimeLte expiryDate) (give vanillaOption))
+      else when barrierEvent $ when (TimeLte expiryDate) vanillaOption
+    claimAmount = when (at barrierStartDate) barrierClaimAmountExclStartDate
+    claim = if isLong then claimAmount else give claimAmount
+  in
+    prepareAndTagClaims dateToTime [claim] "Barrier option payment"
+
+-- | Create the claim for a physically settled European option.
+createEuropeanPhysicalClaim : (Date -> Time) -> Bool -> Decimal -> Deliverable -> Deliverable ->
+  Date -> Bool -> TaggedClaim
+createEuropeanPhysicalClaim dateToTime isLong strike underlying ccy
+  expiryDate isCall =
+  let
+    exerciseClaim =
+      if isCall then
+        (one underlying) `and` scale (Const strike) (give (one ccy))
+      else
+        give (one underlying) `and` scale (Const strike) (one ccy)
+    claimAmount = european expiryDate exerciseClaim
+    claim = if isLong then claimAmount else give claimAmount
+  in
+    prepareAndTagClaims dateToTime [claim] "Option payment"
+
+-- | Create the claim for a physically settled Dividend option.
+createDividendOptionClaim : (Date -> Time) -> Date -> InstrumentQuantity ->
+  Optional InstrumentQuantity -> Optional InstrumentQuantity -> TaggedClaim
+createDividendOptionClaim dateToTime expiryDate cashQuantity
+  sharesQuantity fxQuantity =
+  let
+    cashClaim = scale (Const cashQuantity.amount) (one cashQuantity.unit)
+    taggedCashClaims = [("CASH", cashClaim)]
+
+    taggedSharesClaims = case sharesQuantity of
+      None -> []
+      Some shares -> [("SHARES", sharesClaim)]
+        where
+          sharesClaim = scale (Const shares.amount) (one shares.unit)
+
+    taggedFxClaims = case fxQuantity of
+      None -> []
+      Some fx -> [("CASHFX", cashFxClaim)]
+        where
+          cashFxClaim = scale (Const fx.amount) $ one fx.unit
+
+    cashOrSharesOrFx = orList $ taggedCashClaims ++ taggedSharesClaims ++ taggedFxClaims
+    claim = when (at expiryDate) cashOrSharesOrFx
+  in
+    prepareAndTagClaims dateToTime [claim] "Option payment"

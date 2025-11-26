@@ -1,0 +1,77 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Option.Test.Dividend where
+
+import DA.Date (Month(..), date)
+import DA.Set (singleton)
+import Daml.Finance.Instrument.Option.Test.Util (electAndVerifyDivOptionPaymentEffects, originateDividendOption)
+import Daml.Finance.Interface.Instrument.Option.V0.Dividend.Types (ElectionTypeEnum(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..))
+import Daml.Finance.Interface.Util.V3.Common (qty)
+import Daml.Finance.Test.Util.Common (createParties)
+import Daml.Finance.Test.Util.Instrument (originate)
+import Daml.Script
+
+-- Define and lifecycle dividend options, which are manually exercised and physically settled.
+run : Script ()
+run = script do
+  [custodian, issuer, investor, calendarDataProvider, publicParty] <-
+    createParties ["Custodian", "Issuer", "Investor", "Calendar Data Provider", "PublicParty"]
+
+  -- Distribute commercial-bank cash
+  now <- getTime
+  let observers = [("PublicParty", singleton publicParty)]
+  cashInstrument <- originate custodian issuer "USD" TransferableFungible "US Dollars" observers now
+  eurInstrument <- originate custodian issuer "EUR" TransferableFungible "Euro" observers now
+  aaplInstrument <- originate custodian issuer "AAPL" TransferableFungible "AAPL stock" observers
+    now
+
+  -- Create and distribute option
+  let
+    -- CREATE_DIVIDEND_OPTION_VARIABLES_BEGIN
+    expiryDate = date 2019 May 15
+    cashQuantity = qty 0.19 cashInstrument
+    sharesQuantity = Some $ qty 0.0041 aaplInstrument
+    fxQuantity = Some $ qty 0.17 eurInstrument
+    -- CREATE_DIVIDEND_OPTION_VARIABLES_END
+
+  -- Issue instrument with only cash dividend or shares
+  longCashOrSharesDivOptionInstrument <- originateDividendOption issuer issuer "cash or shares"
+    TransferableFungible "Option" observers now expiryDate cashQuantity sharesQuantity None
+    publicParty
+
+  -- issue instrument with only cash dividend or fx cash
+  longCashOrFxDivOptionInstrument <- originateDividendOption issuer issuer "cash or fx cash"
+    TransferableFungible "Option" observers now expiryDate cashQuantity None fxQuantity
+    publicParty
+
+  -- Issue dividend instruments with 3 choices: cash, shares or fx cash
+  longDivOptionInstrument <- originateDividendOption issuer issuer "long div option"
+    TransferableFungible "Option" observers now expiryDate cashQuantity sharesQuantity fxQuantity
+    publicParty
+
+  let amount = 1.0
+
+  -- Elect shares, long dividend option: Lifecycle and verify the lifecycle effects.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.0041 aaplInstrument]
+  electAndVerifyDivOptionPaymentEffects [publicParty] expiryDate amount
+    longDivOptionInstrument issuer investor Shares expectedConsumed expectedProduced
+
+  -- Elect cash, long dividend option: Lifecycle and verify the lifecycle effects.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.19 cashInstrument]
+  electAndVerifyDivOptionPaymentEffects [publicParty] expiryDate amount
+    longDivOptionInstrument issuer investor Cash expectedConsumed expectedProduced
+
+  -- Elect FX cash, long dividend option: Lifecycle and verify the lifecycle effects.
+  let
+    expectedConsumed = []
+    expectedProduced = [qty 0.17 eurInstrument]
+  electAndVerifyDivOptionPaymentEffects [publicParty] expiryDate amount
+    longDivOptionInstrument issuer investor CashFx expectedConsumed expectedProduced
+
+  pure ()

@@ -1,0 +1,135 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
+module Daml.Finance.Test.Util.Account where
+
+import DA.Assert ()
+import DA.List (head)
+import DA.Map qualified as Map (fromList)
+import DA.Set qualified as Set (fromList, singleton)
+import DA.TextMap qualified as TextMap
+import DA.Optional(fromSome, fromOptional)
+import Daml.Finance.Account.V4.Account qualified as Account (Factory(..))
+import Daml.Finance.Interface.Account.V4.Account qualified as Account (Controllers(..), Credit(..), Debit(..), GetCid(..), I, R)
+import Daml.Finance.Interface.Account.V4.Factory qualified as AccountFactory (Create(..), I)
+import Daml.Finance.Interface.Types.Common.V3.Types (AccountKey(..), HoldingFactoryKey, Id(..), InstrumentKey, Parties)
+import Daml.Finance.Interface.Util.V3.Common (qty)
+import Daml.Finance.Test.Util.Common (submitExerciseInterfaceByKeyCmdHelper, submitMustFailExerciseInterfaceByKeyCmdHelper)
+import Daml.Script (Script, queryInterfaceContractId, submit,createCmd, actAs, readAs, exerciseCmd) 
+import Splice.Api.Token.HoldingV1 qualified as Api.HoldingV1
+
+-- | Reconstruct an AccountKey from a Splice HoldingView.
+getAccountFromSplice : Api.HoldingV1.HoldingView -> AccountKey
+getAccountFromSplice v =
+  let
+    metaVals = getField @"values" (getField @"meta" v)
+    custodianTxt = fromOptional "" (TextMap.lookup "custodian" metaVals)
+    accountIdTxt = fromOptional "" (TextMap.lookup "accountId" metaVals)
+  in
+    AccountKey with
+      custodian = fromSome (partyFromText custodianTxt)
+      owner = v.owner
+      id = Id accountIdTxt
+
+
+-- | Options for transfer controllers.
+data ControlledBy
+  = Owner
+    -- ^ Owner controls inbound and outbound transfers.
+  | Custodian
+    -- ^ Custodian controls inbound and outbound transfers.
+  | OwnerAndCustodian
+    -- ^ Owner and custodian jointly control inbound and outbound transfers.
+  | OwnerWithAutoApproval
+    -- ^ Owner controls outbound transfers, and inbound transfers are auto-approved.
+  deriving (Eq, Show)
+
+-- | Get account controllers depending on controlledBy.
+toControllers : Party -> Party -> ControlledBy -> Account.Controllers
+toControllers custodian owner controlledBy =
+  case controlledBy of
+    Owner -> Account.Controllers with
+      outgoing = Set.singleton owner; incoming = Set.singleton owner
+    Custodian -> Account.Controllers with
+      outgoing = Set.singleton custodian; incoming = Set.singleton custodian
+    OwnerAndCustodian -> Account.Controllers with
+      outgoing = Set.fromList [owner, custodian]; incoming = Set.fromList [owner, custodian]
+    OwnerWithAutoApproval -> Account.Controllers with
+      outgoing = Set.singleton owner; incoming = mempty
+
+-- | Create factory for `Account`.
+createFactory : Party -> [(Text, Parties)] -> Script (ContractId Account.Factory)
+createFactory provider observers = submit provider do
+  createCmd Account.Factory with provider; observers = Map.fromList observers
+
+-- | Create `Account`.
+createAccount : Text -> [Party] -> ContractId AccountFactory.I -> HoldingFactoryKey ->
+  [(Text, Parties)] -> ControlledBy -> Party -> Party -> Script AccountKey
+createAccount description readers accpountFactoryCid holdingFactory observers controlledBy custodian
+  owner = do
+    let
+      account = AccountKey with
+        custodian; owner; id = Id $ show owner <> "@" <> show custodian <> "/" <> description
+    submit (actAs [custodian, owner] <> readAs readers) do
+      exerciseCmd accpountFactoryCid AccountFactory.Create with
+        account; holdingFactory; controllers = toControllers custodian owner controlledBy
+        observers = Map.fromList observers; description
+    pure account
+
+-- | Credit an `Account`.
+credit : [Party] -> InstrumentKey -> Decimal -> AccountKey -> Script (ContractId Api.HoldingV1.Holding)
+credit readAs instrument amount account =
+  submitExerciseInterfaceByKeyCmdHelper @Account.R @Account.I [account.custodian, account.owner]
+  readAs account
+  (Account.GetCid with viewer = account.owner)
+  (Account.Credit with quantity = qty amount instrument)
+
+-- | Debit an `Account`.
+debit : [Party] -> Party -> ContractId Api.HoldingV1.Holding -> Script ()
+debit readAs holder holdingCid = do
+  opt <- queryInterfaceContractId holder holdingCid
+  hv <- case opt of
+    Some hv -> pure hv        -- iv :: Api.HoldingV1.Holding  -> view :: HoldingView
+    None -> abort "Holding not found"
+  assertMsg "Owner mismatch" (getField @"owner" hv == holder)
+  submitExerciseInterfaceByKeyCmdHelper @Account.R @Account.I
+    [ fromSome (partyFromText (fromSome (TextMap.lookup "custodian"
+        (getField @"values" (getField @"meta" hv))))),
+      holder
+    ]
+    readAs
+    (getAccountFromSplice hv)
+    (Account.GetCid with viewer = holder)
+    (Account.Debit with holdingCid)
+
+-- | Utilty function for exercising an interface by key.
+submitExerciseInterfaceByKeyCmd : forall t2 c2 b.
+  ( HasInterfaceTypeRep t2
+  , HasTemplateTypeRep t2
+  , HasToAnyTemplate t2
+  , HasFromAnyTemplate t2
+  , HasFromAnyChoice t2 c2 b
+  , HasToAnyChoice t2 c2 b
+  , HasExercise t2 c2 b
+  )
+  => [Party] -> [Party] -> AccountKey -> c2 -> Script b
+submitExerciseInterfaceByKeyCmd actAs readAs k arg =
+  submitExerciseInterfaceByKeyCmdHelper @Account.R @t2 actAs readAs k
+    (Account.GetCid with viewer = head actAs) arg
+
+-- | Utilty function for exercising an interface by key.
+submitMustFailExerciseInterfaceByKeyCmd : forall t2 c2 b.
+  ( HasInterfaceTypeRep t2
+  , HasTemplateTypeRep t2
+  , HasToAnyTemplate t2
+  , HasFromAnyTemplate t2
+  , HasFromAnyChoice t2 c2 b
+  , HasToAnyChoice t2 c2 b
+  , HasExercise t2 c2 b
+  )
+  => [Party] -> [Party] -> AccountKey -> c2 -> Script ()
+submitMustFailExerciseInterfaceByKeyCmd actAs readAs k arg =
+  submitMustFailExerciseInterfaceByKeyCmdHelper @Account.R @t2 actAs readAs k
+    (Account.GetCid with viewer = head actAs) arg

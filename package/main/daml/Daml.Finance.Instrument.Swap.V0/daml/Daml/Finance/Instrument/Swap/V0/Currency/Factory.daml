@@ -1,0 +1,69 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Swap.V0.Currency.Factory where
+
+import DA.Set (singleton)
+import Daml.Finance.Instrument.Swap.V0.Currency.Instrument qualified as CurrencySwap (Instrument(..))
+import Daml.Finance.Interface.Claims.V4.Claim qualified as Claim (GetClaims(..), I, getClaims)
+import Daml.Finance.Interface.Instrument.Base.V4.Instrument qualified as BaseInstrument (createReference)
+import Daml.Finance.Interface.Instrument.Swap.V0.Currency.Factory qualified as CurrencySwapFactory (Create(..), I, View(..))
+import Daml.Finance.Interface.Instrument.Swap.V0.Currency.Types (CurrencySwap(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (PartiesMap)
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+
+-- | Type synonym for `Factory`.
+type T = Factory
+
+-- | Factory template for instrument creation.
+template Factory
+  with
+    provider : Party
+      -- ^ The factory's provider.
+    observers : PartiesMap
+      -- ^ The factory's observers.
+  where
+    signatory provider
+    observer Disclosure.flattenObservers observers
+
+    interface instance CurrencySwapFactory.I for Factory where
+      view = CurrencySwapFactory.View with provider
+      create' CurrencySwapFactory.Create{
+        currencySwap = CurrencySwap{instrument; description; ownerReceivesBase; baseRate;
+          foreignRate; periodicSchedule; holidayCalendarIds; calendarDataProvider;
+          dayCountConvention; baseCurrency; foreignCurrency; fxRate; lastEventTimestamp};
+        observers} = do
+          let
+            currencySwapInstrument = CurrencySwap.Instrument with
+              depository = instrument.depository
+              issuer = instrument.issuer
+              ownerReceivesBase
+              id = instrument.id
+              version = instrument.version
+              holdingStandard = instrument.holdingStandard
+              description
+              baseRate
+              foreignRate
+              periodicSchedule
+              holidayCalendarIds
+              calendarDataProvider
+              dayCountConvention
+              baseCurrency
+              foreignCurrency
+              lastEventTimestamp
+              fxRate
+              observers
+          cid <- toInterfaceContractId <$> create currencySwapInstrument
+          BaseInstrument.createReference instrument.depository $ toInterfaceContractId cid
+          -- Get the claims in order to run the associated checks (e.g. verify that the schedules
+          -- are valid).
+          Claim.getClaims (toInterface @Claim.I currencySwapInstrument) $
+            Claim.GetClaims with actor = instrument.issuer
+          pure cid
+
+    interface instance Disclosure.I for Factory where
+      view = Disclosure.View with disclosureControllers = singleton provider; observers
+      setObservers = setObserversImpl @Factory @Disclosure.I this None
+      addObservers = addObserversImpl @Factory @Disclosure.I this None
+      removeObservers = removeObserversImpl @Factory @Disclosure.I this None

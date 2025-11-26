@@ -53,8 +53,8 @@ validate-packages: build-packages
 update-packages:
 	git fetch
 	packell versioning update
-	packell data-dependencies update
 	make headers-update
+# Remove: packell data-dependencies update
 
 ###############################
 # Project Source and Packages #

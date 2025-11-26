@@ -1,0 +1,79 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Lifecycle.V4.ElectionEffect where
+
+import DA.Assert ((===))
+import Daml.Finance.Interface.Lifecycle.V4.Effect qualified as Effect (Calculate(..), CalculationResult(..), I, SetProviders(..), View(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (Id, InstrumentKey, InstrumentQuantity, Parties, PartiesMap)
+import Daml.Finance.Interface.Util.V3.Common (qty, scale)
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+
+-- | Type synonym for `ElectionEffect`.
+type T = ElectionEffect
+
+-- | A contract encoding the consequences of an election for one unit of the target instrument.
+-- It needs to be claimed with the right amount and is consumed after claiming.
+template ElectionEffect
+  with
+    providers : Parties
+      -- ^ The effect provider.
+    custodian : Party
+      -- ^ The custodian of the holding put forward for election.
+    owner : Party
+      -- ^ The owner of the holding put forward for election.
+    id : Id
+      -- ^ The effect's identifier.
+    description : Text
+      -- ^ The effect's description.
+    targetInstrument : InstrumentKey
+      -- ^ The target instrument.
+    producedInstrument : Optional InstrumentKey
+      -- ^ The produced instrument, when it exists.
+    amount : Decimal
+      -- ^ The elected amount.
+    otherConsumed : [InstrumentQuantity]
+      -- ^ Consumed quantities (not including the target instrument).
+    otherProduced : [InstrumentQuantity]
+      -- ^ Produced quantities (not including the produced instrument).
+    settlementTime : Optional Time
+      -- ^ The effect's settlement time (if any).
+    observers : PartiesMap
+      -- ^ Observers.
+  where
+    signatory providers
+    observer Disclosure.flattenObservers observers
+
+    interface instance Effect.I for ElectionEffect where
+      view = Effect.View with
+        providers
+        id
+        description
+        targetInstrument
+        producedInstrument
+        otherConsumed
+        otherProduced
+        settlementTime
+
+      calculate Effect.Calculate{actor; quantity} self = do
+        quantity.unit === targetInstrument
+        assertMsg "Amount must match the elected amounts" $ amount == quantity.amount
+        assertMsg "Election effects can only be calculated by the elector or their counterparty" $
+          actor == owner || actor == custodian
+        archive self
+        let scaleAll = fmap $ scale amount
+        pure Effect.CalculationResult with
+          consumed = scaleAll $ qty 1.0 targetInstrument :: otherConsumed
+          produced = scaleAll $ case producedInstrument of
+            Some pi -> qty 1.0 pi :: otherProduced
+            None -> otherProduced
+
+      setProviders Effect.SetProviders{newProviders} =
+        toInterfaceContractId <$> create this with providers = newProviders
+
+    interface instance Disclosure.I for ElectionEffect where
+      view = Disclosure.View with disclosureControllers = providers; observers
+      setObservers = setObserversImpl @ElectionEffect @Disclosure.I this None
+      addObservers = addObserversImpl @ElectionEffect @Disclosure.I this None
+      removeObservers = removeObserversImpl @ElectionEffect @Disclosure.I this None

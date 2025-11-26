@@ -1,0 +1,77 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.StructuredProduct.V0.Util where
+
+import ContingentClaims.Core.V3.Claim (Claim, Inequality(..), and, at, cond, one, scale, when, zero)
+import ContingentClaims.Core.V3.Observation (Observation(..))
+import DA.List (head, last)
+import DA.Optional (isSome)
+import Daml.Finance.Claims.V3.Util.Builders (calculateRatePayment, prepareAndTagClaims)
+import Daml.Finance.Interface.Claims.V4.Types (Deliverable, Observable, TaggedClaim(..))
+import Daml.Finance.Interface.Instrument.Types.V2.FloatingRate (FloatingRate)
+import Daml.Finance.Interface.Types.Date.V3.Calendar (HolidayCalendarData)
+import Daml.Finance.Interface.Types.Date.V3.DayCount (DayCountConventionEnum)
+import Daml.Finance.Interface.Types.Date.V3.Schedule (PeriodicSchedule(..), Schedule)
+import Prelude hiding (and, or, zero, (<=))
+
+type O = Observation Date Decimal Observable
+type C = Claim Date Decimal Deliverable Observable
+
+-- | Find out which schedule periods of scheduleA exist in scheduleB.
+includes : Schedule -> Schedule -> [Bool]
+includes scheduleA scheduleB =
+  map (\a -> isSome $ find (\b -> b.adjustedEndDate == a.adjustedEndDate) scheduleB) scheduleA
+
+-- | Calculate the claims for an auto-callable with a contingent coupon on each payment date
+--   and a redemption amount at maturity (unless auto-called previously).
+createAutoCallableClaims : (Date -> Time) -> Schedule -> Schedule -> PeriodicSchedule
+  -> Bool -> Decimal -> DayCountConventionEnum -> Decimal -> Deliverable -> Optional FloatingRate
+  -> Optional Decimal -> Optional Decimal -> Text -> Decimal -> Decimal -> Decimal -> Decimal
+  -> HolidayCalendarData -> TaggedClaim
+createAutoCallableClaims dateToTime paymentSchedule callableSchedule periodicSchedule
+  useAdjustedDatesForDcf couponRate dayCountConvention notional cashInstrument floatingRate
+  capRate floorRate spot couponBarrier callBarrier finalBarrier putStrike
+  fixingCalendars =
+  let
+    notionalAmount = scale (Const notional) $ one cashInstrument
+
+    principal = notionalAmount
+    initialObservationDate = (.adjustedStartDate) $
+      if null callableSchedule then error "empty callableSchedule" else head callableSchedule
+
+    combineTagClaim (couponPeriod, callPeriod) notCalledClaim =
+      let
+        cpn = calculateRatePayment couponPeriod dayCountConvention useAdjustedDatesForDcf
+          periodicSchedule floatingRate couponRate notionalAmount fixingCalendars capRate floorRate
+        (callDate, paymentDate) = if callPeriod.adjustedEndDate > couponPeriod.adjustedEndDate
+          then error "each call date must be before or at the corresponding payment date"
+          else (callPeriod.adjustedEndDate, couponPeriod.adjustedEndDate)
+        spotOnObservationDate = ObserveAt spot callDate
+        couponBarrierLevel = Const couponBarrier * ObserveAt spot initialObservationDate
+        couponBarrierHit = Lte (spotOnObservationDate, couponBarrierLevel)
+        coupon = cond couponBarrierHit zero cpn
+        called = when (at paymentDate) $ and coupon principal
+        notCalled = when (at paymentDate) $ and coupon notCalledClaim
+        callBarrierLevel = Const callBarrier * ObserveAt spot initialObservationDate
+        autoExerciseCondition = Lte (callBarrierLevel, spotOnObservationDate)
+        tailClaim = when (at callDate) $ cond autoExerciseCondition called notCalled
+      in
+        tailClaim
+
+    finalCouponDate = (.adjustedEndDate) $ last paymentSchedule
+    finalObservationDate = (.adjustedEndDate) $ last callableSchedule
+    spotOnObservationDate = ObserveAt spot finalObservationDate
+    finalBarrierLevel = Const finalBarrier * ObserveAt spot initialObservationDate
+    barrierHit = Lte (spotOnObservationDate, finalBarrierLevel)
+    putStrikeLevel = Const putStrike * ObserveAt spot initialObservationDate
+    -- This currently only works for strike = initialFixing (100%)
+    perf = spotOnObservationDate / putStrikeLevel
+    perfomanceScaledPrincipal = scale perf notionalAmount
+    redemptionPayment = cond barrierHit perfomanceScaledPrincipal principal
+    notCalledFinal = when (at finalCouponDate) redemptionPayment
+    claims = foldr (\p acc -> combineTagClaim p acc) notCalledFinal $
+      zip paymentSchedule callableSchedule
+
+  in
+    prepareAndTagClaims dateToTime [claims] "AutoCallable payment"

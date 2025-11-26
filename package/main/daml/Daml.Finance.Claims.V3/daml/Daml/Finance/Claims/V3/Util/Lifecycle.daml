@@ -1,0 +1,123 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Claims.V3.Util.Lifecycle
+  ( electionEvent
+  , lifecycle
+  , lifecycleClaims
+  , netOnTag
+  , splitPending
+  , timeEvent
+ ) where
+
+import ContingentClaims.Lifecycle.V3.Lifecycle qualified as CC (exercise, lifecycle)
+import DA.Action (foldlA)
+import DA.Either (partitionEithers)
+import DA.List (head, sort)
+import DA.Map qualified as Map (fromList, lookup)
+import Daml.Finance.Interface.Claims.V4.Claim qualified as Claim (GetClaims(..), I, getAcquisitionTime, getClaims)
+import Daml.Finance.Interface.Claims.V4.Types (EventData(..), Observable, Pending(..), TaggedClaim(..))
+import Daml.Finance.Interface.Lifecycle.V4.Observable.NumericObservable qualified as NumericObservable (I, observe)
+import Daml.Finance.Interface.Types.Common.V3.Types (InstrumentQuantity)
+import Daml.Finance.Interface.Util.V3.Common (qty)
+import Daml.Finance.Util.V4.Common (sortAndGroupOn)
+
+-- | Constructor for a time event.
+timeEvent : Time -> EventData
+timeEvent t = EventData with t; election = None
+
+-- | Constructor for an election event.
+electionEvent : Time -> Bool -> Text -> EventData
+electionEvent t isBearer tag = EventData with t; election = Some (isBearer, tag)
+
+-- | HIDE
+-- Process a single lifecycle event (time or election) for a single claim. An election is always an
+-- `exercise` followed by a `lifecycle`.
+applyEvent : (Observable -> Time -> Update Decimal) -> Time -> EventData -> TaggedClaim -> Update
+  (TaggedClaim, [Pending])
+applyEvent observe acquisitionTime e (TaggedClaim with claim; tag) = do
+  -- Exercise
+  electedClaim <- case e.election of
+    None -> pure claim
+    Some election -> CC.exercise observe election claim acquisitionTime e.t
+  -- Lifecycle
+  result <- CC.lifecycle observe electedClaim acquisitionTime e.t
+  let
+    remaining = TaggedClaim with tag; claim = result.remaining
+    pending = map (\p -> Pending with tag; t = p.t; instrument = p.asset; amount = p.amount)
+      result.pending
+  pure (remaining, pending)
+
+-- | HIDE
+-- Process events for a single claim. The events are processed in order (from the earliest to the
+-- latest).
+applyEvents : (Observable -> Time -> Update Decimal) -> Time -> [EventData] -> TaggedClaim -> Update
+  (TaggedClaim, [Pending])
+applyEvents observe acquisitionTime es claim =
+  let
+    folder (claim, pending) event =
+      fmap (<> pending) <$> applyEvent observe acquisitionTime event claim
+  in foldlA folder (claim, []) $ sort es
+
+-- | Lifecycle a set of claims at specified events.
+lifecycleClaims : [ContractId NumericObservable.I]   -- ^ The set of observables.
+               -> Time                               -- ^ The input claims' acquisition time.
+               -> [TaggedClaim]                      -- ^ The input claims.
+               -> [EventData]                        -- ^ Lifecycle events.
+               -> Update ([TaggedClaim], [Pending])  -- ^ The remaining claims and pending payments.
+lifecycleClaims observableCids acquisitionTime claims events = do
+  observe <- collectObservables observableCids
+  fmap mconcat . unzip <$> mapA (applyEvents observe acquisitionTime events) claims
+
+-- | Net pending payments on the same instrument, which also have the same tag.
+netOnTag : [Pending] -> [Pending]
+netOnTag pending =
+  let
+    groupedPending = sortAndGroupOn (\e -> (e.instrument, e.tag)) pending
+    createPendingNode p =
+      let
+        aggregatedAmount = foldl (\acc e -> acc + e.amount) 0.0 p
+        firstElement = head p
+      in
+        Pending with
+          tag = firstElement.tag
+          t = firstElement.t
+          instrument = firstElement.instrument
+          amount = aggregatedAmount
+  in
+    map createPendingNode groupedPending
+
+-- | Lifecycle a claim instrument at specified events.
+lifecycle : Party                              -- ^ The party lifecycling the claim.
+         -> [ContractId NumericObservable.I]   -- ^ The set of observables.
+         -> Claim.I                            -- ^ The input instrument.
+         -> [EventData]                        -- ^ Lifecycle events.
+         -> Update ([TaggedClaim], [Pending])  -- ^ The remaining claims and pending payments.
+lifecycle actor observableCids instrument events = do
+  let acquisitionTime = Claim.getAcquisitionTime instrument
+  claims <- Claim.getClaims instrument Claim.GetClaims with actor
+  lifecycleClaims observableCids acquisitionTime claims events
+
+-- | HIDE
+-- Fetches all `Observable` contracts and stores them in a `Map` keyed by their `id`. It then
+-- returns a function that can be used to query them. The controller must be authorized to fetch the
+-- `Observable` contracts.
+collectObservables : [ContractId NumericObservable.I] -> Update
+  (Observable -> Time -> Update Decimal)
+collectObservables observableCids = do
+  os <- Map.fromList <$> forA observableCids \cid -> do
+    observation <- fetch cid
+    pure (show (view observation).id, observation)
+  pure \key t -> case Map.lookup key os of
+    Some o -> NumericObservable.observe o t
+    None -> do abort $ "Missing observable" <> show key <> " at time " <> show t
+
+-- | Map pending settlements into corresponding instrument quantities and split them into consumed
+-- and produced. Pending items with an amount of `0.0` are discarded.
+splitPending : [Pending] -> ([InstrumentQuantity], [InstrumentQuantity])
+splitPending =
+  partitionEithers . foldr f []
+    where
+      f p acc | p.amount < 0.0 = Left (qty (- 1.0 * p.amount) p.instrument) :: acc
+      f p acc | p.amount > 0.0 = Right (qty p.amount p.instrument) :: acc
+      f _ acc = acc

@@ -1,0 +1,108 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Interface.Lifecycle.V4.Election where
+
+import Daml.Finance.Interface.Lifecycle.V4.Effect qualified as Effect (I)
+import Daml.Finance.Interface.Lifecycle.V4.Event qualified as Event (I, getEventTime)
+import Daml.Finance.Interface.Lifecycle.V4.Observable.NumericObservable qualified as NumericObservable (I)
+import Daml.Finance.Interface.Types.Common.V3.Types (Id, InstrumentKey, PartiesMap)
+
+-- | Type synonym for `Election`.
+type I = Election
+
+-- | Type synonym for `View`.
+type V = View
+
+-- | View for `Election`.
+data View = View
+  with
+    id : Id
+      -- ^ The identifier for an election.
+    description : Text
+      -- ^ A description of the instrument.
+    claim : Text
+      -- ^ The tag corresponding to the elected sub-tree.
+    elector : Party
+      -- ^ Parties on behalf of which the election is made.
+    counterparty : Party
+      -- ^ Faces the `elector` in the `Holding`.
+    electorIsOwner : Bool
+      -- ^ `True` if election is on behalf of the owner of the holding, `False` otherwise.
+    observers : PartiesMap
+      -- ^ Observers of the election.
+    amount : Decimal
+      -- ^ Number of instrument units to which the election applies.
+    provider : Party
+      -- ^ Party that is authorized to process the election and generate the new instrument version
+      --   and effects.
+    instrument : InstrumentKey
+      -- ^ The instrument to which the election applies.
+  deriving (Eq, Show)
+
+-- | Interface implemented by templates that represents a claim-based election. This interface
+-- requires the `Event` interface implementation.
+interface Election requires Event.I where
+  viewtype V
+
+  apply : ContractId Election -> Apply -> Update (Optional InstrumentKey, [ContractId Effect.I])
+    -- ^ Implementation of the `Apply` choice.
+
+  nonconsuming choice GetView : View
+    -- ^ Retrieves the interface view.
+    with
+      viewer : Party
+        -- ^ The party retrieving the view.
+    controller viewer
+    do
+      pure $ view this
+
+  nonconsuming choice Apply : (Optional InstrumentKey, [ContractId Effect.I])
+    -- ^ Applies the election to the instrument, returning the new instrument as well as the
+    --   corresponding effects. The election is archived as part of this choice.
+    with
+      observableCids : [ContractId NumericObservable.I]
+        -- ^ Set of observables.
+      exercisableCid : ContractId Exercisable
+        -- ^ The contract that is used to apply an election to the instrument.
+    controller (view this).provider
+    do
+      apply this self arg
+
+-- | Retrieves the election's time.
+getElectionTime : Election -> Time
+getElectionTime = Event.getEventTime . toInterface @Event.I
+
+-- | View for `Exercisable`.
+data ExercisableView = ExercisableView
+  with
+    lifecycler : Party
+      -- ^ Party processing the election.
+  deriving (Eq, Show)
+
+-- | Interface implemented by instruments that admit (claim-based) elections.
+interface Exercisable where
+  viewtype ExercisableView
+
+  applyElection : ApplyElection -> Update (Optional InstrumentKey, [ContractId Effect.I])
+    -- ^ Implementation of the `ApplyElection` choice.
+
+  nonconsuming choice Exercisable_GetView : ExercisableView
+    -- ^ Retrieves the interface view.
+    with
+      viewer : Party
+        -- ^ The party retrieving the view.
+    controller viewer
+    do
+      pure $ view this
+
+  nonconsuming choice ApplyElection : (Optional InstrumentKey, [ContractId Effect.I])
+    -- ^ Applies an election to the instrument.
+    with
+      electionCid : ContractId Election
+        -- ^ The election.
+      observableCids : [ContractId NumericObservable.I]
+        -- ^ Set of observables.
+    controller (view this).lifecycler
+    do
+      applyElection this arg

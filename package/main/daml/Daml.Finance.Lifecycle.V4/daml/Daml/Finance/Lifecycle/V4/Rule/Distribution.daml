@@ -1,0 +1,59 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Lifecycle.V4.Rule.Distribution where
+
+import DA.Map (fromList)
+import Daml.Finance.Interface.Instrument.Base.V4.Instrument qualified as BaseInstrument (GetView(..), I, exerciseInterfaceByKey)
+import Daml.Finance.Interface.Lifecycle.V4.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I, View(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (Id(..), Parties)
+import Daml.Finance.Lifecycle.V4.Effect (Effect(..))
+import Daml.Finance.Lifecycle.V4.Event.Distribution qualified as Distribution (Event)
+
+-- | Type synonym for `Rule`.
+type T = Rule
+
+-- | Rule contract that defines the distribution of units of an instrument for each unit of a target
+-- instrument (e.g. share or cash dividends).
+template Rule
+  with
+    providers : Parties
+      -- ^ Providers of the distribution rule.
+    lifecycler : Party
+      -- ^ Party performing the lifecycling.
+    observers : Parties
+      -- ^ Observers of the distribution rule.
+    id : Id
+      -- ^ Identifier for the rule contract.
+    description : Text
+      -- ^ Textual description.
+  where
+    signatory providers
+    observer observers, lifecycler
+
+    interface instance Lifecycle.I for Rule where
+      view = Lifecycle.View with lifecycler; id; description
+      evolve Lifecycle.Evolve{eventCid; instrument} = do
+        distribution <- fetch $ fromInterfaceContractId @Distribution.Event eventCid
+        assertMsg "The input instrument must match the distribution's target instrument" $
+          instrument == distribution.targetInstrument
+
+        -- Check that the targetInstrument as well as the producedInstrument are both active
+        let
+          checkActive instrument = BaseInstrument.exerciseInterfaceByKey @BaseInstrument.I
+            instrument lifecycler BaseInstrument.GetView with viewer = lifecycler
+        checkActive distribution.targetInstrument
+        checkActive distribution.newInstrument
+
+        effectCid <- toInterfaceContractId <$>
+          create Effect with
+            providers
+            id = distribution.id
+            description = distribution.description
+            targetInstrument = distribution.targetInstrument
+            producedInstrument = Some distribution.newInstrument
+            otherConsumed = []
+            otherProduced = distribution.perUnitDistribution
+            settlementTime = Some distribution.effectiveTime
+            observers = fromList [("RuleObservers", observers)]
+        pure (Some distribution.newInstrument, [effectCid])

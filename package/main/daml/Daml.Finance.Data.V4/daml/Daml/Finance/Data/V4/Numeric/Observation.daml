@@ -1,0 +1,73 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Data.V4.Numeric.Observation where
+
+import DA.Map (Map)
+import DA.Map qualified as Map (lookup)
+import DA.Set (singleton)
+import Daml.Finance.Interface.Data.V4.Numeric.Observation qualified as Observation (I, View(..))
+import Daml.Finance.Interface.Data.V4.Numeric.Observation.Factory qualified as ObservationFactory
+import Daml.Finance.Interface.Lifecycle.V4.Observable.NumericObservable qualified as NumericObservable (I, View(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (Id, PartiesMap)
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+
+-- | Type synonym for `Observation`.
+type T = Observation
+
+-- | An implementation of `NumericObservable` that explicitly stores time-dependent numerical
+-- values. For example, it can be used for equity or rate fixings.
+template Observation
+  with
+    provider : Party
+      -- ^ The reference data provider.
+    id : Id
+      -- ^ A textual identifier.
+    observations : Map Time Decimal
+      -- ^ The time-dependent values.
+    observers : PartiesMap
+      -- ^ Observers.
+  where
+    signatory provider
+    observer Disclosure.flattenObservers observers
+
+    interface instance NumericObservable.I for Observation where
+      view = NumericObservable.View with provider; id
+      observe t =
+        case Map.lookup t observations of
+          Some obs -> pure obs
+          None -> fail $ "Missing observation for " <> show id <>" at t = " <> show t
+
+    interface instance Observation.I for Observation where
+      view = Observation.View with provider; id; observations; observers
+
+    interface instance Disclosure.I for Observation where
+      view = Disclosure.View with disclosureControllers = singleton provider; observers
+      setObservers = setObserversImpl @Observation @Disclosure.I this None
+      addObservers = addObserversImpl @Observation @Disclosure.I this None
+      removeObservers = removeObserversImpl @Observation @Disclosure.I this None
+
+-- | Implementation of the corresponding Observation Factory.
+template Factory
+  with
+    provider : Party
+      -- ^ The factory's provider.
+    observers : PartiesMap
+      -- ^ The factory's observers.
+  where
+    signatory provider
+    observer Disclosure.flattenObservers observers
+
+    interface instance ObservationFactory.I for Factory
+      where
+        view = ObservationFactory.View with provider; observers
+        create' ObservationFactory.Create{id; observations; observers; provider} =
+          toInterfaceContractId <$>
+            create Observation with id; observations; observers; provider
+
+    interface instance Disclosure.I for Factory where
+      view = Disclosure.View with disclosureControllers = singleton provider; observers
+      setObservers = setObserversImpl @Factory @Disclosure.I this None
+      addObservers = addObserversImpl @Factory @Disclosure.I this None
+      removeObservers = removeObserversImpl @Factory @Disclosure.I this None

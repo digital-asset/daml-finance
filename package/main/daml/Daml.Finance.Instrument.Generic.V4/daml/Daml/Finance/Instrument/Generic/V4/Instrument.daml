@@ -1,0 +1,68 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Instrument.Generic.V4.Instrument where
+
+import DA.Set (singleton)
+import Daml.Finance.Interface.Claims.V4.Claim qualified as Claim (I, View(..))
+import Daml.Finance.Interface.Claims.V4.Types (C, TaggedClaim(..))
+import Daml.Finance.Interface.Instrument.Base.V4.Instrument qualified as BaseInstrument (I, View(..), disclosureUpdateReference, instrumentKey)
+import Daml.Finance.Interface.Instrument.Generic.V4.Instrument qualified as GenericInstrument (I, View(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id, PartiesMap)
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+
+-- | Type synonym for `Instrument`.
+type T = Instrument
+
+-- | An instrument representing a generic payoff, modelled using the Contingent Claims library.
+-- The responsibility for processing lifecycle events as well as elections is delegated to the
+-- issuer, who is hence responsible for providing the correct `Observable`\s.
+template Instrument
+  with
+    depository : Party
+      -- ^ The instrument depository.
+    issuer : Party
+      -- ^ The instrument issuer.
+    id : Id
+      -- ^ The identifier with corresponding version.
+    version : Text
+      -- ^ The instrument's version.
+    holdingStandard : HoldingStandard
+      -- ^ The holding standard for holdings referencing this instrument.
+    description : Text
+      -- ^ A human readable description of the instrument.
+    claims : C
+      -- ^ The claim tree.
+    acquisitionTime : Time
+      -- ^ The claim's acquisition time. This usually corresponds to the start date of the contract.
+    observers : PartiesMap
+      -- ^ Observers.
+    lastEventTimestamp : Time
+      -- ^ (Market) time of the last recorded lifecycle event. If no event has occurred yet, the
+      --   time of creation should be used.
+  where
+    signatory depository, issuer
+    observer Disclosure.flattenObservers observers
+
+    interface instance Claim.I for Instrument where
+      view = Claim.View with acquisitionTime
+      getClaims _ = pure [TaggedClaim with tag = "Generic"; claim = this.claims]
+
+    interface instance BaseInstrument.I for Instrument where
+      view = BaseInstrument.View with
+        depository; issuer; id; version; holdingStandard; description
+        validAsOf = lastEventTimestamp
+      getKey = BaseInstrument.instrumentKey this
+
+    interface instance GenericInstrument.I for Instrument where
+      view = GenericInstrument.View with instrument = BaseInstrument.instrumentKey this; claims
+
+    interface instance Disclosure.I for Instrument where
+      view = Disclosure.View with disclosureControllers = singleton issuer; observers
+      setObservers = setObserversImpl this . Some . BaseInstrument.disclosureUpdateReference $
+        BaseInstrument.instrumentKey this
+      addObservers = addObserversImpl this . Some . BaseInstrument.disclosureUpdateReference $
+        BaseInstrument.instrumentKey this
+      removeObservers = removeObserversImpl this . Some . BaseInstrument.disclosureUpdateReference $
+        BaseInstrument.instrumentKey this

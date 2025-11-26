@@ -1,0 +1,62 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Holding.Test.Upgrade where
+
+import DA.Map qualified as Map (fromList)
+import DA.Set (singleton)
+import DA.Optional(isSome)
+import Daml.Finance.Holding.Test.Common (TestInitialState(..), TestParties(..), setupInitialState, setupParties)
+import Daml.Finance.Holding.V4.Factory qualified as Holding (Factory(..))
+import Daml.Finance.Holding.V4.Transferable qualified as Transferable (T)
+import Daml.Finance.Interface.Holding.V4.Factory qualified as HoldingFactory (I, Remove(..))
+import Daml.Finance.Interface.Holding.V4.Transferable qualified as Transferable (I, Transfer(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (HoldingStandard(..), Id(..))
+import Daml.Finance.Test.Util.Account qualified as Account (ControlledBy(..))
+import Daml.Finance.Test.Util.HoldingDuplicates.Factory qualified as HoldingNew (Factory(..))
+import Daml.Finance.Test.Util.HoldingDuplicates.Transferable qualified as TransferableNew (T)
+import Daml.Finance.Test.Util.HoldingFactory (createHoldingFactory, submitExerciseInterfaceByKeyCmd)
+import Daml.Script
+
+run : Script ()
+run = do
+  -- 1. Create parties
+  tp@TestParties{custodian; issuer; investor; locker; publicParty} <- setupParties
+  let observers = Map.fromList [("PublicParty", singleton publicParty)]
+
+  -- 2. Initialize state
+  TestInitialState {investorAccount; issuerAccount; issuerHoldingCid; accountFactoryCid; holdingFactory} <-
+    setupInitialState
+      tp
+      Holding.Factory with provider = custodian; id = Id "Holding Factory"; observers
+      Transferable
+      []
+      Account.Owner
+
+  -- 3. Remove old holding factory
+  submitExerciseInterfaceByKeyCmd @HoldingFactory.I [custodian] [] holdingFactory
+    HoldingFactory.Remove
+
+  -- 4. Check if the old holding still exists
+  maybeOldHolding <- queryContractId custodian (fromInterfaceContractId @Transferable.T issuerHoldingCid)
+
+  assertMsg
+    "Old transferable holding not found after factory removal (may be expected if factory removal cascades)."
+    (isSome maybeOldHolding)
+
+  -- 5. Create the new holding factory
+  createHoldingFactory $
+    HoldingNew.Factory with provider = custodian; id = Id "Holding Factory"; observers
+
+  -- 6. Perform a transfer to self to trigger upgrade
+  newCid <- submit (actAs issuer <> readAs publicParty) do
+    exerciseCmd (fromInterfaceContractId @Transferable.I issuerHoldingCid)
+      Transferable.Transfer with
+        actors = singleton issuer
+        newOwnerAccount = issuerAccount
+
+  -- 7. Inspect the new upgraded holding
+  maybeNew <- queryContractId custodian (fromInterfaceContractId @TransferableNew.T newCid)
+
+  assertMsg "New transferable holding not found after upgrade." (isSome maybeNew)
+  pure ()
