@@ -18,6 +18,6 @@ pkgs.mkShell {
     pkgs.haskellPackages.cabal-install
   ];
   shellHook = ''
-    echo "✔ Using LOCAL packell source from: $(pwd)"
+    echo "Using LOCAL packell source from: $(pwd)"
   '';
 }
