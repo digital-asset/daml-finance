@@ -19,52 +19,25 @@ import qualified Daml.Package as Daml (Package(..), damlConfig,  packageConfig)
 import Daml.Types (UpdatedConfig(..))
 import qualified Daml.Version as Version (increment, updateVersion)
 import qualified Daml.Yaml as Daml (Config(..), damlConfigFile, source, version, writeDamlConfig)
-import Data.Char (toLower, isUpper, chr)
 import Data.Foldable (foldlM)
 import Data.Functor ((<&>))
-import Data.List (sort, group, nub, isPrefixOf, find, delete, (\\), stripPrefix, intercalate, isInfixOf)
+import Data.List (sort, group, nub, isPrefixOf, find, delete, (\\), isInfixOf)
 import Data.Maybe (catMaybes, maybeToList)
 import qualified Data.Text as T (pack)
 import qualified GHC.List as L (concat)
 import qualified Package.Yaml as Package (Config(..), Remote(..), Local(..), local, getLocalBaseModule, getLocalName, getLocalRepoName, getRemoteBaseModule, getRemotePackages, getRemoteRepoName, path)
 import System.Directory (listDirectory, makeAbsolute, doesFileExist, doesDirectoryExist)
-import System.FilePath ((</>), isExtensionOf, makeRelative, takeDirectory, splitDirectories, joinPath, takeFileName)
+import System.FilePath ((</>), isExtensionOf, splitDirectories, joinPath)
 import System.FilePattern.Directory (getDirectoryFiles, FilePattern)
 
 -- | The dar file extension.
 darExtension :: String = ".dar"
 
--- | Convert a dotted CamelCase package name (e.g. "Daml.Finance.Util.V3")
--- into a dash-lowercase DAR filename prefix (e.g. "daml-finance-util-v3").
-toDashLower :: String -> String
-toDashLower s =
-  stripDash $
-    intercalate "-" (map fixSpecial (words (map dotToSpace s)))
-  where
-    dotToSpace '.' = ' '
-    dotToSpace c = c
-
-    -- Special handling: keep StructuredProduct unsplit
-    fixSpecial seg
-      | map toLower seg == "structuredproduct" = "structuredproduct"
-      | otherwise = camelToDash seg
-
-    camelToDash [] = []
-    camelToDash (c:cs) = toLower c : go cs
-
-    go [] = []
-    go (x:xs)
-      | isUpper x = '-' : toLower x : go xs
-      | otherwise = toLower x : go xs
-
-    stripDash ('-':xs) = xs
-    stripDash xs = xs
-
-
 isSpliceDep :: FilePath -> Bool
 isSpliceDep p =
   "splice-api-token-holding-v1"   `isInfixOf` p ||
   "splice-api-token-metadata-v1" `isInfixOf` p
+
 
 -- | Updates data-dependencies of a list of packages matches the usage in their sources.
 update :: FilePath -> Package.Config -> [Daml.Package] -> IO ()
@@ -129,66 +102,38 @@ processDataDependencies root config allPackages =
 processDataDependency :: FilePath -> Package.Config -> ([Daml.Package], [UpdatedConfig]) -> Daml.Package -> IO ([Daml.Package], [UpdatedConfig])
 processDataDependency root config acc@(allPackages, updatedPackages) package =
   processDataDependency' root config allPackages package >>= \case
-    Nothing -> pure acc
+    Nothing             -> pure acc
     Just updatedPackage -> checkVersion updatedPackage
   where
     replacePackage newPackage = package { Daml.damlConfig = updatedConfig newPackage } : package `delete` allPackages
     checkVersion newPackage   = validateVersion newPackage >>= \case
-      Nothing  -> pure (allPackages, newPackage : updatedPackages)
+      Nothing             -> pure (allPackages, newPackage : updatedPackages)
       Just updatedPackage -> pure (replacePackage updatedPackage, updatedPackage : updatedPackages)
 
 -- | Processes an individual package's data dependencies.
 processDataDependency' :: FilePath -> Package.Config -> [Daml.Package] -> Daml.Package -> IO (Maybe UpdatedConfig)
-processDataDependency' root config allPackages package = do
-  damlModules <- Import.getPackageModules root package
-
+processDataDependency' root config allPackages package =
   let
-    currentConfig = Daml.damlConfig package
-    currentDeps   = maybe [] id (Daml.dataDependencies currentConfig)
+    newDataDependencies damlModules = generateDataDependencies config allPackages package damlModules
+    currentDamlConfig = Daml.damlConfig package
+    currentDataDependenciesMaybe = Daml.dataDependencies currentDamlConfig
+    justUpdatePackage xs = Just . UpdatedConfig package $ updateDamlDataDependencies currentDamlConfig xs
+  in
+    Import.getPackageModules root package >>= \damlModules ->
+      pure $ case (currentDataDependenciesMaybe, newDataDependencies damlModules) of
+        (Nothing, []) -> Nothing
+        (Nothing, xs) -> justUpdatePackage xs
+        (Just cur, xs) ->
+          let
+            spliceCur = filter isSpliceDep cur
+            merged    = sort . nub $ xs ++ spliceCur
 
-    -- auto-discovered deps
-    autoDeps :: [FilePath]
-    autoDeps =
-      generateDataDependencies root config allPackages package damlModules
-
-    -- Extract the filename of a DAR (e.g., "daml-finance-util-v3-3.0.1.dar")
-    darNameOf :: FilePath -> FilePath
-    darNameOf = takeFileName
-
-    -- If a current dep has the same DAR name, return it. Otherwise Nothing.
-    lookupCurrent :: FilePath -> Maybe FilePath
-    lookupCurrent auto =
-      let name = darNameOf auto
-      in find (\cur -> darNameOf cur == name) currentDeps
-
-    -- For each auto dep, keep existing symlink when present.
-    mergedAuto :: [FilePath]
-    mergedAuto =
-      [ maybe auto (\cur -> cur) (lookupCurrent auto)
-      | auto <- autoDeps
-      ]
-
-    -- Keep any current deps that auto did not detect
-    extras :: [FilePath]
-    extras =
-      [ cur
-      | cur <- currentDeps
-      , let name = darNameOf cur
-      , all (\a -> darNameOf a /= name) autoDeps
-      ]
-
-    newDeps = sort . nub $ mergedAuto ++ extras
-    updatedConfig' = updateDamlDataDependencies currentConfig newDeps
-
-    norm :: [FilePath] -> [FilePath]
-    norm = sort . nub
-    
-  if norm currentDeps == norm newDeps
-    then pure Nothing
-    else pure (Just (UpdatedConfig package updatedConfig'))
-
-
-
+            norm :: [FilePath] -> [FilePath]
+            norm = sort . nub
+          in
+            if norm cur == norm merged
+              then Nothing
+              else justUpdatePackage merged
 
 -- | Updates a package version, if required.
 validateVersion :: UpdatedConfig -> IO (Maybe UpdatedConfig)
@@ -210,7 +155,6 @@ computeRelativeDataDep pkgDir depDar =
     pkgParts = splitDirectories pkgDir
     darParts = splitDirectories depDar
 
-    -- drop the common prefix of directories
     dropCommon (x:xs) (y:ys)
       | x == y = dropCommon xs ys
     dropCommon xs ys = (xs, ys)
@@ -224,70 +168,62 @@ computeRelativeDataDep pkgDir depDar =
 
 
 -- | Creates the data dependencies for a package based of the sourced daml modules.
-generateDataDependencies :: FilePath -> Package.Config -> [Daml.Package] -> Daml.Package -> [String]-> [FilePath]
-generateDataDependencies root config allPkgs pkg usedModules =
-
+generateDataDependencies :: Package.Config -> [Daml.Package] -> Daml.Package -> [String] -> [FilePath]
+generateDataDependencies config allPackages package damlModules =
   let
-    remotePkgs = Package.getRemotePackages config
-    localPkgs =
-      filter (\p -> Package.getLocalName (Daml.packageConfig p)
-                    /= Package.getLocalName (Daml.packageConfig pkg))
-            allPkgs
+    -- Directory of this package (e.g. main/daml/Daml.Finance.Data.V4)
+    pkgDir = "package" </> Package.path (Daml.packageConfig package)
 
+    remotePackages = Package.getRemotePackages config
+    localPackages  = package `delete` allPackages
 
-    -- Select packages where the base module is a prefix of a used module
-    selectDeps getBase pkgs = nub [ p | m <- usedModules, p <- pkgs, getBase p `isPrefixOf` m ]
+    getDataDependencies getBaseModule packages =
+      nub $ foldl
+        (\acc m -> acc ++ filter (flip isPrefixOf m . getBaseModule) packages)
+        []
+        damlModules
 
-    remoteDeps = selectDeps Package.getRemoteBaseModule remotePkgs
-    localDeps  = selectDeps (Package.getLocalBaseModule . Daml.packageConfig) localPkgs
+    remoteDataDependencies = getDataDependencies Package.getRemoteBaseModule remotePackages
+    localDataDependencies = getDataDependencies (Package.getLocalBaseModule . Daml.packageConfig) localPackages
 
-  in sort $
-        map (generateRemoteDependency root config pkg) remoteDeps
-     ++ map (generateLocalDependency  root pkg) localDeps
-
-
--- | Generate a data-dependency for remote packages (.lib, lib, etc.).
--- From daml.yaml directory (package/<Package.path>): go relatively to
--- the install dir (e.g. .lib/<repo>/<tag>/<dar>).
-generateRemoteDependency :: FilePath -> Package.Config -> Daml.Package -> Package.Remote -> FilePath
-generateRemoteDependency root config currentPkg remote =
-  let
-    pkgPathSegments = splitDirectories (Package.path (Daml.packageConfig currentPkg))
-    ups = replicate (1 + length pkgPathSegments) ".."
-    relPrefix = joinPath ups
   in
-    relPrefix
-      </> Package.installDir config
-      </> Package.getRemoteRepoName remote
-      </> Package.tag remote
-      </> Package.darName remote
+    sort $
+         map (generateRemoteDependency config pkgDir) remoteDataDependencies
+      ++ map (generateLocalDependency  config pkgDir) localDataDependencies
+
+-- | Generate a data-dependency for remote packages.
+-- Format is <installDir>/<repo_name>/<tag>/<darname>
+generateRemoteDependency :: Package.Config -> FilePath -> Package.Remote -> FilePath
+generateRemoteDependency config pkgDir remote =
+  computeRelativeDataDep pkgDir fullDarPath
+  where
+    fullDarPath = 
+      Package.installDir config
+        </> Package.getRemoteRepoName remote
+        </> Package.tag remote
+        </> Package.darName remote
 
 -- | Generate a data-dependency for local packages.
--- We work with paths relative to repo root; the relative path between
--- "package/main/daml/..." dirs is what we want in daml.yaml.
-generateLocalDependency :: FilePath -> Daml.Package -> Daml.Package -> FilePath
-generateLocalDependency root currentPkg depPkg =
-  let
-    currentDir = root </> Package.path (Daml.packageConfig currentPkg)
+-- <installDir>/<localRepo>/<packageName>/<version>/<darName>
+generateLocalDependency :: Package.Config -> FilePath -> Daml.Package -> FilePath
+generateLocalDependency config pkgDir pkg =
+  computeRelativeDataDep pkgDir fullDarPath
+  where
+    pkgConfig = Daml.damlConfig pkg
+    pkgName = Daml.name pkgConfig
+    pkgVersion = Daml.version pkgConfig
 
-    depCfg = Daml.packageConfig depPkg
-    version = Daml.version (Daml.damlConfig depPkg)
-    repoName = Package.getLocalName depCfg      -- e.g. Daml.Finance.Interface.Util.V3
-    dashName = toDashLower repoName                 -- eg: daml-finance-intercae-util-v3
-    darName = dashName <> "-" <> version <> darExtension
-
-    depDar =
-      root
-        </> Package.path depCfg
-        </> ".daml" </> "dist" </> darName
-
-  in
-    computeRelativeDataDep currentDir depDar
+    fullDarPath = 
+      "package"
+      </> Package.path (Daml.packageConfig pkg)
+      </> ".daml/dist"
+      </> generateDarName pkgName pkgVersion
 
 
 -- | Generate a daml dar file name.
-generateDarName :: String -> String -> String
-generateDarName name version = name <> "-" <> version <> darExtension
+generateDarName :: String -> String -> FilePath
+generateDarName name version = 
+  name <> "-" <> version <> darExtension
 
 -- | Update the data-dependencies of a daml config file.
 updateDamlDataDependencies :: Daml.Config -> [FilePath] -> Daml.Config
