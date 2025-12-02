@@ -28,9 +28,8 @@ import qualified Data.Text as T (pack)
 import qualified GHC.List as L (concat)
 import qualified Package.Yaml as Package (Config(..), Remote(..), Local(..), local, getLocalBaseModule, getLocalName, getLocalRepoName, getRemoteBaseModule, getRemotePackages, getRemoteRepoName, path)
 import System.Directory (listDirectory, makeAbsolute, doesFileExist, doesDirectoryExist)
-import System.FilePath ((</>), isExtensionOf, makeRelative, takeDirectory, splitDirectories, joinPath)
+import System.FilePath ((</>), isExtensionOf, makeRelative, takeDirectory, splitDirectories, joinPath, takeFileName)
 import System.FilePattern.Directory (getDirectoryFiles, FilePattern)
-import Debug.Trace (trace)
 
 -- | The dar file extension.
 darExtension :: String = ".dar"
@@ -143,31 +142,51 @@ processDataDependency' :: FilePath -> Package.Config -> [Daml.Package] -> Daml.P
 processDataDependency' root config allPackages package = do
   damlModules <- Import.getPackageModules root package
 
-  putStrLn ("DEBUG: PACKAGE = " <> Package.getLocalName (Daml.packageConfig package))
-  putStrLn ("DEBUG: MODULES = " <> show damlModules)
-
   let
-    -- current config + deps
     currentConfig = Daml.damlConfig package
     currentDeps   = maybe [] id (Daml.dataDependencies currentConfig)
 
+    -- auto-discovered deps
     autoDeps :: [FilePath]
     autoDeps =
       generateDataDependencies root config allPackages package damlModules
 
-    -- detect splice DARs (must be preserved)
-    isSpliceDep p =
-         "splice-api-token-holding-v1"   `isInfixOf` p
-      || "splice-api-token-metadata-v1" `isInfixOf` p
+    -- Extract the filename of a DAR (e.g., "daml-finance-util-v3-3.0.1.dar")
+    darNameOf :: FilePath -> FilePath
+    darNameOf = takeFileName
 
-    spliceDeps = filter isSpliceDep currentDeps
-    newDeps = sort . nub $ autoDeps ++ spliceDeps
+    -- If a current dep has the same DAR name, return it. Otherwise Nothing.
+    lookupCurrent :: FilePath -> Maybe FilePath
+    lookupCurrent auto =
+      let name = darNameOf auto
+      in find (\cur -> darNameOf cur == name) currentDeps
+
+    -- For each auto dep, keep existing symlink when present.
+    mergedAuto :: [FilePath]
+    mergedAuto =
+      [ maybe auto (\cur -> cur) (lookupCurrent auto)
+      | auto <- autoDeps
+      ]
+
+    -- Keep any current deps that auto did not detect
+    extras :: [FilePath]
+    extras =
+      [ cur
+      | cur <- currentDeps
+      , let name = darNameOf cur
+      , all (\a -> darNameOf a /= name) autoDeps
+      ]
+
+    newDeps = sort . nub $ mergedAuto ++ extras
     updatedConfig' = updateDamlDataDependencies currentConfig newDeps
 
-  -- Skip if nothing changed
-  if currentDeps == newDeps
+    norm :: [FilePath] -> [FilePath]
+    norm = sort . nub
+    
+  if norm currentDeps == norm newDeps
     then pure Nothing
     else pure (Just (UpdatedConfig package updatedConfig'))
+
 
 
 
@@ -207,24 +226,17 @@ computeRelativeDataDep pkgDir depDar =
 -- | Creates the data dependencies for a package based of the sourced daml modules.
 generateDataDependencies :: FilePath -> Package.Config -> [Daml.Package] -> Daml.Package -> [String]-> [FilePath]
 generateDataDependencies root config allPkgs pkg usedModules =
-  trace ("DEBUG: genDataDeps for " <> Package.getLocalName (Daml.packageConfig pkg)
-          <> "\nUSED MODULES = " <> show usedModules) $
 
   let
     remotePkgs = Package.getRemotePackages config
-    localPkgs  = pkg `delete` allPkgs
+    localPkgs =
+      filter (\p -> Package.getLocalName (Daml.packageConfig p)
+                    /= Package.getLocalName (Daml.packageConfig pkg))
+            allPkgs
+
 
     -- Select packages where the base module is a prefix of a used module
-    selectDeps getBase pkgs =
-      let 
-        matches =
-          nub [ p | m <- usedModules, p <- pkgs, getBase p `isPrefixOf` m ]
-          
-      in trace ("DEBUG: matching deps for base="
-        <> show (map getBase pkgs)
-        <> " => "
-        <> show (nub matches))  -- Here too
-              matches
+    selectDeps getBase pkgs = nub [ p | m <- usedModules, p <- pkgs, getBase p `isPrefixOf` m ]
 
     remoteDeps = selectDeps Package.getRemoteBaseModule remotePkgs
     localDeps  = selectDeps (Package.getLocalBaseModule . Daml.packageConfig) localPkgs
