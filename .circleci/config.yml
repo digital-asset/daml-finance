@@ -31,21 +31,37 @@ commands:
           command: |
             set -euo pipefail
 
-            if [ -f ~/.config/nix/nix.conf ]; then
-                echo '. /home/circleci/.nix-profile/etc/profile.d/nix.sh' >> "$BASH_ENV"
-                exit 0
+            echo "Ensuring Nix is loaded..."
+
+            # Case 1: Standard location
+            if [ -f /home/circleci/.nix-profile/etc/profile.d/nix.sh ]; then
+              echo "Nix found in /home/circleci/.nix-profile"
+              . /home/circleci/.nix-profile/etc/profile.d/nix.sh
+
+            # Case 2: Fallback location
+            elif [ -f ~/.nix-profile/etc/profile.d/nix.sh ]; then
+              echo "Nix found in ~/.nix-profile"
+              . ~/.nix-profile/etc/profile.d/nix.sh
+
+            # Case 3: Not installed → install Nix
+            else
+              echo "Nix profile not found — installing..."
+              sh <(curl -fsSL https://nixos.org/nix/install) --no-daemon
+
+              # Source the newly installed profile
+              if [ -f /home/circleci/.nix-profile/etc/profile.d/nix.sh ]; then
+                . /home/circleci/.nix-profile/etc/profile.d/nix.sh
+              else
+                . ~/.nix-profile/etc/profile.d/nix.sh
+              fi
             fi
 
-            # Disabling sandbox because:
-            # 1. It doesn't work on CircleCI (sethostname is not allowed)
-            # 2. We don't plan to build anything, so the risk is fairly low
-            mkdir -p ~/.config/nix
-            echo 'sandbox = false' >> ~/.config/nix/nix.conf
-
-            sh <(curl -fsSL --retry 8 https://nixos.org/nix/install) --no-daemon
-            . /home/circleci/.nix-profile/etc/profile.d/nix.sh
-            nix-shell shell.nix --run 'echo "Done loading all packages."'
-            echo '. /home/circleci/.nix-profile/etc/profile.d/nix.sh' >> "$BASH_ENV"
+            echo "Nix setup complete."
+            if [ -f /home/circleci/.nix-profile/etc/profile.d/nix.sh ]; then
+              echo ". /home/circleci/.nix-profile/etc/profile.d/nix.sh" >> "$BASH_ENV"
+            elif [ -f ~/.nix-profile/etc/profile.d/nix.sh ]; then
+              echo ". ~/.nix-profile/etc/profile.d/nix.sh" >> "$BASH_ENV"
+            fi
       - save_cache:
           key: nix-{{ checksum "/tmp/nix-cache-key" }}
           paths:
@@ -340,14 +356,7 @@ jobs:
           name: Build Packell
           command: |
             echo "Loading Nix environment..."
-            if [ -f /home/circleci/.nix-profile/etc/profile.d/nix.sh ]; then
-              . /home/circleci/.nix-profile/etc/profile.d/nix.sh
-            elif [ -f ~/.nix-profile/etc/profile.d/nix.sh ]; then
-              . ~/.nix-profile/etc/profile.d/nix.sh
-            else
-              echo "Nix profile not found!"
-              exit 1
-            fi
+            source "$BASH_ENV"
 
             nix-shell tools/packell/default.nix --run 'echo "Done building Packell."'
             cp /nix/store/*packell*/bin/packell .
