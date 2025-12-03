@@ -33,6 +33,7 @@ import System.FilePattern.Directory (getDirectoryFiles, FilePattern)
 -- | The dar file extension.
 darExtension :: String = ".dar"
 
+-- | Checks whether a dependency path contains one of these two "splice" substrings.
 isSpliceDep :: FilePath -> Bool
 isSpliceDep p =
   "splice-api-token-holding-v1"   `isInfixOf` p ||
@@ -110,7 +111,7 @@ processDataDependency root config acc@(allPackages, updatedPackages) package =
       Nothing             -> pure (allPackages, newPackage : updatedPackages)
       Just updatedPackage -> pure (replacePackage updatedPackage, updatedPackage : updatedPackages)
 
--- | Processes an individual package's data dependencies.
+-- | Processes an individual package's data dependencies and determines whether a package needs updating.
 processDataDependency' :: FilePath -> Package.Config -> [Daml.Package] -> Daml.Package -> IO (Maybe UpdatedConfig)
 processDataDependency' root config allPackages package =
   let
@@ -119,12 +120,14 @@ processDataDependency' root config allPackages package =
     currentDataDependenciesMaybe = Daml.dataDependencies currentDamlConfig
     justUpdatePackage xs = Just . UpdatedConfig package $ updateDamlDataDependencies currentDamlConfig xs
   in
+    -- Returns every DAML module used in the package.
     Import.getPackageModules root package >>= \damlModules ->
       pure $ case (currentDataDependenciesMaybe, newDataDependencies damlModules) of
         (Nothing, []) -> Nothing
         (Nothing, xs) -> justUpdatePackage xs
         (Just cur, xs) ->
           let
+            -- Extracts any Splice dependencies from the existing list
             spliceCur = filter isSpliceDep cur
             merged = sort . nub $ xs ++ spliceCur
 
@@ -155,14 +158,14 @@ computeRelativeDataDep pkgDir depDar =
     pkgParts = splitDirectories pkgDir
     darParts = splitDirectories depDar
 
-    dropCommon (x:xs) (y:ys)
-      | x == y = dropCommon xs ys
-    dropCommon xs ys = (xs, ys)
+    dropCommonPrefix (x:xs) (y:ys)
+      | x == y = dropCommonPrefix xs ys
+    dropCommonPrefix xs ys = (xs, ys)
 
-    (pkgRest, darRest) = dropCommon pkgParts darParts
+    (pkgRest, darRest) = dropCommonPrefix pkgParts darParts
 
-    ups = replicate (length pkgRest) ".."
-    final = ups ++ darRest
+    upSteps = replicate (length pkgRest) ".."
+    final = upSteps ++ darRest
   in
     joinPath final
 
