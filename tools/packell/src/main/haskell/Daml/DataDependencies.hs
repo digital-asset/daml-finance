@@ -33,6 +33,8 @@ import System.FilePattern.Directory (getDirectoryFiles, FilePattern)
 -- | The dar file extension.
 darExtension :: String = ".dar"
 
+-- | Determines whether a given file path refers to a Splice API dependency.
+-- These dependencies are special-cased and should be excluded from processing.
 isSpliceDep :: FilePath -> Bool
 isSpliceDep p =
   "splice-api-token-holding-v1"   `isInfixOf` p ||
@@ -148,18 +150,20 @@ validateVersion UpdatedConfig{package, updatedConfig} =
       Just version -> pure . Just . UpdatedConfig package $ Version.updateVersion updatedConfig version
       _ -> pure Nothing
 
--- Compute relative path manually by counting directory components
+-- | Computes the relative path from the current package directory to the
+--  target dependency DAR file. 
 computeRelativeDataDep :: FilePath -> FilePath -> FilePath
 computeRelativeDataDep pkgDir depDar =
   let
     pkgParts = splitDirectories pkgDir
     darParts = splitDirectories depDar
 
-    dropCommon (x:xs) (y:ys)
-      | x == y = dropCommon xs ys
-    dropCommon xs ys = (xs, ys)
+    -- Drop the shared prefix of both paths
+    dropCommonPrefix (x:xs) (y:ys)
+      | x == y = dropCommonPrefix xs ys
+    dropCommonPrefix xs ys = (xs, ys)
 
-    (pkgRest, darRest) = dropCommon pkgParts darParts
+    (pkgRest, darRest) = dropCommonPrefix pkgParts darParts
 
     ups = replicate (length pkgRest) ".."
     final = ups ++ darRest
