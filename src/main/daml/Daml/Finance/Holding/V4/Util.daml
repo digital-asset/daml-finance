@@ -5,19 +5,20 @@ module Daml.Finance.Holding.V4.Util where
 
 import DA.Action (foldlA)
 import DA.Foldable qualified as F (all)
-import DA.Set (fromList, isSubsetOf)
+import DA.Set (fromList, isSubsetOf, toList)
 import DA.Optional (fromOptional)
+import DA.Text (intercalate)
 import DA.TextMap qualified as TextMap
 import DA.Traversable qualified as T (forA)
 import Daml.Finance.Interface.Account.V4.Account qualified as Account (Credit(..), Debit(..), I, R, exerciseInterfaceByKey)
 import Daml.Finance.Interface.Account.V4.Util (getAccount)
 import Daml.Finance.Interface.Holding.V4.Fungible qualified as Fungible (I, Merge(..), Split(..), SplitResult(..))
 import Daml.Finance.Interface.Holding.V4.Transferable qualified as Transferable (I, Transfer(..))
-import Daml.Finance.Interface.Types.Common.V3.Types (InstrumentKey(..), Id(..) )
+import Daml.Finance.Interface.Types.Common.V3.Types (AccountKey(..), InstrumentKey(..), Id(..) )
 import Daml.Finance.Interface.Types.Common.V3.Types qualified as HoldingStandard (HoldingStandard(..) )
 import Daml.Finance.Interface.Util.V3.Common (qty, verify)
 import Daml.Finance.Interface.Util.V3.InterfaceKey (fetchInterfaceByKey)
-import Daml.Finance.Interface.Util.V3.Lockable qualified as Lockable (mustNotBeLocked, I)
+import Daml.Finance.Interface.Util.V3.Lockable qualified as Lockable (I, mustNotBeLocked, View(..))
 import Splice.Api.Token.HoldingV1 qualified as Api.HoldingV1
 import Splice.Api.Token.MetadataV1 qualified as SpliceMetadata
 
@@ -122,6 +123,36 @@ mergeImpl this getAmount setAmount Fungible.Merge{fungibleCids} = do
       pure $ aggregatedAmount + getAmount otherHolding
   tot <- foldlA aggregate vHolding.amount fungibleCids
   fmap toInterfaceContractId . create . setAmount $ tot
+
+-- | Helper to construct the standard Api.HoldingV1.HoldingView shared by
+--  BaseHolding, Fungible, Transferable and TransferableFungible implementations.
+--  Converts internal holding state into the API-facing representation.
+toApiHoldingView : Lockable.View -> InstrumentKey -> AccountKey -> Decimal -> Api.HoldingV1.HoldingView
+toApiHoldingView lockView instrument account amount =
+  Api.HoldingV1.HoldingView with
+    owner = account.owner
+    instrumentId = Api.HoldingV1.InstrumentId with
+      admin = instrument.issuer
+      id = show instrument.id
+    amount = amount
+    lock = case lockView.lock of
+      None -> None
+      Some l ->
+        Some Api.HoldingV1.Lock with
+          holders = toList l.lockers
+          expiresAt = None
+          expiresAfter = None
+          context = Some (intercalate ", " (toList l.context))
+    meta =
+      SpliceMetadata.Metadata with
+        values = TextMap.fromList
+          [ ("depository", show instrument.depository)
+          , ("version", instrument.version)
+          , ("holdingStandard", show instrument.holdingStandard)
+          , ("custodian", show account.custodian)
+          , ("accountId", show account.id)
+          ]
+
 
 -- | HIDE
 -- Gets the rest amount of a split (if any) and verifies that split amounts are strictly positive
