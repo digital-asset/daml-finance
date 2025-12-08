@@ -19,8 +19,8 @@ let
     if pkgs.stdenv.isLinux then "linux" else
     throw "Unsupported OS";
 
+# Daml SDK on macOS is only available on x86 architecture
   arch =
-    # Daml SDK on macOS is only available on x86 architecture
     if pkgs.stdenv.isDarwin then "x86_64" else   
     if pkgs.stdenv.hostPlatform.system == "x86_64-linux" then "x86_64" else
     if pkgs.stdenv.hostPlatform.system == "aarch64-linux" then "aarch64"
