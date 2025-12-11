@@ -211,10 +211,9 @@ doc-code: doc-code-json
 		--index-template=docs/code-documentation-templates/base-rst-index-template.rst \
 		--hoogle-template=docs/code-documentation-templates/base-hoogle-template.txt \
 		--base-url=https://docs.daml.com/daml-finance/reference/code-documentation/daml-finance-rst \
-		--input-anchor=$(DPM_HOME)/sdk/$(SDK_VERSION)/damlc/resources/daml-base-anchors.json \
+		--input-anchor=$(DAML_ROOT)/sdk/$(SDK_VERSION)/damlc/resources/daml-base-anchors.json \
 		docs/build/daml-finance.json
 	
-# Comment: --input-anchor=$(DAML_ROOT)/sdk/$(SDK_VERSION)/damlc/resources/daml-base-anchors.json \
 
 .PHONY: clean-docs
 clean-docs:
