@@ -31,21 +31,34 @@ commands:
           command: |
             set -euo pipefail
 
-            if [ -f ~/.config/nix/nix.conf ]; then
-                echo '. /home/circleci/.nix-profile/etc/profile.d/nix.sh' >> "$BASH_ENV"
-                exit 0
+            echo "Ensuring Nix is loaded..."
+
+            if [ -f /home/circleci/.nix-profile/etc/profile.d/nix.sh ]; then
+              echo "Nix found in /home/circleci/.nix-profile"
+              . /home/circleci/.nix-profile/etc/profile.d/nix.sh
+
+            elif [ -f ~/.nix-profile/etc/profile.d/nix.sh ]; then
+              echo "Nix found in ~/.nix-profile"
+              . ~/.nix-profile/etc/profile.d/nix.sh
+
+            else
+              echo "Nix profile not found — installing..."
+              sh <(curl -fsSL https://nixos.org/nix/install) --no-daemon
+
+              if [ -f /home/circleci/.nix-profile/etc/profile.d/nix.sh ]; then
+                . /home/circleci/.nix-profile/etc/profile.d/nix.sh
+              else
+                . ~/.nix-profile/etc/profile.d/nix.sh
+              fi
             fi
 
-            # Disabling sandbox because:
-            # 1. It doesn't work on CircleCI (sethostname is not allowed)
-            # 2. We don't plan to build anything, so the risk is fairly low
-            mkdir -p ~/.config/nix
-            echo 'sandbox = false' >> ~/.config/nix/nix.conf
+            echo "Nix setup complete."
+            if [ -f /home/circleci/.nix-profile/etc/profile.d/nix.sh ]; then
+              echo ". /home/circleci/.nix-profile/etc/profile.d/nix.sh" >> "$BASH_ENV"
+            elif [ -f ~/.nix-profile/etc/profile.d/nix.sh ]; then
+              echo ". ~/.nix-profile/etc/profile.d/nix.sh" >> "$BASH_ENV"
+            fi
 
-            sh <(curl -fsSL --retry 8 https://nixos.org/nix/install) --no-daemon
-            . /home/circleci/.nix-profile/etc/profile.d/nix.sh
-            nix-shell shell.nix --run 'echo "Done loading all packages."'
-            echo '. /home/circleci/.nix-profile/etc/profile.d/nix.sh' >> "$BASH_ENV"
       - save_cache:
           key: nix-{{ checksum "/tmp/nix-cache-key" }}
           paths:
@@ -255,52 +268,72 @@ jobs:
       - checkout
       - setup_nix
       - run:
-          name: Validate Copyright headers
+          name: Configure DPM environment
           command: |
             set -euo pipefail
-            echo "Ensuring Nix is loaded..."
-            if [ -f /home/circleci/.nix-profile/etc/profile.d/nix.sh ]; then
-              . /home/circleci/.nix-profile/etc/profile.d/nix.sh
-            elif [ -f ~/.nix-profile/etc/profile.d/nix.sh ]; then
-              . ~/.nix-profile/etc/profile.d/nix.sh
-            else
-              echo "Nix profile not found - installing..."
-              sh <(curl -fsSL https://nixos.org/nix/install) --no-daemon
-              . ~/.nix-profile/etc/profile.d/nix.sh
-            fi
-            echo "Running copyright header check..."
+
+            echo "Persisting DPM environment variables..."
+            echo "export REPO_ROOT=$(pwd)" >> $BASH_ENV
+            echo "export DPM_REGISTRY=europe-docker.pkg.dev/da-images/public-all" >> $BASH_ENV
+            echo "export DPM_HOME=$(pwd)/.dpm" >> $BASH_ENV
+            echo "export DPM_SDK_VERSION=3.4.8" >> $BASH_ENV
+            echo "Configure DPM environment complete."
+
+      - run:
+          name: Install DPM SDK
+          command: |
+            set -euo pipefail
+
+            echo "Installing DPM SDK $DPM_SDK_VERSION..."
+            nix-shell --pure --run "DPM_REGISTRY=\"$DPM_REGISTRY\" dpm install \"$DPM_SDK_VERSION\""
+
+            echo "DPM SDK installation complete."
+
+      - run:
+          name: Validate Copyright headers
+          command: |
+            source $BASH_ENV
+            make ci-headers-check
       - run:
           name: Validate package versions
           command:
+            source $BASH_ENV
             nix-shell --pure --run 'export LANG=C.UTF-8; packell versioning validate'
       - run:
           name: Validate package data-dependencies
           command:
+            source $BASH_ENV
             nix-shell --pure --run 'export LANG=C.UTF-8; packell data-dependencies validate'
       - run_daml_build
       - run:
           name: Validate packages
           command:
+            source $BASH_ENV
             make ci-validate
       - run:
           name: Build java codegen
           command:
+            source $BASH_ENV
             make ci-build-java
       - run:
           name: Build javascript codegen
           command:
+            source $BASH_ENV
             make ci-build-js
       - run:
           name: Execute tests
           command:
+            source $BASH_ENV
             make ci-test
       - run:
           name: Build docs
           command:
+            source $BASH_ENV
             make ci-docs
       - run:
           name: Validate generated docs and build with Sphinx
           command:
+            source $BASH_ENV
             make ci-validate-generated-docs-full
       - save_cache:
           paths:
