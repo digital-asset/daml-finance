@@ -109,11 +109,21 @@ ci-build-js:
 		--pure \
 		--run 'dpm codegen-js -o .dars/.js .dars/*'
 
+# Find all test projects that contain a daml.yaml in BOTH locations:
+daml-test-projects := $(shell find package/test src/test -maxdepth 6 -name daml.yaml -exec dirname {} \; 2>/dev/null)
+
 .PHONY: ci-test
 ci-test:
-	@nix-shell \
-		--pure \
-		--run 'dpm test; ./$(SCRIPTS_DIR)/test-packages.sh'
+	@echo "Running dpm test on all Daml test packages..."
+	@nix-shell --pure --run '\
+		for proj in $(daml-test-projects); do \
+			echo "Testing package: $$proj"; \
+			(cd $$proj && dpm test) || exit $$?; \
+		done; \
+		echo ""; \
+		echo "All Daml test packages ran successfully!"; \
+	'
+
 
 .PHONY: ci-validate
 ci-validate:
