@@ -124,7 +124,6 @@ ci-test:
 		echo "All Daml test packages ran successfully!"; \
 	'
 
-
 .PHONY: ci-validate
 ci-validate:
 	@nix-shell \
