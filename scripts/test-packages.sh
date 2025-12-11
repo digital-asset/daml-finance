@@ -4,16 +4,20 @@
 
 set -euo pipefail
 
-# Use absolute paths to allow this script to be called from any location
-root_dir=$(cd "$(dirname $0)"; cd ..; pwd -P)
+root_dir=$(cd "$(dirname "$0")"; cd ..; pwd -P)
 
 echo "Running package tests..."
 
-# Run tests for all test packages (in package/test/*) defined in the packages config file
-packages_yaml=${root_dir}/package/packages.yaml
-test_package_paths=($(yq e '.local.packages | to_entries | map(.value.package.path) | .[] | select(. == "test/daml*")' ${packages_yaml}))
+# Parse packages.yaml to get test package paths
+packages_yaml="${root_dir}/package/packages.yaml"
+test_package_paths=($(yq e '.local.packages | to_entries | .[].value.package.path | select(. == "test/daml*")' "${packages_yaml}"))
+
 for test_package_path in "${test_package_paths[@]}"; do
-  dpm test --project-root ${root_dir}/package/${test_package_path}
+  pkg="${root_dir}/package/${test_package_path}"
+  echo "----------------------------------------"
+  echo "Testing package: $pkg"
+  echo "----------------------------------------"
+  (cd "$pkg" && dpm test)
 done
 
 echo ""
