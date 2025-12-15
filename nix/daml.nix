@@ -1,4 +1,4 @@
-{stdenv, jdk, curl, curl_cert, sdkVersion, damlVersion, tarPath, os, arch, osJFrog, hashes}: #added arch parameter
+{stdenv, jdk, curl, curl_cert, sdkVersion, damlVersion, tarPath, os, arch, osJFrog, hashes}: 
 let
   target_version =
     if arch != "" then "${os}-${arch}" else os;

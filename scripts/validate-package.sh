@@ -43,8 +43,8 @@ else
 fi
 
 # Extract the package id of the local
-released_dar_package_id=`daml damlc inspect-dar ${cache_package_dar} --json | jq -r .main_package_id`
-local_dar_package_id=`daml damlc inspect-dar ${package_dar_path} --json | jq -r .main_package_id`
+released_dar_package_id=`dpm inspect-dar ${cache_package_dar} --json | jq -r .main_package_id`
+local_dar_package_id=`dpm inspect-dar ${package_dar_path} --json | jq -r .main_package_id`
 
 if [[ ${released_dar_package_id} == ${local_dar_package_id} ]]; then
   echo "The package ${package_name} is valid! Local build matches released dar."
