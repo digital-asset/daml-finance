@@ -1,7 +1,7 @@
 SCRIPTS_DIR := scripts
 
 ##########################
-# Project Source (./src) #
+# Project (workspace)    #
 ##########################
 
 .PHONY: install
@@ -10,11 +10,11 @@ install:
 
 .PHONY: build
 build: install
-	dpm build
+	dpm build --all
 
 .PHONY: test
 test: build
-	dpm test
+	dpm test --all
 
 .PHONY: clean
 clean:
@@ -64,10 +64,11 @@ update-packages:
 build-all: build build-packages
 
 .PHONY: test-all
-test-all: test test-packages
+test-all: build
+	make ci-test
 
 .PHONY: clean-all
-clean-all: clean clean-packages clean-docs
+clean-all: clean clean-packages clean-docs clean-cache
 
 .PHONY: generate-docs
 generate-docs: doc-code
@@ -193,25 +194,32 @@ headers-update:
 # Documentation Generation #
 ############################
 
-DAML_SRC := $(shell find src/main/daml -name '*.daml')
+DAML_SRC := $(shell \
+	find package/main/daml \
+		-path '*/.daml' -prune -o \
+		-name '*.daml' -print)
 SDK_VERSION := $(shell yq e '.sdk-version' daml.yaml)
 DAML_ROOT := $(shell if [ -z ${DAML_HOME} ]; then echo ~/.daml; else echo ${DAML_HOME}; fi)
 
 DPM_HOME := $(shell if [ -z $${DPM_HOME} ]; then echo $$HOME/.dpm; else echo $${DPM_HOME}; fi)
 
+DOCS_BUILD_DIR := docs/build
+
 .PHONY: doc-code-json
-doc-code-json: $(DAML_SRC)
+doc-code-json: build
+	@mkdir -p $(DOCS_BUILD_DIR)
 	dpm docs \
-		--output=docs/build/daml-finance.json \
+		--combine \
 		--package-name=daml-finance \
 		--format Json \
-    $(DAML_SRC)
+		--output=$(DOCS_BUILD_DIR)/daml-finance.json \
+		$(DAML_SRC)
 
 .PHONY: doc-code
 doc-code: doc-code-json
 	dpm docs \
-		--output=docs/build/daml-finance-rst \
-		--output-hoogle=docs/build/daml-finance-hoogle.txt \
+		--output=$(DOCS_BUILD_DIR)/daml-finance-rst \
+		--output-hoogle=$(DOCS_BUILD_DIR)/daml-finance-hoogle.txt \
 		--input-format=json \
 		--format=Rst \
 		--exclude-instances=HasField,HasImplementation,HasFromInterface,HasToInterface,HasInterfaceView,HasExercise,HasExerciseGuarded,HasFromAnyChoice,HasToAnyChoice \
@@ -221,8 +229,8 @@ doc-code: doc-code-json
 		--hoogle-template=docs/code-documentation-templates/base-hoogle-template.txt \
 		--base-url=https://docs.daml.com/daml-finance/reference/code-documentation/daml-finance-rst \
 		--input-anchor=$(DAML_ROOT)/sdk/$(SDK_VERSION)/damlc/resources/daml-base-anchors.json \
-		docs/build/daml-finance.json
-	
+		$(DOCS_BUILD_DIR)/daml-finance.json
+	@echo "Daml Finance documentation generated successfully"
 
 .PHONY: clean-docs
 clean-docs:
