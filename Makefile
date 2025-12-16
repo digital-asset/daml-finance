@@ -235,3 +235,4 @@ doc-code: doc-code-json
 .PHONY: clean-docs
 clean-docs:
 	./$(SCRIPTS_DIR)/clean-docs.sh
+	
