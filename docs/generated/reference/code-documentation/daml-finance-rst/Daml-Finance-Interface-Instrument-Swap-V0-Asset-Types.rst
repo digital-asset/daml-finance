@@ -163,8 +163,6 @@ Data Types
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"referenceAssetId\" `Underlying <type-daml-finance-interface-instrument-swap-v0-asset-types-underlying-93813_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
 
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"underlyings\" :ref:`Instrument <type-daml-finance-instrument-swap-v0-asset-instrument-instrument-26627>` \[`Underlying <type-daml-finance-interface-instrument-swap-v0-asset-types-underlying-93813_>`_\]
-
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"underlyings\" `Asset <type-daml-finance-interface-instrument-swap-v0-asset-types-asset-43409_>`_ \[`Underlying <type-daml-finance-interface-instrument-swap-v0-asset-types-underlying-93813_>`_\]
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"weight\" `Underlying <type-daml-finance-interface-instrument-swap-v0-asset-types-underlying-93813_>`_ `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
@@ -174,8 +172,6 @@ Data Types
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"referenceAsset\" `Underlying <type-daml-finance-interface-instrument-swap-v0-asset-types-underlying-93813_>`_ :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>`
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"referenceAssetId\" `Underlying <type-daml-finance-interface-instrument-swap-v0-asset-types-underlying-93813_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"underlyings\" :ref:`Instrument <type-daml-finance-instrument-swap-v0-asset-instrument-instrument-26627>` \[`Underlying <type-daml-finance-interface-instrument-swap-v0-asset-types-underlying-93813_>`_\]
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"underlyings\" `Asset <type-daml-finance-interface-instrument-swap-v0-asset-types-asset-43409_>`_ \[`Underlying <type-daml-finance-interface-instrument-swap-v0-asset-types-underlying-93813_>`_\]
 

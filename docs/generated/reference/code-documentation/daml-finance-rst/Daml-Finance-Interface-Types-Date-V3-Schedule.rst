@@ -96,14 +96,6 @@ Data Types
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"businessDayAdjustment\" `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_ :ref:`BusinessDayAdjustment <type-daml-finance-interface-types-date-v3-calendar-businessdayadjustment-71551>`
 
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"callSchedule\" :ref:`Instrument <type-daml-finance-instrument-bond-v3-callable-instrument-instrument-58277>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"callSchedule\" :ref:`Callable <type-daml-finance-interface-instrument-bond-v3-callable-types-callable-12794>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"couponSchedule\" :ref:`Instrument <type-daml-finance-instrument-bond-v3-callable-instrument-instrument-58277>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"couponSchedule\" :ref:`Callable <type-daml-finance-interface-instrument-bond-v3-callable-types-callable-12794>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"effectiveDate\" `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_ `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"effectiveDateBusinessDayAdjustment\" `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`BusinessDayAdjustment <type-daml-finance-interface-types-date-v3-calendar-businessdayadjustment-71551>`)
@@ -114,46 +106,6 @@ Data Types
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"lastRegularPeriodEndDate\" `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_)
 
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"observationSchedule\" :ref:`Instrument <type-daml-finance-instrument-structuredproduct-v0-autocallable-instrument-instrument-72027>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"observationSchedule\" :ref:`AutoCallable <type-daml-finance-interface-instrument-structuredproduct-v0-autocallable-types-autocallable-58435>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"periodicSchedule\" :ref:`Instrument <type-daml-finance-instrument-bond-v3-fixedrate-instrument-instrument-67562>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"periodicSchedule\" :ref:`Instrument <type-daml-finance-instrument-bond-v3-floatingrate-instrument-instrument-91965>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"periodicSchedule\" :ref:`Instrument <type-daml-finance-instrument-bond-v3-inflationlinked-instrument-instrument-42121>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"periodicSchedule\" :ref:`Instrument <type-daml-finance-instrument-structuredproduct-v0-autocallable-instrument-instrument-72027>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"periodicSchedule\" :ref:`Instrument <type-daml-finance-instrument-structuredproduct-v0-barrierreverseconvertible-instrument-instrument-83873>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"periodicSchedule\" :ref:`Instrument <type-daml-finance-instrument-swap-v0-asset-instrument-instrument-26627>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"periodicSchedule\" :ref:`Instrument <type-daml-finance-instrument-swap-v0-creditdefault-instrument-instrument-63085>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"periodicSchedule\" :ref:`Instrument <type-daml-finance-instrument-swap-v0-currency-instrument-instrument-45179>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"periodicSchedule\" :ref:`Instrument <type-daml-finance-instrument-swap-v0-interestrate-instrument-instrument-3842>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"periodicSchedule\" :ref:`FixedRate <type-daml-finance-interface-instrument-bond-v3-fixedrate-types-fixedrate-8592>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"periodicSchedule\" :ref:`FloatingRate <type-daml-finance-interface-instrument-bond-v3-floatingrate-types-floatingrate-91442>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"periodicSchedule\" :ref:`InflationLinked <type-daml-finance-interface-instrument-bond-v3-inflationlinked-types-inflationlinked-43736>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"periodicSchedule\" :ref:`AutoCallable <type-daml-finance-interface-instrument-structuredproduct-v0-autocallable-types-autocallable-58435>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"periodicSchedule\" :ref:`BarrierReverseConvertible <type-daml-finance-interface-instrument-structuredproduct-v0-barrierreverseconvertible-types-barrierreverseconvertible-74687>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"periodicSchedule\" :ref:`Asset <type-daml-finance-interface-instrument-swap-v0-asset-types-asset-43409>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"periodicSchedule\" :ref:`CreditDefault <type-daml-finance-interface-instrument-swap-v0-creditdefault-types-creditdefault-30509>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"periodicSchedule\" :ref:`CurrencySwap <type-daml-finance-interface-instrument-swap-v0-currency-types-currencyswap-39660>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"periodicSchedule\" :ref:`InterestRate <type-daml-finance-interface-instrument-swap-v0-interestrate-types-interestrate-17655>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"stubPeriodType\" `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `StubPeriodTypeEnum <type-daml-finance-interface-types-date-v3-schedule-stubperiodtypeenum-99734_>`_)
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"terminationDate\" `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_ `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
@@ -161,14 +113,6 @@ Data Types
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"terminationDateBusinessDayAdjustment\" `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`BusinessDayAdjustment <type-daml-finance-interface-types-date-v3-calendar-businessdayadjustment-71551>`)
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"businessDayAdjustment\" `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_ :ref:`BusinessDayAdjustment <type-daml-finance-interface-types-date-v3-calendar-businessdayadjustment-71551>`
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"callSchedule\" :ref:`Instrument <type-daml-finance-instrument-bond-v3-callable-instrument-instrument-58277>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"callSchedule\" :ref:`Callable <type-daml-finance-interface-instrument-bond-v3-callable-types-callable-12794>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"couponSchedule\" :ref:`Instrument <type-daml-finance-instrument-bond-v3-callable-instrument-instrument-58277>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"couponSchedule\" :ref:`Callable <type-daml-finance-interface-instrument-bond-v3-callable-types-callable-12794>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"effectiveDate\" `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_ `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
 
@@ -179,46 +123,6 @@ Data Types
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"frequency\" `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_ `ScheduleFrequency <type-daml-finance-interface-types-date-v3-schedule-schedulefrequency-11056_>`_
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"lastRegularPeriodEndDate\" `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_)
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"observationSchedule\" :ref:`Instrument <type-daml-finance-instrument-structuredproduct-v0-autocallable-instrument-instrument-72027>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"observationSchedule\" :ref:`AutoCallable <type-daml-finance-interface-instrument-structuredproduct-v0-autocallable-types-autocallable-58435>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"periodicSchedule\" :ref:`Instrument <type-daml-finance-instrument-bond-v3-fixedrate-instrument-instrument-67562>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"periodicSchedule\" :ref:`Instrument <type-daml-finance-instrument-bond-v3-floatingrate-instrument-instrument-91965>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"periodicSchedule\" :ref:`Instrument <type-daml-finance-instrument-bond-v3-inflationlinked-instrument-instrument-42121>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"periodicSchedule\" :ref:`Instrument <type-daml-finance-instrument-structuredproduct-v0-autocallable-instrument-instrument-72027>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"periodicSchedule\" :ref:`Instrument <type-daml-finance-instrument-structuredproduct-v0-barrierreverseconvertible-instrument-instrument-83873>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"periodicSchedule\" :ref:`Instrument <type-daml-finance-instrument-swap-v0-asset-instrument-instrument-26627>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"periodicSchedule\" :ref:`Instrument <type-daml-finance-instrument-swap-v0-creditdefault-instrument-instrument-63085>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"periodicSchedule\" :ref:`Instrument <type-daml-finance-instrument-swap-v0-currency-instrument-instrument-45179>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"periodicSchedule\" :ref:`Instrument <type-daml-finance-instrument-swap-v0-interestrate-instrument-instrument-3842>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"periodicSchedule\" :ref:`FixedRate <type-daml-finance-interface-instrument-bond-v3-fixedrate-types-fixedrate-8592>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"periodicSchedule\" :ref:`FloatingRate <type-daml-finance-interface-instrument-bond-v3-floatingrate-types-floatingrate-91442>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"periodicSchedule\" :ref:`InflationLinked <type-daml-finance-interface-instrument-bond-v3-inflationlinked-types-inflationlinked-43736>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"periodicSchedule\" :ref:`AutoCallable <type-daml-finance-interface-instrument-structuredproduct-v0-autocallable-types-autocallable-58435>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"periodicSchedule\" :ref:`BarrierReverseConvertible <type-daml-finance-interface-instrument-structuredproduct-v0-barrierreverseconvertible-types-barrierreverseconvertible-74687>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"periodicSchedule\" :ref:`Asset <type-daml-finance-interface-instrument-swap-v0-asset-types-asset-43409>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"periodicSchedule\" :ref:`CreditDefault <type-daml-finance-interface-instrument-swap-v0-creditdefault-types-creditdefault-30509>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"periodicSchedule\" :ref:`CurrencySwap <type-daml-finance-interface-instrument-swap-v0-currency-types-currencyswap-39660>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"periodicSchedule\" :ref:`InterestRate <type-daml-finance-interface-instrument-swap-v0-interestrate-types-interestrate-17655>` `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"stubPeriodType\" `PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `StubPeriodTypeEnum <type-daml-finance-interface-types-date-v3-schedule-stubperiodtypeenum-99734_>`_)
 
@@ -302,10 +206,6 @@ Data Types
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"adjustedStartDate\" `SchedulePeriod <type-daml-finance-interface-types-date-v3-schedule-scheduleperiod-72606_>`_ `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
 
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"calculationPeriod\" CalculationPeriodData `SchedulePeriod <type-daml-finance-interface-types-date-v3-schedule-scheduleperiod-72606_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"calculationPeriod\" CalculationPeriodStaticData `SchedulePeriod <type-daml-finance-interface-types-date-v3-schedule-scheduleperiod-72606_>`_
-
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"stubType\" `SchedulePeriod <type-daml-finance-interface-types-date-v3-schedule-scheduleperiod-72606_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `StubPeriodTypeEnum <type-daml-finance-interface-types-date-v3-schedule-stubperiodtypeenum-99734_>`_)
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"unadjustedEndDate\" `SchedulePeriod <type-daml-finance-interface-types-date-v3-schedule-scheduleperiod-72606_>`_ `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
@@ -315,10 +215,6 @@ Data Types
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"adjustedEndDate\" `SchedulePeriod <type-daml-finance-interface-types-date-v3-schedule-scheduleperiod-72606_>`_ `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"adjustedStartDate\" `SchedulePeriod <type-daml-finance-interface-types-date-v3-schedule-scheduleperiod-72606_>`_ `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"calculationPeriod\" CalculationPeriodData `SchedulePeriod <type-daml-finance-interface-types-date-v3-schedule-scheduleperiod-72606_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"calculationPeriod\" CalculationPeriodStaticData `SchedulePeriod <type-daml-finance-interface-types-date-v3-schedule-scheduleperiod-72606_>`_
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"stubType\" `SchedulePeriod <type-daml-finance-interface-types-date-v3-schedule-scheduleperiod-72606_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `StubPeriodTypeEnum <type-daml-finance-interface-types-date-v3-schedule-stubperiodtypeenum-99734_>`_)
 

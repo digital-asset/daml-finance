@@ -53,13 +53,9 @@ Data Types
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"allocation\" :ref:`View <type-daml-finance-interface-settlement-v4-instruction-view-97904>` `Allocation <type-daml-finance-interface-settlement-v4-types-allocation-41200_>`_
 
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"allocation\" :ref:`Instruction <type-daml-finance-settlement-v4-instruction-instruction-65077>` `Allocation <type-daml-finance-interface-settlement-v4-types-allocation-41200_>`_
-
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"allocation\" :ref:`Allocate <type-daml-finance-interface-settlement-v4-instruction-allocate-48530>` `Allocation <type-daml-finance-interface-settlement-v4-types-allocation-41200_>`_
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"allocation\" :ref:`View <type-daml-finance-interface-settlement-v4-instruction-view-97904>` `Allocation <type-daml-finance-interface-settlement-v4-types-allocation-41200_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"allocation\" :ref:`Instruction <type-daml-finance-settlement-v4-instruction-instruction-65077>` `Allocation <type-daml-finance-interface-settlement-v4-types-allocation-41200_>`_
 
 .. _type-daml-finance-interface-settlement-v4-types-approval-77821:
 
@@ -106,13 +102,9 @@ Data Types
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"approval\" :ref:`View <type-daml-finance-interface-settlement-v4-instruction-view-97904>` `Approval <type-daml-finance-interface-settlement-v4-types-approval-77821_>`_
 
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"approval\" :ref:`Instruction <type-daml-finance-settlement-v4-instruction-instruction-65077>` `Approval <type-daml-finance-interface-settlement-v4-types-approval-77821_>`_
-
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"approval\" :ref:`Approve <type-daml-finance-interface-settlement-v4-instruction-approve-69723>` `Approval <type-daml-finance-interface-settlement-v4-types-approval-77821_>`_
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"approval\" :ref:`View <type-daml-finance-interface-settlement-v4-instruction-view-97904>` `Approval <type-daml-finance-interface-settlement-v4-types-approval-77821_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"approval\" :ref:`Instruction <type-daml-finance-settlement-v4-instruction-instruction-65077>` `Approval <type-daml-finance-interface-settlement-v4-types-approval-77821_>`_
 
 .. _type-daml-finance-interface-settlement-v4-types-instructionkey-88375:
 
@@ -158,20 +150,6 @@ Data Types
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"id\" `InstructionKey <type-daml-finance-interface-settlement-v4-types-instructionkey-88375_>`_ :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"instructor\" `InstructionKey <type-daml-finance-interface-settlement-v4-types-instructionkey-88375_>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
-
-  **instance** `HasExerciseByKey <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercisebykey-36549>`_ :ref:`Instruction <type-daml-finance-settlement-v4-instruction-instruction-65077>` `InstructionKey <type-daml-finance-interface-settlement-v4-types-instructionkey-88375_>`_ `Archive <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-template-archive-15178>`_ ()
-
-  **instance** `HasFetchByKey <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasfetchbykey-54638>`_ :ref:`Instruction <type-daml-finance-settlement-v4-instruction-instruction-65077>` `InstructionKey <type-daml-finance-interface-settlement-v4-types-instructionkey-88375_>`_
-
-  **instance** `HasFromAnyContractKey <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasfromanycontractkey-95587>`_ :ref:`Instruction <type-daml-finance-settlement-v4-instruction-instruction-65077>` `InstructionKey <type-daml-finance-interface-settlement-v4-types-instructionkey-88375_>`_
-
-  **instance** `HasKey <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-template-functions-haskey-87616>`_ :ref:`Instruction <type-daml-finance-settlement-v4-instruction-instruction-65077>` `InstructionKey <type-daml-finance-interface-settlement-v4-types-instructionkey-88375_>`_
-
-  **instance** `HasLookupByKey <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-template-functions-haslookupbykey-92299>`_ :ref:`Instruction <type-daml-finance-settlement-v4-instruction-instruction-65077>` `InstructionKey <type-daml-finance-interface-settlement-v4-types-instructionkey-88375_>`_
-
-  **instance** `HasMaintainer <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasmaintainer-28932>`_ :ref:`Instruction <type-daml-finance-settlement-v4-instruction-instruction-65077>` `InstructionKey <type-daml-finance-interface-settlement-v4-types-instructionkey-88375_>`_
-
-  **instance** `HasToAnyContractKey <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-template-functions-hastoanycontractkey-35010>`_ :ref:`Instruction <type-daml-finance-settlement-v4-instruction-instruction-65077>` `InstructionKey <type-daml-finance-interface-settlement-v4-types-instructionkey-88375_>`_
 
 .. _type-daml-finance-interface-settlement-v4-types-quantity-86875:
 
@@ -269,13 +247,9 @@ Data Types
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"routedStep\" :ref:`View <type-daml-finance-interface-settlement-v4-instruction-view-97904>` `RoutedStep <type-daml-finance-interface-settlement-v4-types-routedstep-26293_>`_
 
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"routedStep\" :ref:`Instruction <type-daml-finance-settlement-v4-instruction-instruction-65077>` `RoutedStep <type-daml-finance-interface-settlement-v4-types-routedstep-26293_>`_
-
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"routedSteps\" :ref:`View <type-daml-finance-interface-settlement-v4-batch-view-11618>` \[`RoutedStep <type-daml-finance-interface-settlement-v4-types-routedstep-26293_>`_\]
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"routedSteps\" :ref:`Instruct <type-daml-finance-interface-settlement-v4-factory-instruct-82391>` \[`RoutedStep <type-daml-finance-interface-settlement-v4-types-routedstep-26293_>`_\]
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"routedStepsWithInstructionId\" :ref:`Batch <type-daml-finance-settlement-v4-batch-batch-9941>` \[(`RoutedStep <type-daml-finance-interface-settlement-v4-types-routedstep-26293_>`_, :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`)\]
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"sender\" `RoutedStep <type-daml-finance-interface-settlement-v4-types-routedstep-26293_>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
 
@@ -289,13 +263,9 @@ Data Types
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"routedStep\" :ref:`View <type-daml-finance-interface-settlement-v4-instruction-view-97904>` `RoutedStep <type-daml-finance-interface-settlement-v4-types-routedstep-26293_>`_
 
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"routedStep\" :ref:`Instruction <type-daml-finance-settlement-v4-instruction-instruction-65077>` `RoutedStep <type-daml-finance-interface-settlement-v4-types-routedstep-26293_>`_
-
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"routedSteps\" :ref:`View <type-daml-finance-interface-settlement-v4-batch-view-11618>` \[`RoutedStep <type-daml-finance-interface-settlement-v4-types-routedstep-26293_>`_\]
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"routedSteps\" :ref:`Instruct <type-daml-finance-interface-settlement-v4-factory-instruct-82391>` \[`RoutedStep <type-daml-finance-interface-settlement-v4-types-routedstep-26293_>`_\]
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"routedStepsWithInstructionId\" :ref:`Batch <type-daml-finance-settlement-v4-batch-batch-9941>` \[(`RoutedStep <type-daml-finance-interface-settlement-v4-types-routedstep-26293_>`_, :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`)\]
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"sender\" `RoutedStep <type-daml-finance-interface-settlement-v4-types-routedstep-26293_>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
 

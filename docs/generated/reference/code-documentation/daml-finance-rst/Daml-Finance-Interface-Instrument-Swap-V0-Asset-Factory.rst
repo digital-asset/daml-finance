@@ -63,10 +63,6 @@ Data Types
 
   Type synonym for ``Factory``\.
 
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"assetSwapFactoryCid\" :ref:`DistributionRule <type-daml-finance-instrument-swap-v0-asset-distributionrule-distributionrule-67789>` (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-instrument-swap-v0-asset-factory-i-5355_>`_)
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"assetSwapFactoryCid\" :ref:`DistributionRule <type-daml-finance-instrument-swap-v0-asset-distributionrule-distributionrule-67789>` (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-instrument-swap-v0-asset-factory-i-5355_>`_)
-
 .. _type-daml-finance-interface-instrument-swap-v0-asset-factory-v-25068:
 
 **type** `V <type-daml-finance-interface-instrument-swap-v0-asset-factory-v-25068_>`_

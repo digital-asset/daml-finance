@@ -109,10 +109,6 @@ Data Types
 
   **instance** HasMethod :ref:`Factory <type-daml-finance-interface-settlement-v4-factory-factory-87188>` \"instruct\" (:ref:`Instruct <type-daml-finance-interface-settlement-v4-factory-instruct-82391>` \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-settlement-v4-batch-i-86753_>`_, \[`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-v4-instruction-i-65587>`\]))
 
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"batchCid\" :ref:`ClaimResult <type-daml-finance-interface-lifecycle-v4-rule-claim-claimresult-10226>` (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-settlement-v4-batch-i-86753_>`_)
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"batchCid\" :ref:`ClaimResult <type-daml-finance-interface-lifecycle-v4-rule-claim-claimresult-10226>` (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-settlement-v4-batch-i-86753_>`_)
-
 .. _type-daml-finance-interface-settlement-v4-batch-v-54326:
 
 **type** `V <type-daml-finance-interface-settlement-v4-batch-v-54326_>`_
