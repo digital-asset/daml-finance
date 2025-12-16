@@ -111,7 +111,7 @@ ci-build-js:
 		--run 'dpm codegen-js -o .dars/.js .dars/*'
 
 # Find all test projects that contain a daml.yaml in BOTH locations:
-daml-test-projects := $(shell find package/test src/test -maxdepth 6 -name daml.yaml -exec dirname {} \; 2>/dev/null)
+daml-test-projects := $(shell find package/test -maxdepth 6 -name daml.yaml -exec dirname {} \; 2>/dev/null)
 
 .PHONY: ci-test
 ci-test:
