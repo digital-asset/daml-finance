@@ -16,7 +16,7 @@ shortens the time-to-market when developing Daml applications.
 
 ## Getting started using the library
 
-The [Daml Finance documentation](https://digital-asset.github.io/daml-finance/) provides a number of
+The [Daml Finance documentation](https://docs.daml.com/daml-finance/) provides a number of
 options to get started using the library.
 
 The [Daml Finance Demo App](https://github.com/digital-asset/daml-finance-app/) showcases how
