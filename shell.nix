@@ -51,18 +51,6 @@ in
 pkgs.mkShell {
   SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
 
-  shellHook = ''
-    set -euo pipefail
-
-    export DAML_HOME="$HOME/.daml"
-    SDK_VERSION="${damlYaml."sdk-version"}"
-
-    if [ ! -d "$DAML_HOME/sdk/$SDK_VERSION" ]; then
-      echo "Daml SDK $SDK_VERSION not found in $DAML_HOME/sdk. Installing with: dpm install $SDK_VERSION"
-      dpm install "$SDK_VERSION"
-    fi
-  '';
-
   buildInputs = [
     daml
     dpm
