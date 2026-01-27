@@ -41,7 +41,7 @@ let
     arch = arch;
     osJFrog = "${os}-${arch}";
     hashes = {
-      linux = "zPPJJfor22GHpovh2HOJH7AKQLfSW9p0UPgcZCdhSGM=";
+      linux = "07Pcs/OIYNnkSeK4wPSLz61sAqtA4wEl5oTh8rouhdY=";
       macos = "CNYJOM9SdfnWZfRwyBh5EQq98JHcwzNcmlB2nAL13jE=";
     };
   };
