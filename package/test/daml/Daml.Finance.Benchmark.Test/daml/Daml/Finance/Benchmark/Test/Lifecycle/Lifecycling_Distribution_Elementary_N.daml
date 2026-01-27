@@ -1,0 +1,350 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Benchmark.Test.Lifecycle.Lifecycling_Distribution_Elementary_N where
+
+import Daml.Script
+
+import DA.Set qualified as Set
+import DA.Text (trim)
+
+-- Common types
+import Daml.Finance.Interface.Types.Common.V3.Types
+  ( Id(..), AccountKey(..), InstrumentKey(..), HoldingFactoryKey(..), HoldingStandard(..) )
+
+-- Token instrument
+import Daml.Finance.Interface.Instrument.Token.V4.Factory qualified as TokenFactory (Create(..), I)
+import Daml.Finance.Interface.Instrument.Token.V4.Types (Token(..))
+
+-- Account + Holding bootstrap
+import Daml.Finance.Interface.Account.V4.Factory qualified as AccountFactory (Create(..), I)
+import Daml.Finance.Interface.Account.V4.Account qualified as Account (Credit(..), I, Controllers(..))
+import Daml.Finance.Interface.Holding.V4.Factory qualified as HoldingFactory (I, Reference(..), View(..))
+import Daml.Finance.Holding.V4.Factory qualified as HoldingImpl (Factory(..))      
+import Daml.Finance.Account.V4.Account qualified as AccountImpl                     
+
+-- Settlement prereqs for Claim.Rule
+import Daml.Finance.Interface.Settlement.V4.RouteProvider qualified as RouteProvider (I)
+import Daml.Finance.Interface.Settlement.V4.Factory qualified as SettlementFactory (I)
+import Daml.Finance.Settlement.V4.RouteProvider.SingleCustodian (SingleCustodian(..))
+import Daml.Finance.Settlement.V4.Factory qualified as Settlement (Factory(..))
+
+import Daml.Finance.Interface.Settlement.V4.Batch qualified as Batch (Settle(..))
+import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.V4.Types (Allocation(..), Approval(..))
+
+-- Lifecycle (requires Daml.Finance.Lifecycle.V4 implementation DAR)
+import Daml.Finance.Interface.Lifecycle.V4.Event qualified as Event (I)
+import Daml.Finance.Interface.Lifecycle.V4.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I)
+import Daml.Finance.Interface.Lifecycle.V4.Rule.Claim qualified as Claim (ClaimEffect(..), I)
+
+import Daml.Finance.Lifecycle.V4.Event.Distribution qualified as Distribution (Event(..))
+import Daml.Finance.Lifecycle.V4.Rule.Distribution qualified as Distribution (Rule(..))
+import Daml.Finance.Lifecycle.V4.Rule.Claim qualified as Claim (Rule(..))
+
+import Daml.Finance.Interface.Util.V3.Common (qty)
+
+-- Splice holding interface
+import Splice.Api.Token.HoldingV1 qualified as Api (Holding)
+import Daml.Finance.Instrument.Token.V4.Factory qualified as TokenImpl (Factory(..))
+
+--------------------------------------------------------------------------------
+-- Setup storage
+
+template LifecyclingSetup
+  with
+    bank : Party
+    bob : Party
+    suffix : Text
+
+    -- Settlement infra
+    routeProviderCid : ContractId RouteProvider.I
+    settlementFactoryCid : ContractId SettlementFactory.I
+
+    -- Factories + keys
+    tokenFactoryCid : ContractId TokenFactory.I
+    accountFactoryCid : ContractId AccountFactory.I
+    holdingFactoryKey : HoldingFactoryKey
+
+    -- Objects for the run
+    bobAccount : AccountKey
+    usdInstrument : InstrumentKey
+    tokenInstrument : InstrumentKey
+    bobHoldingCid : ContractId Api.Holding
+
+  where
+    signatory bank
+    observer bob
+    key (bank, suffix) : (Party, Text)
+    maintainer key._1
+
+--------------------------------------------------------------------------------
+-- Helpers
+
+parseParty : Text -> Script Party
+parseParty t =
+  case partyFromText (trim t) of
+    Some p -> pure p
+    None -> abort ("Bad party id: " <> show t)
+
+--------------------------------------------------------------------------------
+-- 1) Setup: create minimal infra + bobAccount + bobHoldingCid
+--
+-- Args (3): (bank, bob, suffix)
+--
+-- Creates:
+--   - Holding factory (for Splice holdings)
+--   - Account factory + Bob account at bank custodian
+--   - Token factory + instruments (USD + TOKEN)
+--   - Credits Bob with TOKEN -> bobHoldingCid (Splice.Api.Token.HoldingV1.Holding)
+--   - RouteProvider + SettlementFactory (needed by Claim.Rule)
+--
+runSetupLifecycling : (Text, Text, Text) -> Script ()
+runSetupLifecycling (bankText, bobText, suffixText) = script do
+  bank <- parseParty bankText
+  bob  <- parseParty bobText
+  let suffix = trim suffixText
+
+  -- 1) Create Holding Factory (implementation)
+  let holdingFactoryId = Id ("holdingFactory-" <> suffix)
+
+  -- 1) Create Holding Factory (implementation) and get interface cid
+  holdingFactoryCid <- toInterfaceContractId @HoldingFactory.I <$> submit bank do
+    createCmd HoldingImpl.Factory with
+      provider = bank
+      id = holdingFactoryId
+      observers = mempty
+
+  let holdingFactoryKey =
+        HoldingFactoryKey with provider = bank; id = holdingFactoryId
+
+  -- 1b) Create HoldingFactory.Reference (THIS fixes CONTRACT_KEY_NOT_FOUND)
+  _holdingFactoryRefCid <- submit bank do
+    createCmd HoldingFactory.Reference with
+      factoryView = HoldingFactory.View with
+        provider = bank
+        id = holdingFactoryId
+      cid = holdingFactoryCid
+      observers = mempty
+
+  -- 2) Create Account Factory (needs bank + bob, because the Account it creates has both as signatories)
+  accountFactoryCid <- toInterfaceContractId @AccountFactory.I <$> submit (actAs [bank, bob]) do
+    createCmd AccountImpl.Factory with
+      provider = bank
+      observers = mempty
+
+  -- 3) Create Token Factory
+  tokenFactoryCid <- toInterfaceContractId @TokenFactory.I <$> submit bank do
+    createCmd TokenImpl.Factory with
+      provider = bank
+      observers = mempty
+
+  -- 4) Create Bob account at custodian=bank
+  let bobAccount : AccountKey =
+        AccountKey with custodian = bank; owner = bob; id = Id ("bob-acct-" <> suffix)
+
+  let controllers =
+        Account.Controllers with
+          outgoing = Set.singleton bank
+          incoming = Set.singleton bank
+
+  -- IMPORTANT: keep the returned Account.I cid (don’t query AccountImpl.Account)
+  (bobAccountCid : ContractId Account.I) <- submit (actAs [bank, bob]) do
+    exerciseCmd accountFactoryCid AccountFactory.Create with
+        account = bobAccount
+        holdingFactory = holdingFactoryKey
+        controllers = controllers
+        observers = mempty
+        description = "Benchmark Bob account"
+
+  -- 5) Create instruments (USD + TOKEN)
+  let usdInstrument : InstrumentKey =
+        InstrumentKey with
+          depository = bank
+          issuer = bank
+          id = Id ("USD-" <> suffix)
+          version = "0"
+          holdingStandard = TransferableFungible
+
+  let tokenInstrument : InstrumentKey =
+        InstrumentKey with
+          depository = bank
+          issuer = bank
+          id = Id ("TOKEN-" <> suffix)
+          version = "0"
+          holdingStandard = TransferableFungible
+
+  now <- getTime
+
+  submit bank do
+    exerciseCmd tokenFactoryCid TokenFactory.Create with
+      token = Token with
+        instrument = usdInstrument
+        description = "USD cash instrument (benchmark)"
+        validAsOf = now
+      observers = mempty
+
+  submit bank do
+    exerciseCmd tokenFactoryCid TokenFactory.Create with
+      token = Token with
+        instrument = tokenInstrument
+        description = "Token instrument (benchmark)"
+        validAsOf = now
+      observers = mempty
+
+  -- 6) Credit Bob with TOKEN on bobAccount -> Splice holding cid
+  -- IMPORTANT: Account.Credit is authorized by the custodian (bank) (matches your auth error)
+  bobHoldingCid <- submit bank do
+    exerciseCmd bobAccountCid Account.Credit with
+      quantity = qty 10.0 tokenInstrument
+
+
+  -- 7) RouteProvider + SettlementFactory
+  routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit bank do
+    createCmd SingleCustodian with
+      provider = bank
+      observers = Set.fromList [bob]
+      custodian = bank
+
+  settlementFactoryCid <- toInterfaceContractId @SettlementFactory.I <$> submit bank do
+    createCmd Settlement.Factory with
+      provider = bank
+      observers = Set.fromList [bob]
+
+  submit bank do
+    createCmd LifecyclingSetup with
+      bank
+      bob
+      suffix
+      routeProviderCid
+      settlementFactoryCid
+      tokenFactoryCid
+      accountFactoryCid
+      holdingFactoryKey
+      bobAccount
+      usdInstrument
+      tokenInstrument
+      bobHoldingCid
+
+  debug "Lifecycling setup done"
+  pure ()
+
+--------------------------------------------------------------------------------
+-- 2) Run (elementary): Rule + Event + Evolve + Claim -> Allocate/Approve -> Batch.Settle
+--
+-- Args (2): (bank, suffix)
+--
+runLifecyclingOnce : (Text, Text) -> Script ()
+runLifecyclingOnce (bankText, suffixText) = script do
+  bank <- parseParty bankText
+  let suffix = trim suffixText
+
+  m <- queryContractKey @LifecyclingSetup bank (bank, suffix)
+  (_setupCid, s) <- case m of
+    None -> abort ("Setup not found for suffix=" <> show suffix)
+    Some x -> pure x
+
+  -- Create new token instrument version (ex-distribution)
+  let newTokenInstrument = s.tokenInstrument with version = "1"
+  now <- getTime
+  submit s.bank do
+    exerciseCmd s.tokenFactoryCid TokenFactory.Create with
+      token = Token with
+        instrument = newTokenInstrument
+        description = "Token instrument after distribution"
+        validAsOf = now
+      observers = mempty
+
+  -- Create rules
+  distributionRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit s.bank do
+    createCmd Distribution.Rule with
+      providers = Set.singleton s.bank
+      lifecycler = s.bank
+      observers = Set.singleton s.bob
+      id = Id ("dist-rule-" <> suffix)
+      description = "Distribution lifecycle rule (benchmark)"
+
+  claimRuleCid <- toInterfaceContractId @Claim.I <$> submit s.bank do
+    createCmd Claim.Rule with
+      provider = s.bank
+      claimers = Set.singleton s.bob
+      settlers = Set.singleton s.bob
+      routeProviderCid = s.routeProviderCid
+      settlementFactoryCid = s.settlementFactoryCid
+      netInstructions = False
+
+  -- Create event
+  distributionEventCid <- toInterfaceContractId @Event.I <$> submit s.bank do
+    createCmd Distribution.Event with
+      providers = Set.singleton s.bank
+      id = Id ("DISTRIBUTION-" <> suffix)
+      description = "Profit distribution"
+      effectiveTime = now
+      targetInstrument = s.tokenInstrument
+      newInstrument = newTokenInstrument
+      perUnitDistribution = [qty 0.02 s.usdInstrument]
+      observers = mempty
+
+  -- Evolve -> effect
+  (_, effectCids) <- submit s.bank do
+    exerciseCmd distributionRuleCid Lifecycle.Evolve with
+      eventCid = distributionEventCid
+      observableCids = []
+      instrument = s.tokenInstrument
+
+  effectCid <- case effectCids of
+    [x] -> pure x
+    _ -> abort "Expected exactly 1 effectCid"
+
+  -- Claim -> batch + instructions
+  now2 <- getTime
+  let batchIdTxt = "DistributionSettlement-" <> suffix <> "-" <> show now2
+
+  result <- submit s.bob do
+    exerciseCmd claimRuleCid Claim.ClaimEffect with
+      claimer = s.bob
+      holdingCids = [s.bobHoldingCid]
+      effectCid = effectCid
+      batchId = Id batchIdTxt
+  
+  let [bobInstructionCid, bankInstructionCid, couponInstructionCid] = result.instructionCids
+  
+  -- Allocate
+  (bobInstructionCid2, _) <- submit (actAs [s.bob, s.bank]) do
+    exerciseCmd bobInstructionCid Instruction.Allocate with
+      actors = Set.fromList [s.bob, s.bank]
+      allocation = Pledge s.bobHoldingCid
+
+  (bankInstructionCid2, _) <- submit s.bank do
+    exerciseCmd bankInstructionCid Instruction.Allocate with
+      actors = Set.singleton s.bank
+      allocation = CreditReceiver
+
+  (couponInstructionCid2, _) <- submit s.bank do
+    exerciseCmd couponInstructionCid Instruction.Allocate with
+      actors = Set.singleton s.bank
+      allocation = CreditReceiver
+
+  -- Approve
+  _ <- submit (actAs [s.bob, s.bank]) do
+    exerciseCmd bobInstructionCid2 Instruction.Approve with
+      actors   = Set.fromList [s.bob, s.bank]
+      approval = DebitSender
+
+  _ <- submit (actAs [s.bob, s.bank]) do
+    exerciseCmd bankInstructionCid2 Instruction.Approve with
+      actors   = Set.fromList [s.bob, s.bank]
+      approval = TakeDelivery s.bobAccount
+
+  _ <- submit (actAs [s.bob, s.bank]) do
+    exerciseCmd couponInstructionCid2 Instruction.Approve with
+      actors   = Set.fromList [s.bob, s.bank]
+      approval = TakeDelivery s.bobAccount
+
+
+  -- Settle
+  _newHoldings : [ContractId Api.Holding] <- submit (actAs [s.bob, s.bank]) do
+    exerciseCmd result.batchCid Batch.Settle with
+        actors = Set.singleton s.bob
+
+  pure ()

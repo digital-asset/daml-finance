@@ -1,0 +1,175 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Benchmark.Test.OneCreate_N where
+
+import Daml.Script
+import Daml.Finance.Benchmark.Test.Preload_N
+import DA.Text (splitOn)
+import DA.List (dedup)
+
+-- -----------------------------------------------------------------------------
+-- Helpers
+-- -----------------------------------------------------------------------------
+
+parseParty : Text -> Script Party
+parseParty t =
+  case partyFromText t of
+    Some p -> pure p
+    None -> abort ("Bad party id: " <> t)
+
+-- packed = "OWNER_ID||obs1;obs2;obs3"
+-- observers section is optional: "OWNER_ID" is also accepted
+unpackOwnerAndObservers : Text -> Script (Party, [Party])
+unpackOwnerAndObservers packed = do
+  let parts = splitOn "||" packed
+
+  ownerText <- case parts of
+    [o, _] -> pure o
+    [o]    -> pure o
+    _      -> abort ("Bad packed arg (expected OWNER_ID||obs...): " <> packed)
+
+  let observersText =
+        case parts of
+          [_, obs] -> obs
+          _        -> ""
+
+  owner <- parseParty ownerText
+
+  let observerTextsRaw =
+        if observersText == "" then [] else splitOn ";" observersText
+  let observerTexts = filter (/= "") observerTextsRaw
+
+  observers0 <- mapA parseParty observerTexts
+  let observers = dedup observers0
+
+  pure (owner, observers)
+
+mkName : Text -> Text
+mkName suffix = "create-" <> suffix
+
+logCid : Text -> ContractId a -> Script ()
+logCid label cid = debug (label <> ": CID=" <> show cid)
+
+logCids : Text -> [ContractId a] -> Script ()
+logCids label cids =
+  debug (label <> ": CIDS=" <> show cids)
+
+-- -----------------------------------------------------------------------------
+-- Variant 1: BenchKeyed_OwnerCtrl
+-- Fields: owner, observers, name
+-- Input: (packed, suffix)
+-- -----------------------------------------------------------------------------
+
+runOwnerCtrl : (Text, Text) -> Script (ContractId BenchKeyed_OwnerCtrl)
+runOwnerCtrl (packed, suffix) = script do
+  (owner, observers) <- unpackOwnerAndObservers packed
+  let name = mkName suffix
+  cid <- submit owner do
+    createCmd BenchKeyed_OwnerCtrl with
+      owner
+      observers
+      name
+  logCid "BenchKeyed_OwnerCtrl" cid
+  pure cid
+
+-- -----------------------------------------------------------------------------
+-- Variant 2: BenchKeyed_TwoSignatories
+-- Fields: owner, cp, observers, name
+-- Input: (packed, cpText, suffix)
+--
+-- IMPORTANT:
+--   signatory owner, cp  => must submit [owner, cp] for create
+-- -----------------------------------------------------------------------------
+
+runTwoSignatories : (Text, Text, Text) -> Script (ContractId BenchKeyed_TwoSignatories)
+runTwoSignatories (packed, cpText, suffix) = script do
+  (owner, observers) <- unpackOwnerAndObservers packed
+  cp <- parseParty cpText
+  let name = mkName suffix
+  cid <- submit [owner, cp] do
+    createCmd BenchKeyed_TwoSignatories with
+      owner
+      cp
+      observers
+      name
+  logCid "BenchKeyed_TwoSignatories" cid
+  pure cid
+
+-- -----------------------------------------------------------------------------
+-- Variant 3: BenchKeyed_CpControls
+-- Fields: owner, cp, observers, name
+-- (template does observer cp :: observers)
+-- Input: (packed, cpText, suffix)
+-- Create is authorized by signatory owner, so submit as owner.
+-- -----------------------------------------------------------------------------
+
+runCpControls : (Text, Text, Text) -> Script (ContractId BenchKeyed_CpControls)
+runCpControls (packed, cpText, suffix) = script do
+  (owner, observers0) <- unpackOwnerAndObservers packed
+  cp <- parseParty cpText
+  -- Hygiene: remove cp from observers to avoid duplication (template already adds cp)
+  let observers = filter (/= cp) observers0
+  let name = mkName suffix
+  cid <- submit owner do
+    createCmd BenchKeyed_CpControls with
+      owner
+      cp
+      observers
+      name
+  logCid "BenchKeyed_CpControls" cid
+  pure cid
+
+-- -----------------------------------------------------------------------------
+-- Variant 4: BenchKeyed_JointCtrl
+-- Fields: owner, cp, observers, name
+-- (template does observer cp :: observers)
+-- Input: (packed, cpText, suffix)
+-- Create is authorized by signatory owner, so submit as owner.
+-- -----------------------------------------------------------------------------
+
+runJointCtrl : (Text, Text, Text) -> Script (ContractId BenchKeyed_JointCtrl)
+runJointCtrl (packed, cpText, suffix) = script do
+  (owner, observers0) <- unpackOwnerAndObservers packed
+  cp <- parseParty cpText
+  -- Hygiene: remove cp from observers to avoid duplication (template already adds cp)
+  let observers = filter (/= cp) observers0
+  let name = mkName suffix
+  cid <- submit owner do
+    createCmd BenchKeyed_JointCtrl with
+      owner
+      cp
+      observers
+      name
+  logCid "BenchKeyed_JointCtrl" cid
+  pure cid
+
+
+-- -----------------------------------------------------------------------------
+-- Variant 5: BenchKeyed_ThreeSignatories
+-- Fields: owner, cp, cp2, observers, name
+-- Input: (packed, cpText, cp2Text, suffix)
+--   signatory owner, cp, cp2  => must submit [owner, cp, cp2] for create
+-- -----------------------------------------------------------------------------
+
+runThreeSignatories : (Text, Text, Text, Text) -> Script (ContractId BenchKeyed_ThreeSignatories)
+runThreeSignatories (packed, cpText, cp2Text, suffix) = script do
+  (owner, observers0) <- unpackOwnerAndObservers packed
+  cp  <- parseParty cpText
+  cp2 <- parseParty cp2Text
+
+  let observers = filter (\p -> p /= cp && p /= cp2) observers0
+
+  let name = mkName suffix
+
+  cid <- submit [owner, cp, cp2] do
+    createCmd BenchKeyed_ThreeSignatories with
+      owner
+      cp
+      cp2
+      observers
+      name
+
+  logCid "BenchKeyed_ThreeSignatories" cid
+  pure cid
+

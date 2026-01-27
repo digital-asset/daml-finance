@@ -1,0 +1,224 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Benchmark.Test.ViewsBench_N where
+
+import Daml.Script
+import DA.Text (splitOn)
+
+import Daml.Finance.Benchmark.Test.Preload_N
+
+--------------------------------------------------------------------------------
+-- Helpers
+
+parseParty : Text -> Script Party
+parseParty t =
+  case partyFromText t of
+    Some p -> pure p
+    None -> abort ("Bad party id: " <> t)
+
+-- Input like: "p1;p2"
+parseTwoParties : Text -> Script (Party, Party)
+parseTwoParties partiesText = do
+  let raw = if partiesText == "" then [] else splitOn ";" partiesText
+  let cleaned = filter (/= "") raw
+  case cleaned of
+    [a,b] -> do
+      pa <- parseParty a
+      pb <- parseParty b
+      pure (pa, pb)
+    _ -> abort ("Expected exactly 2 parties in OBSERVERS_TEXT (format: p1;p2), got: " <> partiesText)
+
+-- Input like: "p1;p2;p3" (we only need first 3, but enforce exactly 3 for clarity)
+parseThreeParties : Text -> Script (Party, Party, Party)
+parseThreeParties partiesText = do
+  let raw = if partiesText == "" then [] else splitOn ";" partiesText
+  let cleaned = filter (/= "") raw
+  case cleaned of
+    [a,b,c] -> do
+      pa <- parseParty a
+      pb <- parseParty b
+      pc <- parseParty c
+      pure (pa, pb, pc)
+    _ -> abort ("Expected exactly 3 parties in OBSERVERS_TEXT (format: p1;p2;p3), got: " <> partiesText)
+
+-- Deterministic keys by (owner, name)
+mkName : Text -> Text -> Text
+mkName prefix suffix = prefix <> "-" <> suffix
+
+debugCommon : Party -> Text -> Text -> Script ()
+debugCommon owner observersText suffix = do
+  debug ("OWNER_ID=" <> partyToText owner)
+  debug ("OBSERVERS_TEXT=" <> observersText)
+  debug ("SUFFIX=" <> suffix)
+
+--------------------------------------------------------------------------------
+-- A) Create-only fanout
+--   - create 2 or 3 BenchKeyed_View contracts in ONE tx
+--   - each contract has ONE observer (different observers to force fanout)
+
+-- Args: (OWNER_ID, "obs1;obs2", suffix)
+runCreate2 : (Text, Text, Text) -> Script ()
+runCreate2 (ownerText, observersText, suffix) = script do
+  owner <- parseParty ownerText
+  (cp1, cp2) <- parseTwoParties observersText
+  debugCommon owner observersText suffix
+
+  _ <- submit owner (
+        (\c1 c2 -> [c1, c2])
+          <$> createCmd (BenchKeyed_View with owner; obs = cp1; name = mkName "create-1" suffix)
+          <*> createCmd (BenchKeyed_View with owner; obs = cp2; name = mkName "create-2" suffix)
+      )
+
+  debug "Created 2 BenchKeyed_View"
+  pure ()
+
+-- Args: (OWNER_ID, "obs1;obs2;obs3", suffix)
+runCreate3 : (Text, Text, Text) -> Script ()
+runCreate3 (ownerText, observersText, suffix) = script do
+  owner <- parseParty ownerText
+  (cp1, cp2, cp3) <- parseThreeParties observersText
+  debugCommon owner observersText suffix
+
+  _ <- submit owner (
+        (\c1 c2 c3 -> [c1, c2, c3])
+          <$> createCmd (BenchKeyed_View with owner; obs = cp1; name = mkName "create-1" suffix)
+          <*> createCmd (BenchKeyed_View with owner; obs = cp2; name = mkName "create-2" suffix)
+          <*> createCmd (BenchKeyed_View with owner; obs = cp3; name = mkName "create-3" suffix)
+      )
+
+  debug "Created 3 BenchKeyed_View"
+  pure ()
+
+--------------------------------------------------------------------------------
+-- B) Exercise-only fanout (stable state first)
+--   - runSetup2/3 creates deterministic contracts (by key)
+--   - runPing2/3 looks them up by key and exercises Ping_View
+--   - This cleanly isolates "exercise" bytes
+
+-- Args: (OWNER_ID, "obs1;obs2", suffix)
+runSetup2 : (Text, Text, Text) -> Script ()
+runSetup2 (ownerText, observersText, suffix) = script do
+  owner <- parseParty ownerText
+  (cp1, cp2) <- parseTwoParties observersText
+  debugCommon owner observersText suffix
+
+  _ <- submit owner (
+        (createCmd
+            (BenchKeyed_View
+                {owner, obs = cp1, name = mkName "bench-1" suffix})
+            *>
+            createCmd
+                (BenchKeyed_View
+                    {owner, obs = cp2, name = mkName "bench-2" suffix}))
+            )
+
+  debug "Setup2 done"
+  pure ()
+
+-- Args: (OWNER_ID, suffix)
+-- Note: observers aren’t needed here because we lookup by key.
+runPing2 : (Text, Text) -> Script ()
+runPing2 (ownerText, suffix) = script do
+  owner <- parseParty ownerText
+  debug ("OWNER_ID=" <> partyToText owner)
+  debug ("SUFFIX=" <> suffix)
+
+  -- Look up by key: (owner, name)
+  let k1 = (owner, mkName "bench-1" suffix)
+  let k2 = (owner, mkName "bench-2" suffix)
+
+  _ <- submit owner (
+        (exerciseByKeyCmd @BenchKeyed_View k1 Ping_View
+            *> exerciseByKeyCmd @BenchKeyed_View k2 Ping_View)
+      )
+
+  debug "Ping2 done"
+  pure ()
+
+-- Args: (OWNER_ID, "obs1;obs2;obs3", suffix)
+runSetup3 : (Text, Text, Text) -> Script ()
+runSetup3 (ownerText, observersText, suffix) = script do
+  owner <- parseParty ownerText
+  (cp1, cp2, cp3) <- parseThreeParties observersText
+  debugCommon owner observersText suffix
+
+  _ <- submit owner (
+        (createCmd
+            (BenchKeyed_View
+                {owner, obs = cp1, name = mkName "bench-1" suffix})
+            *>
+            createCmd
+                (BenchKeyed_View
+                    {owner, obs = cp2, name = mkName "bench-2" suffix})
+            *>
+            createCmd
+                (BenchKeyed_View
+                    {owner, obs = cp3, name = mkName "bench-3" suffix}))
+      )
+
+  debug "Setup3 done"
+  pure ()
+
+-- Args: (OWNER_ID, suffix)
+runPing3 : (Text, Text) -> Script ()
+runPing3 (ownerText, suffix) = script do
+  owner <- parseParty ownerText
+  debug ("OWNER_ID=" <> partyToText owner)
+  debug ("SUFFIX=" <> suffix)
+
+  let k1 = (owner, mkName "bench-1" suffix)
+  let k2 = (owner, mkName "bench-2" suffix)
+  let k3 = (owner, mkName "bench-3" suffix)
+
+  _ <- submit owner (
+        (exerciseByKeyCmd @BenchKeyed_View k1 Ping_View
+            *> exerciseByKeyCmd @BenchKeyed_View k2 Ping_View
+            *> exerciseByKeyCmd @BenchKeyed_View k3 Ping_View)
+      )
+
+  debug "Ping3 done"
+  pure ()
+
+--------------------------------------------------------------------------------
+-- C) Create + exercise in ONE tx
+--   - create contract(s) and immediately exercise Ping_View by CID
+--   - isolates the "single transaction with N views" pattern
+
+-- Args: (OWNER_ID, "obs1;obs2", suffix)
+runCreate2ThenPing2 : (Text, Text, Text) -> Script ()
+runCreate2ThenPing2 (ownerText, observersText, suffix) = script do
+  owner <- parseParty ownerText
+  (cp1, cp2) <- parseTwoParties observersText
+  debugCommon owner observersText suffix
+
+  _ <- submit owner (
+        (\c1 c2 ->
+            (exerciseCmd c1 Ping_View *> exerciseCmd c2 Ping_View)
+        )
+          <$> createCmd (BenchKeyed_View with owner; obs = cp1; name = mkName "c2p2-1" suffix)
+          <*> createCmd (BenchKeyed_View with owner; obs = cp2; name = mkName "c2p2-2" suffix)
+      )
+
+  debug "Create2ThenPing2 done"
+  pure ()
+
+-- Args: (OWNER_ID, "obs1;obs2;obs3", suffix)
+runCreate3ThenPing3 : (Text, Text, Text) -> Script ()
+runCreate3ThenPing3 (ownerText, observersText, suffix) = script do
+  owner <- parseParty ownerText
+  (cp1, cp2, cp3) <- parseThreeParties observersText
+  debugCommon owner observersText suffix
+
+  _ <- submit owner (
+        (\c1 c2 c3 ->
+            (exerciseCmd c1 Ping_View *> exerciseCmd c2 Ping_View
+                *> exerciseCmd c3 Ping_View)
+        )
+          <$> createCmd (BenchKeyed_View with owner; obs = cp1; name = mkName "c3p3-1" suffix)
+          <*> createCmd (BenchKeyed_View with owner; obs = cp2; name = mkName "c3p3-2" suffix)
+          <*> createCmd (BenchKeyed_View with owner; obs = cp3; name = mkName "c3p3-3" suffix)
+      )
+
+  debug "Create3ThenPing3 done"
+  pure ()

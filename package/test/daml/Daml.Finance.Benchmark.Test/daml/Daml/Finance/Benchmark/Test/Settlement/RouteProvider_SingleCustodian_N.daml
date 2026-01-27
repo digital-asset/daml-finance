@@ -1,0 +1,161 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Benchmark.Test.Settlement.RouteProvider_SingleCustodian_N where
+
+import Daml.Script
+import DA.Set (fromList)
+import DA.Text (trim, parseInt, parseDecimal)
+
+import Daml.Finance.Interface.Settlement.V4.RouteProvider qualified as RouteProvider (Discover(..), I)
+import Daml.Finance.Interface.Settlement.V4.Types qualified as ST (Quantity(..), RoutedStep, Step(..))
+
+-- Splice InstrumentId used by Quantity
+import Splice.Api.Token.HoldingV1 (InstrumentId(..))
+
+-- Implementation: Single custodian route provider
+import Daml.Finance.Settlement.V4.RouteProvider.SingleCustodian (SingleCustodian(..))
+
+--------------------------------------------------------------------------------
+-- Stored benchmark setup (single source of truth)
+
+template RouteDiscoverySetup
+  with
+    provider : Party
+    alice : Party
+    bob : Party
+    custodian : Party
+    unit : InstrumentId
+    routeProviderCid : ContractId RouteProvider.I
+    suffix : Text
+  where
+    signatory provider
+    observer alice, bob
+    key (provider, suffix) : (Party, Text)
+    maintainer key._1
+
+--------------------------------------------------------------------------------
+-- Helpers
+
+parseParty : Text -> Script Party
+parseParty t =
+  case partyFromText (trim t) of
+    Some p -> pure p
+    None -> abort ("Bad party id: " <> show t)
+
+parseNat : Text -> Script Int
+parseNat t =
+  case parseInt (trim t) of
+    None -> abort ("Bad int: " <> show t)
+    Some n ->
+      if n < 0 then abort ("Expected non-negative int, got: " <> show n) else pure n
+
+parseDecimalOrAbort : Text -> Script Decimal
+parseDecimalOrAbort t =
+  case parseDecimal (trim t) of
+    Some d -> pure d
+    None -> abort ("Bad Decimal: " <> show t)
+
+parseInstrumentId : Party -> Text -> Script InstrumentId
+parseInstrumentId admin t =
+  pure (InstrumentId with
+    admin = admin
+    id = trim t
+  )
+
+debugCommon : Party -> Party -> Party -> Party -> InstrumentId -> Text -> Script ()
+debugCommon provider alice bob custodian unit suffix = do
+  debug $ "PROVIDER_ID=" <> show provider
+  debug $ "ALICE_ID=" <> show alice
+  debug $ "BOB_ID=" <> show bob
+  debug $ "CUSTODIAN_ID=" <> show custodian
+  debug $ "UNIT=" <> show unit
+  debug $ "SUFFIX=" <> show suffix
+
+mkStep : Party -> Party -> InstrumentId -> Decimal -> ST.Step
+mkStep alice bob unit amount =
+  ST.Step with
+    sender = alice
+    receiver = bob
+    quantity = ST.Quantity with
+      amount = amount
+      unit = unit
+
+--------------------------------------------------------------------------------
+-- 1) Setup: create SingleCustodian route provider + store in RouteDiscoverySetup
+
+-- Args:
+--   (provider, alice, bob, custodian, unit, suffix)
+runSetupRouteDiscovery : (Text, Text, Text, Text, Text, Text) -> Script ()
+runSetupRouteDiscovery (providerText, aliceText, bobText, custodianText, unitText, suffix) = script do
+  provider  <- parseParty providerText
+  alice <- parseParty aliceText
+  bob <- parseParty bobText
+  custodian <- parseParty custodianText
+  unit <- parseInstrumentId custodian unitText
+
+  debugCommon provider alice bob custodian unit suffix
+
+  routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit provider do
+    createCmd SingleCustodian with
+      provider = provider
+      observers = fromList [alice, bob]
+      custodian = custodian
+
+  submit provider do
+    createCmd RouteDiscoverySetup with
+      provider
+      alice
+      bob
+      custodian
+      unit
+      routeProviderCid
+      suffix
+
+  debug "RouteDiscovery setup done"
+  pure ()
+
+--------------------------------------------------------------------------------
+-- 2) Discover: call RouteProvider.Discover on N Steps (repeatable)
+
+-- Args:
+--   (provider, suffix, stepCount, amount)
+runDiscoverRoutes_N : (Text, Text, Text, Text) -> Script ()
+runDiscoverRoutes_N (providerText, suffix, stepCountText, amountText) = script do
+  provider <- parseParty providerText
+  n <- parseNat stepCountText
+  amount <- parseDecimalOrAbort amountText
+
+  m <- queryContractKey @RouteDiscoverySetup provider (provider, suffix)
+  (_setupCid, setup) <- case m of
+    None -> abort ("Setup not found for suffix=" <> show suffix <> " provider=" <> show provider)
+    Some x -> pure x
+
+  let alice = setup.alice
+  let bob   = setup.bob
+  let unit  = setup.unit
+
+  debugCommon provider alice bob setup.custodian unit suffix
+  debug ("STEP_COUNT=" <> show n <> " AMOUNT_PER_STEP=" <> show amount)
+
+  let steps : [ST.Step]
+      steps = replicate n (mkStep alice bob unit amount)
+
+  routedSteps : [ST.RoutedStep] <- submit (actAs [provider, alice, bob]) do
+    exerciseCmd setup.routeProviderCid RouteProvider.Discover with
+      discoverors = fromList [provider, alice, bob]
+      contextId = None
+      steps = steps
+
+  debug ("DISCOVER returned routedSteps=" <> show (length routedSteps))
+  pure ()
+
+--------------------------------------------------------------------------------
+-- Optional helper: list setups visible to provider (debug)
+
+debugListSetups : Text -> Script ()
+debugListSetups providerText = script do
+  provider <- parseParty providerText
+  setups <- query @RouteDiscoverySetup provider
+  debug ("#setups=" <> show (length setups))
+  pure ()

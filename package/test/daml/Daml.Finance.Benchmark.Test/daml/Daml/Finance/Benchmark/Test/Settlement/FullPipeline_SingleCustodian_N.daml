@@ -1,0 +1,245 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Benchmark.Test.Settlement.FullPipeline_SingleCustodian_N where
+
+import Daml.Script
+
+import DA.Foldable (mapA_)
+import DA.Set (singleton, fromList)
+import DA.Text (trim, parseInt, parseDecimal)
+
+-- INTERFACES
+import Daml.Finance.Interface.Settlement.V4.Batch qualified as Batch (Settle(..))
+import Daml.Finance.Interface.Settlement.V4.Factory qualified as SettlementFactory (Instruct(..), I)
+import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.V4.RouteProvider qualified as RouteProvider (Discover(..), I)
+import Daml.Finance.Interface.Settlement.V4.Types qualified as ST
+  ( Step(..)
+  , RoutedStep
+  , Quantity(..)
+  , Allocation(..)
+  , Approval(..)
+  )
+import Daml.Finance.Interface.Types.Common.V3.Types (Id(..))
+
+-- Splice InstrumentId used by Step.Quantity.unit
+import Splice.Api.Token.HoldingV1 (InstrumentId(..))
+
+-- IMPLEMENTATIONS
+import Daml.Finance.Settlement.V4.Factory qualified as Settlement (Factory(..))
+import Daml.Finance.Settlement.V4.RouteProvider.SingleCustodian (SingleCustodian(..))
+
+--------------------------------------------------------------------------------
+-- Stored benchmark setup (single source of truth)
+
+template FullPipelineSetup
+  with
+    centralBank : Party
+    alice : Party
+    bob : Party
+
+    -- “Single custodian” routing: everything routes through centralBank
+    routeProviderCid : ContractId RouteProvider.I
+    settlementFactoryCid : ContractId SettlementFactory.I
+
+    -- What we route + settle
+    unit : InstrumentId
+    stepCount : Int
+    amount : Decimal
+
+    suffix : Text
+  where
+    signatory centralBank
+    observer alice, bob
+    key (centralBank, suffix) : (Party, Text)
+    maintainer key._1
+
+--------------------------------------------------------------------------------
+-- Helpers
+
+parseParty : Text -> Script Party
+parseParty t =
+  case partyFromText (trim t) of
+    Some p -> pure p
+    None -> abort ("Bad party id: " <> show t)
+
+parseNat : Text -> Script Int
+parseNat t =
+  case parseInt (trim t) of
+    None -> abort ("Bad int: " <> show t)
+    Some n ->
+      if n < 0 then abort ("Expected non-negative int, got: " <> show n) else pure n
+
+parseDecimalOrAbort : Text -> Script Decimal
+parseDecimalOrAbort t =
+  case parseDecimal (trim t) of
+    Some d -> pure d
+    None -> abort ("Bad Decimal: " <> show t)
+
+mkInstrumentId : Party -> Text -> InstrumentId
+mkInstrumentId admin unitText =
+  InstrumentId with
+    admin = admin
+    id = trim unitText
+
+mkStep : Party -> Party -> InstrumentId -> Decimal -> ST.Step
+mkStep sender receiver unit amount =
+  ST.Step with
+    sender
+    receiver
+    quantity = ST.Quantity with
+      amount
+      unit
+
+debugCommon : Party -> Party -> Party -> InstrumentId -> Int -> Decimal -> Text -> Script ()
+debugCommon cb alice bob unit n amt suffix = do
+  debug ("CENTRALBANK_ID=" <> show cb)
+  debug ("ALICE_ID=" <> show alice)
+  debug ("BOB_ID=" <> show bob)
+  debug ("UNIT=" <> show unit)
+  debug ("STEP_COUNT=" <> show n)
+  debug ("AMOUNT_PER_STEP=" <> show amt)
+  debug ("SUFFIX=" <> show suffix)
+
+--------------------------------------------------------------------------------
+-- 1) Setup (once)
+--
+-- Args (7):
+--   (centralBank, alice, bob, unitText, stepCount, amount, suffix)
+--
+-- Creates:
+--   - RouteProvider (SingleCustodian)   provider=custodian=centralBank
+--   - Settlement Factory               provider=centralBank
+--   - Stores everything in FullPipelineSetup keyed by (centralBank, suffix)
+--
+runSetupFullPipeline : (Text, Text, Text, Text, Text, Text, Text) -> Script ()
+runSetupFullPipeline (cbText, aliceText, bobText, unitText, stepCountText, amountText, suffix) = script do
+  centralBank <- parseParty cbText
+  alice <- parseParty aliceText
+  bob <- parseParty bobText
+  n <- parseNat stepCountText
+  amt <- parseDecimalOrAbort amountText
+
+  let unit = mkInstrumentId centralBank unitText
+
+  debugCommon centralBank alice bob unit n amt suffix
+
+  routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit centralBank do
+    createCmd SingleCustodian with
+      provider = centralBank
+      observers = fromList [alice, bob]
+      custodian = centralBank
+
+  settlementFactoryCid <- toInterfaceContractId @SettlementFactory.I <$> submit centralBank do
+    createCmd Settlement.Factory with
+      provider = centralBank
+      observers = fromList [alice, bob]
+
+  submit centralBank do
+    createCmd FullPipelineSetup with
+      centralBank
+      alice
+      bob
+      routeProviderCid
+      settlementFactoryCid
+      unit
+      stepCount = n
+      amount = amt
+      suffix
+
+  debug "FullPipeline setup done"
+  pure ()
+
+--------------------------------------------------------------------------------
+-- 2) Full pipeline run (repeatable)
+--
+-- Args (2):
+--   (centralBank, suffix)
+--
+-- Measures in one run:
+--   - build Steps
+--   - RouteProvider.Discover
+--   - SettlementFactory.Instruct  -> Batch + Instructions
+--   - Allocate / Approve each instruction
+--   - Batch.Settle
+--
+-- IMPORTANT:
+-- This benchmark uses the “off-ledger settlement” variants to keep the setup minimal:
+--   Allocation = SettleOffledger
+--   Approval   = SettleOffledgerAcknowledge
+--
+runFullPipeline : (Text, Text) -> Script ()
+runFullPipeline (cbText, suffix) = script do
+  centralBank <- parseParty cbText
+
+  m <- queryContractKey @FullPipelineSetup centralBank (centralBank, suffix)
+  (_setupCid, s) <- case m of
+    None -> abort ("Setup not found for suffix=" <> show suffix <> " centralBank=" <> show centralBank)
+    Some x -> pure x
+
+  debugCommon s.centralBank s.alice s.bob s.unit s.stepCount s.amount suffix
+
+  let steps : [ST.Step]
+      steps = replicate s.stepCount (mkStep s.alice s.bob s.unit s.amount)
+
+  -- 1) Discover routing
+  routedSteps : [ST.RoutedStep] <- submit s.centralBank do
+    exerciseCmd s.routeProviderCid RouteProvider.Discover with
+      discoverors = fromList [s.centralBank]
+      contextId = None
+      steps
+
+  debug ("DISCOVER returned routedSteps=" <> show (length routedSteps))
+
+  -- 2) Instruct (creates Batch + Instructions)
+  --
+  -- Controllers: instructor, consenters
+  (batchCid, instructionCids) <- submit (actAs [s.centralBank, s.alice, s.bob]) do
+    exerciseCmd s.settlementFactoryCid SettlementFactory.Instruct with
+      instructor = s.centralBank
+      consenters = fromList [s.alice, s.bob]
+      settlers = fromList [s.centralBank]
+      id = Id ("batch-" <> suffix)
+      description = "Benchmark: Discover + Instruct + Allocate/Approve + Settle (SingleCustodian)"
+      contextId = None
+      routedSteps = routedSteps
+      settlementTime = None
+
+  debug ("INSTRUCT created instructions=" <> show (length instructionCids))
+
+  -- 3) Allocate (sender) + Approve (receiver) for each instruction
+  mapA_ (\icid -> do
+      -- Allocate: must be authorized by alice + centralBank
+      (allocatedCid, _meta) <- submit (actAs [s.alice, s.centralBank]) do
+        exerciseCmd icid Instruction.Allocate with
+          actors = fromList [s.alice, s.centralBank]
+          allocation = ST.SettleOffledger
+
+      -- Approve: very likely must be authorized by bob + centralBank as well
+      _approvedCid <- submit (actAs [s.bob, s.centralBank]) do
+        exerciseCmd allocatedCid Instruction.Approve with
+          actors = fromList [s.bob, s.centralBank]
+          approval = ST.SettleOffledgerAcknowledge
+
+      pure ()
+    ) instructionCids
+
+  -- 4) Settle batch
+  _settleResult <- submit s.centralBank do
+    exerciseCmd batchCid Batch.Settle with
+      actors = singleton s.centralBank
+
+  debug "FullPipeline settle done"
+  pure ()
+
+--------------------------------------------------------------------------------
+-- Optional debug
+
+debugListSetups : Text -> Script ()
+debugListSetups cbText = script do
+  centralBank <- parseParty cbText
+  setups <- query @FullPipelineSetup centralBank
+  debug ("#setups=" <> show (length setups))
+  mapA_ (\(_, x) -> debug ("suffix=" <> show x.suffix)) setups
+  pure ()

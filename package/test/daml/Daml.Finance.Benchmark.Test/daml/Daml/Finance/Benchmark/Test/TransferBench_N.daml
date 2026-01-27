@@ -1,0 +1,212 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Benchmark.Test.TransferBench_N where
+
+import Daml.Script
+import DA.Text (trim)
+
+import Daml.Finance.Interface.Types.Common.V3.Types
+  ( AccountKey(..)
+  , HoldingStandard(..)
+  , Id(..)
+  , InstrumentKey(..)
+  , PartiesMap
+  )
+
+import Daml.Finance.Holding.V4.BaseHolding qualified as BH
+import DA.Foldable (mapA_)
+
+--------------------------------------------------------------------------------
+-- Stored benchmark setup (single source of truth)
+
+template TransferBenchSetup
+  with
+    bank : Party
+    alice : Party              -- current owner
+    bob : Party                -- receiver
+    aliceAccount : AccountKey
+    bobAccount : AccountKey
+    instrument : InstrumentKey
+    aliceHoldingCid : ContractId BH.BaseHolding
+    suffix : Text
+  where
+    signatory bank
+    observer alice, bob
+    key (bank, suffix) : (Party, Text)
+    maintainer key._1
+
+--------------------------------------------------------------------------------
+-- Transfer request (coordination only)
+
+template TransferRequest
+  with
+    bank : Party
+    alice : Party
+    bob : Party
+    setupCid : ContractId TransferBenchSetup   -- NEW: pin to exact setup
+    bobAccount : AccountKey
+    instrument : InstrumentKey
+    amount : Decimal
+    holdingCid : ContractId BH.BaseHolding
+    suffix : Text
+  where
+    signatory bob
+    observer alice, bank
+
+    choice Accept : ContractId BH.BaseHolding
+      controller alice, bank
+      do
+        h <- fetch holdingCid
+
+        debug ("holding.account.custodian=" <> show h.account.custodian <> " bank=" <> show bank)
+
+        assertMsg "owner mismatch" (h.account.owner == alice)
+        assertMsg "custodian mismatch" (h.account.custodian == bank)
+        assertMsg "instrument mismatch" (h.instrument == instrument)
+        assertMsg "amount mismatch" (h.amount == amount)
+
+        -- Fetch THE SAME setup contract the script used
+        setup <- fetch setupCid
+        assertMsg "setup key bank mismatch" (setup.bank == bank)
+        assertMsg "setup suffix mismatch" (setup.suffix == suffix)
+        assertMsg "setup alice mismatch" (setup.alice == alice)
+        assertMsg "setup bob mismatch" (setup.bob == bob)
+        assertMsg "setup holding mismatch" (setup.aliceHoldingCid == holdingCid)
+
+        archive holdingCid
+
+        newHoldingCid <- create BH.BaseHolding with
+          instrument = instrument
+          account = bobAccount
+          amount = amount
+          lock = None
+          observers = h.observers
+
+        -- Rotate roles (ping-pong)
+        archive setupCid
+        create TransferBenchSetup with
+          bank = bank
+          alice = bob
+          bob = alice
+          aliceAccount = bobAccount
+          bobAccount = setup.aliceAccount
+          instrument = instrument
+          aliceHoldingCid = newHoldingCid
+          suffix = suffix
+
+        pure newHoldingCid
+
+
+--------------------------------------------------------------------------------
+-- Helpers
+
+parseParty : Text -> Script Party
+parseParty t =
+  case partyFromText t of
+    Some p -> pure p
+    None -> abort ("Bad party id: " <> t)
+
+debugCommon : Party -> Party -> Party -> Text -> Script ()
+debugCommon alice bank bob suffix = do
+  debug $ "ALICE_ID=" <> show alice
+  debug $ "BANK_ID=" <> show bank
+  debug $ "BOB_ID=" <> show bob
+  debug $ "SUFFIX=" <> show suffix
+
+--------------------------------------------------------------------------------
+-- 1) Setup
+
+runSetupTransfer : (Text, Text, Text, Text) -> Script ()
+runSetupTransfer (aliceText, bankText, bobText, suffix) = script do
+  bank  <- parseParty (trim bankText)
+  alice <- parseParty (trim aliceText)
+  bob   <- parseParty (trim bobText)
+
+  debugCommon alice bank bob suffix
+
+  let
+    aliceAccount = AccountKey with
+      owner = alice
+      custodian = bank
+      id = Id ("Alice@" <> partyToText bank)
+
+    bobAccount = AccountKey with
+      owner = bob
+      custodian = bank
+      id = Id ("Bob@" <> partyToText bank)
+
+    instrumentKey = InstrumentKey with
+      issuer = bank
+      depository = bank
+      id = Id "USD"
+      version = "0"
+      holdingStandard = BaseHolding
+
+  aliceHoldingCid <- submit (actAs [bank, alice]) do
+    createCmd BH.BaseHolding with
+      instrument = instrumentKey
+      account = aliceAccount
+      amount = 1000.0
+      lock = None
+      observers = (mempty : PartiesMap)
+
+  submit bank do
+    createCmd TransferBenchSetup with
+      bank
+      alice
+      bob
+      aliceAccount
+      bobAccount
+      instrument = instrumentKey
+      aliceHoldingCid
+      suffix
+
+  debug "TransferBench setup done"
+  pure ()
+
+
+--------------------------------------------------------------------------------
+-- 2) Transfer (repeatable)
+
+runTransfer : (Text, Text) -> Script ()
+runTransfer (bankText, suffix) = script do
+  bank <- parseParty (trim bankText)
+
+  m <- queryContractKey @TransferBenchSetup bank (bank, suffix)
+  (setupCid, setup) <- case m of
+    None -> abort ("Setup not found for suffix=" <> show suffix)
+    Some x -> pure x
+
+  let
+    alice = setup.alice
+    bob   = setup.bob
+
+  debugCommon alice bank bob suffix
+
+  requestCid <- submit bob do
+    createCmd TransferRequest with
+        bank = bank
+        alice = alice
+        bob = bob
+        setupCid = setupCid
+        bobAccount = setup.bobAccount
+        instrument = setup.instrument
+        amount = 1000.0
+        holdingCid = setup.aliceHoldingCid
+        suffix = suffix
+
+  submit (actAs [bank, alice]) do
+    exerciseCmd requestCid Accept
+
+  debug "Transfer done"
+  pure ()
+
+-- Debug: list all setups visible to bank (ignores keys)
+debugListSetups : Text -> Script ()
+debugListSetups bankText = script do
+  bank <- parseParty (trim bankText)
+  setups <- query @TransferBenchSetup bank
+  debug ("#setups=" <> show (length setups))
+  mapA_ (\(_, s) -> debug ("setup.suffix=" <> show s.suffix <> " bank=" <> show s.bank)) setups
+  pure ()
