@@ -1,4 +1,5 @@
 SCRIPTS_DIR := scripts
+export DPM_HOME := $(CURDIR)/.dpm
 
 ##########################
 # Project (workspace)    #
