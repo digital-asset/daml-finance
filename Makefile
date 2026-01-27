@@ -199,9 +199,8 @@ DAML_SRC := $(shell \
 		-path '*/.daml' -prune -o \
 		-name '*.daml' -print)
 SDK_VERSION := $(shell yq e '.sdk-version' daml.yaml)
+DPM_HOME ?= $(HOME)/.dpm
 DAML_ROOT := $(shell if [ -z ${DAML_HOME} ]; then echo ~/.daml; else echo ${DAML_HOME}; fi)
-
-DPM_HOME := $(shell if [ -z $${DPM_HOME} ]; then echo $$HOME/.dpm; else echo $${DPM_HOME}; fi)
 
 DOCS_BUILD_DIR := docs/build
 

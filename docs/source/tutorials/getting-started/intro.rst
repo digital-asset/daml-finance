@@ -56,7 +56,7 @@ Finally, you can start Daml Studio to inspect the code and run the project's scr
 
 .. code-block:: shell
 
-   daml studio
+   dpm studio
 
 .. _structure-of-code-dependencies:
 
