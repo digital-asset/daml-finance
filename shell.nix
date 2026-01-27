@@ -42,7 +42,7 @@ let
     osJFrog = "${os}-${arch}";
     hashes = {
       linux = "zPPJJfor22GHpovh2HOJH7AKQLfSW9p0UPgcZCdhSGM=";
-      macos = "hITo4qlasMbhuLGfUwGMhuvkwVRaNgWQLdl6mEDx2Ew=";
+      macos = "CNYJOM9SdfnWZfRwyBh5EQq98JHcwzNcmlB2nAL13jE=";
     };
   };
 
