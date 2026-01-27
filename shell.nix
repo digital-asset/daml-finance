@@ -51,6 +51,20 @@ in
 pkgs.mkShell {
   SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
 
+  shellHook = ''
+    set -eo pipefail
+
+    export DPM_HOME="$PWD/.dpm"
+    SDK_VERSION="${damlYaml.sdk-version}"
+
+    mkdir -p "$DPM_HOME/sdk/dpm-sdk"
+
+    # Make dpm see the SDK without downloading anything:
+    if [ ! -e "$DPM_HOME/sdk/dpm-sdk/$SDK_VERSION" ]; then
+      ln -s "${daml}/sdk/$SDK_VERSION" "$DPM_HOME/sdk/dpm-sdk/$SDK_VERSION"
+    fi
+  '';
+
   buildInputs = [
     daml
     dpm
