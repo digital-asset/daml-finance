@@ -41,19 +41,53 @@ let
     arch = arch;
     osJFrog = "${os}-${arch}";
     hashes = {
-                #base64 hashes from update-daml-hashes
-      linux = "zPPJJfor22GHpovh2HOJH7AKQLfSW9p0UPgcZCdhSGM=";
-      macos = "hITo4qlasMbhuLGfUwGMhuvkwVRaNgWQLdl6mEDx2Ew=";
+      linux = "07Pcs/OIYNnkSeK4wPSLz61sAqtA4wEl5oTh8rouhdY=";
+      macos = "CNYJOM9SdfnWZfRwyBh5EQq98JHcwzNcmlB2nAL13jE=";
     };
   };
 
 in
 pkgs.mkShell {
   SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+
+  shellHook = ''
+    set -euo pipefail
+    export DPM_HOME="$PWD/.dpm"
+    mkdir -p "$DPM_HOME"
+
+    export PATH="${dpm}/bin:$PATH"
+
+    export XDG_CONFIG_HOME="$PWD/.xdg-config"
+    mkdir -p "$XDG_CONFIG_HOME"
+
+    export DOCKER_CONFIG="$PWD/.docker"
+    mkdir -p "$DOCKER_CONFIG"
+    cat > "$DOCKER_CONFIG/config.json" <<'JSON'
+  { "auths": {} }
+  JSON
+
+    export DPM_REGISTRY="europe-docker.pkg.dev/da-images/public-all"
+
+    SDK_VERSION="${damlYaml."sdk-version"}"
+
+    if ! dpm version --all -o json 2>/dev/null \
+        | ${pkgs.jq}/bin/jq -e --arg v "$SDK_VERSION" \
+            'any(.[]; .version == $v and .installed == true)' >/dev/null 2>&1; then
+      echo "Installing SDK $SDK_VERSION into $DPM_HOME (registry=$DPM_REGISTRY)..."
+      dpm install "$SDK_VERSION"
+    fi
+
+    echo "Using dpm: $(command -v dpm || true)"
+    echo "DPM_HOME=$DPM_HOME"
+    echo "DPM_REGISTRY=$DPM_REGISTRY"
+    dpm version
+  '';
+
+
   buildInputs = [
     daml
     dpm
-    (packell { pkgs = pkgsGhc; stdenv = pkgsGhc.stdenv; version = "0.0.2"; })
+    (packell { pkgs = pkgsGhc; stdenv = pkgsGhc.stdenv; version = "0.0.3"; })
     pkgs.bash
     pkgs.binutils # cp, grep, etc.
     pkgs.cacert

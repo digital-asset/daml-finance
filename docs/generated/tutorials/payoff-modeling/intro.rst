@@ -56,7 +56,7 @@ Finally, you can start Daml Studio to inspect the code and run the project's scr
 
 .. code-block:: shell
 
-   daml studio
+   dpm studio
 
 .. TODO explain the role of acquisition date in the observations section (together with path-dependent payoffs)
 .. TODO Elections (options, callable bonds)

@@ -108,7 +108,7 @@ This downloads all required packages and builds the project. You can then run:
 
 .. code-block:: shell
 
-   daml studio
+   dpm studio
 
 to open the code editor and inspect the code.
 

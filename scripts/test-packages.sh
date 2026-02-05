@@ -14,9 +14,7 @@ test_package_paths=($(yq e '.local.packages | to_entries | .[].value.package.pat
 
 for test_package_path in "${test_package_paths[@]}"; do
   pkg="${root_dir}/package/${test_package_path}"
-  echo "----------------------------------------"
   echo "Testing package: $pkg"
-  echo "----------------------------------------"
   (cd "$pkg" && dpm test)
 done
 

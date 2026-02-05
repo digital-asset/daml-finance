@@ -145,8 +145,6 @@ Data Types
 
   **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `Controllers <type-daml-finance-interface-account-v4-account-controllers-59817_>`_
 
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"controllers\" :ref:`Account <type-daml-finance-account-v4-account-account-35720>` `Controllers <type-daml-finance-interface-account-v4-account-controllers-59817_>`_
-
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"controllers\" `View <type-daml-finance-interface-account-v4-account-view-18066_>`_ `Controllers <type-daml-finance-interface-account-v4-account-controllers-59817_>`_
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"controllers\" :ref:`Create <type-daml-finance-interface-account-v4-factory-create-72130>` `Controllers <type-daml-finance-interface-account-v4-account-controllers-59817_>`_
@@ -154,8 +152,6 @@ Data Types
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"incoming\" `Controllers <type-daml-finance-interface-account-v4-account-controllers-59817_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"outgoing\" `Controllers <type-daml-finance-interface-account-v4-account-controllers-59817_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"controllers\" :ref:`Account <type-daml-finance-account-v4-account-account-35720>` `Controllers <type-daml-finance-interface-account-v4-account-controllers-59817_>`_
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"controllers\" `View <type-daml-finance-interface-account-v4-account-view-18066_>`_ `Controllers <type-daml-finance-interface-account-v4-account-controllers-59817_>`_
 

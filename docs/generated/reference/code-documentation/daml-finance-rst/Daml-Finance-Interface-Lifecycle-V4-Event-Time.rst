@@ -47,13 +47,6 @@ Interfaces
          - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party retrieving the view\.
 
-  + **Method advance \:** `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`Time <type-daml-finance-interface-data-v4-reference-time-time-96632>` \-\> :ref:`Advance <type-daml-finance-interface-data-v4-reference-time-advance-64582>` \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`Time <type-daml-finance-interface-data-v4-reference-time-time-96632>`, `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Event <type-daml-finance-interface-lifecycle-v4-event-time-event-26986_>`_)
-
-    Implementation of the ``Advance`` choice\.
-
-  + **Method rewind \:** `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`Time <type-daml-finance-interface-data-v4-reference-time-time-96632>` \-\> :ref:`Rewind <type-daml-finance-interface-data-v4-reference-time-rewind-93104>` \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`Time <type-daml-finance-interface-data-v4-reference-time-time-96632>`, `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Event <type-daml-finance-interface-lifecycle-v4-event-time-event-26986_>`_)
-
-    Implementation of the ``Rewind`` choice\.
 
 Data Types
 ----------

@@ -209,13 +209,6 @@ Functions
 
   Scale ``Quantity`` by the provided factor\.
 
-.. _function-daml-finance-interface-instrument-base-v4-instrument-fetchinstrument-72799:
-
-`fetchInstrument <function-daml-finance-interface-instrument-base-v4-instrument-fetchinstrument-72799_>`_
-  \: `HasToInterface <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ t Holding \=\> t \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `Instrument <type-daml-finance-interface-instrument-base-v4-instrument-instrument-74494_>`_
-
-  Fetch instrument from holding\.
-
 .. _function-daml-finance-interface-instrument-base-v4-instrument-exerciseinterfacebykey-98720:
 
 `exerciseInterfaceByKey <function-daml-finance-interface-instrument-base-v4-instrument-exerciseinterfacebykey-98720_>`_

@@ -57,3 +57,20 @@ When developing please adhere to the [style guide](./STYLEGUIDE.md).
 ### Releases
 
 To perform a release of this project, please follow the guide [here](./RELEASE.MD).
+
+## Important Compatibility Notice (Canton Network)
+The `main` branch of this repository currently targets **Daml SDK 3.x** and uses an **unstable Ledger Fragment (LF) version (`2.dev`)**.
+
+As a result:
+
+- Artifacts built from `main` cannot be deployed to the Canton Network / MainNet
+- They are not compatible with any production Canton deployment
+- This setup is intended for development, experimentation, and forward-looking SDK work only
+
+The use of `LF 2.dev` is required for ongoing development on Daml 3, but is not supported on Canton MainNet, which only accepts stable LF versions.
+
+### What should I use instead?
+
+- For production Canton deployments, use a released version of Daml Finance that targets a stable LF version
+
+This notice will be updated once Daml 3 and its corresponding LF version are fully supported on Canton MainNet.

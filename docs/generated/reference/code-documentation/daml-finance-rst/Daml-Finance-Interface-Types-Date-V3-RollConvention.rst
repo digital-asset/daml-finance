@@ -37,19 +37,11 @@ Data Types
 
   **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `Period <type-daml-finance-interface-types-date-v3-rollconvention-period-94990_>`_
 
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"indexTenor\" :ref:`FloatingRateCalculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-floatingratecalculation-25241>` (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Period <type-daml-finance-interface-types-date-v3-rollconvention-period-94990_>`_)
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"indexTenor\" :ref:`StubFloatingRate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubfloatingrate-62557>` (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Period <type-daml-finance-interface-types-date-v3-rollconvention-period-94990_>`_)
-
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"period\" `Period <type-daml-finance-interface-types-date-v3-rollconvention-period-94990_>`_ `PeriodEnum <type-daml-finance-interface-types-date-v3-rollconvention-periodenum-45289_>`_
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"period\" :ref:`Frequency <type-daml-finance-interface-types-date-v3-schedule-frequency-37405>` `Period <type-daml-finance-interface-types-date-v3-rollconvention-period-94990_>`_
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"periodMultiplier\" `Period <type-daml-finance-interface-types-date-v3-rollconvention-period-94990_>`_ `Int <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"indexTenor\" :ref:`FloatingRateCalculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-floatingratecalculation-25241>` (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Period <type-daml-finance-interface-types-date-v3-rollconvention-period-94990_>`_)
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"indexTenor\" :ref:`StubFloatingRate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubfloatingrate-62557>` (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Period <type-daml-finance-interface-types-date-v3-rollconvention-period-94990_>`_)
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"period\" `Period <type-daml-finance-interface-types-date-v3-rollconvention-period-94990_>`_ `PeriodEnum <type-daml-finance-interface-types-date-v3-rollconvention-periodenum-45289_>`_
 
@@ -91,17 +83,9 @@ Data Types
 
   **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `PeriodEnum <type-daml-finance-interface-types-date-v3-rollconvention-periodenum-45289_>`_
 
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"period\" :ref:`DateOffset <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-dateoffset-80142>` `PeriodEnum <type-daml-finance-interface-types-date-v3-rollconvention-periodenum-45289_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"period\" :ref:`FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248>` `PeriodEnum <type-daml-finance-interface-types-date-v3-rollconvention-periodenum-45289_>`_
-
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"period\" :ref:`DateOffset <type-daml-finance-interface-types-date-v3-dateoffset-dateoffset-75159>` `PeriodEnum <type-daml-finance-interface-types-date-v3-rollconvention-periodenum-45289_>`_
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"period\" `Period <type-daml-finance-interface-types-date-v3-rollconvention-period-94990_>`_ `PeriodEnum <type-daml-finance-interface-types-date-v3-rollconvention-periodenum-45289_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"period\" :ref:`DateOffset <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-dateoffset-80142>` `PeriodEnum <type-daml-finance-interface-types-date-v3-rollconvention-periodenum-45289_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"period\" :ref:`FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248>` `PeriodEnum <type-daml-finance-interface-types-date-v3-rollconvention-periodenum-45289_>`_
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"period\" :ref:`DateOffset <type-daml-finance-interface-types-date-v3-dateoffset-dateoffset-75159>` `PeriodEnum <type-daml-finance-interface-types-date-v3-rollconvention-periodenum-45289_>`_
 
@@ -136,10 +120,6 @@ Data Types
 
   **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `RollConventionEnum <type-daml-finance-interface-types-date-v3-rollconvention-rollconventionenum-89490_>`_
 
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"rollConvention\" :ref:`CalculationPeriodFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodfrequency-78985>` `RollConventionEnum <type-daml-finance-interface-types-date-v3-rollconvention-rollconventionenum-89490_>`_
-
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"rollConvention\" :ref:`Frequency <type-daml-finance-interface-types-date-v3-schedule-frequency-37405>` `RollConventionEnum <type-daml-finance-interface-types-date-v3-rollconvention-rollconventionenum-89490_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"rollConvention\" :ref:`CalculationPeriodFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodfrequency-78985>` `RollConventionEnum <type-daml-finance-interface-types-date-v3-rollconvention-rollconventionenum-89490_>`_
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"rollConvention\" :ref:`Frequency <type-daml-finance-interface-types-date-v3-schedule-frequency-37405>` `RollConventionEnum <type-daml-finance-interface-types-date-v3-rollconvention-rollconventionenum-89490_>`_

@@ -74,43 +74,11 @@ Data Types
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"fixingDates\" `FloatingRate <type-daml-finance-interface-instrument-types-v2-floatingrate-floatingrate-56149_>`_ `FixingDates <type-daml-finance-interface-instrument-types-v2-floatingrate-fixingdates-58708_>`_
 
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"floatingRate\" :ref:`Instrument <type-daml-finance-instrument-bond-v3-callable-instrument-instrument-58277>` (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `FloatingRate <type-daml-finance-interface-instrument-types-v2-floatingrate-floatingrate-56149_>`_)
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"floatingRate\" :ref:`Instrument <type-daml-finance-instrument-bond-v3-floatingrate-instrument-instrument-91965>` `FloatingRate <type-daml-finance-interface-instrument-types-v2-floatingrate-floatingrate-56149_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"floatingRate\" :ref:`Instrument <type-daml-finance-instrument-swap-v0-asset-instrument-instrument-26627>` (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `FloatingRate <type-daml-finance-interface-instrument-types-v2-floatingrate-floatingrate-56149_>`_)
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"floatingRate\" :ref:`Instrument <type-daml-finance-instrument-swap-v0-interestrate-instrument-instrument-3842>` `FloatingRate <type-daml-finance-interface-instrument-types-v2-floatingrate-floatingrate-56149_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"floatingRate\" :ref:`Callable <type-daml-finance-interface-instrument-bond-v3-callable-types-callable-12794>` (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `FloatingRate <type-daml-finance-interface-instrument-types-v2-floatingrate-floatingrate-56149_>`_)
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"floatingRate\" :ref:`FloatingRate <type-daml-finance-interface-instrument-bond-v3-floatingrate-types-floatingrate-91442>` `FloatingRate <type-daml-finance-interface-instrument-types-v2-floatingrate-floatingrate-56149_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"floatingRate\" :ref:`Asset <type-daml-finance-interface-instrument-swap-v0-asset-types-asset-43409>` (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `FloatingRate <type-daml-finance-interface-instrument-types-v2-floatingrate-floatingrate-56149_>`_)
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"floatingRate\" :ref:`InterestRate <type-daml-finance-interface-instrument-swap-v0-interestrate-types-interestrate-17655>` `FloatingRate <type-daml-finance-interface-instrument-types-v2-floatingrate-floatingrate-56149_>`_
-
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"referenceRateId\" `FloatingRate <type-daml-finance-interface-instrument-types-v2-floatingrate-floatingrate-56149_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"referenceRateType\" `FloatingRate <type-daml-finance-interface-instrument-types-v2-floatingrate-floatingrate-56149_>`_ `ReferenceRateTypeEnum <type-daml-finance-interface-instrument-types-v2-floatingrate-referenceratetypeenum-15522_>`_
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"fixingDates\" `FloatingRate <type-daml-finance-interface-instrument-types-v2-floatingrate-floatingrate-56149_>`_ `FixingDates <type-daml-finance-interface-instrument-types-v2-floatingrate-fixingdates-58708_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"floatingRate\" :ref:`Instrument <type-daml-finance-instrument-bond-v3-callable-instrument-instrument-58277>` (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `FloatingRate <type-daml-finance-interface-instrument-types-v2-floatingrate-floatingrate-56149_>`_)
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"floatingRate\" :ref:`Instrument <type-daml-finance-instrument-bond-v3-floatingrate-instrument-instrument-91965>` `FloatingRate <type-daml-finance-interface-instrument-types-v2-floatingrate-floatingrate-56149_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"floatingRate\" :ref:`Instrument <type-daml-finance-instrument-swap-v0-asset-instrument-instrument-26627>` (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `FloatingRate <type-daml-finance-interface-instrument-types-v2-floatingrate-floatingrate-56149_>`_)
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"floatingRate\" :ref:`Instrument <type-daml-finance-instrument-swap-v0-interestrate-instrument-instrument-3842>` `FloatingRate <type-daml-finance-interface-instrument-types-v2-floatingrate-floatingrate-56149_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"floatingRate\" :ref:`Callable <type-daml-finance-interface-instrument-bond-v3-callable-types-callable-12794>` (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `FloatingRate <type-daml-finance-interface-instrument-types-v2-floatingrate-floatingrate-56149_>`_)
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"floatingRate\" :ref:`FloatingRate <type-daml-finance-interface-instrument-bond-v3-floatingrate-types-floatingrate-91442>` `FloatingRate <type-daml-finance-interface-instrument-types-v2-floatingrate-floatingrate-56149_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"floatingRate\" :ref:`Asset <type-daml-finance-interface-instrument-swap-v0-asset-types-asset-43409>` (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `FloatingRate <type-daml-finance-interface-instrument-types-v2-floatingrate-floatingrate-56149_>`_)
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"floatingRate\" :ref:`InterestRate <type-daml-finance-interface-instrument-swap-v0-interestrate-types-interestrate-17655>` `FloatingRate <type-daml-finance-interface-instrument-types-v2-floatingrate-floatingrate-56149_>`_
 
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"referenceRateId\" `FloatingRate <type-daml-finance-interface-instrument-types-v2-floatingrate-floatingrate-56149_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
 

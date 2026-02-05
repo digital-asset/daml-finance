@@ -87,14 +87,6 @@ Data Types
 
   Type synonym for ``RouteProvider``\.
 
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"routeProviderCid\" :ref:`View <type-daml-finance-interface-lifecycle-v4-rule-claim-view-14471>` (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-settlement-v4-routeprovider-i-81585_>`_)
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"routeProviderCid\" :ref:`Rule <type-daml-finance-lifecycle-v4-rule-claim-rule-66621>` (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-settlement-v4-routeprovider-i-81585_>`_)
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"routeProviderCid\" :ref:`View <type-daml-finance-interface-lifecycle-v4-rule-claim-view-14471>` (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-settlement-v4-routeprovider-i-81585_>`_)
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"routeProviderCid\" :ref:`Rule <type-daml-finance-lifecycle-v4-rule-claim-rule-66621>` (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-settlement-v4-routeprovider-i-81585_>`_)
-
 .. _type-daml-finance-interface-settlement-v4-routeprovider-v-88198:
 
 **type** `V <type-daml-finance-interface-settlement-v4-routeprovider-v-88198_>`_

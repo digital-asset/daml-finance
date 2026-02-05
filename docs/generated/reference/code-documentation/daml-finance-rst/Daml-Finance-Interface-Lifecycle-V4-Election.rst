@@ -182,8 +182,6 @@ Data Types
 
   Type synonym for ``Election``\.
 
-  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-instrument-option-v0-dividend-election-factory-factory-44378>` \"create'\" (:ref:`Create <type-daml-finance-interface-instrument-option-v0-dividend-election-factory-create-69397>` \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-v4-election-i-36777_>`_))
-
   **instance** HasMethod :ref:`Factory <type-daml-finance-interface-lifecycle-v4-election-factory-factory-95552>` \"create'\" (:ref:`Create <type-daml-finance-interface-lifecycle-v4-election-factory-create-20391>` \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-lifecycle-v4-election-i-36777_>`_))
 
 .. _type-daml-finance-interface-lifecycle-v4-election-v-12910:

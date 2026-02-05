@@ -14,10 +14,8 @@ if [[ -d ${docs_dir}/generated ]]; then
   rm -rf ${docs_dir}/generated
 fi
 mkdir ${docs_dir}/generated
-mkdir ${docs_dir}/generated/src
 
 cp -a ${docs_dir}/source/* ${docs_dir}/generated/
-cp -a ${root_dir}/src/* ${docs_dir}/generated/src/
 
 mkdir -p ${docs_dir}/generated/reference/code-documentation
 cp -r ${docs_dir}/build/daml-finance-rst ${docs_dir}/generated/reference/code-documentation/daml-finance-rst

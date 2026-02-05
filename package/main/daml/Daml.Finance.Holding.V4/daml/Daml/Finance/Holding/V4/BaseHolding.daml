@@ -1,0 +1,86 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Holding.V4.BaseHolding where
+
+import DA.Set (fromList, singleton, toList)
+import DA.Text (intercalate)
+import DA.TextMap qualified as TextMap
+import Daml.Finance.Interface.Types.Common.V3.Types (AccountKey(..), InstrumentKey(..), PartiesMap)
+import Daml.Finance.Interface.Types.Common.V3.Types qualified as HoldingStandard (HoldingStandard(..))
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, View(..), flattenObservers)
+import Daml.Finance.Interface.Util.V3.Lockable qualified as Lockable (I, Lock(..), View(..), getLockers)
+import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
+import Daml.Finance.Util.V4.Lockable (acquireImpl, isValidLock, releaseImpl)
+import Splice.Api.Token.HoldingV1 qualified as Api.HoldingV1
+import Splice.Api.Token.MetadataV1 qualified as SpliceMetadata
+
+
+-- | Type synonym for `BaseHolding`.
+type T = BaseHolding
+
+-- | Implementation of a `BaseHolding`.
+-- `BaseHolding` implements the interface `Api.HoldingV1.Holding` (which requires `Lockable.I` and
+-- `Disclosure.I` to be implemented), but neither `Fungible.I` nor `Transferable.I`.
+template BaseHolding
+  with
+    instrument : InstrumentKey
+      -- ^ The instrument of which units are held.
+    account : AccountKey
+      -- ^ The account at which the holding is held. Defines the holding's owner and custodian.
+    amount : Decimal
+      -- ^ Number of units.
+    lock : Optional Lockable.Lock
+      -- ^ An optional lock for the holding.
+    observers : PartiesMap
+      -- ^ Observers.
+  where
+    signatory account.custodian, account.owner, Lockable.getLockers this
+    observer Disclosure.flattenObservers observers
+
+    ensure
+      amount > 0.0 && isValidLock lock && instrument.holdingStandard == HoldingStandard.BaseHolding
+
+    interface instance Disclosure.I for BaseHolding where
+      view = Disclosure.View with
+        disclosureControllers = fromList [account.owner, account.custodian]; observers
+      setObservers = setObserversImpl @_ @Disclosure.I this None
+      addObservers = addObserversImpl @_ @Disclosure.I this None
+      removeObservers = removeObserversImpl @_ @Disclosure.I this None
+
+    interface instance Lockable.I for BaseHolding where
+      view = Lockable.View with lock; controllers = singleton account.owner
+      acquire = acquireImpl this.lock (\lock -> this with lock)
+      release = releaseImpl this.lock (\lock -> this with lock)
+
+    -- interface instance Holding.I for BaseHolding where
+    interface instance Api.HoldingV1.Holding for BaseHolding where
+      view =
+        let
+          lockView : Lockable.View
+          lockView = view (toInterface @Lockable.I this)
+          
+        in Api.HoldingV1.HoldingView with
+          owner = account.owner
+          instrumentId = Api.HoldingV1.InstrumentId with
+            admin = instrument.issuer
+            id = show instrument.id
+          amount = amount
+          
+          lock = case lockView.lock of
+            None -> None
+            Some l ->
+              Some Api.HoldingV1.Lock with
+                holders = toList l.lockers
+                expiresAt = None      -- Not present in Lockable
+                expiresAfter = None   -- Not present in Lockable
+                context = Some (intercalate ", " (toList l.context))
+
+          meta = SpliceMetadata.Metadata with
+            values = TextMap.fromList
+              [ ("depository", partyToText instrument.depository)
+              , ("version", instrument.version)
+              , ("holdingStandard", show instrument.holdingStandard)
+              , ("custodian", partyToText account.custodian)
+              , ("accountId", show account.id)
+              ]

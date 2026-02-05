@@ -18,19 +18,7 @@ Data Types
 
   **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"claim\" `TaggedClaim <type-daml-finance-interface-claims-v4-types-taggedclaim-85831_>`_ `C <type-daml-finance-interface-claims-v4-types-c-76802_>`_
 
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"claims\" :ref:`Instrument <type-daml-finance-instrument-generic-v4-instrument-instrument-96378>` `C <type-daml-finance-interface-claims-v4-types-c-76802_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"claims\" :ref:`Create <type-daml-finance-interface-instrument-generic-v4-factory-create-52332>` `C <type-daml-finance-interface-claims-v4-types-c-76802_>`_
-
-  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"claims\" :ref:`View <type-daml-finance-interface-instrument-generic-v4-instrument-view-70325>` `C <type-daml-finance-interface-claims-v4-types-c-76802_>`_
-
   **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"claim\" `TaggedClaim <type-daml-finance-interface-claims-v4-types-taggedclaim-85831_>`_ `C <type-daml-finance-interface-claims-v4-types-c-76802_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"claims\" :ref:`Instrument <type-daml-finance-instrument-generic-v4-instrument-instrument-96378>` `C <type-daml-finance-interface-claims-v4-types-c-76802_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"claims\" :ref:`Create <type-daml-finance-interface-instrument-generic-v4-factory-create-52332>` `C <type-daml-finance-interface-claims-v4-types-c-76802_>`_
-
-  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"claims\" :ref:`View <type-daml-finance-interface-instrument-generic-v4-instrument-view-70325>` `C <type-daml-finance-interface-claims-v4-types-c-76802_>`_
 
 .. _type-daml-finance-interface-claims-v4-types-deliverable-51084:
 
