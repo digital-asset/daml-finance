@@ -9,13 +9,6 @@ Daml.Finance.Interface.Account.V4.Util
 Functions
 ---------
 
-.. _function-daml-finance-interface-account-v4-util-fetchaccount-79234:
-
-`fetchAccount <function-daml-finance-interface-account-v4-util-fetchaccount-79234_>`_
-  \: `HasToInterface <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ t Holding \=\> t \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ :ref:`I <type-daml-finance-interface-account-v4-account-i-22897>`
-
-  Fetch the account of a holding\.
-
 .. _function-daml-finance-interface-account-v4-util-getaccount-6084:
 
 `getAccount <function-daml-finance-interface-account-v4-util-getaccount-6084_>`_
