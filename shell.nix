@@ -83,7 +83,6 @@ pkgs.mkShell {
     dpm version
   '';
 
-
   buildInputs = [
     daml
     dpm
