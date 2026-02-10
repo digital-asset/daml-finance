@@ -6,50 +6,40 @@ module Daml.Finance.Benchmark.Test.Lifecycle.Lifecycling_Distribution_Elementary
 import Daml.Script
 
 import DA.Set qualified as Set
+import DA.Map qualified as Map (fromList)
 import DA.Text (trim)
 
 -- Common types
 import Daml.Finance.Interface.Types.Common.V3.Types
   ( Id(..), AccountKey(..), InstrumentKey(..), HoldingFactoryKey(..), HoldingStandard(..) )
 
--- Token instrument
 import Daml.Finance.Interface.Instrument.Token.V4.Factory qualified as TokenFactory (Create(..), I)
 import Daml.Finance.Interface.Instrument.Token.V4.Types (Token(..))
-
--- Account + Holding bootstrap
-import Daml.Finance.Interface.Account.V4.Factory qualified as AccountFactory (Create(..), I)
-import Daml.Finance.Interface.Account.V4.Account qualified as Account (Credit(..), I, Controllers(..))
+import Daml.Finance.Interface.Account.V4.Factory qualified as AccountFactory (I)
+import Daml.Finance.Interface.Account.V4.Account qualified as Account (I, Controllers(..), Reference(..), GetCid(..))
 import Daml.Finance.Interface.Holding.V4.Factory qualified as HoldingFactory (I, Reference(..), View(..))
-import Daml.Finance.Holding.V4.Factory qualified as HoldingImpl (Factory(..))      
-import Daml.Finance.Account.V4.Account qualified as AccountImpl                     
-
--- Settlement prereqs for Claim.Rule
+import Daml.Finance.Holding.V4.Factory qualified as HoldingImpl (Factory(..))
+import Daml.Finance.Account.V4.Account qualified as AccountImpl
 import Daml.Finance.Interface.Settlement.V4.RouteProvider qualified as RouteProvider (I)
 import Daml.Finance.Interface.Settlement.V4.Factory qualified as SettlementFactory (I)
 import Daml.Finance.Settlement.V4.RouteProvider.SingleCustodian (SingleCustodian(..))
 import Daml.Finance.Settlement.V4.Factory qualified as Settlement (Factory(..))
-
-import Daml.Finance.Interface.Settlement.V4.Batch qualified as Batch (Settle(..))
-import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.V4.Batch qualified as Batch (Settle(..), I)
+import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (Allocate(..), Approve(..), I)
 import Daml.Finance.Interface.Settlement.V4.Types (Allocation(..), Approval(..))
-
--- Lifecycle (requires Daml.Finance.Lifecycle.V4 implementation DAR)
 import Daml.Finance.Interface.Lifecycle.V4.Event qualified as Event (I)
 import Daml.Finance.Interface.Lifecycle.V4.Rule.Lifecycle qualified as Lifecycle (Evolve(..), I)
 import Daml.Finance.Interface.Lifecycle.V4.Rule.Claim qualified as Claim (ClaimEffect(..), I)
-
 import Daml.Finance.Lifecycle.V4.Event.Distribution qualified as Distribution (Event(..))
 import Daml.Finance.Lifecycle.V4.Rule.Distribution qualified as Distribution (Rule(..))
 import Daml.Finance.Lifecycle.V4.Rule.Claim qualified as Claim (Rule(..))
-
+import Daml.Finance.Interface.Lifecycle.V4.Effect qualified as Effect (I)
 import Daml.Finance.Interface.Util.V3.Common (qty)
 
--- Splice holding interface
 import Splice.Api.Token.HoldingV1 qualified as Api (Holding)
 import Daml.Finance.Instrument.Token.V4.Factory qualified as TokenImpl (Factory(..))
-
---------------------------------------------------------------------------------
--- Setup storage
+import Daml.Finance.Benchmark.Test.Workflow.CreateAccount qualified as CreateAccount (Accept(..), Request(..))
+import Daml.Finance.Benchmark.Test.Workflow.CreditAccount qualified as CreditAccount (Accept(..), Request(..))
 
 template LifecyclingSetup
   with
@@ -57,20 +47,49 @@ template LifecyclingSetup
     bob : Party
     suffix : Text
 
-    -- Settlement infra
     routeProviderCid : ContractId RouteProvider.I
     settlementFactoryCid : ContractId SettlementFactory.I
 
-    -- Factories + keys
     tokenFactoryCid : ContractId TokenFactory.I
     accountFactoryCid : ContractId AccountFactory.I
     holdingFactoryKey : HoldingFactoryKey
 
-    -- Objects for the run
     bobAccount : AccountKey
     usdInstrument : InstrumentKey
     tokenInstrument : InstrumentKey
     bobHoldingCid : ContractId Api.Holding
+  where
+    signatory bank
+    observer bob
+    key (bank, suffix) : (Party, Text)
+    maintainer key._1
+
+template LifecyclingBenchState
+  with
+    bank : Party
+    bob : Party
+    suffix : Text
+
+    -- Link back to setup (so every step can re-fetch the immutable setup data)
+    setupCid : ContractId LifecyclingSetup
+
+    -- outputs (bank)
+    newTokenInstrument : Optional InstrumentKey
+    distributionRuleCid : Optional (ContractId Lifecycle.I)
+    lifecycleClaimRuleCid : Optional (ContractId Claim.I)
+    distributionEventCid : Optional (ContractId Event.I)
+    effectCid : Optional (ContractId Effect.I)
+
+    -- outputs (bob)
+    batchCid : Optional (ContractId Batch.I)
+    bobInstructionCid : Optional (ContractId Instruction.I)
+    bankInstructionCid : Optional (ContractId Instruction.I)
+    couponInstructionCid : Optional (ContractId Instruction.I)
+
+    -- Soutputs (allocations)
+    bobInstructionCid2 : Optional (ContractId Instruction.I)
+    bankInstructionCid2 : Optional (ContractId Instruction.I)
+    couponInstructionCid2 : Optional (ContractId Instruction.I)
 
   where
     signatory bank
@@ -78,9 +97,309 @@ template LifecyclingSetup
     key (bank, suffix) : (Party, Text)
     maintainer key._1
 
+    -- Helper: load immutable setup
+    nonconsuming choice GetSetup : LifecyclingSetup
+      with viewer : Party
+      controller viewer
+      do
+        setup <- fetch setupCid
+        pure setup
+
+    --  Bank creates new version + rules + event + evolve (ONE submit by bank)
+    choice Step1_CreateRulesEventEvolve : ContractId LifecyclingBenchState
+      controller bank
+      do
+        let bank0 = bank
+        let bob0 = bob
+        let suffix0 = suffix
+        let setupCid0 = setupCid
+
+        let batchCid0 = batchCid
+        let bobInstructionCid0 = bobInstructionCid
+        let bankInstructionCid0 = bankInstructionCid
+        let couponInstructionCid0 = couponInstructionCid
+        let bobInstructionCid20 = bobInstructionCid2
+        let bankInstructionCid20 = bankInstructionCid2
+        let couponInstructionCid20 = couponInstructionCid2
+
+        setup <- fetch setupCid0
+
+        -- New version of token instrument
+        let newTok = setup.tokenInstrument with version = "1"
+        now <- getTime
+
+        -- Create token version 1
+        _ <- exercise setup.tokenFactoryCid TokenFactory.Create with
+          token = Token with
+            instrument = newTok
+            description = "Token instrument after distribution"
+            validAsOf = now
+          observers = mempty
+
+        -- Rules
+        distRuleCid <- toInterfaceContractId @Lifecycle.I <$> create Distribution.Rule with
+          providers = Set.singleton setup.bank
+          lifecycler = setup.bank
+          observers = Set.singleton setup.bob
+          id = Id ("dist-rule-" <> suffix0)
+          description = "Distribution lifecycle rule (benchmark)"
+
+        claimRuleCid <- toInterfaceContractId @Claim.I <$> create Claim.Rule with
+          provider = setup.bank
+          claimers = Set.singleton setup.bob
+          settlers = Set.singleton setup.bob
+          routeProviderCid = setup.routeProviderCid
+          settlementFactoryCid = setup.settlementFactoryCid
+          netInstructions = False
+
+        -- Event
+        evtCid <- toInterfaceContractId @Event.I <$> create Distribution.Event with
+          providers = Set.singleton setup.bank
+          id = Id ("DISTRIBUTION-" <> suffix0)
+          description = "Profit distribution"
+          effectiveTime = now
+          targetInstrument = setup.tokenInstrument
+          newInstrument = newTok
+          perUnitDistribution = [qty 0.02 setup.usdInstrument]
+          observers = mempty
+
+        -- Evolve -> effectCid
+        (_, effs) <- exercise distRuleCid Lifecycle.Evolve with
+          eventCid = evtCid
+          observableCids = []
+          instrument = setup.tokenInstrument
+
+        eff <- case effs of
+          [x] -> pure x
+          _ -> abort "Expected exactly 1 effectCid"
+
+        -- Recreate state explicitly (no `this`, no field reads)
+        create LifecyclingBenchState with
+          bank = bank0
+          bob = bob0
+          suffix = suffix0
+          setupCid = setupCid0
+
+          newTokenInstrument = Some newTok
+          distributionRuleCid = Some distRuleCid
+          lifecycleClaimRuleCid = Some claimRuleCid
+          distributionEventCid = Some evtCid
+          effectCid = Some eff
+
+          batchCid = batchCid0
+          bobInstructionCid = bobInstructionCid0
+          bankInstructionCid = bankInstructionCid0
+          couponInstructionCid = couponInstructionCid0
+
+          bobInstructionCid2 = bobInstructionCid20
+          bankInstructionCid2 = bankInstructionCid20
+          couponInstructionCid2 = couponInstructionCid20
+
+
+    -- Bob claims effect (ONE submit by bob)
+    choice Step2_Claim : ContractId LifecyclingBenchState
+      controller bob
+      do
+        setup <- fetch setupCid
+
+        eff <- case effectCid of
+          Some x -> pure x
+          None -> abort "Missing effectCid. Run Step1_CreateRulesEventEvolve first."
+
+        claimRuleCid <- case lifecycleClaimRuleCid of
+          Some x -> pure x
+          None -> abort "Missing lifecycleClaimRuleCid. Run Step1_CreateRulesEventEvolve first."
+
+        now2 <- getTime
+        let batchIdTxt = "DistributionSettlement-" <> suffix <> "-" <> show now2
+
+        result <- exercise claimRuleCid Claim.ClaimEffect with
+          claimer = setup.bob
+          holdingCids = [setup.bobHoldingCid]
+          effectCid = eff
+          batchId = Id batchIdTxt
+
+        let [iBob, iBank, iCoupon] = result.instructionCids
+
+        create this with
+          batchCid = Some result.batchCid
+          bobInstructionCid = Some iBob
+          bankInstructionCid = Some iBank
+          couponInstructionCid = Some iCoupon
+
+    -- Allocate Bob instruction (1 submit by bob)
+    choice Step3a_AllocateBob : ContractId LifecyclingBenchState
+      controller bob
+      do
+        setup <- fetch setupCid
+        iBob <- case bobInstructionCid of
+          Some x -> pure x
+          None -> abort "Missing bobInstructionCid. Run Step2_Claim first."
+
+        (iBob2, _) <- exercise iBob Instruction.Allocate with
+          actors = Set.singleton setup.bob
+          allocation = Pledge setup.bobHoldingCid
+
+        create this with bobInstructionCid2 = Some iBob2
+
+    -- Allocate Bank instruction (1 submit by bank)
+    choice Step3b_AllocateBank : ContractId LifecyclingBenchState
+      controller bank
+      do
+        iBank <- case bankInstructionCid of
+          Some x -> pure x
+          None -> abort "Missing bankInstructionCid. Run Step2_Claim first."
+
+        (iBank2, _) <- exercise iBank Instruction.Allocate with
+          actors = Set.singleton bank
+          allocation = CreditReceiver
+
+        create this with bankInstructionCid2 = Some iBank2
+
+    -- Allocate Coupon instruction (1 submit by bank)
+    choice Step3c_AllocateCoupon : ContractId LifecyclingBenchState
+      controller bank
+      do
+        iCoupon <- case couponInstructionCid of
+          Some x -> pure x
+          None -> abort "Missing couponInstructionCid. Run Step2_Claim first."
+
+        (iCoupon2, _) <- exercise iCoupon Instruction.Allocate with
+          actors = Set.singleton bank
+          allocation = CreditReceiver
+
+        create this with couponInstructionCid2 = Some iCoupon2
+
+    -- Approve Bob instruction by bank (1 submit by bank)
+    nonconsuming choice Step4a_ApproveBob : ContractId LifecyclingBenchState
+      controller bank
+      do
+        iBob2 <- case bobInstructionCid2 of
+          Some x -> pure x
+          None -> abort "Missing bobInstructionCid2. Run Step3a_AllocateBob first."
+
+        _ <- exercise iBob2 Instruction.Approve with
+          actors = Set.singleton bank
+          approval = DebitSender
+
+        pure self
+
+    -- Approve Bank instruction by bob (1 submit by bob)
+    nonconsuming choice Step4b_ApproveBank : ContractId LifecyclingBenchState
+      controller bob
+      do
+        setup <- fetch setupCid
+        iBank2 <- case bankInstructionCid2 of
+          Some x -> pure x
+          None -> abort "Missing bankInstructionCid2. Run Step3b_AllocateBank first."
+
+        _ <- exercise iBank2 Instruction.Approve with
+          actors = Set.singleton setup.bob
+          approval = TakeDelivery setup.bobAccount
+
+        pure self
+
+    -- Approve Coupon instruction by bob (1 submit by bob)
+    nonconsuming choice Step4c_ApproveCoupon : ContractId LifecyclingBenchState
+      controller bob
+      do
+        setup <- fetch setupCid
+        iCoupon2 <- case couponInstructionCid2 of
+          Some x -> pure x
+          None -> abort "Missing couponInstructionCid2. Run Step3c_AllocateCoupon first."
+
+        _ <- exercise iCoupon2 Instruction.Approve with
+          actors = Set.singleton setup.bob
+          approval = TakeDelivery setup.bobAccount
+
+        pure self
+
+    -- allocate all instructions (1 tx)
+    choice Step3_AllocateAll : ContractId LifecyclingBenchState
+      controller bank, bob
+      do
+        setup <- fetch setupCid
+
+        iBob <- case bobInstructionCid of
+          Some x -> pure x
+          None -> abort "Missing bobInstructionCid. Run Step2_Claim first."
+
+        iBank <- case bankInstructionCid of
+          Some x -> pure x
+          None -> abort "Missing bankInstructionCid. Run Step2_Claim first."
+
+        iCoupon <- case couponInstructionCid of
+          Some x -> pure x
+          None -> abort "Missing couponInstructionCid. Run Step2_Claim first."
+
+        (iBob2, _) <- exercise iBob Instruction.Allocate with
+          actors = Set.singleton setup.bob
+          allocation = Pledge setup.bobHoldingCid
+
+        (iBank2, _) <- exercise iBank Instruction.Allocate with
+          actors = Set.singleton setup.bank
+          allocation = CreditReceiver
+
+        (iCoupon2, _) <- exercise iCoupon Instruction.Allocate with
+          actors = Set.singleton setup.bank
+          allocation = CreditReceiver
+
+        create this with
+          bobInstructionCid2 = Some iBob2
+          bankInstructionCid2 = Some iBank2
+          couponInstructionCid2 = Some iCoupon2
+
+
+    -- Approve all instructions (1 tx)
+    choice Step4_ApproveAll : ContractId LifecyclingBenchState
+      controller bank, bob
+      do
+        setup <- fetch setupCid
+
+        iBob2 <- case bobInstructionCid2 of
+          Some x -> pure x
+          None -> abort "Missing bobInstructionCid2. Run Step3_AllocateAll first."
+
+        iBank2 <- case bankInstructionCid2 of
+          Some x -> pure x
+          None -> abort "Missing bankInstructionCid2. Run Step3_AllocateAll first."
+
+        iCoupon2 <- case couponInstructionCid2 of
+          Some x -> pure x
+          None -> abort "Missing couponInstructionCid2. Run Step3_AllocateAll first."
+
+        -- Bank approves Bob instruction
+        _ <- exercise iBob2 Instruction.Approve with
+          actors = Set.singleton setup.bank
+          approval = DebitSender
+
+        -- Bob approves Bank + Coupon instructions
+        _ <- exercise iBank2 Instruction.Approve with
+          actors = Set.singleton setup.bob
+          approval = TakeDelivery setup.bobAccount
+
+        _ <- exercise iCoupon2 Instruction.Approve with
+          actors = Set.singleton setup.bob
+          approval = TakeDelivery setup.bobAccount
+
+        pure self
+
+
+    -- Settle batch by bob (1 submit by bob)
+    choice Step5_Settle : ()
+      controller bob
+      do
+        bCid <- case batchCid of
+          Some x -> pure x
+          None -> abort "Missing batchCid. Run Step2_Claim first."
+
+        _newHoldings : [ContractId Api.Holding] <- exercise bCid Batch.Settle with
+          actors = Set.singleton bob
+
+        pure ()
+
 --------------------------------------------------------------------------------
 -- Helpers
-
 parseParty : Text -> Script Party
 parseParty t =
   case partyFromText (trim t) of
@@ -88,58 +407,48 @@ parseParty t =
     None -> abort ("Bad party id: " <> show t)
 
 --------------------------------------------------------------------------------
--- 1) Setup: create minimal infra + bobAccount + bobHoldingCid
---
--- Args (3): (bank, bob, suffix)
---
--- Creates:
---   - Holding factory (for Splice holdings)
---   - Account factory + Bob account at bank custodian
---   - Token factory + instruments (USD + TOKEN)
---   - Credits Bob with TOKEN -> bobHoldingCid (Splice.Api.Token.HoldingV1.Holding)
---   - RouteProvider + SettlementFactory (needed by Claim.Rule)
---
+-- Setup
+-- Args: (bank, bob, suffix)
+
 runSetupLifecycling : (Text, Text, Text) -> Script ()
 runSetupLifecycling (bankText, bobText, suffixText) = script do
   bank <- parseParty bankText
   bob  <- parseParty bobText
   let suffix = trim suffixText
 
-  -- 1) Create Holding Factory (implementation)
+  -- Holding factory
   let holdingFactoryId = Id ("holdingFactory-" <> suffix)
 
-  -- 1) Create Holding Factory (implementation) and get interface cid
   holdingFactoryCid <- toInterfaceContractId @HoldingFactory.I <$> submit bank do
     createCmd HoldingImpl.Factory with
       provider = bank
       id = holdingFactoryId
-      observers = mempty
+      observers = Map.fromList [("obs", Set.singleton bob)]
 
-  let holdingFactoryKey =
-        HoldingFactoryKey with provider = bank; id = holdingFactoryId
+  let holdingFactoryKey = HoldingFactoryKey with provider = bank; id = holdingFactoryId
 
-  -- 1b) Create HoldingFactory.Reference (THIS fixes CONTRACT_KEY_NOT_FOUND)
-  _holdingFactoryRefCid <- submit bank do
+  -- Reference so key-lookup works
+  _ <- submit bank do
     createCmd HoldingFactory.Reference with
-      factoryView = HoldingFactory.View with
+      factoryView = HoldingFactory.View with 
         provider = bank
         id = holdingFactoryId
       cid = holdingFactoryCid
-      observers = mempty
+      observers = Map.fromList [("obs", Set.singleton bob)]
 
-  -- 2) Create Account Factory (needs bank + bob, because the Account it creates has both as signatories)
-  accountFactoryCid <- toInterfaceContractId @AccountFactory.I <$> submit (actAs [bank, bob]) do
+  -- Account factory
+  accountFactoryCid <- toInterfaceContractId @AccountFactory.I <$> submit bank do
     createCmd AccountImpl.Factory with
       provider = bank
       observers = mempty
 
-  -- 3) Create Token Factory
+  -- Token factory
   tokenFactoryCid <- toInterfaceContractId @TokenFactory.I <$> submit bank do
     createCmd TokenImpl.Factory with
       provider = bank
       observers = mempty
 
-  -- 4) Create Bob account at custodian=bank
+  -- Bob account
   let bobAccount : AccountKey =
         AccountKey with custodian = bank; owner = bob; id = Id ("bob-acct-" <> suffix)
 
@@ -148,16 +457,33 @@ runSetupLifecycling (bankText, bobText, suffixText) = script do
           outgoing = Set.singleton bank
           incoming = Set.singleton bank
 
-  -- IMPORTANT: keep the returned Account.I cid (don’t query AccountImpl.Account)
-  (bobAccountCid : ContractId Account.I) <- submit (actAs [bank, bob]) do
-    exerciseCmd accountFactoryCid AccountFactory.Create with
-        account = bobAccount
-        holdingFactory = holdingFactoryKey
-        controllers = controllers
-        observers = mempty
-        description = "Benchmark Bob account"
+  bobRequestCid <- submit bob do
+    createCmd CreateAccount.Request with
+      owner = bob
+      custodian = bank
 
-  -- 5) Create instruments (USD + TOKEN)
+  -- Bank accepts & creates the account using the factory (single submitter = bank)
+  _bobAccountKey <- submit bank do
+    exerciseCmd bobRequestCid CreateAccount.Accept with
+      label = "bob-acct-" <> suffix
+      description = "Benchmark Bob account"
+      accountFactoryCid
+      holdingFactory = holdingFactoryKey
+      observers = []
+      controllers = None
+
+  (bobRefCid, _) <- do
+    mRef <- queryContractKey @Account.Reference bank bobAccount
+    case mRef of
+      None -> abort "Account.Reference not found after Create"
+      Some x -> pure x
+  
+  (bobAccountConcreteCid : ContractId Account.I) <- submit bank do
+    exerciseCmd bobRefCid Account.GetCid with viewer = bank
+
+  let bobAccountCid : ContractId Account.I = toInterfaceContractId @Account.I bobAccountConcreteCid
+
+  -- Instruments
   let usdInstrument : InstrumentKey =
         InstrumentKey with
           depository = bank
@@ -178,7 +504,7 @@ runSetupLifecycling (bankText, bobText, suffixText) = script do
 
   submit bank do
     exerciseCmd tokenFactoryCid TokenFactory.Create with
-      token = Token with
+      token = Token with 
         instrument = usdInstrument
         description = "USD cash instrument (benchmark)"
         validAsOf = now
@@ -186,20 +512,24 @@ runSetupLifecycling (bankText, bobText, suffixText) = script do
 
   submit bank do
     exerciseCmd tokenFactoryCid TokenFactory.Create with
-      token = Token with
+      token = Token with 
         instrument = tokenInstrument
         description = "Token instrument (benchmark)"
         validAsOf = now
       observers = mempty
 
-  -- 6) Credit Bob with TOKEN on bobAccount -> Splice holding cid
-  -- IMPORTANT: Account.Credit is authorized by the custodian (bank) (matches your auth error)
+  -- Bob requests a credit (bob-only tx)
+  creditReqCid <- submit bob do
+    createCmd CreditAccount.Request with
+      account = bobAccount
+      instrument = tokenInstrument
+      amount = 10.0
+
+  -- Bank accepts (bank-only tx) and this creates the holding
   bobHoldingCid <- submit bank do
-    exerciseCmd bobAccountCid Account.Credit with
-      quantity = qty 10.0 tokenInstrument
+    exerciseCmd creditReqCid CreditAccount.Accept
 
-
-  -- 7) RouteProvider + SettlementFactory
+  -- RouteProvider + SettlementFactory (bank-owned infra)
   routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit bank do
     createCmd SingleCustodian with
       provider = bank
@@ -211,7 +541,7 @@ runSetupLifecycling (bankText, bobText, suffixText) = script do
       provider = bank
       observers = Set.fromList [bob]
 
-  submit bank do
+  setupCid <- submit bank do
     createCmd LifecyclingSetup with
       bank
       bob
@@ -225,37 +555,57 @@ runSetupLifecycling (bankText, bobText, suffixText) = script do
       usdInstrument
       tokenInstrument
       bobHoldingCid
+  
+  -- create bench-state (all optionals start as None)
+  _benchCid <- submit bank do
+    createCmd LifecyclingBenchState with
+      bank
+      bob
+      suffix
+      setupCid
+      newTokenInstrument = None
+      distributionRuleCid = None
+      lifecycleClaimRuleCid = None
+      distributionEventCid = None
+      effectCid = None
+      batchCid = None
+      bobInstructionCid = None
+      bankInstructionCid = None
+      couponInstructionCid = None
+      bobInstructionCid2 = None
+      bankInstructionCid2 = None
+      couponInstructionCid2 = None
 
   debug "Lifecycling setup done"
   pure ()
 
 --------------------------------------------------------------------------------
--- 2) Run (elementary): Rule + Event + Evolve + Claim -> Allocate/Approve -> Batch.Settle
---
--- Args (2): (bank, suffix)
---
+-- runLifecyclingOnce
+-- Args: (bank, suffix)
+
 runLifecyclingOnce : (Text, Text) -> Script ()
 runLifecyclingOnce (bankText, suffixText) = script do
   bank <- parseParty bankText
   let suffix = trim suffixText
 
   m <- queryContractKey @LifecyclingSetup bank (bank, suffix)
-  (_setupCid, s) <- case m of
+  (_cid, s) <- case m of
     None -> abort ("Setup not found for suffix=" <> show suffix)
     Some x -> pure x
 
-  -- Create new token instrument version (ex-distribution)
+  -- New version of token instrument
   let newTokenInstrument = s.tokenInstrument with version = "1"
   now <- getTime
+  
   submit s.bank do
     exerciseCmd s.tokenFactoryCid TokenFactory.Create with
-      token = Token with
+      token = Token with 
         instrument = newTokenInstrument
         description = "Token instrument after distribution"
         validAsOf = now
       observers = mempty
 
-  -- Create rules
+  -- Rules (created by bank)
   distributionRuleCid <- toInterfaceContractId @Lifecycle.I <$> submit s.bank do
     createCmd Distribution.Rule with
       providers = Set.singleton s.bank
@@ -264,7 +614,7 @@ runLifecyclingOnce (bankText, suffixText) = script do
       id = Id ("dist-rule-" <> suffix)
       description = "Distribution lifecycle rule (benchmark)"
 
-  claimRuleCid <- toInterfaceContractId @Claim.I <$> submit s.bank do
+  lifecycleClaimRuleCid <- toInterfaceContractId @Claim.I <$> submit s.bank do
     createCmd Claim.Rule with
       provider = s.bank
       claimers = Set.singleton s.bob
@@ -273,7 +623,7 @@ runLifecyclingOnce (bankText, suffixText) = script do
       settlementFactoryCid = s.settlementFactoryCid
       netInstructions = False
 
-  -- Create event
+  -- Event (created by bank)
   distributionEventCid <- toInterfaceContractId @Event.I <$> submit s.bank do
     createCmd Distribution.Event with
       providers = Set.singleton s.bank
@@ -285,7 +635,7 @@ runLifecyclingOnce (bankText, suffixText) = script do
       perUnitDistribution = [qty 0.02 s.usdInstrument]
       observers = mempty
 
-  -- Evolve -> effect
+  -- Evolve (bank)
   (_, effectCids) <- submit s.bank do
     exerciseCmd distributionRuleCid Lifecycle.Evolve with
       eventCid = distributionEventCid
@@ -296,23 +646,23 @@ runLifecyclingOnce (bankText, suffixText) = script do
     [x] -> pure x
     _ -> abort "Expected exactly 1 effectCid"
 
-  -- Claim -> batch + instructions
+  -- Claim (bob)
   now2 <- getTime
   let batchIdTxt = "DistributionSettlement-" <> suffix <> "-" <> show now2
 
   result <- submit s.bob do
-    exerciseCmd claimRuleCid Claim.ClaimEffect with
+    exerciseCmd lifecycleClaimRuleCid Claim.ClaimEffect with
       claimer = s.bob
       holdingCids = [s.bobHoldingCid]
       effectCid = effectCid
       batchId = Id batchIdTxt
-  
+
   let [bobInstructionCid, bankInstructionCid, couponInstructionCid] = result.instructionCids
-  
-  -- Allocate
-  (bobInstructionCid2, _) <- submit (actAs [s.bob, s.bank]) do
+
+  -- Allocate (single submits, matching your desired model)
+  (bobInstructionCid2, _) <- submit s.bob do
     exerciseCmd bobInstructionCid Instruction.Allocate with
-      actors = Set.fromList [s.bob, s.bank]
+      actors = Set.singleton s.bob
       allocation = Pledge s.bobHoldingCid
 
   (bankInstructionCid2, _) <- submit s.bank do
@@ -325,26 +675,114 @@ runLifecyclingOnce (bankText, suffixText) = script do
       actors = Set.singleton s.bank
       allocation = CreditReceiver
 
-  -- Approve
-  _ <- submit (actAs [s.bob, s.bank]) do
+  -- Approve (single submits)
+  _ <- submit s.bank do
     exerciseCmd bobInstructionCid2 Instruction.Approve with
-      actors   = Set.fromList [s.bob, s.bank]
+      actors = Set.singleton s.bank
       approval = DebitSender
 
-  _ <- submit (actAs [s.bob, s.bank]) do
+  _ <- submit s.bob do
     exerciseCmd bankInstructionCid2 Instruction.Approve with
-      actors   = Set.fromList [s.bob, s.bank]
+      actors = Set.singleton s.bob
       approval = TakeDelivery s.bobAccount
 
-  _ <- submit (actAs [s.bob, s.bank]) do
+  _ <- submit s.bob do
     exerciseCmd couponInstructionCid2 Instruction.Approve with
-      actors   = Set.fromList [s.bob, s.bank]
+      actors = Set.singleton s.bob
       approval = TakeDelivery s.bobAccount
 
-
-  -- Settle
-  _newHoldings : [ContractId Api.Holding] <- submit (actAs [s.bob, s.bank]) do
+  -- Settle (bob)
+  _newHoldings : [ContractId Api.Holding] <- submit s.bob do
     exerciseCmd result.batchCid Batch.Settle with
-        actors = Set.singleton s.bob
+      actors = Set.singleton s.bob
 
+  pure ()
+
+  --------------------------------------------------------------------------------
+-- Split runners 
+
+lookupBench : Party -> Text -> Script (ContractId LifecyclingBenchState, LifecyclingBenchState)
+lookupBench bank suffix = do
+  m <- queryContractKey @LifecyclingBenchState bank (bank, suffix)
+  case m of
+    None -> abort ("BenchState not found for suffix=" <> show suffix <> ". Did you run runSetupLifecycling?")
+    Some x -> pure x
+
+-- Bank: create new version + rules + event + evolve (1 tx)
+runStep1_CreateRulesEventEvolve : (Text, Text) -> Script ()
+runStep1_CreateRulesEventEvolve (bankText, suffixText) = script do
+  bank <- parseParty bankText
+  let suffix = trim suffixText
+  (stCid, _st) <- lookupBench bank suffix
+  
+  newCid <- submit bank do
+    exerciseCmd stCid Step1_CreateRulesEventEvolve
+
+  debug ("Step1 produced new bench cid=" <> show newCid)
+  pure ()
+
+-- Bob: claim (1 tx)
+runStep2_Claim : (Text, Text) -> Script ()
+runStep2_Claim (bankText, suffixText) = script do
+  bank <- parseParty bankText
+  let suffix = trim suffixText
+  (stCid, st) <- lookupBench bank suffix
+  
+  _ <- submit st.bob do
+    exerciseCmd stCid Step2_Claim
+  pure ()
+
+-- Allocate all (3 submissions)
+runStep3_AllocateAll : (Text, Text) -> Script ()
+runStep3_AllocateAll (bankText, suffixText) = script do
+  bank <- parseParty bankText
+  let suffix = trim suffixText
+
+  -- Start from the current active state
+  (stCid0, st0) <- lookupBench bank suffix
+
+  -- Bob allocates Bob instruction (consumes stCid0 -> produces stCid1)
+  stCid1 <- submit st0.bob do
+    exerciseCmd stCid0 Step3a_AllocateBob
+
+  -- Bank allocates Bank instruction (consumes stCid1 -> produces stCid2)
+  stCid2 <- submit bank do
+    exerciseCmd stCid1 Step3b_AllocateBank
+
+  -- Bank allocates Coupon instruction (consumes stCid2 -> produces stCid3)
+  _stCid3 <- submit bank do
+    exerciseCmd stCid2 Step3c_AllocateCoupon
+
+  pure ()
+
+-- Approve all (3 submissions)
+runStep4_ApproveAll : (Text, Text) -> Script ()
+runStep4_ApproveAll (bankText, suffixText) = script do
+  bank <- parseParty bankText
+  let suffix = trim suffixText
+
+  -- Get current active bench state ONCE
+  (stCid, st) <- lookupBench bank suffix
+
+  -- Bank approves Bob instruction
+  stCid1 <- submit bank do exerciseCmd stCid Step4a_ApproveBob
+
+  -- Bob approves Bank instruction
+  stCid2 <- submit st.bob do
+    exerciseCmd stCid1 Step4b_ApproveBank
+
+  -- Bob approves Coupon instruction
+  _stCid3 <- submit st.bob do exerciseCmd stCid2 Step4c_ApproveCoupon
+
+  pure ()
+
+
+-- Bon: settle (1 tx)
+runStep5_Settle : (Text, Text) -> Script ()
+runStep5_Settle (bankText, suffixText) = script do
+  bank <- parseParty bankText
+  let suffix = trim suffixText
+  (stCid, st) <- lookupBench bank suffix
+  _ <- submit st.bob do
+    exerciseCmd stCid Step5_Settle
   pure ()

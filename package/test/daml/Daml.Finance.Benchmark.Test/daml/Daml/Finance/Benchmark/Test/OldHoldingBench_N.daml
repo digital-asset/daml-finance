@@ -1,0 +1,151 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Benchmark.Test.OldHoldingBench_N where
+
+import Daml.Script
+
+import DA.Map qualified as Map
+import DA.Set qualified as Set
+import DA.Text qualified as Text
+
+import Daml.Finance.Interface.Types.Common.V3.Types
+  ( AccountKey(..)
+  , Id(..)
+  , InstrumentKey(..)
+  , PartiesMap
+  )
+
+import Daml.Finance.Interface.Types.Common.V3.Types qualified as HS
+  ( HoldingStandard(..) )
+
+import Daml.Finance.Holding.V4.BaseHolding qualified as BaseHolding
+
+--------------------------------------------------------------------------------
+-- Bench state (persisted across runs)
+template HoldingBenchState
+  with
+    bank : Party
+    alice : Party
+    aliceAccount : AccountKey
+    instrument : InstrumentKey
+    suffix : Text
+  where
+    signatory bank
+    observer alice
+
+    key (bank, suffix) : (Party, Text)
+    maintainer key._1
+
+
+--------------------------------------------------------------------------------
+-- Helpers
+debugCommon : Party -> Party -> Text -> Text -> Script ()
+debugCommon alice bank observersText suffix = do
+  debug ("ALICE_ID=" <> show alice)
+  debug ("BANK_ID=" <> show bank)
+  debug ("OBSERVERS_TEXT=" <> observersText)
+  debug ("SUFFIX=" <> suffix)
+
+parseParty : Text -> Script Party
+parseParty t =
+  case partyFromText t of
+    Some p -> pure p
+    None   -> abort ("Bad party id: " <> t)
+
+-- Parse "p1;p2;..." into [Party]
+parseParties : Text -> Script [Party]
+parseParties observersText = do
+  let trimmed = Text.trim observersText
+  let parts =
+        if trimmed == ""
+        then []
+        else map Text.trim (Text.splitOn ";" trimmed)
+  mapA parseParty (filter (/= "") parts)
+
+mkObserversMap : [Party] -> PartiesMap
+mkObserversMap ps =
+  if null ps
+  then mempty
+  else Map.fromList [("Observers", Set.fromList ps)]
+
+lookupState
+  : Party
+ -> Text
+ -> Script (ContractId HoldingBenchState, HoldingBenchState)
+lookupState bank suffix = do
+  m <- queryContractKey @HoldingBenchState bank (bank, suffix)
+  case m of
+    None ->
+      abort
+        ("HoldingBenchState not found for (bank, suffix)=("
+          <> show bank <> ", " <> show suffix
+          <> "). Did you run runSetup?")
+    Some res -> pure res
+
+
+--------------------------------------------------------------------------------
+-- 1) Setup
+-- Stores AccountKey + InstrumentKey under (bank, suffix)
+runSetup : (Text, Text, Text, Text) -> Script ()
+runSetup (aliceText, bankText, observersText, suffix) = script do
+  alice <- parseParty aliceText
+  bank  <- parseParty bankText
+  _     <- parseParties observersText  -- only for symmetry/logging
+
+  debugCommon alice bank observersText suffix
+
+  let aliceAccount =
+        AccountKey
+          with
+            owner = alice
+            custodian = bank
+            id = Id ("Alice@" <> suffix)
+
+  let instrumentKey =
+        InstrumentKey
+          with
+            issuer = bank
+            depository = bank
+            id = Id "USD"
+            version = "0"
+            holdingStandard = HS.BaseHolding
+
+  submit bank do
+    createCmd HoldingBenchState
+      with
+        bank
+        alice
+        aliceAccount
+        instrument = instrumentKey
+        suffix
+
+  debug "HoldingBench setup done"
+  pure ()
+
+
+--------------------------------------------------------------------------------
+-- 2) Mint-only benchmark
+-- Creates exactly ONE BaseHolding in ONE transaction
+runMint : (Text, Text, Text) -> Script ()
+runMint (bankText, observersText, suffix) = script do
+  bank <- parseParty bankText
+  observers <- parseParties observersText
+
+  (_cid, st) <- lookupState bank suffix
+
+  let obsMap = mkObserversMap observers
+
+  debugCommon st.alice bank observersText suffix
+
+  submit [bank, st.alice] do
+    createCmd BaseHolding.BaseHolding
+      with
+        instrument = st.instrument
+        account = st.aliceAccount
+        amount = 1000.0
+        lock = None
+        observers = obsMap
+
+  debug "Mint (BaseHolding) done"
+  pure ()

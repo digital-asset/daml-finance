@@ -20,7 +20,7 @@ mkdir -p /tmp/canton-debug
 
 # CSV header once
 if [[ ! -f "$OUT_CSV" ]]; then
-  echo "run_id,run_date,script_name,template_variant,sequencer_bytes_total,sequencer_submission_count,bytes_avg_per_submission,tx_tree_computed_count,tx_views_total,tx_views_avg,tx_accepted_count,bytes_per_tx_computed,bytes_per_tx_accepted,bytes_per_view,list_participants,number_unique_participants,traffic_mb_total,cost_usd_total" \
+  echo "run_id,run_date,script_name,template_variant,total_network_bytes,submission_count,bytes_per_submission,transactions_created,views_created_total,views_per_transaction,tx_accepted_count,bytes_per_transaction,bytes_per_tx_accepted,bytes_per_view,participants_involved,participant_count,business_parties,network_mb_total,cost_usd_total,request_line_count_diagnostic,req_list_participants_diagnostic,req_num_participants_diagnostic,tx_tid" \
     > "$OUT_CSV"
 fi
 

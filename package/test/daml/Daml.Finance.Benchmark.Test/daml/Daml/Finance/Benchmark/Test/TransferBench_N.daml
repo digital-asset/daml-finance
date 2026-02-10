@@ -4,209 +4,246 @@
 module Daml.Finance.Benchmark.Test.TransferBench_N where
 
 import Daml.Script
-import DA.Text (trim)
+import DA.Map qualified as Map (fromList)
+import DA.Set qualified as Set (fromList)
+import DA.Text qualified as Text (trim, parseDecimal)
 
 import Daml.Finance.Interface.Types.Common.V3.Types
   ( AccountKey(..)
+  , HoldingFactoryKey(..)
   , HoldingStandard(..)
   , Id(..)
   , InstrumentKey(..)
-  , PartiesMap
+  , PartiesMap(..)
   )
 
-import Daml.Finance.Holding.V4.BaseHolding qualified as BH
-import DA.Foldable (mapA_)
+-- Interface deps
+import Daml.Finance.Interface.Account.V4.Factory qualified as AccountFactory (I)
+import Daml.Finance.Interface.Holding.V4.Factory qualified as HoldingFactory (I, Reference(..), View(..))
+import Splice.Api.Token.HoldingV1 qualified as Api.HoldingV1 (Holding)
+import Daml.Finance.Interface.Instrument.Token.V4.Factory qualified as TokenFactory (Create(..), I)
+import Daml.Finance.Interface.Instrument.Token.V4.Types (Token(..))
+
+-- Impl deps (to create factories)
+import Daml.Finance.Account.V4.Account qualified as Account (Factory(..))
+import Daml.Finance.Holding.V4.Factory qualified as Holding (Factory(..))
+import Daml.Finance.Instrument.Token.V4.Factory qualified as Token (Factory(..))
+
+-- Workflows
+import Daml.Finance.Benchmark.Test.Workflow.CreateAccount qualified as CreateAccount (Accept(..), Request(..))
+import Daml.Finance.Benchmark.Test.Workflow.CreditAccount qualified as CreditAccount (Accept(..), Request(..))
+import Daml.Finance.Benchmark.Test.Workflow.Transfer qualified as Transfer (Accept(..), Request(..))  -- this is your tutorial workflow
 
 --------------------------------------------------------------------------------
--- Stored benchmark setup (single source of truth)
+-- Transfer request 
 
 template TransferBenchSetup
   with
     bank : Party
-    alice : Party              -- current owner
-    bob : Party                -- receiver
-    aliceAccount : AccountKey
-    bobAccount : AccountKey
-    instrument : InstrumentKey
-    aliceHoldingCid : ContractId BH.BaseHolding
+    alice : Party
+    bob : Party
     suffix : Text
+
+    accountFactoryCid : ContractId AccountFactory.I
+    holdingFactoryKey : HoldingFactoryKey
+    tokenFactoryCid   : ContractId TokenFactory.I
+
+    aliceAccount : AccountKey
+    bobAccount   : AccountKey
+    cashInstrument : InstrumentKey
+
+    aliceCashHoldingCid : ContractId Api.HoldingV1.Holding
   where
     signatory bank
     observer alice, bob
+
     key (bank, suffix) : (Party, Text)
     maintainer key._1
 
 --------------------------------------------------------------------------------
--- Transfer request (coordination only)
-
-template TransferRequest
-  with
-    bank : Party
-    alice : Party
-    bob : Party
-    setupCid : ContractId TransferBenchSetup   -- NEW: pin to exact setup
-    bobAccount : AccountKey
-    instrument : InstrumentKey
-    amount : Decimal
-    holdingCid : ContractId BH.BaseHolding
-    suffix : Text
-  where
-    signatory bob
-    observer alice, bank
-
-    choice Accept : ContractId BH.BaseHolding
-      controller alice, bank
-      do
-        h <- fetch holdingCid
-
-        debug ("holding.account.custodian=" <> show h.account.custodian <> " bank=" <> show bank)
-
-        assertMsg "owner mismatch" (h.account.owner == alice)
-        assertMsg "custodian mismatch" (h.account.custodian == bank)
-        assertMsg "instrument mismatch" (h.instrument == instrument)
-        assertMsg "amount mismatch" (h.amount == amount)
-
-        -- Fetch THE SAME setup contract the script used
-        setup <- fetch setupCid
-        assertMsg "setup key bank mismatch" (setup.bank == bank)
-        assertMsg "setup suffix mismatch" (setup.suffix == suffix)
-        assertMsg "setup alice mismatch" (setup.alice == alice)
-        assertMsg "setup bob mismatch" (setup.bob == bob)
-        assertMsg "setup holding mismatch" (setup.aliceHoldingCid == holdingCid)
-
-        archive holdingCid
-
-        newHoldingCid <- create BH.BaseHolding with
-          instrument = instrument
-          account = bobAccount
-          amount = amount
-          lock = None
-          observers = h.observers
-
-        -- Rotate roles (ping-pong)
-        archive setupCid
-        create TransferBenchSetup with
-          bank = bank
-          alice = bob
-          bob = alice
-          aliceAccount = bobAccount
-          bobAccount = setup.aliceAccount
-          instrument = instrument
-          aliceHoldingCid = newHoldingCid
-          suffix = suffix
-
-        pure newHoldingCid
-
-
---------------------------------------------------------------------------------
 -- Helpers
-
-parseParty : Text -> Script Party
-parseParty t =
-  case partyFromText t of
-    Some p -> pure p
-    None -> abort ("Bad party id: " <> t)
-
-debugCommon : Party -> Party -> Party -> Text -> Script ()
-debugCommon alice bank bob suffix = do
+debugCommon : Party -> Party -> Party -> Text -> Text -> Script ()
+debugCommon alice bank bob suffix extra = do
   debug $ "ALICE_ID=" <> show alice
   debug $ "BANK_ID=" <> show bank
   debug $ "BOB_ID=" <> show bob
   debug $ "SUFFIX=" <> show suffix
+  debug $ "EXTRA=" <> show extra
+
+parseParty : Text -> Script Party
+parseParty t =
+  case partyFromText (Text.trim t) of
+    Some p -> pure p
+    None -> abort ("Bad party id: " <> t)
+
+parseDecimalText : Text -> Script Decimal
+parseDecimalText t =
+  case Text.parseDecimal (Text.trim t) of
+    Some d -> pure d
+    None -> abort ("Bad decimal: " <> t)
+
+lookupSetup : Party -> Text -> Script (ContractId TransferBenchSetup, TransferBenchSetup)
+lookupSetup bank suffix = do
+  m <- queryContractKey @TransferBenchSetup bank (bank, suffix)
+  case m of
+    None ->
+      abort $
+        "TransferBenchSetup not found for key (bank, suffix)=("
+          <> show bank <> ", " <> show suffix <> "). Did you run runSetup?"
+    Some (cid, st) -> pure (cid, st)
+
+mkObservers : [Party] -> PartiesMap
+mkObservers ps =
+  if null ps then mempty
+  else Map.fromList [("Observers", Set.fromList ps)]
 
 --------------------------------------------------------------------------------
--- 1) Setup
+-- Setup (run once / not measured)
+-- Args: (ALICE_ID, BANK_ID, BOB_ID, suffix)
 
-runSetupTransfer : (Text, Text, Text, Text) -> Script ()
-runSetupTransfer (aliceText, bankText, bobText, suffix) = script do
-  bank  <- parseParty (trim bankText)
-  alice <- parseParty (trim aliceText)
-  bob   <- parseParty (trim bobText)
+runSetup : (Text, Text, Text, Text) -> Script ()
+runSetup (aliceText, bankText, bobText, suffix) = script do
+  alice <- parseParty aliceText
+  bank  <- parseParty bankText
+  bob   <- parseParty bobText
 
-  debugCommon alice bank bob suffix
+  debugCommon alice bank bob suffix "setup"
 
-  let
-    aliceAccount = AccountKey with
+  -- Account Factory
+  accountFactoryCid <- toInterfaceContractId @AccountFactory.I <$> submit bank do
+    createCmd Account.Factory with
+      provider = bank
+      observers = mempty
+
+  -- Holding Factory (+ Reference so key-lookup works where used)
+  let holdingFactoryId = Id ("HoldingFactory@" <> suffix)
+
+  holdingFactoryCid : ContractId HoldingFactory.I <-
+    toInterfaceContractId @HoldingFactory.I <$> submit bank do
+      createCmd Holding.Factory with
+        provider = bank
+        id = holdingFactoryId
+        observers = mkObservers [alice, bob]
+
+  submit bank do
+    createCmd HoldingFactory.Reference with
+      factoryView = HoldingFactory.View with
+        provider = bank
+        id = holdingFactoryId
+      cid = holdingFactoryCid
+      observers = mkObservers [alice, bob]
+
+  let holdingFactoryKey = HoldingFactoryKey with
+        provider = bank
+        id = holdingFactoryId
+
+  -- Token Factory
+  tokenFactoryCid <- toInterfaceContractId @TokenFactory.I <$> submit bank do
+    createCmd Token.Factory with
+      provider = bank
+      observers = mempty
+
+  -- Create Alice account @ bank
+  -- Same as in HoldingBench_M module --> Alice holds USD 100 in her account at the Bank
+  aliceReqCid <- submit alice do
+    createCmd CreateAccount.Request with
       owner = alice
       custodian = bank
-      id = Id ("Alice@" <> partyToText bank)
 
-    bobAccount = AccountKey with
+  aliceAccount <- submit bank do
+    exerciseCmd aliceReqCid CreateAccount.Accept with
+      label = "Alice@Bank"
+      description = "Account of Alice at Bank"
+      accountFactoryCid
+      holdingFactory = holdingFactoryKey
+      observers = mempty
+      controllers = None
+
+  -- Create Bob account @ bank
+  bobReqCid <- submit bob do
+    createCmd CreateAccount.Request with
       owner = bob
       custodian = bank
-      id = Id ("Bob@" <> partyToText bank)
 
+  bobAccount <- submit bank do
+    exerciseCmd bobReqCid CreateAccount.Accept with
+      label = "Bob@Bank"
+      description = "Account of Bob at Bank"
+      accountFactoryCid
+      holdingFactory = holdingFactoryKey
+      observers = [alice]
+      controllers = None
+
+  -- Issue USD instrument (once)
+  let
     instrumentKey = InstrumentKey with
       issuer = bank
       depository = bank
       id = Id "USD"
       version = "0"
-      holdingStandard = BaseHolding
+      holdingStandard = TransferableFungible
 
-  aliceHoldingCid <- submit (actAs [bank, alice]) do
-    createCmd BH.BaseHolding with
-      instrument = instrumentKey
+  now <- getTime
+  submit bank do
+    exerciseCmd tokenFactoryCid TokenFactory.Create with
+      token = Token with
+        instrument = instrumentKey
+        description = "Instrument representing units of a generic token"
+        validAsOf = now
+      observers = mempty
+  
+  -- Credit Alice with a cash holding (NO multi-submit)
+  -- Tx 1: Alice creates a credit request
+  aliceCreditReqCid <- submit alice do
+    createCmd CreditAccount.Request with
       account = aliceAccount
+      instrument = instrumentKey
       amount = 1000.0
-      lock = None
-      observers = (mempty : PartiesMap)
 
+  -- Tx 2: Bank accepts -> creates the holding, returns holding cid
+  aliceCashHoldingCid <- submit bank do
+    exerciseCmd aliceCreditReqCid CreditAccount.Accept
+
+  -- Persist bench state
   submit bank do
     createCmd TransferBenchSetup with
       bank
       alice
       bob
+      suffix
+      accountFactoryCid
+      holdingFactoryKey
+      tokenFactoryCid
       aliceAccount
       bobAccount
-      instrument = instrumentKey
-      aliceHoldingCid
-      suffix
+      cashInstrument = instrumentKey
+      aliceCashHoldingCid
 
-  debug "TransferBench setup done"
+  debug "Setup done"
   pure ()
-
 
 --------------------------------------------------------------------------------
--- 2) Transfer (repeatable)
+-- Measured: TRANSFER REQUEST (1 tx) + ACCEPT (1tx)
+-- Args: (BANK_ID, suffix, amountText)
 
-runTransfer : (Text, Text) -> Script ()
-runTransfer (bankText, suffix) = script do
-  bank <- parseParty (trim bankText)
+runTransferRequestAccept : (Text, Text, Text) -> Script ()
+runTransferRequestAccept (bankText, suffix, amountText) = script do
+  bank <- parseParty bankText
+  (_, setup) <- lookupSetup bank suffix
+  amount <- parseDecimalText amountText
 
-  m <- queryContractKey @TransferBenchSetup bank (bank, suffix)
-  (setupCid, setup) <- case m of
-    None -> abort ("Setup not found for suffix=" <> show suffix)
-    Some x -> pure x
+  debugCommon setup.alice bank setup.bob suffix ("transfer-request amount=" <> show amount)
 
-  let
-    alice = setup.alice
-    bob   = setup.bob
+  transferRequestCid <- submit setup.bob do
+    createCmd Transfer.Request with
+      receiverAccount = setup.bobAccount
+      instrument = setup.cashInstrument
+      amount = amount
+      currentOwner = setup.alice
 
-  debugCommon alice bank bob suffix
+  bobCashHoldingCid <- submit setup.alice do
+    exerciseCmd transferRequestCid Transfer.Accept with 
+      holdingCid = setup.aliceCashHoldingCid
 
-  requestCid <- submit bob do
-    createCmd TransferRequest with
-        bank = bank
-        alice = alice
-        bob = bob
-        setupCid = setupCid
-        bobAccount = setup.bobAccount
-        instrument = setup.instrument
-        amount = 1000.0
-        holdingCid = setup.aliceHoldingCid
-        suffix = suffix
-
-  submit (actAs [bank, alice]) do
-    exerciseCmd requestCid Accept
-
-  debug "Transfer done"
-  pure ()
-
--- Debug: list all setups visible to bank (ignores keys)
-debugListSetups : Text -> Script ()
-debugListSetups bankText = script do
-  bank <- parseParty (trim bankText)
-  setups <- query @TransferBenchSetup bank
-  debug ("#setups=" <> show (length setups))
-  mapA_ (\(_, s) -> debug ("setup.suffix=" <> show s.suffix <> " bank=" <> show s.bank)) setups
+  debug "Transfer.Request submitted by Bob + Transfer.Accept exercised by Alice (holding moved to Bob) "
   pure ()

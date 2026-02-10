@@ -39,12 +39,6 @@ REQ_RE='sends request .* of size [0-9]+ bytes'
 VIEWS_RE='Computed transaction tree with total=[0-9]+ views'
 ACCEPTED_RE='SequencedTransactionAccepted'
 
-# NOTE:
-# command-id is a UUID in your logs.
-# Keep commandId = <hex> as fallback (some structured logs).
-# CommandId(<uuid>) appears in some structured dumps.
-SUBMIT_RE='command-id [0-9a-f-]{36}|commandId = [0-9a-f]+|CommandId\([0-9a-f-]{36}\)'
-
 # -----------------------------------------------------------------------------
 # 1) Wire-bytes proxy
 # -----------------------------------------------------------------------------
@@ -59,24 +53,15 @@ REQUEST_LINE_COUNT_DIAGNOSTIC="$(
 )"
 
 # -----------------------------------------------------------------------------
-# 2) Submission count (FIXED: UNIQUE command IDs)
-# -----------------------------------------------------------------------------
+# 2) Submission count - unique command-id from Transaction: "Preparing request submitters ... command-id ...""
+SUBMISSION_IDS="$(
+  (grep -a -Eo 'Preparing request submitters .* command-id [0-9a-fA-F-]{36}' "$LOG_FILE" 2>/dev/null || true) \
+  | sed -E 's/.* command-id ([0-9a-fA-F-]{36}).*/\1/' \
+  | sort -u
+)"
+
 SUBMISSION_COUNT="$(
-  (grep -a -Eo "$SUBMIT_RE" "$LOG_FILE" 2>/dev/null || true) \
-  | awk '
-      {
-        # Normalize:
-        # "command-id <uuid>"        -> <uuid>
-        # "commandId = <hex>"        -> <hex>
-        # "CommandId(<uuid>)"        -> <uuid>
-        gsub(/^command-id[[:space:]]+/, "", $0)
-        gsub(/^commandId[[:space:]]*=[[:space:]]*/, "", $0)
-        gsub(/^CommandId\(/, "", $0)
-        gsub(/\)$/, "", $0)
-        print $0
-      }
-    ' \
-  | sort -u | wc -l | tr -d ' '
+  printf "%s\n" "$SUBMISSION_IDS" | awk 'NF{c++} END{print c+0}'
 )"
 
 REQUEST_BYTES_AVG_PER_SUBMISSION="$(
@@ -108,10 +93,16 @@ TX_TREE_VIEWS_DISTRIBUTION="$(
 )"
 
 # -----------------------------------------------------------------------------
-# 4) Accepted tx count (proxy)
+# 4) Accepted tx count - count of ParallelIndexerSubscription Phase 7: Storing ... SequencedTransactionAccepted( (proxy; should be ~1 per accepted tx)
 # -----------------------------------------------------------------------------
 TX_ACCEPTED_COUNT="$(
-  (grep -a -F "$ACCEPTED_RE" "$LOG_FILE" 2>/dev/null || true) | wc -l | tr -d ' '
+  (grep -a -E 'Phase 7: Storing.*SequencedTransactionAccepted\(' "$LOG_FILE" 2>/dev/null || true) \
+  | wc -l | tr -d ' '
+)"
+
+TX_ACCEPTED_PUBLISHER_COUNT="$(
+  (grep -a -E 'RecordOrderPublisher:.*with event:SequencedTransactionAccepted\(' "$LOG_FILE" 2>/dev/null || true) \
+  | wc -l | tr -d ' '
 )"
 
 # -----------------------------------------------------------------------------
@@ -127,27 +118,24 @@ TX_TID="$(
   | sed -nE 's/.*\btid:([0-9a-f]+)\b.*/\1/p'
 )"
 
+# Participants involved = participants that computed the transaction tree for this TX_TID
 if [[ -n "${TX_TID:-}" ]]; then
-  # Count unique participants on lines for THIS tid only.
-  # Works for BOTH:
-  #   participant=participant1/psid=...
-  #   participant=participant1 tid:...
   TID_PARTICIPANTS_LIST="$(
     (grep -a -F "$TX_TID" "$LOG_FILE" 2>/dev/null || true) \
-    | sed -nE 's/.*\bparticipant=(participant[0-9]+)(\/|[[:space:]]|$).*/\1/p' \
+    | grep -a -F 'TransactionTreeFactoryImpl' \
+    | sed -nE 's/.*\bparticipant=(participant[0-9]+).*/\1/p' \
     | sort -u | tr '\n' ' ' | sed -E 's/[[:space:]]+$//'
   )"
 
   TID_NUM_PARTICIPANTS="$(
     (grep -a -F "$TX_TID" "$LOG_FILE" 2>/dev/null || true) \
-    | sed -nE 's/.*\bparticipant=(participant[0-9]+)(\/|[[:space:]]|$).*/\1/p' \
+    | grep -a -F 'TransactionTreeFactoryImpl' \
+    | sed -nE 's/.*\bparticipant=(participant[0-9]+).*/\1/p' \
     | sort -u | wc -l | tr -d ' '
   )"
-else
-  TID_PARTICIPANTS_LIST="none"
-  TID_NUM_PARTICIPANTS="0"
 fi
 
+# Fallback if nothing matched (avoid empty output)
 if [[ -z "${TID_PARTICIPANTS_LIST:-}" ]]; then
   TID_PARTICIPANTS_LIST="none"
   TID_NUM_PARTICIPANTS="0"
@@ -171,6 +159,18 @@ REQ_NUM_PARTICIPANTS="$(
 if [[ -z "${REQ_PARTICIPANTS_LIST:-}" ]]; then
   REQ_PARTICIPANTS_LIST="none"
   REQ_NUM_PARTICIPANTS="0"
+fi
+
+PARTIES_LIST="$(
+  grep -a -Eo '(aliceBank|alice|bobBank|bob|centralBank)::[0-9a-f]{64}' "$LOG_FILE" 2>/dev/null \
+  | sed 's/::.*//' \
+  | sort -u \
+  | tr '\n' ' ' \
+  | sed -E 's/[[:space:]]+$//'
+)"
+
+if [[ -z "${PARTIES_LIST:-}" ]]; then
+  PARTIES_LIST="none"
 fi
 
 # -----------------------------------------------------------------------------
@@ -208,14 +208,14 @@ echo "REQUEST_LINE_COUNT_DIAGNOSTIC=${REQUEST_LINE_COUNT_DIAGNOSTIC}"
 echo
 
 echo "=== SUBMISSIONS (proxy; UNIQUE command ids) ==="
-echo "SUBMIT_RE=${SUBMIT_RE}"
 echo "SUBMISSION_COUNT=${SUBMISSION_COUNT}"
 echo "REQUEST_BYTES_AVG_PER_SUBMISSION=${REQUEST_BYTES_AVG_PER_SUBMISSION}"
 echo
 
 echo "=== SEMANTIC COUNTS ==="
 echo "TX_TREE_COMPUTED_COUNT=${TX_TREE_COMPUTED_COUNT}"
-echo "TX_ACCEPTED_COUNT(proxy)=${TX_ACCEPTED_COUNT}"
+echo "TX_ACCEPTED_COUNT(proxy,indexer)=${TX_ACCEPTED_COUNT}"
+echo "TX_ACCEPTED_PUBLISHER_COUNT(diagnostic)=${TX_ACCEPTED_PUBLISHER_COUNT}"
 echo
 
 echo "=== TRANSACTION VIEWS ==="
@@ -229,6 +229,7 @@ echo "=== PARTICIPANTS INVOLVED (Option A: tid-scoped; preferred) ==="
 echo "TX_TID=${TX_TID:-none}"
 echo "LIST_PARTICIPANTS=${TID_PARTICIPANTS_LIST}"
 echo "NUM_PARTICIPANTS=${TID_NUM_PARTICIPANTS}"
+echo "PARTIES_LIST=${PARTIES_LIST}"
 echo
 
 echo "=== PARTICIPANTS (from request lines; diagnostic only) ==="
@@ -252,22 +253,23 @@ echo "=== CSV (Excel friendly – human readable) ==="
 printf "%-34s %-12s\n" "metric" "value"
 printf "%-34s %-12s\n" "----------------------------------" "------------"
 printf "%-34s %-12s\n" "template_variant"                  "$TEMPLATE_VARIANT"
-printf "%-34s %-12s\n" "request_bytes_total"               "$REQUEST_BYTES_TOTAL"
+printf "%-34s %-12s\n" "total_network_bytes"               "$REQUEST_BYTES_TOTAL"
 printf "%-34s %-12s\n" "submission_count"                  "$SUBMISSION_COUNT"
-printf "%-34s %-12s\n" "bytes_avg_per_submission"          "$REQUEST_BYTES_AVG_PER_SUBMISSION"
-printf "%-34s %-12s\n" "tx_tree_computed_count"            "$TX_TREE_COMPUTED_COUNT"
-printf "%-34s %-12s\n" "tx_views_total"                    "$TX_TREE_VIEWS_TOTAL"
-printf "%-34s %-12s\n" "tx_views_avg"                      "$TX_TREE_VIEWS_AVG"
+printf "%-34s %-12s\n" "bytes_per_submission"              "$REQUEST_BYTES_AVG_PER_SUBMISSION"
+printf "%-34s %-12s\n" "transactions_created"              "$TX_TREE_COMPUTED_COUNT"
+printf "%-34s %-12s\n" "views_created_total"               "$TX_TREE_VIEWS_TOTAL"
+printf "%-34s %-12s\n" "views_per_transaction"             "$TX_TREE_VIEWS_AVG"
 printf "%-34s %-12s\n" "tx_accepted_count"                 "$TX_ACCEPTED_COUNT"
-printf "%-34s %-12s\n" "bytes_per_tx_computed"             "$BYTES_PER_TX_COMPUTED"
+printf "%-34s %-12s\n" "bytes_per_transaction"             "$BYTES_PER_TX_COMPUTED"
 printf "%-34s %-12s\n" "bytes_per_tx_accepted"             "$BYTES_PER_TX_ACCEPTED"
 printf "%-34s %-12s\n" "bytes_per_view"                    "$BYTES_PER_VIEW"
-printf "%-34s %-12s\n" "list_participants"                 "$TID_PARTICIPANTS_LIST"
-printf "%-34s %-12s\n" "number_unique_participants"        "$TID_NUM_PARTICIPANTS"
-printf "%-34s %-12s\n" "traffic_mb_total"                  "$TRAFFIC_MB_TOTAL"
+printf "%-34s %-12s\n" "runner_participant_count"          "$TID_PARTICIPANTS_LIST"
+printf "%-34s %-12s\n" "participant_count"                 "$TID_NUM_PARTICIPANTS"
+printf "%-34s %-12s\n" "business_parties"                  "$PARTIES_LIST"
+printf "%-34s %-12s\n" "network_mb_total"                  "$TRAFFIC_MB_TOTAL"
 printf "%-34s %-12s\n" "cost_usd_total"                    "$COST_USD_TOTAL"
 echo
 
 echo "=== CSV (machine / Excel) ==="
-echo "template_variant,request_bytes_total,submission_count,bytes_avg_per_submission,tx_tree_computed_count,tx_views_total,tx_views_avg,tx_accepted_count,bytes_per_tx_computed,bytes_per_tx_accepted,bytes_per_view,list_participants,number_unique_participants,traffic_mb_total,cost_usd_total,request_line_count_diagnostic,req_list_participants_diagnostic,req_num_participants_diagnostic,submit_re,tx_tid"
-echo "\"${TEMPLATE_VARIANT}\",${REQUEST_BYTES_TOTAL},${SUBMISSION_COUNT},${REQUEST_BYTES_AVG_PER_SUBMISSION},${TX_TREE_COMPUTED_COUNT},${TX_TREE_VIEWS_TOTAL},${TX_TREE_VIEWS_AVG},${TX_ACCEPTED_COUNT},${BYTES_PER_TX_COMPUTED},${BYTES_PER_TX_ACCEPTED},${BYTES_PER_VIEW},\"${TID_PARTICIPANTS_LIST}\",${TID_NUM_PARTICIPANTS},${TRAFFIC_MB_TOTAL},${COST_USD_TOTAL},${REQUEST_LINE_COUNT_DIAGNOSTIC},\"${REQ_PARTICIPANTS_LIST}\",${REQ_NUM_PARTICIPANTS},\"${SUBMIT_RE}\",\"${TX_TID:-}\""
+echo "template_variant,total_network_bytes,submission_count,bytes_per_submission,transactions_created,views_created_total,views_per_transaction,tx_accepted_count,bytes_per_transaction,bytes_per_tx_accepted,bytes_per_view,runner_participant,runner_participant_count,business_parties,network_mb_total,cost_usd_total,request_line_count_diagnostic,req_list_participants_diagnostic,req_num_participants_diagnostic,tx_tid"
+echo "\"${TEMPLATE_VARIANT}\",${REQUEST_BYTES_TOTAL},${SUBMISSION_COUNT},${REQUEST_BYTES_AVG_PER_SUBMISSION},${TX_TREE_COMPUTED_COUNT},${TX_TREE_VIEWS_TOTAL},${TX_TREE_VIEWS_AVG},${TX_ACCEPTED_COUNT},${BYTES_PER_TX_COMPUTED},${BYTES_PER_TX_ACCEPTED},${BYTES_PER_VIEW},\"${TID_PARTICIPANTS_LIST}\",${TID_NUM_PARTICIPANTS},\"${PARTIES_LIST}\",${TRAFFIC_MB_TOTAL},${COST_USD_TOTAL},${REQUEST_LINE_COUNT_DIAGNOSTIC},\"${REQ_PARTICIPANTS_LIST}\",${REQ_NUM_PARTICIPANTS},\"${TX_TID:-}\""

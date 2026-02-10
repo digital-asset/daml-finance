@@ -1,0 +1,413 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates.
+-- SPDX-License-Identifier: Apache-2.0
+
+module Daml.Finance.Benchmark.Test.Settlement.SettlementIntermediatedStatic_N where
+
+import Daml.Script
+import DA.Map qualified as Map
+import DA.Set qualified as Set
+import DA.Text qualified as Text
+
+import Daml.Finance.Interface.Types.Common.V3.Types
+  ( Id(..)
+  , AccountKey(..)
+  , InstrumentKey(..)
+  , HoldingFactoryKey(..)
+  , HoldingStandard(..)
+  , PartiesMap
+  )
+
+import Daml.Finance.Interface.Account.V4.Factory qualified as AccountFactory (I)
+import Daml.Finance.Interface.Holding.V4.Factory qualified as HoldingFactory (I, Reference(..), View(..))
+import Daml.Finance.Interface.Instrument.Token.V4.Factory qualified as TokenFactory (Create(..), I)
+import Daml.Finance.Interface.Instrument.Token.V4.Types (Token(..))
+
+import Daml.Finance.Account.V4.Account qualified as AccountImpl (Factory(..))
+import Daml.Finance.Holding.V4.Factory qualified as HoldingImpl (Factory(..))
+import Daml.Finance.Instrument.Token.V4.Factory qualified as TokenImpl (Factory(..))
+
+import Daml.Finance.Benchmark.Test.Workflow.CreateAccount qualified as CreateAccount (Accept(..), Request(..))
+import Daml.Finance.Benchmark.Test.Workflow.CreditAccount qualified as CreditAccount (Accept(..), Request(..))
+
+-- Settlement interfaces
+import Daml.Finance.Interface.Settlement.V4.RouteProvider qualified as RouteProvider (Discover(..), I)
+import Daml.Finance.Interface.Account.V4.Account qualified as Account (Controllers(..))
+import Daml.Finance.Interface.Settlement.V4.Factory qualified as SettlementFactory (Instruct(..), I)
+import Daml.Finance.Interface.Settlement.V4.Batch qualified as Batch (Settle(..))
+import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (Allocate(..), Approve(..))
+import Daml.Finance.Interface.Settlement.V4.Types qualified as ST
+  ( Step(..), Quantity(..)
+  , Allocation(..), Approval(..)
+  )
+
+-- Intermediated route provider implementation
+import Daml.Finance.Settlement.V4.RouteProvider.IntermediatedStatic (IntermediatedStatic(..))
+import Daml.Finance.Settlement.V4.Factory qualified as Settlement (Factory(..))
+import Daml.Finance.Settlement.V4.Hierarchy (Hierarchy(..))
+
+-- Splice instrument id
+import Splice.Api.Token.HoldingV1 (InstrumentId(..))
+import Splice.Api.Token.HoldingV1 qualified as Api.HoldingV1 (Holding)
+
+--------------------------------------------------------------------------------
+-- Helpers
+parseParty : Text -> Script Party
+parseParty t =
+  case partyFromText (Text.trim t) of
+    Some p -> pure p
+    None -> abort ("Bad party id: " <> show t)
+
+parseDecimal : Text -> Script Decimal
+parseDecimal t =
+  case Text.parseDecimal (Text.trim t) of
+    Some d -> pure d
+    None -> abort ("Bad decimal: " <> show t)
+
+mkObservers : [Party] -> PartiesMap
+mkObservers ps =
+  if null ps then mempty
+  else Map.fromList [("Observers", Set.fromList ps)]
+
+toInstrumentId : InstrumentKey -> InstrumentId
+toInstrumentId ik =
+  InstrumentId with
+    admin = ik.depository
+    id = show ik.id
+
+mkStep : Party -> Party -> InstrumentId -> Decimal -> ST.Step
+mkStep sender receiver unit amount =
+  ST.Step with
+    sender
+    receiver
+    quantity = ST.Quantity with amount; unit
+
+mkHierarchy_BankA_Central_BankB: Party -> Party -> Party -> Party -> Party -> Hierarchy
+mkHierarchy_BankA_Central_BankB alice bankA bob bankB centralBank =
+  Hierarchy with
+    rootCustodian = centralBank
+    pathsToRootCustodian =
+      [ [alice, bankA]
+      , [bob, bankB]
+      ]
+
+ownerControllers : Party -> Account.Controllers
+ownerControllers p =
+  Account.Controllers with
+    outgoing = Set.singleton p
+    incoming = Set.singleton p
+--------------------------------------------------------------------------------
+-- Persisted setup
+template IntermediatedSetup
+  with
+    bankA : Party
+    centralBank : Party
+    bankB : Party
+    alice : Party
+    bob : Party
+    suffix : Text
+
+    accountFactoryCid : ContractId AccountFactory.I
+    holdingFactoryKeyA : HoldingFactoryKey
+    holdingFactoryKeyCentral : HoldingFactoryKey
+    holdingFactoryKeyB : HoldingFactoryKey
+    tokenFactoryCidCentral : ContractId TokenFactory.I
+
+    -- accounts
+    aliceAtA : AccountKey
+    bankAAtCentral : AccountKey
+    bankBAtCentral : AccountKey
+    bobAtB : AccountKey
+
+    -- instrument (EUR-like)
+    eurInstrument : InstrumentKey
+
+    -- holdings needed for allocations
+    aliceEurHoldingAtA : ContractId Api.HoldingV1.Holding
+    bankAEurHoldingAtCentral : ContractId Api.HoldingV1.Holding
+
+    -- infra
+    routeProviderCid : ContractId RouteProvider.I
+    settlementFactoryCid : ContractId SettlementFactory.I
+  where
+    signatory centralBank
+    observer bankA, bankB, alice, bob
+
+    key (centralBank, suffix) : (Party, Text)
+    maintainer key._1
+
+lookupSetup : Party -> Text -> Script (ContractId IntermediatedSetup, IntermediatedSetup)
+lookupSetup centralBank suffix = do
+  m <- queryContractKey @IntermediatedSetup centralBank (centralBank, suffix)
+  case m of
+    None -> abort ("IntermediatedSetup not found for suffix=" <> show suffix <> ". Run runSetup first.")
+    Some x -> pure x
+
+--------------------------------------------------------------------------------
+-- Setup (run once)
+-- Args: (BANKA_ID, CENTRALBANK_ID, BANKB_ID, ALICE_ID, BOB_ID, suffix)
+
+runSetup : (Text, Text, Text, Text, Text, Text) -> Script ()
+runSetup (bankAT, centralT, bankBT, aliceT, bobT, suffixT) = script do
+  bankA <- parseParty bankAT
+  centralBank <- parseParty centralT
+  bankB <- parseParty bankBT
+  alice <- parseParty aliceT
+  bob <- parseParty bobT
+  let suffix = Text.trim suffixT
+
+  -- Factories
+  accountFactoryCid <- toInterfaceContractId @AccountFactory.I <$> submit centralBank do
+    createCmd AccountImpl.Factory 
+        with 
+            provider = centralBank
+            observers = mkObservers [bankA, bankB, alice, bob]
+
+  -- Holding factories (one per custodian: BankA, CentralBank, BankB)
+  let holdingFactoryIdA = Id ("HF-A-" <> suffix)
+  holdingFactoryCidA <- toInterfaceContractId @HoldingFactory.I <$> submit bankA do
+    createCmd HoldingImpl.Factory with provider = bankA; id = holdingFactoryIdA; observers = mkObservers [alice, bankB, centralBank]
+
+  submit bankA do
+    createCmd HoldingFactory.Reference with
+      factoryView = HoldingFactory.View with provider = bankA; id = holdingFactoryIdA
+      cid = holdingFactoryCidA
+      observers = mkObservers [alice, bankB, centralBank]
+
+  let holdingFactoryKeyA = HoldingFactoryKey with provider = bankA; id = holdingFactoryIdA
+
+  let holdingFactoryIdC = Id ("HF-C-" <> suffix)
+  holdingFactoryCidC <- toInterfaceContractId @HoldingFactory.I <$> submit centralBank do
+    createCmd HoldingImpl.Factory with provider = centralBank; id = holdingFactoryIdC; observers = mkObservers [bankA, bankB, alice, bob]
+
+  submit centralBank do
+    createCmd HoldingFactory.Reference with
+      factoryView = HoldingFactory.View with provider = centralBank; id = holdingFactoryIdC
+      cid = holdingFactoryCidC
+      observers = mkObservers [bankA, bankB, alice, bob]
+
+  let holdingFactoryKeyCentral = HoldingFactoryKey with provider = centralBank; id = holdingFactoryIdC
+
+  let holdingFactoryIdB = Id ("HF-B-" <> suffix)
+  holdingFactoryCidB <- toInterfaceContractId @HoldingFactory.I <$> submit bankB do
+    createCmd HoldingImpl.Factory with provider = bankB; id = holdingFactoryIdB; observers = mkObservers [bob, bankA, centralBank]
+
+  submit bankB do
+    createCmd HoldingFactory.Reference with
+      factoryView = HoldingFactory.View with provider = bankB; id = holdingFactoryIdB
+      cid = holdingFactoryCidB
+      observers = mkObservers [bob, bankA, centralBank]
+
+  let holdingFactoryKeyB = HoldingFactoryKey with provider = bankB; id = holdingFactoryIdB
+
+  -- Token factory is easiest to place at CentralBank (since reserves settle there)
+  tokenFactoryCidCentral <- toInterfaceContractId @TokenFactory.I <$> submit centralBank do
+    createCmd TokenImpl.Factory with
+        provider = centralBank
+        observers = mkObservers [bankA, bankB, alice, bob]
+
+  let eurInstrument = InstrumentKey with
+        issuer = centralBank
+        depository = centralBank
+        id = Id ("EUR-" <> suffix)
+        version = "0"
+        holdingStandard = TransferableFungible
+
+  now <- getTime
+  submit centralBank do
+    exerciseCmd tokenFactoryCidCentral TokenFactory.Create with
+      token = Token with instrument = eurInstrument; description = "EUR (intermediated benchmark)"; validAsOf = now
+      observers = mempty
+
+  -- Accounts:
+  -- Alice @ BankA
+  aliceReqCid : ContractId CreateAccount.Request <- submit alice do
+    createCmd CreateAccount.Request with owner = alice; custodian = bankA
+  aliceAtA <- submit bankA do
+    exerciseCmd aliceReqCid CreateAccount.Accept with
+      label = "Alice@BankA-" <> suffix
+      description = "Alice account @ BankA"
+      accountFactoryCid
+      holdingFactory = holdingFactoryKeyA
+      observers = mempty
+      controllers = None
+
+  -- BankA @ CentralBank
+  bankAReqCid : ContractId CreateAccount.Request <- submit bankA do
+    createCmd CreateAccount.Request with owner = bankA; custodian = centralBank
+  bankAAtCentral <- submit centralBank do
+    exerciseCmd bankAReqCid CreateAccount.Accept with
+      label = "BankA@Central-" <> suffix
+      description = "BankA reserve @ CentralBank"
+      accountFactoryCid
+      holdingFactory = holdingFactoryKeyCentral
+      observers = mempty
+      controllers = Some (ownerControllers bankA)
+
+  -- BankB @ CentralBank
+  bankBReqCid : ContractId CreateAccount.Request <- submit bankB do
+    createCmd CreateAccount.Request with owner = bankB; custodian = centralBank
+  bankBAtCentral <- submit centralBank do
+    exerciseCmd bankBReqCid CreateAccount.Accept with
+      label = "BankB@Central-" <> suffix
+      description = "BankB reserve @ CentralBank"
+      accountFactoryCid
+      holdingFactory = holdingFactoryKeyCentral
+      observers = mempty
+      controllers = Some (ownerControllers bankB)
+
+  -- Bob @ BankB
+  bobReqCid : ContractId CreateAccount.Request <- submit bob do
+    createCmd CreateAccount.Request with owner = bob; custodian = bankB
+  bobAtB <- submit bankB do
+    exerciseCmd bobReqCid CreateAccount.Accept with
+      label = "Bob@BankB-" <> suffix
+      description = "Bob account @ BankB"
+      accountFactoryCid
+      holdingFactory = holdingFactoryKeyB
+      observers = mempty
+      controllers = Some (ownerControllers bankB)
+
+  -- Seed holdings needed for allocations:
+  -- Alice has EUR @ BankA (for 1A allocation)
+  aliceCreditReqCid : ContractId CreditAccount.Request <- submit alice do
+    createCmd CreditAccount.Request with account = aliceAtA; instrument = eurInstrument; amount = 1000.0
+  aliceEurHoldingAtA <- submit bankA do
+    exerciseCmd aliceCreditReqCid CreditAccount.Accept
+
+  -- BankA has EUR @ CentralBank (for 1B allocation)
+  bankACreditReqCid : ContractId CreditAccount.Request <- submit bankA do
+    createCmd CreditAccount.Request with account = bankAAtCentral; instrument = eurInstrument; amount = 1000.0
+  bankAEurHoldingAtCentral <- submit centralBank do
+    exerciseCmd bankACreditReqCid CreditAccount.Accept
+
+  -- RouteProvider: IntermediatedStatic with paths keyed by InstrumentId.id (Text)
+  let eurLabel = show eurInstrument.id
+  let paths =
+        Map.fromList
+          [ ( eurLabel
+            , mkHierarchy_BankA_Central_BankB alice bankA bob bankB centralBank 
+            )
+          ]
+
+  routeProviderCid <- toInterfaceContractId @RouteProvider.I <$> submit centralBank do
+    createCmd IntermediatedStatic with
+      provider = centralBank
+      observers = Set.fromList [bankA, bankB, alice, bob]
+      paths = paths
+
+  -- SettlementFactory
+  settlementFactoryCid <- toInterfaceContractId @SettlementFactory.I <$> submit centralBank do
+    createCmd Settlement.Factory with
+      provider = centralBank
+      observers = Set.fromList [bankA, bankB, alice, bob]
+
+  -- Persist setup
+  submit centralBank do
+    createCmd IntermediatedSetup with
+      bankA; centralBank; bankB; alice; bob; suffix
+      accountFactoryCid
+      holdingFactoryKeyA
+      holdingFactoryKeyCentral
+      holdingFactoryKeyB
+      tokenFactoryCidCentral
+      aliceAtA
+      bankAAtCentral
+      bankBAtCentral
+      bobAtB
+      eurInstrument
+      aliceEurHoldingAtA
+      bankAEurHoldingAtCentral
+      routeProviderCid
+      settlementFactoryCid
+
+  debug "Intermediated setup done"
+  pure ()
+
+--------------------------------------------------------------------------------
+-- Measured: full intermediated settlement
+-- Args: (CENTRALBANK_ID, suffix, amount)
+--
+-- Input Step: Alice -> Bob for EUR amount
+-- Route expands to:
+-- 1A: Alice -> BankA @ BankA          (Pledge alice holding, approve DebitSender by BankA)
+-- 1B: BankA -> BankB @ CentralBank    (Pledge BankA reserve holding, approve TakeDelivery by BankB)
+-- 1C: BankB -> Bob @ BankB            (Allocate CreditReceiver by BankB, approve TakeDelivery by Bob)
+--
+runIntermediatedTransfer : (Text, Text, Text) -> Script ()
+runIntermediatedTransfer (centralT, suffixT, amountT) = script do
+  centralBank <- parseParty centralT
+  let suffix = Text.trim suffixT
+  amount <- parseDecimal amountT
+
+  (_, setup) <- lookupSetup centralBank suffix
+
+  let unit = toInstrumentId setup.eurInstrument
+  let step = mkStep setup.alice setup.bob unit amount
+
+  -- Discover routed steps (should become 3 routed steps)
+  routedSteps <- submit setup.centralBank do
+    exerciseCmd setup.routeProviderCid RouteProvider.Discover with
+      discoverors = Set.singleton setup.centralBank
+      contextId = None
+      steps = [step]
+
+  (batchCid, instructionCids) <- submit setup.centralBank do
+    exerciseCmd setup.settlementFactoryCid SettlementFactory.Instruct with
+      instructor = setup.centralBank
+      consenters = Set.singleton setup.centralBank
+      settlers = Set.fromList [setup.bankA, setup.bankB, setup.centralBank]
+      id = Id ("intermediated-" <> suffix)
+      description = "Intermediated EUR transfer via IntermediatedStatic"
+      contextId = None
+      routedSteps = routedSteps
+      settlementTime = None
+
+  -- We expect 3 instructions; order depends on route provider.
+  -- If order differs, sort by routedStep fields in a separate step; for now assume route returns in path order.
+  let [i1A, i1B, i1C] = instructionCids
+
+  -- 1A: Alice -> BankA @ BankA
+  -- Allocation: Alice pledges her holding
+  (i1A_alloc, _) <- submit setup.alice do
+    exerciseCmd i1A Instruction.Allocate with
+      actors = Set.singleton setup.alice
+      allocation = ST.Pledge setup.aliceEurHoldingAtA
+
+  -- Approval: BankA approves with DebitSender (receiver is custodian here)
+  _ <- submit setup.bankA do
+    exerciseCmd i1A_alloc Instruction.Approve with
+      actors = Set.singleton setup.bankA
+      approval = ST.DebitSender
+
+  -- 1B: BankA -> BankB @ CentralBank
+  -- Allocation: BankA pledges its reserve holding @ CentralBank
+  (i1B_alloc, _) <- submit setup.bankA do
+    exerciseCmd i1B Instruction.Allocate with
+      actors = Set.singleton setup.bankA
+      allocation = ST.Pledge setup.bankAEurHoldingAtCentral
+
+  -- Approval: BankB takes delivery to its reserve account @ CentralBank
+  _ <- submit setup.bankB do
+    exerciseCmd i1B_alloc Instruction.Approve with
+      actors = Set.singleton setup.bankB
+      approval = ST.TakeDelivery setup.bankBAtCentral
+
+  -- 1C: BankB -> Bob @ BankB
+  -- Allocation: BankB allocates with CreditReceiver (custodian is sender)
+  (i1C_alloc, _) <- submit setup.bankB do
+    exerciseCmd i1C Instruction.Allocate with
+      actors = Set.singleton setup.bankB
+      allocation = ST.CreditReceiver
+
+  -- Approval: Bob takes delivery to his account @ BankB
+  _ <- submit setup.bob do
+    exerciseCmd i1C_alloc Instruction.Approve with
+      actors = Set.singleton setup.bob
+      approval = ST.TakeDelivery setup.bobAtB
+
+  -- Settle atomically (use CentralBank as settler)
+  _ <- submit setup.centralBank do
+    exerciseCmd batchCid Batch.Settle with
+      actors = Set.singleton setup.centralBank
+
+  pure ()

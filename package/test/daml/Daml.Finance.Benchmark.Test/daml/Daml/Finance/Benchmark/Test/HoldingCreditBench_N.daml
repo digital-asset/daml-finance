@@ -1,0 +1,339 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+-- Goal:
+--   - runSetup (not measured): create the minimal prerequisites (Alice+Bank, factories, USD instrument, Alice account)
+--   - runCreditRequest (measured): 1 tx where Alice creates CreditAccount.Request
+--   - runCreditAccept  (measured): 1 tx where Bank exercises CreditAccount.Accept (this is the holding creation)
+--
+--   - No Bob involved (minimal fan-out).
+--   - We keep the measured scripts to exactly ONE submit each.
+--   - Accept finds the request by querying for CreditAccount.Request visible to the bank and matching (account,instrument,amount).
+
+module Daml.Finance.Benchmark.Test.HoldingCreditBench_N where
+
+import Daml.Script
+
+import DA.Text qualified as Text (trim, parseDecimal)
+
+-- INTERFACE DEPENDENCIES
+import Daml.Finance.Interface.Account.V4.Factory qualified as AccountFactory (I)
+import Daml.Finance.Interface.Holding.V4.Factory qualified as HoldingFactory (I, Reference(..), View(..))
+import Daml.Finance.Interface.Instrument.Token.V4.Factory qualified as TokenFactory (Create(..), I)
+import Daml.Finance.Interface.Instrument.Token.V4.Types (Token(..))
+import Daml.Finance.Interface.Types.Common.V3.Types
+  ( AccountKey(..)
+  , HoldingFactoryKey(..)
+  , HoldingStandard(..)
+  , Id(..)
+  , InstrumentKey(..)
+  )
+
+import Daml.Finance.Account.V4.Account qualified as Account (Factory(..))
+import Daml.Finance.Holding.V4.Factory qualified as Holding (Factory(..))
+import Daml.Finance.Instrument.Token.V4.Factory qualified as Token (Factory(..))
+
+import Daml.Finance.Benchmark.Test.Workflow.CreateAccount  qualified as CreateAccount (Accept(..), Request(..))
+import Daml.Finance.Benchmark.Test.Workflow.CreditAccount  qualified as CreditAccount (Accept(..), Request(..))
+
+--------------------------------------------------------------------------------
+-- On-ledger setup state (so request/accept are isolated in later runs)
+
+template HoldingCreditBenchState
+  with
+    bank : Party
+    alice : Party
+    suffix : Text
+
+    accountFactoryCid : ContractId AccountFactory.I
+    holdingFactoryKey : HoldingFactoryKey
+    tokenFactoryCid   : ContractId TokenFactory.I
+
+    aliceAccount : AccountKey
+    cashInstrument : InstrumentKey
+
+    creditRequestCid : Optional (ContractId CreditAccount.Request)
+  where
+    signatory bank
+    observer alice
+
+    key (bank, suffix) : (Party, Text)
+    maintainer key._1
+
+--------------------------------------------------------------------------------
+-- Helper
+debugCommon : Party -> Party -> Text -> Text -> Script ()
+debugCommon alice bank suffix extra = do
+  debug $ "ALICE_ID=" <> show alice
+  debug $ "BANK_ID=" <> show bank
+  debug $ "SUFFIX=" <> show suffix
+  debug $ "EXTRA=" <> show extra
+
+parseParty : Text -> Script Party
+parseParty t =
+  case partyFromText t of
+    Some p -> pure p
+    None -> abort ("Bad party id: " <> t)
+
+parseDecimalText : Text -> Script Decimal
+parseDecimalText t =
+  case Text.parseDecimal (Text.trim t) of
+    Some d -> pure d
+    None -> abort ("Bad decimal: " <> t)
+
+lookupState
+  : Party
+  -> Text
+  -> Script (ContractId HoldingCreditBenchState, HoldingCreditBenchState)
+lookupState bank suffix = do
+  m <- queryContractKey @HoldingCreditBenchState bank (bank, suffix)
+  case m of
+    None ->
+      abort $
+        "HoldingCreditBenchState not found for key (bank, suffix)=("
+          <> show bank <> ", " <> show suffix <> "). Did you run runSetup?"
+    Some (cid, st) -> pure (cid, st)
+
+createHoldingFactory : Holding.Factory -> Script HoldingFactoryKey
+createHoldingFactory f = do
+  submit f.provider do
+    createCmd f
+
+  pure $ HoldingFactoryKey with
+    provider = f.provider
+    id = f.id
+
+--------------------------------------------------------------------------------
+-- Setup (run once)
+-- Args: (ALICE_ID, BANK_ID, suffix)
+--
+-- Creates:
+--   - Account.Factory
+--   - Holding.Factory
+--   - Token.Factory
+--   - Alice account at bank (CreateAccount.Request + Accept)
+--   - USD instrument (TokenFactory.Create)
+-- Stores:
+--   - Alice AccountKey + InstrumentKey in HoldingCreditBenchState keyed by (bank, suffix)
+
+runSetup : (Text, Text, Text) -> Script ()
+runSetup (aliceText, bankText, suffix) = script do
+  alice <- parseParty aliceText
+  bank  <- parseParty bankText
+
+  debugCommon alice bank suffix "setup"
+
+  -- Account Factory
+  accountFactoryCid <- toInterfaceContractId @AccountFactory.I <$> submit bank do
+    createCmd Account.Factory with
+      provider = bank
+      observers = mempty
+
+  -- Holding Factory 
+  let holdingFactoryId = Id ("HoldingFactory@" <> suffix)
+
+  -- Create the implementation factory contract (and keep its interface cid)
+  holdingFactoryCid : ContractId HoldingFactory.I <-
+    toInterfaceContractId @HoldingFactory.I <$> submit bank do
+      createCmd Holding.Factory with
+        provider = bank
+        id = holdingFactoryId
+        observers = mempty
+
+  -- Create the Reference keyed by HoldingFactoryKey (provider,id)
+  submit bank do
+    createCmd HoldingFactory.Reference with
+      factoryView = HoldingFactory.View with
+        provider = bank
+        id = holdingFactoryId
+      cid = holdingFactoryCid
+      observers = mempty
+
+  -- The key that is passed around
+  let holdingFactoryKey = HoldingFactoryKey with
+        provider = bank
+        id = holdingFactoryId
+
+  -- Token Factory
+  tokenFactoryCid <- toInterfaceContractId @TokenFactory.I <$> submit bank do
+    createCmd Token.Factory with
+      provider = bank
+      observers = mempty
+
+  -- Create Alice account at Bank
+  aliceReqCid <- submit alice do
+    createCmd CreateAccount.Request with
+      owner = alice
+      custodian = bank
+
+  aliceAccount <- submit bank do
+    exerciseCmd aliceReqCid CreateAccount.Accept with
+      label = "Alice@Bank"
+      description = "Account of Alice at Bank"
+      accountFactoryCid
+      holdingFactory = holdingFactoryKey
+      observers = []
+      controllers = None
+
+  -- Issue USD instrument 
+  let
+    instrumentKey = InstrumentKey with
+      issuer = bank
+      depository = bank
+      id = Id "USD"
+      version = "0"
+      holdingStandard = TransferableFungible
+
+  now <- getTime
+  submit bank do
+    exerciseCmd tokenFactoryCid TokenFactory.Create with
+      token = Token with
+        instrument = instrumentKey
+        description = "Instrument representing units of a generic token"
+        validAsOf = now
+      observers = mempty
+
+  -- Persist bench state
+  _stCid <- submit bank do
+    createCmd HoldingCreditBenchState with
+      bank
+      alice
+      suffix
+      accountFactoryCid
+      holdingFactoryKey
+      tokenFactoryCid
+      aliceAccount
+      cashInstrument = instrumentKey
+      creditRequestCid = None
+
+  debug "Setup done"
+  pure ()
+
+--------------------------------------------------------------------------------
+-- Measured: CREDIT REQUEST (1 tx)
+-- Args: (BANK_ID, suffix, amountText)
+--
+-- exactly one tx: Alice creates CreditAccount.Request.
+
+runCreditRequest : (Text, Text, Text) -> Script ()
+runCreditRequest (bankText, suffix, amountText) = script do
+  bank <- parseParty bankText
+  (_, benchState) <- lookupState bank suffix
+  creditAmount <- parseDecimalText amountText
+
+  debugCommon
+    benchState.alice
+    bank
+    suffix
+    ("credit-request amount=" <> show creditAmount)
+
+  creditRequestCid <- submit benchState.alice do
+    createCmd CreditAccount.Request with
+      account= benchState.aliceAccount
+      instrument = benchState.cashInstrument
+      amount= creditAmount
+
+  debug "CreditAccount.Request submitted by Alice"
+  pure ()
+
+--------------------------------------------------------------------------------
+-- Measured: CREDIT ACCEPT (1 tx)
+--
+-- Args: (BANK_ID, suffix, amountText)
+--
+-- Exactly one tx: Bank exercises CreditAccount.Accept on the matching request.
+-- The matching request is located by a query visible to the bank, filtered by
+-- (account,instrument,amount).
+
+runCreditAccept : (Text, Text, Text) -> Script ()
+runCreditAccept (bankText, suffix, amountText) = script do
+  bank <- parseParty bankText
+  (_, benchState) <- lookupState bank suffix
+  creditAmount <- parseDecimalText amountText
+
+  debugCommon benchState.alice bank suffix ("credit-accept amount=" <> show creditAmount)
+
+  visibleRequests <- query @CreditAccount.Request bank
+
+  let matchingRequests =
+        filter
+          (\(_, r) ->
+            r.account == benchState.aliceAccount
+              && r.instrument == benchState.cashInstrument
+              && r.amount == creditAmount
+          )
+          visibleRequests
+
+  case matchingRequests of
+    [] ->
+      abort "No matching CreditAccount.Request found. Did you run runCreditRequest first (same suffix + amount)?"
+    [(aliceRequestCid, _)] -> do
+      aliceCashHoldingCid <- submit bank do
+        exerciseCmd aliceRequestCid CreditAccount.Accept
+      debug "CreditAccount.Accept exercised (holding created)"
+      pure ()
+    _ ->
+      abort "Multiple matching CreditAccount.Request found. Use a fresh suffix (or clean outstanding requests)."
+
+--------------------------------------------------------------------------------
+-- Measured: CREDIT REQUEST + ACCEPT (2out multi-submit, that is necessarily 2 separate submissions ⇒ 2 tra tx)
+-- Args: (BANK_ID, suffix, amountText)
+runCreditRequestAccept : (Text, Text, Text) -> Script ()
+runCreditRequestAccept (bankText, suffix, amountText) = script do
+  bank <- parseParty bankText
+  (_, benchState) <- lookupState bank suffix
+  creditAmount <- parseDecimalText amountText
+
+  debugCommon benchState.alice bank suffix ("credit-request+accept amount=" <> show creditAmount)
+
+  -- Alice deposits cash at the bank
+  -- CREATE_ALICE_HOLDING_BEGIN
+  aliceRequestCid <- submit benchState.alice do
+    createCmd CreditAccount.Request with
+      account = benchState.aliceAccount
+      instrument = benchState.cashInstrument
+      amount = creditAmount
+
+  _aliceCashHoldingCid <- submit bank do
+    exerciseCmd aliceRequestCid CreditAccount.Accept
+  -- CREATE_ALICE_HOLDING_END
+
+  debug "CreditAccount.Request then Accept done (2 tx, holding created)"
+  pure ()
+
+--------------------------------------------------------------------------------
+-- Measured: MINT (1 tx)
+-- Args: (BANK_ID, suffix, tokenIdText)
+--
+-- Exactly one tx: Bank exercises TokenFactory.Create, creating a new Token contract
+-- on-ledger (mint by your definition).
+runMint : (Text, Text, Text) -> Script ()
+runMint (bankText, suffix, tokenIdText) = script do
+  bank <- parseParty bankText
+  (_, benchState) <- lookupState bank suffix
+
+  let tokenId = Text.trim tokenIdText
+
+  debugCommon benchState.alice bank suffix ("mint tokenId=" <> show tokenId)
+
+  -- Unique instrument per mint run 
+  let instrumentKey = InstrumentKey with
+        issuer = bank
+        depository = bank
+        id = Id ("USD@" <> suffix <> "#" <> tokenId)
+        version = "0"
+        holdingStandard = TransferableFungible
+
+  now <- getTime
+
+  -- MEASURED OPERATION: exactly one submit / one tx
+  submit bank do
+    exerciseCmd benchState.tokenFactoryCid TokenFactory.Create with
+      token = Token with
+        instrument = instrumentKey
+        description = "Mint benchmark token"
+        validAsOf = now
+      observers = mempty
+
+  debug "TokenFactory.Create exercised (token minted)"
+  pure ()
