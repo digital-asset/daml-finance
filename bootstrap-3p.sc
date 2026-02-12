@@ -67,11 +67,11 @@ val sid3 = participant3.synchronizers.id_of("mysynchronizer")
 
 // ----------------------------------------------------------------------------
 // Enable parties (owned on specific participants)
-val alicePartyId       = participant1.parties.enable("alice")
-val aliceBankPartyId   = participant1.parties.enable("aliceBank")
+val alicePartyId  = participant1.parties.enable("alice")
+val aliceBankPartyId = participant1.parties.enable("aliceBank")
 
-val bobPartyId         = participant2.parties.enable("bob")
-val bobBankPartyId     = participant2.parties.enable("bobBank")
+val bobPartyId = participant2.parties.enable("bob")
+val bobBankPartyId = participant2.parties.enable("bobBank")
 
 val centralBankPartyId = participant3.parties.enable("centralBank")
 
