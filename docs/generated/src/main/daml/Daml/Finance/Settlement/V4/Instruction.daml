@@ -9,14 +9,14 @@ import DA.Set qualified as Set (fromList, insert, intersection, isSubsetOf, null
 import Daml.Finance.Interface.Account.V4.Account qualified as Account (Credit(..), Debit(..), I, R, disclose, exerciseInterfaceByKey, undisclose)
 import Daml.Finance.Interface.Account.V4.Util (getAccount)
 import Daml.Finance.Interface.Holding.V4.Transferable qualified as Transferable (I, Transfer(..))
-import Daml.Finance.Interface.Util.V3.HoldingSplice qualified as Holding (getAmount)
 import Daml.Finance.Interface.Settlement.V4.Instruction qualified as Instruction (Allocate(..), Approve(..), Cancel(..), Execute(..), I, View(..))
 import Daml.Finance.Interface.Settlement.V4.Types (Allocation(..), Approval(..), InstructionKey(..), RoutedStep)
-import Daml.Finance.Interface.Types.Common.V3.Types (AccountKey, Id(..), Parties, PartiesMap, InstrumentQuantity)
-import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (I, View(..), flattenObservers, AddObservers(..), RemoveObservers(..))
+import Daml.Finance.Interface.Types.Common.V3.Types (AccountKey, Id(..), InstrumentQuantity, Parties, PartiesMap)
+import Daml.Finance.Interface.Util.V3.Common qualified as Common (qty)
+import Daml.Finance.Interface.Util.V3.Disclosure qualified as Disclosure (AddObservers(..), I, RemoveObservers(..), View(..), flattenObservers)
+import Daml.Finance.Interface.Util.V3.HoldingSplice qualified as Holding (getAmount)
 import Daml.Finance.Interface.Util.V3.InterfaceKey (fetchInterfaceByKey)
 import Daml.Finance.Interface.Util.V3.Lockable qualified as Lockable (Acquire(..), I, LockType(..), Release(..))
-import Daml.Finance.Interface.Util.V3.Common qualified as Common (qty)
 import Daml.Finance.Settlement.V4.Conversion (toInstrumentKey)
 import Daml.Finance.Util.V4.Disclosure (addObserversImpl, removeObserversImpl, setObserversImpl)
 import Splice.Api.Token.HoldingV1 qualified as Api.HoldingV1
@@ -83,7 +83,7 @@ template Instruction
 
         -- allocate
         newAllocation <- case allocation of
-          
+
           Pledge oldHoldingCid -> do
 
             newHoldingCid <- disclosePledge this oldHoldingCid actors
@@ -104,8 +104,9 @@ template Instruction
             assertMsg ("Pledged amount must match. " <> context this) $
               Holding.getAmount holdingI == routedStep.quantity.amount
 
-            let holdingView = view holdingI   
-            let expectedInstr = routedStep.quantity.unit
+            let
+              holdingView = view holdingI
+              expectedInstr = routedStep.quantity.unit
 
             assertMsg ("Pledged instrument ID mismatch. " <> context this) $
               holdingView.instrumentId.id == expectedInstr.id
@@ -161,7 +162,6 @@ template Instruction
         assertMsg ("Approval must be new. " <> context this) $ approval /= this.approval
         releasePreviousApproval this actors
 
-        
         -- approve
         case approval of
           TakeDelivery receiverAccountKey -> do
@@ -217,12 +217,13 @@ template Instruction
 
           (Pledge holdingCid, a) -> do
             holdingCid <- coerceInterfaceContractId @Api.HoldingV1.Holding @Lockable.I <$>
-              exercise (coerceInterfaceContractId @Lockable.I @Api.HoldingV1.Holding holdingCid) Lockable.Release with
-                context = context this
-                
+              exercise (coerceInterfaceContractId @Lockable.I @Api.HoldingV1.Holding holdingCid)
+                Lockable.Release with context = context this
+
             holding <- fetch holdingCid
-            let holdingI = toInterface @Api.HoldingV1.Holding holding
-            let senderAccountKey = getAccount holdingI
+            let
+              holdingI = toInterface @Api.HoldingV1.Holding holding
+              senderAccountKey = getAccount holdingI
 
             case a of
               TakeDelivery receiverAccountKey -> do
@@ -266,7 +267,9 @@ template Instruction
             case a of
               TakeDelivery receiverAccountKey -> do
                 mustBe this Custodian routedStep.sender
-                let legacyQty : InstrumentQuantity = Common.qty routedStep.quantity.amount (toInstrumentKey instructor routedStep.quantity.unit)
+                let
+                  legacyQty : InstrumentQuantity = Common.qty routedStep.quantity.amount $
+                    toInstrumentKey instructor routedStep.quantity.unit
                 holdingCid <- Account.exerciseInterfaceByKey @Account.I
                   receiverAccountKey
                   routedStep.custodian
@@ -325,12 +328,13 @@ undiscloseAccount this@Instruction {settlers} accountKey actors =
     addSignatories this actors
 
 -- | HIDE: Add observers for the pledge
-disclosePledge : Instruction -> ContractId Api.HoldingV1.Holding -> Set Party -> Update (ContractId Api.HoldingV1.Holding)
+disclosePledge : Instruction -> ContractId Api.HoldingV1.Holding -> Set Party ->
+  Update (ContractId Api.HoldingV1.Holding)
 disclosePledge this@Instruction {settlers} holdingCid actors = do
   let discCid = coerceInterfaceContractId @Disclosure.I @Api.HoldingV1.Holding holdingCid
   newDisclosureCid <- exercise discCid Disclosure.AddObservers with
-         disclosers = addSignatories this actors
-         observersToAdd = (context this, settlers)
+    disclosers = addSignatories this actors
+    observersToAdd = (context this, settlers)
   pure (coerceInterfaceContractId @Api.HoldingV1.Holding @Disclosure.I newDisclosureCid)
 
 -- | HIDE: Remove observers for the pledge
@@ -344,7 +348,8 @@ undisclosePledge this@Instruction {settlers} holdingCid actors = do
   pure (fmap (coerceInterfaceContractId @Api.HoldingV1.Holding @Disclosure.I) mDisc')
 
 -- | HIDE
-releasePreviousAllocation : Instruction -> Parties -> Update (Optional (ContractId Api.HoldingV1.Holding))
+releasePreviousAllocation : Instruction -> Parties ->
+  Update (Optional (ContractId Api.HoldingV1.Holding))
 releasePreviousAllocation this@Instruction {allocation; signedSenders} actors = do
   let allMustAuthorize = mustAuthorizeHelper True actors
   -- signed senders must agree to release previous allocation
@@ -353,7 +358,9 @@ releasePreviousAllocation this@Instruction {allocation; signedSenders} actors = 
   case allocation of
     Pledge holdingCid -> do
       -- Convert Holding → Lockable
-      let lockableCid : ContractId Lockable.I = coerceInterfaceContractId  @Lockable.I @Api.HoldingV1.Holding holdingCid
+      let
+        lockableCid : ContractId Lockable.I =
+          coerceInterfaceContractId @Lockable.I @Api.HoldingV1.Holding holdingCid
 
       -- Release the lock (returns Lockable CID)
       releasedLockableCid <-
@@ -361,21 +368,23 @@ releasePreviousAllocation this@Instruction {allocation; signedSenders} actors = 
           context = context this
 
       -- Convert Lockable → Holding
-      let releasedHoldingCid : ContractId Api.HoldingV1.Holding = coerceInterfaceContractId @Api.HoldingV1.Holding @Lockable.I releasedLockableCid
+      let
+        releasedHoldingCid : ContractId Api.HoldingV1.Holding =
+          coerceInterfaceContractId @Api.HoldingV1.Holding @Lockable.I releasedLockableCid
 
       -- Fetch holding to get account
       holding <- fetch releasedHoldingCid
 
-      let holdingI = toInterface @Api.HoldingV1.Holding holding 
+      let holdingI = toInterface @Api.HoldingV1.Holding holding
       let senderAccountKey = getAccount holdingI
       undiscloseAccount this senderAccountKey actors
       mUndisclosed <- undisclosePledge this releasedHoldingCid actors
 
-      let 
+      let
         finalCid =
           case mUndisclosed of
-            Some cid' -> cid'                
-            None -> releasedHoldingCid  
+            Some cid' -> cid'
+            None -> releasedHoldingCid
 
       pure (Some finalCid)
 

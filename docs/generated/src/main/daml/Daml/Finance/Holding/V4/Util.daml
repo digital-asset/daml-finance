@@ -5,25 +5,25 @@ module Daml.Finance.Holding.V4.Util where
 
 import DA.Action (foldlA)
 import DA.Foldable qualified as F (all)
-import DA.Set (fromList, isSubsetOf, toList)
 import DA.Optional (fromOptional)
+import DA.Set (fromList, isSubsetOf, toList)
 import DA.Text (intercalate)
-import DA.TextMap qualified as TextMap
+import DA.TextMap qualified as TextMap (fromList, lookup)
 import DA.Traversable qualified as T (forA)
 import Daml.Finance.Interface.Account.V4.Account qualified as Account (Credit(..), Debit(..), I, R, exerciseInterfaceByKey)
 import Daml.Finance.Interface.Account.V4.Util (getAccount)
 import Daml.Finance.Interface.Holding.V4.Fungible qualified as Fungible (I, Merge(..), Split(..), SplitResult(..))
 import Daml.Finance.Interface.Holding.V4.Transferable qualified as Transferable (I, Transfer(..))
-import Daml.Finance.Interface.Types.Common.V3.Types (AccountKey(..), InstrumentKey(..), Id(..) )
-import Daml.Finance.Interface.Types.Common.V3.Types qualified as HoldingStandard (HoldingStandard(..) )
+import Daml.Finance.Interface.Types.Common.V3.Types (AccountKey(..), Id(..), InstrumentKey(..))
+import Daml.Finance.Interface.Types.Common.V3.Types qualified as HoldingStandard (HoldingStandard(..))
 import Daml.Finance.Interface.Util.V3.Common (qty, verify)
 import Daml.Finance.Interface.Util.V3.InterfaceKey (fetchInterfaceByKey)
-import Daml.Finance.Interface.Util.V3.Lockable qualified as Lockable (I, mustNotBeLocked, View(..))
-import Splice.Api.Token.HoldingV1 qualified as Api.HoldingV1
-import Splice.Api.Token.MetadataV1 qualified as SpliceMetadata
+import Daml.Finance.Interface.Util.V3.Lockable qualified as Lockable (I, View(..), mustNotBeLocked)
+import Splice.Api.Token.HoldingV1 qualified as Api.HoldingV1 (Holding, HoldingView(..), InstrumentId(..), Lock(..))
+import Splice.Api.Token.MetadataV1 qualified as Api.MetadataV1 (Metadata(..))
 
 instrumentFromSplice : Api.HoldingV1.InstrumentId -> InstrumentKey
-instrumentFromSplice Api.HoldingV1.InstrumentId{admin, id} =
+instrumentFromSplice Api.HoldingV1.InstrumentId{admin; id} =
   InstrumentKey with
     issuer = admin
     depository = admin
@@ -31,8 +31,8 @@ instrumentFromSplice Api.HoldingV1.InstrumentId{admin, id} =
     version = "0"
     holdingStandard = HoldingStandard.Transferable
 
-metaLookup : SpliceMetadata.Metadata -> Text -> Text
-metaLookup SpliceMetadata.Metadata { values } key =
+metaLookup : Api.MetadataV1.Metadata -> Text -> Text
+metaLookup Api.MetadataV1.Metadata { values } key =
   fromOptional "" (TextMap.lookup key values)
 
 -- | Default implementation of `transfer` for the `Transferable` interface.
@@ -46,18 +46,16 @@ transferImpl this self Transferable.Transfer{actors; newOwnerAccount} = do
     lookupMeta = metaLookup (getField @"meta" vHolding)
     custodianTxt = lookupMeta "custodian"
     accountIdTxt = lookupMeta "accountId"
-
   Lockable.mustNotBeLocked this
   -- Fetch the new owner account
   vNewAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I newOwnerAccount
   -- Verify actor permissions
   vAccount <- view <$> fetchInterfaceByKey @Account.R @Account.I (getAccount this)
-  
   assertMsg "Actors must contain all transfer outgoing of the sender account"
     $ vAccount.controllers.outgoing `isSubsetOf` actors
   assertMsg "Actors must contain all transfer incoming of the receiving account"
     $ vNewAccount.controllers.incoming `isSubsetOf` actors
-  assertMsg "Custodians must be the same" 
+  assertMsg "Custodians must be the same"
     $ custodianTxt == partyToText vNewAccount.custodian
   -- Perform debit: remove holding from current owner’s account
   let oldAccountKey = getAccount this
@@ -70,9 +68,8 @@ transferImpl this self Transferable.Transfer{actors; newOwnerAccount} = do
     Account.exerciseInterfaceByKey @Account.I
       newOwnerAccount
       newOwnerAccount.custodian
-      Account.Credit with 
+      Account.Credit with
         quantity = qty vHolding.amount (instrumentFromSplice (getField @"instrumentId" vHolding))
-
 
 -- | Default implementation of `split` from the `Fungible` interface.
 splitImpl :
@@ -109,7 +106,8 @@ mergeImpl this getAmount setAmount Fungible.Merge{fungibleCids} = do
   assertMsg "List of fungibles must be non-empty" . not . null $ fungibleCids
   let
     currentSignatories = fromList . signatory . setAmount $ vHolding.amount
-    current = view . toInterface @Api.HoldingV1.Holding . toInterface @Fungible.I . setAmount $ vHolding.amount
+    current = view . toInterface @Api.HoldingV1.Holding . toInterface @Fungible.I . setAmount $
+      vHolding.amount
     aggregate aggregatedAmount fungibleCid = do
       Some (otherHoldingCid, otherHolding) <- fetchFromInterface @t fungibleCid
       let
@@ -127,14 +125,15 @@ mergeImpl this getAmount setAmount Fungible.Merge{fungibleCids} = do
 -- | Helper to construct the standard Api.HoldingV1.HoldingView shared by
 --  BaseHolding, Fungible, Transferable and TransferableFungible implementations.
 --  Converts internal holding state into the API-facing representation.
-toApiHoldingView : Lockable.View -> InstrumentKey -> AccountKey -> Decimal -> Api.HoldingV1.HoldingView
+toApiHoldingView : Lockable.View -> InstrumentKey -> AccountKey -> Decimal ->
+  Api.HoldingV1.HoldingView
 toApiHoldingView lockView instrument account amount =
   Api.HoldingV1.HoldingView with
     owner = account.owner
     instrumentId = Api.HoldingV1.InstrumentId with
       admin = instrument.issuer
       id = show instrument.id
-    amount = amount
+    amount
     lock = case lockView.lock of
       None -> None
       Some l ->
@@ -144,7 +143,7 @@ toApiHoldingView lockView instrument account amount =
           expiresAfter = None   -- Not present in Lockable
           context = Some (intercalate ", " (toList l.context))
     meta =
-      SpliceMetadata.Metadata with
+      Api.MetadataV1.Metadata with
         values = TextMap.fromList
           [ ("depository", partyToText instrument.depository)
           , ("version", instrument.version)
@@ -152,7 +151,6 @@ toApiHoldingView lockView instrument account amount =
           , ("custodian", partyToText account.custodian)
           , ("accountId", show account.id)
           ]
-
 
 -- | HIDE
 -- Gets the rest amount of a split (if any) and verifies that split amounts are strictly positive

@@ -56,9 +56,9 @@ For an example where the Factory pattern is used, check out the
 Reference pattern
 -----------------
 
-The Reference pattern is used to leverage the functionalities of :ref:`Contract Keys <contractkeys>`
-when working with interfaces. This is required as there is currently no built-in support at the
-language level for interface keys.
+The Reference pattern is used to leverage the functionalities of contract keys when working with
+interfaces. This is required as there is currently no built-in support at the language level for
+interface keys.
 
 We want for instance to use an
 :ref:`InstrumentKey <constr-daml-finance-interface-types-common-v3-types-instrumentkey-49116>` to
@@ -92,7 +92,7 @@ View of an interface contract and the `GetView` choice
 
 There are different ways to access the data of a contract, for example the terms of an instrument:
 
-#. :ref:`fetch <daml-ref-fetch>` the interface contract using its contract ID (this requires the
+#. ``fetch`` the interface contract using its contract ID (this requires the
    submitting party to be a stakeholder of the contract). It is then possible to use the ``view``
    built-in method to get the interface view.
 #. ``GetView``: by calling this choice on the interface, for example on a

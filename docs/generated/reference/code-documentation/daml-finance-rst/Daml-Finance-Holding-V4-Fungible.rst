@@ -15,7 +15,8 @@ Templates
 
   Implementation of a fungible holding\.
   The ``Fungible`` template implements the interface ``Fungible.I`` (which requires
-  ``Api.HoldingV1.Holding``, ``Lockable.I``, and ``Disclosure.I`` to be implemented), but not the ``Transferable.I``\.
+  ``Api.HoldingV1.Holding``, ``Lockable.I``, and ``Disclosure.I`` to be implemented), but not the
+  ``Transferable.I``\.
 
   Signatory\: (DA\.Internal\.Record\.getField @\"custodian\" account), (DA\.Internal\.Record\.getField @\"owner\" account), Lockable\.getLockers this
 

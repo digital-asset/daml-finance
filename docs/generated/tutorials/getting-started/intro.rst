@@ -23,11 +23,11 @@ Prerequisites
 We expect the reader to be familiar with the basic building blocks of Daml. If that is not the case,
 a suitable introduction can be found `here <https://www.digitalasset.com/developers/learn>`_.
 
-An understanding of :doc:`Daml Interfaces <../../../daml/reference/interfaces>` is very helpful, as
-these are used extensively throughout the library. However, you should be able to follow along and
-grasp the fundamental concepts also without detailed knowledge on interfaces.
+An understanding of `Daml Interfaces <https://docs.daml.com/daml/reference/interfaces.html>`_ is
+very helpful, as these are used extensively throughout the library. However, you should be able to
+follow along and grasp the fundamental concepts also without detailed knowledge on interfaces.
 
-Finally, make sure that the :doc:`Daml SDK <../../../getting-started/installation>`
+Finally, make sure that the `Daml SDK <https://docs.daml.com/getting-started/installation.html>`_
 is installed on your machine.
 
 Download the Code for the Tutorials
