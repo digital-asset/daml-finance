@@ -25,11 +25,48 @@ in
     name = "packell";
     version = "$version";
     src = tarball;
-    nativeBuildInputs = if stdenv.isLinux then [ pkgs.autoPatchelfHook ] else [ ];
-    buildInputs = if stdenv.isLinux then [  pkgs.gmp pkgs.libffi ] else [ ];
+    nativeBuildInputs =
+      (if stdenv.isLinux then [ pkgs.autoPatchelfHook ] else [ ])
+      ++ (if stdenv.isDarwin then [ pkgs.darwin.cctools ] else [ ]);
+    buildInputs = [ pkgs.gmp pkgs.libffi pkgs.libiconv ];
     baseInputs = [ pkgs.binutils ];
     installPhase = ''
       mkdir -p $out/bin
       cp packell $out/bin
     '';
+    postFixup = if stdenv.isDarwin then ''
+      # Packell release binaries are dynamically linked against absolute nix store
+      # paths from the build machine. Rewrite those to libraries in our closure so
+      # GC does not leave a broken executable in developer shells.
+      bin="$out/bin/packell"
+      ffiTarget=""
+      for candidate in \
+        ${pkgs.libffi}/lib/libffi.8.dylib \
+        ${pkgs.libffi}/lib/libffi.dylib \
+        ${pkgs.libffi}/lib/libffi.7.dylib; do
+        if [ -e "$candidate" ]; then
+          ffiTarget="$candidate"
+          break
+        fi
+      done
+      # Rewrite any store path references regardless of hash/version.
+      ${pkgs.darwin.cctools}/bin/otool -L "$bin" | ${pkgs.gawk}/bin/awk 'NR > 1 { print $1 }' | while read -r dep; do
+        case "$dep" in
+          /nix/store/*/lib/libgmp*.dylib)
+            ${pkgs.darwin.cctools}/bin/install_name_tool -change "$dep" ${pkgs.gmp}/lib/libgmp.10.dylib "$bin" || true
+            ;;
+          /nix/store/*/lib/libffi*.dylib)
+            if [ -n "$ffiTarget" ]; then
+              ${pkgs.darwin.cctools}/bin/install_name_tool -change "$dep" "$ffiTarget" "$bin" || true
+            fi
+            ;;
+          /nix/store/*/lib/libiconv*.dylib)
+            ${pkgs.darwin.cctools}/bin/install_name_tool -change "$dep" ${pkgs.libiconv}/lib/libiconv.dylib "$bin" || true
+            ;;
+        esac
+      done
+      # install_name_tool can invalidate signatures on prebuilt macOS binaries,
+      # which may cause runtime termination (Killed: 9). Re-sign ad-hoc.
+      /usr/bin/codesign --force --sign - "$bin" || true
+    '' else "";
   }

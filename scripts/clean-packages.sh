@@ -4,6 +4,11 @@
 
 root_dir=$(cd "$(dirname $0)"; cd ..; pwd -P)
 
+if [ -z "${DIRENV_DIR:-}" ]; then
+  echo "ERROR: direnv is not active. Run 'direnv allow' and re-enter the shell." >&2
+  exit 1
+fi
+
 # Remove .lib directories in packages
 echo "Removing .lib/ directories in all packages"
 rm -r ${root_dir}/package/*/daml/*/.lib/ 1> /dev/null 2>&1
