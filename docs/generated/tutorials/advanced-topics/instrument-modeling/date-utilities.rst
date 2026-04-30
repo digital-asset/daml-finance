@@ -1,4 +1,4 @@
-.. Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+.. Copyright (c) 2026 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
 Date Utility Functions: Calendar, Schedule, and Day Count
@@ -231,7 +231,7 @@ DayCount
 
 Many instruments that pay interest (often expressed as an annualized rate) require an exact
 definition of how many days of interest belong to each payment period. The
-:ref:`DayCount <module-daml-finance-util-v4-date-daycount-38488>` module provides functions  to support
+:ref:`DayCount <module-daml-finance-util-v4-date-daycount-38488>` module provides functions to support
 such requirements.
 In particular, you can calculate a *day count fraction* (*dcf*) between two dates. This indicates
 the fraction of a full year between the dates.
