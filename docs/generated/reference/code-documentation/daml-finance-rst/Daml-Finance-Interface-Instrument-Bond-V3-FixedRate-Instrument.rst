@@ -43,7 +43,7 @@ Interfaces
          - Type
          - Description
        * - viewer
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party retrieving the view\.
 
 
@@ -57,7 +57,7 @@ Data Types
 
   Type synonym for ``Instrument``\.
 
-  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-instrument-bond-v3-fixedrate-factory-factory-74675>` \"create'\" (:ref:`Create <type-daml-finance-interface-instrument-bond-v3-fixedrate-factory-create-25182>` \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-instrument-bond-v3-fixedrate-instrument-i-69642_>`_))
+  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-instrument-bond-v3-fixedrate-factory-factory-74675>` \"create'\" (:ref:`Create <type-daml-finance-interface-instrument-bond-v3-fixedrate-factory-create-25182>` \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-instrument-bond-v3-fixedrate-instrument-i-69642_>`_))
 
 .. _type-daml-finance-interface-instrument-bond-v3-fixedrate-instrument-v-28269:
 
@@ -66,7 +66,7 @@ Data Types
 
   Type synonym for ``View``\.
 
-  **instance** `HasFromAnyView <https://docs.daml.com/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Instrument <type-daml-finance-interface-instrument-bond-v3-fixedrate-instrument-instrument-19853_>`_ `V <type-daml-finance-interface-instrument-bond-v3-fixedrate-instrument-v-28269_>`_
+  **instance** `HasFromAnyView <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Instrument <type-daml-finance-interface-instrument-bond-v3-fixedrate-instrument-instrument-19853_>`_ `V <type-daml-finance-interface-instrument-bond-v3-fixedrate-instrument-v-28269_>`_
 
 .. _type-daml-finance-interface-instrument-bond-v3-fixedrate-instrument-view-62931:
 
@@ -89,6 +89,10 @@ Data Types
          - :ref:`FixedRate <type-daml-finance-interface-instrument-bond-v3-fixedrate-types-fixedrate-8592>`
          - Attributes of a fixed rate bond\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-instrument-bond-v3-fixedrate-instrument-view-62931_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-instrument-bond-v3-fixedrate-instrument-view-62931_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-instrument-bond-v3-fixedrate-instrument-view-62931_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-instrument-bond-v3-fixedrate-instrument-view-62931_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"fixedRate\" `View <type-daml-finance-interface-instrument-bond-v3-fixedrate-instrument-view-62931_>`_ :ref:`FixedRate <type-daml-finance-interface-instrument-bond-v3-fixedrate-types-fixedrate-8592>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"fixedRate\" `View <type-daml-finance-interface-instrument-bond-v3-fixedrate-instrument-view-62931_>`_ :ref:`FixedRate <type-daml-finance-interface-instrument-bond-v3-fixedrate-types-fixedrate-8592>`

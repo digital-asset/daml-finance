@@ -44,13 +44,13 @@ Interfaces
          - Type
          - Description
        * - claimer
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party claiming the effect\.
        * - holdingCids
-         - \[`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-holding-v4-holding-i-25641>`\]
+         - \[`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ Holding\]
          - The holdings to process\.
        * - effectCid
-         - `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-v4-effect-i-48349>`
+         - `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-v4-effect-i-48349>`
          - The effect to process\.
        * - batchId
          - :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
@@ -74,10 +74,10 @@ Interfaces
          - Type
          - Description
        * - viewer
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party retrieving the view\.
 
-  + **Method claimEffect \:** `ClaimEffect <type-daml-finance-interface-lifecycle-v4-rule-claim-claimeffect-78754_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `ClaimResult <type-daml-finance-interface-lifecycle-v4-rule-claim-claimresult-10226_>`_
+  + **Method claimEffect \:** `ClaimEffect <type-daml-finance-interface-lifecycle-v4-rule-claim-claimeffect-78754_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `ClaimResult <type-daml-finance-interface-lifecycle-v4-rule-claim-claimresult-10226_>`_
 
     Implementation of the ``ClaimEffect`` choice\.
 
@@ -102,17 +102,25 @@ Data Types
          - Type
          - Description
        * - batchCid
-         - `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-v4-batch-i-86753>`
+         - `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-v4-batch-i-86753>`
          - Batch used to batch\-settle settlement instructions\.
        * - instructionCids
-         - \[`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-v4-instruction-i-65587>`\]
+         - \[`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-v4-instruction-i-65587>`\]
          - Settlement instructions to settle all effect consequences\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `ClaimResult <type-daml-finance-interface-lifecycle-v4-rule-claim-claimresult-10226_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `ClaimResult <type-daml-finance-interface-lifecycle-v4-rule-claim-claimresult-10226_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `ClaimResult <type-daml-finance-interface-lifecycle-v4-rule-claim-claimresult-10226_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `ClaimResult <type-daml-finance-interface-lifecycle-v4-rule-claim-claimresult-10226_>`_
 
-  **instance** HasMethod `Claim <type-daml-finance-interface-lifecycle-v4-rule-claim-claim-387_>`_ \"claimEffect\" (`ClaimEffect <type-daml-finance-interface-lifecycle-v4-rule-claim-claimeffect-78754_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `ClaimResult <type-daml-finance-interface-lifecycle-v4-rule-claim-claimresult-10226_>`_)
+  **instance** HasMethod `Claim <type-daml-finance-interface-lifecycle-v4-rule-claim-claim-387_>`_ \"claimEffect\" (`ClaimEffect <type-daml-finance-interface-lifecycle-v4-rule-claim-claimeffect-78754_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `ClaimResult <type-daml-finance-interface-lifecycle-v4-rule-claim-claimresult-10226_>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"batchCid\" `ClaimResult <type-daml-finance-interface-lifecycle-v4-rule-claim-claimresult-10226_>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-v4-batch-i-86753>`)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"instructionCids\" `ClaimResult <type-daml-finance-interface-lifecycle-v4-rule-claim-claimresult-10226_>`_ \[`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-v4-instruction-i-65587>`\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"batchCid\" `ClaimResult <type-daml-finance-interface-lifecycle-v4-rule-claim-claimresult-10226_>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-v4-batch-i-86753>`)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"instructionCids\" `ClaimResult <type-daml-finance-interface-lifecycle-v4-rule-claim-claimresult-10226_>`_ \[`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-v4-instruction-i-65587>`\]
 
 .. _type-daml-finance-interface-lifecycle-v4-rule-claim-i-38438:
 
@@ -128,7 +136,7 @@ Data Types
 
   Type synonym for ``View``\.
 
-  **instance** `HasFromAnyView <https://docs.daml.com/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Claim <type-daml-finance-interface-lifecycle-v4-rule-claim-claim-387_>`_ `V <type-daml-finance-interface-lifecycle-v4-rule-claim-v-31825_>`_
+  **instance** `HasFromAnyView <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Claim <type-daml-finance-interface-lifecycle-v4-rule-claim-claim-387_>`_ `V <type-daml-finance-interface-lifecycle-v4-rule-claim-v-31825_>`_
 
 .. _type-daml-finance-interface-lifecycle-v4-rule-claim-view-14471:
 
@@ -157,15 +165,35 @@ Data Types
          - :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
          - Any of the parties can trigger settlement of the resulting batch\.
        * - routeProviderCid
-         - `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-v4-routeprovider-i-81585>`
+         - `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-v4-routeprovider-i-81585>`
          - RouteProvider contract used to discover settlement routes\.
        * - settlementFactoryCid
-         - `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-v4-factory-i-2953>`
+         - `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-v4-factory-i-2953>`
          - Settlement factory contract used to create a ``Batch`` of ``Instruction``\\s\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-lifecycle-v4-rule-claim-view-14471_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-lifecycle-v4-rule-claim-view-14471_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-lifecycle-v4-rule-claim-view-14471_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-lifecycle-v4-rule-claim-view-14471_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"claimers\" `View <type-daml-finance-interface-lifecycle-v4-rule-claim-view-14471_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"providers\" `View <type-daml-finance-interface-lifecycle-v4-rule-claim-view-14471_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"routeProviderCid\" `View <type-daml-finance-interface-lifecycle-v4-rule-claim-view-14471_>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-v4-routeprovider-i-81585>`)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"settlementFactoryCid\" `View <type-daml-finance-interface-lifecycle-v4-rule-claim-view-14471_>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-v4-factory-i-2953>`)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"settlers\" `View <type-daml-finance-interface-lifecycle-v4-rule-claim-view-14471_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"claimers\" `View <type-daml-finance-interface-lifecycle-v4-rule-claim-view-14471_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"providers\" `View <type-daml-finance-interface-lifecycle-v4-rule-claim-view-14471_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"routeProviderCid\" `View <type-daml-finance-interface-lifecycle-v4-rule-claim-view-14471_>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-v4-routeprovider-i-81585>`)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"settlementFactoryCid\" `View <type-daml-finance-interface-lifecycle-v4-rule-claim-view-14471_>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-v4-factory-i-2953>`)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"settlers\" `View <type-daml-finance-interface-lifecycle-v4-rule-claim-view-14471_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
 
 Functions
 ---------
@@ -173,4 +201,4 @@ Functions
 .. _function-daml-finance-interface-lifecycle-v4-rule-claim-claimeffect-64470:
 
 `claimEffect <function-daml-finance-interface-lifecycle-v4-rule-claim-claimeffect-64470_>`_
-  \: `Claim <type-daml-finance-interface-lifecycle-v4-rule-claim-claim-387_>`_ \-\> `ClaimEffect <type-daml-finance-interface-lifecycle-v4-rule-claim-claimeffect-78754_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `ClaimResult <type-daml-finance-interface-lifecycle-v4-rule-claim-claimresult-10226_>`_
+  \: `Claim <type-daml-finance-interface-lifecycle-v4-rule-claim-claim-387_>`_ \-\> `ClaimEffect <type-daml-finance-interface-lifecycle-v4-rule-claim-claimeffect-78754_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `ClaimResult <type-daml-finance-interface-lifecycle-v4-rule-claim-claimresult-10226_>`_

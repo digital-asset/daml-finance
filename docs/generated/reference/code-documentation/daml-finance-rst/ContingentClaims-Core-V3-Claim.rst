@@ -87,7 +87,7 @@ Functions
 .. _function-contingentclaims-core-v3-claim-anytime-15949:
 
 `anytime <function-contingentclaims-core-v3-claim-anytime-15949_>`_
-  \: :ref:`Inequality <type-contingentclaims-core-v3-internal-claim-inequality-10348>` t x o \-\> `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_ \-\> :ref:`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050>` t x a o \-\> :ref:`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050>` t x a o
+  \: :ref:`Inequality <type-contingentclaims-core-v3-internal-claim-inequality-10348>` t x o \-\> `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_ \-\> :ref:`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050>` t x a o \-\> :ref:`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050>` t x a o
 
   Gives the bearer the right to enter a claim at any time ``predicate`` is true\.
 
@@ -132,7 +132,7 @@ Functions
 .. _function-contingentclaims-core-v3-claim-compare-90781:
 
 `compare <function-contingentclaims-core-v3-claim-compare-90781_>`_
-  \: (`Ord <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ t, `Ord <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ x, `Number <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-num-number-53664>`_ x, `Divisible <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-num-divisible-86689>`_ x, `CanAbort <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-lf-canabort-29060>`_ m) \=\> (o \-\> t \-\> m x) \-\> :ref:`Inequality <type-contingentclaims-core-v3-internal-claim-inequality-10348>` t x o \-\> t \-\> m `Bool <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-bool-66265>`_
+  \: (`Ord <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ t, `Ord <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ x, `Number <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-num-number-53664>`_ x, `Divisible <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-num-divisible-86689>`_ x, `CanAbort <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-lf-canabort-29060>`_ m) \=\> (o \-\> t \-\> m x) \-\> :ref:`Inequality <type-contingentclaims-core-v3-internal-claim-inequality-10348>` t x o \-\> t \-\> m `Bool <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-bool-66265>`_
 
   Reify the ``Inequality`` into an observation function\.
   This function is used to convert an abstract predicate, e\.g\. ``S ≤ 50.0`` to the actual boolean

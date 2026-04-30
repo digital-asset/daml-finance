@@ -39,9 +39,17 @@ Data Types
 
     The option is activated if the underlying trades at or below the barrier\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `BarrierTypeEnum <type-daml-finance-interface-instrument-option-v0-types-barriertypeenum-77029_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `BarrierTypeEnum <type-daml-finance-interface-instrument-option-v0-types-barriertypeenum-77029_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `BarrierTypeEnum <type-daml-finance-interface-instrument-option-v0-types-barriertypeenum-77029_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `BarrierTypeEnum <type-daml-finance-interface-instrument-option-v0-types-barriertypeenum-77029_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"barrierType\" :ref:`Instrument <type-daml-finance-instrument-option-v0-barriereuropeancash-instrument-instrument-40010>` `BarrierTypeEnum <type-daml-finance-interface-instrument-option-v0-types-barriertypeenum-77029_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"barrierType\" :ref:`BarrierEuropean <type-daml-finance-interface-instrument-option-v0-barriereuropeancash-types-barriereuropean-83436>` `BarrierTypeEnum <type-daml-finance-interface-instrument-option-v0-types-barriertypeenum-77029_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"barrierType\" :ref:`Instrument <type-daml-finance-instrument-option-v0-barriereuropeancash-instrument-instrument-40010>` `BarrierTypeEnum <type-daml-finance-interface-instrument-option-v0-types-barriertypeenum-77029_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"barrierType\" :ref:`BarrierEuropean <type-daml-finance-interface-instrument-option-v0-barriereuropeancash-types-barriereuropean-83436>` `BarrierTypeEnum <type-daml-finance-interface-instrument-option-v0-types-barriertypeenum-77029_>`_
 
 .. _type-daml-finance-interface-instrument-option-v0-types-optiontypeenum-30036:
 
@@ -61,6 +69,30 @@ Data Types
 
     Put option\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `OptionTypeEnum <type-daml-finance-interface-instrument-option-v0-types-optiontypeenum-30036_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `OptionTypeEnum <type-daml-finance-interface-instrument-option-v0-types-optiontypeenum-30036_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `OptionTypeEnum <type-daml-finance-interface-instrument-option-v0-types-optiontypeenum-30036_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `OptionTypeEnum <type-daml-finance-interface-instrument-option-v0-types-optiontypeenum-30036_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"optionType\" :ref:`Instrument <type-daml-finance-instrument-option-v0-barriereuropeancash-instrument-instrument-40010>` `OptionTypeEnum <type-daml-finance-interface-instrument-option-v0-types-optiontypeenum-30036_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"optionType\" :ref:`Instrument <type-daml-finance-instrument-option-v0-europeancash-instrument-instrument-58340>` `OptionTypeEnum <type-daml-finance-interface-instrument-option-v0-types-optiontypeenum-30036_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"optionType\" :ref:`Instrument <type-daml-finance-instrument-option-v0-europeanphysical-instrument-instrument-68822>` `OptionTypeEnum <type-daml-finance-interface-instrument-option-v0-types-optiontypeenum-30036_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"optionType\" :ref:`BarrierEuropean <type-daml-finance-interface-instrument-option-v0-barriereuropeancash-types-barriereuropean-83436>` `OptionTypeEnum <type-daml-finance-interface-instrument-option-v0-types-optiontypeenum-30036_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"optionType\" :ref:`European <type-daml-finance-interface-instrument-option-v0-europeancash-types-european-14694>` `OptionTypeEnum <type-daml-finance-interface-instrument-option-v0-types-optiontypeenum-30036_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"optionType\" :ref:`European <type-daml-finance-interface-instrument-option-v0-europeanphysical-types-european-81104>` `OptionTypeEnum <type-daml-finance-interface-instrument-option-v0-types-optiontypeenum-30036_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"optionType\" :ref:`Instrument <type-daml-finance-instrument-option-v0-barriereuropeancash-instrument-instrument-40010>` `OptionTypeEnum <type-daml-finance-interface-instrument-option-v0-types-optiontypeenum-30036_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"optionType\" :ref:`Instrument <type-daml-finance-instrument-option-v0-europeancash-instrument-instrument-58340>` `OptionTypeEnum <type-daml-finance-interface-instrument-option-v0-types-optiontypeenum-30036_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"optionType\" :ref:`Instrument <type-daml-finance-instrument-option-v0-europeanphysical-instrument-instrument-68822>` `OptionTypeEnum <type-daml-finance-interface-instrument-option-v0-types-optiontypeenum-30036_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"optionType\" :ref:`BarrierEuropean <type-daml-finance-interface-instrument-option-v0-barriereuropeancash-types-barriereuropean-83436>` `OptionTypeEnum <type-daml-finance-interface-instrument-option-v0-types-optiontypeenum-30036_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"optionType\" :ref:`European <type-daml-finance-interface-instrument-option-v0-europeancash-types-european-14694>` `OptionTypeEnum <type-daml-finance-interface-instrument-option-v0-types-optiontypeenum-30036_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"optionType\" :ref:`European <type-daml-finance-interface-instrument-option-v0-europeanphysical-types-european-81104>` `OptionTypeEnum <type-daml-finance-interface-instrument-option-v0-types-optiontypeenum-30036_>`_

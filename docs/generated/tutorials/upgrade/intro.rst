@@ -46,8 +46,8 @@ thanks to the intentional decoupling of their implementation packages in Daml Fi
 Download the Code for the Tutorials
 ***********************************
 
-As a prerequisite, make sure that the :doc:`Daml SDK <../../../getting-started/installation>` is
-installed on your machine.
+As a prerequisite, make sure that the
+`Daml SDK <https://docs.daml.com/getting-started/installation.html>`_ is installed on your machine.
 
 Open a terminal and run:
 

@@ -9,25 +9,50 @@ let
   pkgsGhc = import sources.nixpkgs-ghc8107 {};
   build_daml = import ./nix/daml.nix;
   packell = import ./nix/packell.nix;
+
+  #Load custom dpm derivation
+  dpm = import ./nix/dpm.nix { inherit pkgs; };
+
   damlYaml = builtins.fromJSON (builtins.readFile (pkgs.runCommand "daml.yaml.json" { yamlFile = ./daml.yaml; } ''
-                ${pkgs.yj}/bin/yj < "$yamlFile" > $out
-              ''));
-  daml = (build_daml { stdenv = pkgs.stdenv;
-                       jdk = pkgs.openjdk11_headless;
-                       sdkVersion = damlYaml.sdk-version;
-                       damlVersion = damlYaml.daml-version;
-                       tarPath = damlYaml.daml-tar-path or null;
-                       curl = pkgs.curl;
-                       curl_cert = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
-                       os = if pkgs.stdenv.isDarwin then "macos" else "linux";
-                       osJFrog = if pkgs.stdenv.isDarwin then "macos" else "linux-intel";
-                       hashes = { linux = "JYJ6pOsJf+m3ymForJO54dVTgLS0lyXoxOA6YOck0KY=";
-                                  macos = "fH3ZS5h+O2w2F3oeelXBAmc2BHfhOzIaefjVvUjryWk="; };});
+    ${pkgs.yj}/bin/yj < "$yamlFile" > $out
+  ''));
+
+  os =
+    if pkgs.stdenv.isDarwin then "macos" else
+    if pkgs.stdenv.isLinux then "linux" else
+    throw "Unsupported OS";
+
+# Daml SDK on macOS is only available on x86 architecture
+  arch =
+    if pkgs.stdenv.isDarwin then "x86_64" else
+    if pkgs.stdenv.hostPlatform.system == "x86_64-linux" then "x86_64" else
+    if pkgs.stdenv.hostPlatform.system == "aarch64-linux" then "aarch64"
+    else ""; #for plain `linux.tar.gz`
+
+  daml = build_daml {
+    stdenv = pkgs.stdenv;
+    jdk = pkgs.openjdk17_headless;
+    sdkVersion = damlYaml.sdk-version;
+    damlVersion = damlYaml.daml-version;
+    tarPath = damlYaml.daml-tar-path or null;
+    curl = pkgs.curl;
+    curl_cert = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+    os = os;
+    arch = arch;
+    osJFrog = "${os}-${arch}";
+    hashes = {
+                #base64 hashes from update-daml-hashes
+      linux = "zPPJJfor22GHpovh2HOJH7AKQLfSW9p0UPgcZCdhSGM=";
+      macos = "hITo4qlasMbhuLGfUwGMhuvkwVRaNgWQLdl6mEDx2Ew=";
+    };
+  };
+
 in
 pkgs.mkShell {
   SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
   buildInputs = [
     daml
+    dpm
     (packell { pkgs = pkgsGhc; stdenv = pkgsGhc.stdenv; version = "0.0.2"; })
     pkgs.bash
     pkgs.binutils # cp, grep, etc.
@@ -38,7 +63,7 @@ pkgs.mkShell {
     pkgs.git
     pkgs.gnupg
     pkgs.jq
-    pkgs.python39
+    pkgs.python310
     pkgs.openssh
     pkgs.unixtools.xxd
     pkgs.yq-go

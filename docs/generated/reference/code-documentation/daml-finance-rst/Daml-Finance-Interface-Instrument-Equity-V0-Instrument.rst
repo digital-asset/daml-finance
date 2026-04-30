@@ -33,7 +33,7 @@ Interfaces
 
     Controller\: (DA\.Internal\.Record\.getField @\"issuer\" (view $ toInterface @BaseInstrument\.I this))
 
-    Returns\: `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-v4-event-i-36171>`
+    Returns\: `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-v4-event-i-36171>`
 
     .. list-table::
        :widths: 15 10 30
@@ -46,10 +46,10 @@ Interfaces
          - :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
          - Event identifier of the dividend distribution\.
        * - description
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          - Description of the dividend event\.
        * - effectiveTime
-         - `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
+         - `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
          - Time at which the dividend is distributed\.
        * - newInstrument
          - :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>`
@@ -67,7 +67,7 @@ Interfaces
 
     Controller\: (DA\.Internal\.Record\.getField @\"issuer\" (view $ toInterface @BaseInstrument\.I this))
 
-    Returns\: `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-v4-event-i-36171>`
+    Returns\: `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-v4-event-i-36171>`
 
     .. list-table::
        :widths: 15 10 30
@@ -80,10 +80,10 @@ Interfaces
          - :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
          - Distribution Id\.
        * - description
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          - Description of the replacement event\.
        * - effectiveTime
-         - `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
+         - `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
          - Time the replacement is to be executed\.
        * - perUnitReplacement
          - \[:ref:`InstrumentQuantity <type-daml-finance-interface-types-common-v3-types-instrumentquantity-36264>`\]
@@ -97,7 +97,7 @@ Interfaces
 
     Controller\: (DA\.Internal\.Record\.getField @\"issuer\" (view $ toInterface @BaseInstrument\.I this))
 
-    Returns\: `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-v4-event-i-36171>`
+    Returns\: `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-v4-event-i-36171>`
 
     .. list-table::
        :widths: 15 10 30
@@ -110,16 +110,16 @@ Interfaces
          - :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
          - Event identifier of the stock split\.
        * - description
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          - Description of the stock split event\.
        * - effectiveTime
-         - `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
+         - `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
          - Time at which the stock split is effective\.
        * - newInstrument
          - :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>`
          - Instrument to be held after the stock split is executed\.
        * - adjustmentFactor
-         - `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+         - `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
          - Adjustment factor for the stock split\.
 
   + .. _type-daml-finance-interface-instrument-equity-v0-instrument-getview-66507:
@@ -140,18 +140,18 @@ Interfaces
          - Type
          - Description
        * - viewer
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party retrieving the view\.
 
-  + **Method declareDistribution \:** `DeclareDistribution <type-daml-finance-interface-instrument-equity-v0-instrument-declaredistribution-57612_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-v4-event-i-36171>`)
+  + **Method declareDistribution \:** `DeclareDistribution <type-daml-finance-interface-instrument-equity-v0-instrument-declaredistribution-57612_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-v4-event-i-36171>`)
 
     Implementation for the ``DeclareDistribution`` choice\.
 
-  + **Method declareReplacement \:** `DeclareReplacement <type-daml-finance-interface-instrument-equity-v0-instrument-declarereplacement-46147_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-v4-event-i-36171>`)
+  + **Method declareReplacement \:** `DeclareReplacement <type-daml-finance-interface-instrument-equity-v0-instrument-declarereplacement-46147_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-v4-event-i-36171>`)
 
     Implementation for the ``DeclareReplacement`` choice\.
 
-  + **Method declareStockSplit \:** `DeclareStockSplit <type-daml-finance-interface-instrument-equity-v0-instrument-declarestocksplit-89514_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-v4-event-i-36171>`)
+  + **Method declareStockSplit \:** `DeclareStockSplit <type-daml-finance-interface-instrument-equity-v0-instrument-declarestocksplit-89514_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-v4-event-i-36171>`)
 
     Implementation for the ``DeclareStockSplit`` choice\.
 
@@ -165,7 +165,7 @@ Data Types
 
   Type synonym for ``Instrument``\.
 
-  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-instrument-equity-v0-factory-factory-21456>` \"create'\" (:ref:`Create <type-daml-finance-interface-instrument-equity-v0-factory-create-45111>` \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-instrument-equity-v0-instrument-i-47875_>`_))
+  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-instrument-equity-v0-factory-factory-21456>` \"create'\" (:ref:`Create <type-daml-finance-interface-instrument-equity-v0-factory-create-45111>` \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-instrument-equity-v0-instrument-i-47875_>`_))
 
 .. _type-daml-finance-interface-instrument-equity-v0-instrument-v-37108:
 
@@ -174,7 +174,7 @@ Data Types
 
   Type synonym for ``View``\.
 
-  **instance** `HasFromAnyView <https://docs.daml.com/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Instrument <type-daml-finance-interface-instrument-equity-v0-instrument-instrument-31490_>`_ `V <type-daml-finance-interface-instrument-equity-v0-instrument-v-37108_>`_
+  **instance** `HasFromAnyView <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Instrument <type-daml-finance-interface-instrument-equity-v0-instrument-instrument-31490_>`_ `V <type-daml-finance-interface-instrument-equity-v0-instrument-v-37108_>`_
 
 .. _type-daml-finance-interface-instrument-equity-v0-instrument-view-97536:
 
@@ -197,9 +197,13 @@ Data Types
          - :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>`
          - The instrument's key\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-instrument-equity-v0-instrument-view-97536_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-instrument-equity-v0-instrument-view-97536_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-instrument-equity-v0-instrument-view-97536_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-instrument-equity-v0-instrument-view-97536_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"instrument\" `View <type-daml-finance-interface-instrument-equity-v0-instrument-view-97536_>`_ :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"instrument\" `View <type-daml-finance-interface-instrument-equity-v0-instrument-view-97536_>`_ :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>`
 
 Functions
 ---------
@@ -207,14 +211,14 @@ Functions
 .. _function-daml-finance-interface-instrument-equity-v0-instrument-declaredistribution-82168:
 
 `declareDistribution <function-daml-finance-interface-instrument-equity-v0-instrument-declaredistribution-82168_>`_
-  \: `Instrument <type-daml-finance-interface-instrument-equity-v0-instrument-instrument-31490_>`_ \-\> `DeclareDistribution <type-daml-finance-interface-instrument-equity-v0-instrument-declaredistribution-57612_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-v4-event-i-36171>`)
+  \: `Instrument <type-daml-finance-interface-instrument-equity-v0-instrument-instrument-31490_>`_ \-\> `DeclareDistribution <type-daml-finance-interface-instrument-equity-v0-instrument-declaredistribution-57612_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-v4-event-i-36171>`)
 
 .. _function-daml-finance-interface-instrument-equity-v0-instrument-declarestocksplit-44310:
 
 `declareStockSplit <function-daml-finance-interface-instrument-equity-v0-instrument-declarestocksplit-44310_>`_
-  \: `Instrument <type-daml-finance-interface-instrument-equity-v0-instrument-instrument-31490_>`_ \-\> `DeclareStockSplit <type-daml-finance-interface-instrument-equity-v0-instrument-declarestocksplit-89514_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-v4-event-i-36171>`)
+  \: `Instrument <type-daml-finance-interface-instrument-equity-v0-instrument-instrument-31490_>`_ \-\> `DeclareStockSplit <type-daml-finance-interface-instrument-equity-v0-instrument-declarestocksplit-89514_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-v4-event-i-36171>`)
 
 .. _function-daml-finance-interface-instrument-equity-v0-instrument-declarereplacement-18879:
 
 `declareReplacement <function-daml-finance-interface-instrument-equity-v0-instrument-declarereplacement-18879_>`_
-  \: `Instrument <type-daml-finance-interface-instrument-equity-v0-instrument-instrument-31490_>`_ \-\> `DeclareReplacement <type-daml-finance-interface-instrument-equity-v0-instrument-declarereplacement-46147_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-v4-event-i-36171>`)
+  \: `Instrument <type-daml-finance-interface-instrument-equity-v0-instrument-instrument-31490_>`_ \-\> `DeclareReplacement <type-daml-finance-interface-instrument-equity-v0-instrument-declarereplacement-46147_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-lifecycle-v4-event-i-36171>`)

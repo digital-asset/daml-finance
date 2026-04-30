@@ -28,7 +28,7 @@ Templates
        - Type
        - Description
      * - instructor
-       - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+       - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
        - Party instructing settlement (and the creation of the ``Instruction``)\.
      * - consenters
        - :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
@@ -46,7 +46,7 @@ Templates
        - :ref:`RoutedStep <type-daml-finance-interface-settlement-v4-types-routedstep-26293>`
        - Routed settlement step\.
      * - settlementTime
-       - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
+       - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
        - Settlement time (if any)\.
      * - allocation
        - :ref:`Allocation <type-daml-finance-interface-settlement-v4-types-allocation-41200>`
@@ -85,3 +85,20 @@ Data Types
   \= `Instruction <type-daml-finance-settlement-v4-instruction-instruction-65077_>`_
 
   Type synonym for ``Instruction``\.
+
+Functions
+---------
+
+.. _function-daml-finance-settlement-v4-instruction-disclosepledge-32733:
+
+`disclosePledge <function-daml-finance-settlement-v4-instruction-disclosepledge-32733_>`_
+  \: `Instruction <type-daml-finance-settlement-v4-instruction-instruction-65077_>`_ \-\> `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ Holding \-\> `Set <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Set.html#type-da-set-types-set-90436>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ Holding)
+
+  HIDE\: Add observers for the pledge
+
+.. _function-daml-finance-settlement-v4-instruction-undisclosepledge-89726:
+
+`undisclosePledge <function-daml-finance-settlement-v4-instruction-undisclosepledge-89726_>`_
+  \: `Instruction <type-daml-finance-settlement-v4-instruction-instruction-65077_>`_ \-\> `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ Holding \-\> `Set <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Set.html#type-da-set-types-set-90436>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ Holding))
+
+  HIDE\: Remove observers for the pledge
