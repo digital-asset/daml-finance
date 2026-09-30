@@ -5,6 +5,13 @@ Copyright © 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All Ri
 
 # Daml Finance
 
+> [!WARNING]
+> **This repository is not actively maintained.**
+>
+> Daml Finance is provided as-is and is no longer under active development. Issues and pull
+> requests may not receive a response. There are no guarantees regarding future updates,
+> bug fixes, security patches or compatibility with newer Daml SDK versions.
+
 Welcome to Daml Finance, a collection of purpose-built libraries to enable rapid development of
 enterprise-grade tokenization solutions.
 
