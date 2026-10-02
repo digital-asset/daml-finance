@@ -13,14 +13,17 @@
 module Daml.Finance.Instrument.Generic.Test.Election.Workflow where
 
 import DA.Map qualified as Map (fromList)
+import DA.Optional (fromOptional)
 import DA.Set qualified as Set (fromList, singleton)
 import DA.Text (sha256)
-import Daml.Finance.Interface.Holding.V4.Holding qualified as Holding (I)
+import DA.TextMap qualified as TextMap (lookup)
 import Daml.Finance.Interface.Lifecycle.V4.Election qualified as Election (I)
 import Daml.Finance.Interface.Lifecycle.V4.Election.Factory qualified as ElectionFactory (Create(..), I)
 import Daml.Finance.Interface.Lifecycle.V4.Observable.TimeObservable qualified as TimeObservable (GetTime(..), I)
-import Daml.Finance.Interface.Types.Common.V3.Types (Id(..), InstrumentKey, Parties)
+import Daml.Finance.Interface.Types.Common.V3.Types (Id(..), InstrumentKey(..), Parties)
 import Daml.Finance.Interface.Util.V3.Common (verify)
+import Daml.Finance.Interface.Util.V3.HoldingSplice(getInstrument, textToParty)
+import Splice.Api.Token.HoldingV1 qualified as Api.HoldingV1 (Holding)
 
 -- | Template used to facilitate creation of an `Election`.
 template ElectionOffer
@@ -50,26 +53,40 @@ template ElectionOffer
           -- ^ Entity making the election.
         electionTime : Time
           -- ^ Time at which the election is put forward.
-        holdingCid : ContractId Holding.I
+        holdingCid : ContractId Api.HoldingV1.Holding
           -- ^ A holding used to verify that the elector is entitled to make the election.
         amount : Decimal
           -- ^ Number of units of instrument to which the election applies.
       controller elector
       do
-        holding <- view <$> fetch holdingCid
-        verify (holding.instrument == instrument)
-          "Invalid holding presented : reference instrument"
-        verify (holding.amount >= amount) $
-          "Invalid holding presented : amount is " <> show holding.amount <>
-          " but elected amount is " <> show amount
+        holding <- fetch holdingCid
         let
-          custodian = holding.account.custodian
-          owner = holding.account.owner
+          holdingInstrumentKey = getInstrument holding
+          holdingView = view holding
+
+        -- Verify that the holding corresponds to the expected instrument
+        verify (holdingInstrumentKey == instrument)
+          "Invalid holding presented : reference instrument"
+
+        -- Verify sufficient amount in the holding
+        verify (holdingView.amount >= amount) $
+          "Invalid holding presented : amount is "
+            <> show holdingView.amount
+            <> " but elected amount is "
+            <> show amount
+
+        let
+          metaValues = holdingView.meta.values
+          custodianTxt = fromOptional "Missing metadata: custodian " $
+            TextMap.lookup "custodian" metaValues
+          custodian = textToParty custodianTxt
+          owner = holdingView.owner
           electorIsOwner
             | elector == owner = True
             | elector == custodian = False
             | otherwise = error "Election can be made only on behalf of the owner or the custodian"
           counterparty = if electorIsOwner then elector else custodian
+
         create ElectionCandidate with
           validator = provider; id; description; claim; instrument; factoryCid; elector
           electionTime; amount; counterparty; electorIsOwner

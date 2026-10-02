@@ -29,15 +29,35 @@ Data Types
          - Type
          - Description
        * - unadjustedDate
-         - `Date <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
+         - `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
          - A date subject to adjustment\.
        * - dateAdjustments
          - `BusinessDayAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businessdayadjustments-9111_>`_
          - The business day convention and financial business centers used for adjusting the date if it would otherwise fall on a day that is not a business date in the specified business centers\. adjustedDate \: Optional IdentifiedDate \^ The date once the adjustment has been performed\. (Note that this date may change if the business center holidays change)\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `AdjustableDate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-adjustabledate-37102_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `AdjustableDate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-adjustabledate-37102_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `AdjustableDate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-adjustabledate-37102_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `AdjustableDate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-adjustabledate-37102_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"dateAdjustments\" `AdjustableDate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-adjustabledate-37102_>`_ `BusinessDayAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businessdayadjustments-9111_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"effectiveDate\" `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_ `AdjustableDate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-adjustabledate-37102_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"firstPeriodStartDate\" `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `AdjustableDate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-adjustabledate-37102_>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"terminationDate\" `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_ `AdjustableDate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-adjustabledate-37102_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"unadjustedDate\" `AdjustableDate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-adjustabledate-37102_>`_ `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"dateAdjustments\" `AdjustableDate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-adjustabledate-37102_>`_ `BusinessDayAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businessdayadjustments-9111_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"effectiveDate\" `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_ `AdjustableDate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-adjustabledate-37102_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"firstPeriodStartDate\" `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `AdjustableDate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-adjustabledate-37102_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"terminationDate\" `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_ `AdjustableDate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-adjustabledate-37102_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"unadjustedDate\" `AdjustableDate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-adjustabledate-37102_>`_ `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businesscentertime-84241:
 
@@ -61,12 +81,24 @@ Data Types
          - `HourMinuteTime <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-hourminutetime-47030_>`_
          - A time specified in hh\:mm\:ss format where the second component must be '00', e\.g\., 11am would be represented as 11\:00\:00\.
        * - businessCenter
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          -
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `BusinessCenterTime <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businesscentertime-84241_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `BusinessCenterTime <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businesscentertime-84241_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `BusinessCenterTime <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businesscentertime-84241_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `BusinessCenterTime <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businesscentertime-84241_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"businessCenter\" `BusinessCenterTime <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businesscentertime-84241_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"fixingTime\" `FxSpotRateSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxspotratesource-88026_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `BusinessCenterTime <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businesscentertime-84241_>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"hourMinuteTime\" `BusinessCenterTime <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businesscentertime-84241_>`_ `HourMinuteTime <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-hourminutetime-47030_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"businessCenter\" `BusinessCenterTime <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businesscentertime-84241_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"fixingTime\" `FxSpotRateSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxspotratesource-88026_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `BusinessCenterTime <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businesscentertime-84241_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"hourMinuteTime\" `BusinessCenterTime <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businesscentertime-84241_>`_ `HourMinuteTime <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-hourminutetime-47030_>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businessdayadjustments-9111:
 
@@ -91,12 +123,28 @@ Data Types
          - :ref:`BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112>`
          - The convention for adjusting a date if it would otherwise fall on a day that is not a business day\.
        * - businessCenters
-         - \[`Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_\]
+         - \[`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_\]
          -
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `BusinessDayAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businessdayadjustments-9111_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `BusinessDayAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businessdayadjustments-9111_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `BusinessDayAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businessdayadjustments-9111_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `BusinessDayAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businessdayadjustments-9111_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"businessCenters\" `BusinessDayAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businessdayadjustments-9111_>`_ \[`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_\]
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"businessDayConvention\" `BusinessDayAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businessdayadjustments-9111_>`_ :ref:`BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112>`
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"dateAdjustments\" `AdjustableDate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-adjustabledate-37102_>`_ `BusinessDayAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businessdayadjustments-9111_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"paymentDatesAdjustments\" `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_ `BusinessDayAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businessdayadjustments-9111_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"businessCenters\" `BusinessDayAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businessdayadjustments-9111_>`_ \[`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"businessDayConvention\" `BusinessDayAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businessdayadjustments-9111_>`_ :ref:`BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"dateAdjustments\" `AdjustableDate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-adjustabledate-37102_>`_ `BusinessDayAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businessdayadjustments-9111_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"paymentDatesAdjustments\" `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_ `BusinessDayAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businessdayadjustments-9111_>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculation-57533:
 
@@ -125,12 +173,32 @@ Data Types
          - :ref:`DayCountConventionEnum <type-daml-finance-interface-types-date-v3-daycount-daycountconventionenum-31>`
          -
        * - compoundingMethodEnum
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `CompoundingMethodEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-compoundingmethodenum-42513_>`_
+         - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `CompoundingMethodEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-compoundingmethodenum-42513_>`_
          -
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `Calculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculation-57533_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `Calculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculation-57533_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `Calculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculation-57533_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `Calculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculation-57533_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"calculation\" `CalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodamount-86226_>`_ `Calculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculation-57533_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"compoundingMethodEnum\" `Calculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculation-57533_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `CompoundingMethodEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-compoundingmethodenum-42513_>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"dayCountFraction\" `Calculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculation-57533_>`_ :ref:`DayCountConventionEnum <type-daml-finance-interface-types-date-v3-daycount-daycountconventionenum-31>`
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"notionalScheduleValue\" `Calculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculation-57533_>`_ `NotionalScheduleValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalschedulevalue-85970_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"rateTypeValue\" `Calculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculation-57533_>`_ `RateTypeValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-ratetypevalue-70501_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"calculation\" `CalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodamount-86226_>`_ `Calculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculation-57533_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"compoundingMethodEnum\" `Calculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculation-57533_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `CompoundingMethodEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-compoundingmethodenum-42513_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"dayCountFraction\" `Calculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculation-57533_>`_ :ref:`DayCountConventionEnum <type-daml-finance-interface-types-date-v3-daycount-daycountconventionenum-31>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"notionalScheduleValue\" `Calculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculation-57533_>`_ `NotionalScheduleValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalschedulevalue-85970_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"rateTypeValue\" `Calculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculation-57533_>`_ `RateTypeValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-ratetypevalue-70501_>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodamount-86226:
 
@@ -153,9 +221,17 @@ Data Types
          - `Calculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculation-57533_>`_
          -
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `CalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodamount-86226_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `CalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodamount-86226_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `CalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodamount-86226_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `CalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodamount-86226_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"calculation\" `CalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodamount-86226_>`_ `Calculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculation-57533_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"calculationPeriodAmount\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ `CalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodamount-86226_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"calculation\" `CalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodamount-86226_>`_ `Calculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculation-57533_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"calculationPeriodAmount\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ `CalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodamount-86226_>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760:
 
@@ -175,7 +251,7 @@ Data Types
          - Type
          - Description
        * - id
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          -
        * - effectiveDate
          - `AdjustableDate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-adjustabledate-37102_>`_
@@ -187,21 +263,57 @@ Data Types
          - `CalculationPeriodDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddatesadjustments-85977_>`_
          -
        * - firstPeriodStartDate
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `AdjustableDate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-adjustabledate-37102_>`_
+         - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `AdjustableDate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-adjustabledate-37102_>`_
          -
        * - firstRegularPeriodStartDate
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Date <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
+         - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
          -
        * - lastRegularPeriodEndDate
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Date <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
+         - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
          -
        * - calculationPeriodFrequency
          - `CalculationPeriodFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodfrequency-78985_>`_
          -
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"calculationPeriodDates\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"calculationPeriodDatesAdjustments\" `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_ `CalculationPeriodDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddatesadjustments-85977_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"calculationPeriodFrequency\" `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_ `CalculationPeriodFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodfrequency-78985_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"effectiveDate\" `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_ `AdjustableDate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-adjustabledate-37102_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"firstPeriodStartDate\" `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `AdjustableDate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-adjustabledate-37102_>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"firstRegularPeriodStartDate\" `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"id\" `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"lastRegularPeriodEndDate\" `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"terminationDate\" `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_ `AdjustableDate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-adjustabledate-37102_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"calculationPeriodDates\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"calculationPeriodDatesAdjustments\" `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_ `CalculationPeriodDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddatesadjustments-85977_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"calculationPeriodFrequency\" `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_ `CalculationPeriodFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodfrequency-78985_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"effectiveDate\" `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_ `AdjustableDate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-adjustabledate-37102_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"firstPeriodStartDate\" `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `AdjustableDate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-adjustabledate-37102_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"firstRegularPeriodStartDate\" `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"id\" `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"lastRegularPeriodEndDate\" `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"terminationDate\" `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_ `AdjustableDate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-adjustabledate-37102_>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddatesadjustments-85977:
 
@@ -225,12 +337,24 @@ Data Types
          - :ref:`BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112>`
          -
        * - businessCenters
-         - \[`Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_\]
+         - \[`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_\]
          -
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `CalculationPeriodDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddatesadjustments-85977_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `CalculationPeriodDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddatesadjustments-85977_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `CalculationPeriodDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddatesadjustments-85977_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `CalculationPeriodDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddatesadjustments-85977_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"businessCenters\" `CalculationPeriodDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddatesadjustments-85977_>`_ \[`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_\]
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"businessDayConvention\" `CalculationPeriodDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddatesadjustments-85977_>`_ :ref:`BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112>`
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"calculationPeriodDatesAdjustments\" `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_ `CalculationPeriodDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddatesadjustments-85977_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"businessCenters\" `CalculationPeriodDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddatesadjustments-85977_>`_ \[`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"businessDayConvention\" `CalculationPeriodDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddatesadjustments-85977_>`_ :ref:`BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"calculationPeriodDatesAdjustments\" `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_ `CalculationPeriodDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddatesadjustments-85977_>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodfrequency-78985:
 
@@ -254,7 +378,7 @@ Data Types
          - Type
          - Description
        * - periodMultiplier
-         - `Int <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
+         - `Int <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
          - A time period multiplier, e\.g\., 1, 2 or 3 etc\. If the period value is T (Term) then periodMultiplier must contain the value 1\.
        * - period
          - `PeriodExtendedEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-periodextendedenum-38896_>`_
@@ -263,9 +387,25 @@ Data Types
          - :ref:`RollConventionEnum <type-daml-finance-interface-types-date-v3-rollconvention-rollconventionenum-89490>`
          - Used in conjunction with a frequency and the regular period start date of a calculation period, determines each calculation period end date within the regular part of a c alculation period schedule\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `CalculationPeriodFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodfrequency-78985_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `CalculationPeriodFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodfrequency-78985_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `CalculationPeriodFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodfrequency-78985_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `CalculationPeriodFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodfrequency-78985_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"calculationPeriodFrequency\" `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_ `CalculationPeriodFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodfrequency-78985_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"period\" `CalculationPeriodFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodfrequency-78985_>`_ `PeriodExtendedEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-periodextendedenum-38896_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"periodMultiplier\" `CalculationPeriodFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodfrequency-78985_>`_ `Int <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"rollConvention\" `CalculationPeriodFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodfrequency-78985_>`_ :ref:`RollConventionEnum <type-daml-finance-interface-types-date-v3-rollconvention-rollconventionenum-89490>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"calculationPeriodFrequency\" `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_ `CalculationPeriodFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodfrequency-78985_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"period\" `CalculationPeriodFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodfrequency-78985_>`_ `PeriodExtendedEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-periodextendedenum-38896_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"periodMultiplier\" `CalculationPeriodFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodfrequency-78985_>`_ `Int <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"rollConvention\" `CalculationPeriodFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodfrequency-78985_>`_ :ref:`RollConventionEnum <type-daml-finance-interface-types-date-v3-rollconvention-rollconventionenum-89490>`
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-compoundingmethodenum-42513:
 
@@ -299,9 +439,13 @@ Data Types
 
     Spread Exclusive compounding\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `CompoundingMethodEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-compoundingmethodenum-42513_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `CompoundingMethodEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-compoundingmethodenum-42513_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `CompoundingMethodEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-compoundingmethodenum-42513_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `CompoundingMethodEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-compoundingmethodenum-42513_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"compoundingMethodEnum\" `Calculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculation-57533_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `CompoundingMethodEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-compoundingmethodenum-42513_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"compoundingMethodEnum\" `Calculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculation-57533_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `CompoundingMethodEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-compoundingmethodenum-42513_>`_)
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-dateoffset-80142:
 
@@ -323,18 +467,34 @@ Data Types
          - Type
          - Description
        * - periodMultiplier
-         - `Int <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
+         - `Int <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
          - A time period multiplier, e\.g\. 1, 2 or 3 etc\. A negative value can be used when specifying an offset relative to another date, e\.g\. \-2 days\.
        * - period
          - :ref:`PeriodEnum <type-daml-finance-interface-types-date-v3-rollconvention-periodenum-45289>`
          - A time period, e\.g\. a day, week, month or year of the stream\. If the periodMultiplier value is 0 (zero) then period must contain the value D (day)\.
        * - dayType
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `DayTypeEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daytypeenum-59419_>`_
+         - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `DayTypeEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daytypeenum-59419_>`_
          - In the case of an offset specified as a number of days, this element defines whether consideration is given as to whether a day is a good business day or not\. If a day type of business days is specified then non\-business days are ignored when calculating the offset\. The financial business centers to use for determination of business days are implied by the context in which this element is used\. This element must only be included when the offset is specified as a number of days\. If the offset is zero days then the dayType element should not be included\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `DateOffset <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-dateoffset-80142_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `DateOffset <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-dateoffset-80142_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `DateOffset <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-dateoffset-80142_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `DateOffset <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-dateoffset-80142_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"dayType\" `DateOffset <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-dateoffset-80142_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `DayTypeEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daytypeenum-59419_>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"paymentDaysOffset\" `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `DateOffset <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-dateoffset-80142_>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"period\" `DateOffset <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-dateoffset-80142_>`_ :ref:`PeriodEnum <type-daml-finance-interface-types-date-v3-rollconvention-periodenum-45289>`
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"periodMultiplier\" `DateOffset <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-dateoffset-80142_>`_ `Int <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"dayType\" `DateOffset <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-dateoffset-80142_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `DayTypeEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daytypeenum-59419_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"paymentDaysOffset\" `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `DateOffset <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-dateoffset-80142_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"period\" `DateOffset <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-dateoffset-80142_>`_ :ref:`PeriodEnum <type-daml-finance-interface-types-date-v3-rollconvention-periodenum-45289>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"periodMultiplier\" `DateOffset <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-dateoffset-80142_>`_ `Int <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daterelativetoenum-92127:
 
@@ -355,9 +515,17 @@ Data Types
 
     Payments/Resets will occur relative to the last day of each calculation period\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `DateRelativeToEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daterelativetoenum-92127_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `DateRelativeToEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daterelativetoenum-92127_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `DateRelativeToEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daterelativetoenum-92127_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `DateRelativeToEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daterelativetoenum-92127_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"payRelativeTo\" `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_ `DateRelativeToEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daterelativetoenum-92127_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"resetRelativeTo\" `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_ `DateRelativeToEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daterelativetoenum-92127_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"payRelativeTo\" `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_ `DateRelativeToEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daterelativetoenum-92127_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"resetRelativeTo\" `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_ `DateRelativeToEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daterelativetoenum-92127_>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daytypeenum-59419:
 
@@ -406,9 +574,17 @@ Data Types
     When calculating the number of days between two dates the count includes only scheduled
     trading days\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `DayTypeEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daytypeenum-59419_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `DayTypeEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daytypeenum-59419_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `DayTypeEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daytypeenum-59419_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `DayTypeEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daytypeenum-59419_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"dayType\" `DateOffset <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-dateoffset-80142_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `DayTypeEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daytypeenum-59419_>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"dayType\" `FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `DayTypeEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daytypeenum-59419_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"dayType\" `DateOffset <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-dateoffset-80142_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `DayTypeEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daytypeenum-59419_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"dayType\" `FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `DayTypeEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daytypeenum-59419_>`_)
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixedrateschedule-52475:
 
@@ -428,15 +604,23 @@ Data Types
          - Type
          - Description
        * - initialValue
-         - `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+         - `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
          - The initial rate or amount, as the case may be\. An initial rate of 5% would be represented as 0\.05\.
        * - step
          - \[`Step <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-step-53347_>`_\]
          - The schedule of step date and value pairs\. On each step date the associated step value becomes effective\. A list of steps may be ordered in the document by ascending step date\. An FpML document containing an unordered list of steps is still regarded as a conformant document\. type\_ \: Optional SpreadScheduleType
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `FixedRateSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixedrateschedule-52475_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `FixedRateSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixedrateschedule-52475_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `FixedRateSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixedrateschedule-52475_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `FixedRateSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixedrateschedule-52475_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"initialValue\" `FixedRateSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixedrateschedule-52475_>`_ `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"step\" `FixedRateSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixedrateschedule-52475_>`_ \[`Step <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-step-53347_>`_\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"initialValue\" `FixedRateSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixedrateschedule-52475_>`_ `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"step\" `FixedRateSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixedrateschedule-52475_>`_ \[`Step <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-step-53347_>`_\]
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248:
 
@@ -457,24 +641,52 @@ Data Types
          - Type
          - Description
        * - periodMultiplier
-         - `Int <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
+         - `Int <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
          -
        * - period
          - :ref:`PeriodEnum <type-daml-finance-interface-types-date-v3-rollconvention-periodenum-45289>`
          -
        * - dayType
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `DayTypeEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daytypeenum-59419_>`_
+         - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `DayTypeEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daytypeenum-59419_>`_
          -
        * - businessDayConvention
          - :ref:`BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112>`
          -
        * - businessCenters
-         - \[`Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_\]
+         - \[`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_\]
          -
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"businessCenters\" `FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248_>`_ \[`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_\]
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"businessDayConvention\" `FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248_>`_ :ref:`BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112>`
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"dayType\" `FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `DayTypeEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daytypeenum-59419_>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"fixingDates\" `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_ `FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"period\" `FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248_>`_ :ref:`PeriodEnum <type-daml-finance-interface-types-date-v3-rollconvention-periodenum-45289>`
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"periodMultiplier\" `FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248_>`_ `Int <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"varyingNotionalFixingDates\" `FxLinkedNotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxlinkednotionalschedule-96927_>`_ `FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"businessCenters\" `FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248_>`_ \[`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"businessDayConvention\" `FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248_>`_ :ref:`BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"dayType\" `FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `DayTypeEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daytypeenum-59419_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"fixingDates\" `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_ `FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"period\" `FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248_>`_ :ref:`PeriodEnum <type-daml-finance-interface-types-date-v3-rollconvention-periodenum-45289>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"periodMultiplier\" `FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248_>`_ `Int <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"varyingNotionalFixingDates\" `FxLinkedNotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxlinkednotionalschedule-96927_>`_ `FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248_>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-floatingratecalculation-25241:
 
@@ -495,21 +707,37 @@ Data Types
          - Type
          - Description
        * - floatingRateIndex
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          -
        * - indexTenor
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`Period <type-daml-finance-interface-types-date-v3-rollconvention-period-94990>`
+         - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`Period <type-daml-finance-interface-types-date-v3-rollconvention-period-94990>`
          - The ISDA Designated Maturity, i\.e\., the tenor of the floating rate\. floatingRateMultiplierSchedule \: Optional Schedule \^ A rate multiplier or multiplier schedule to apply to the floating rate\. A multiplier schedule is expressed as explicit multipliers and dates\. In the case of a schedule, the step dates may be subject to adjustment in accordance with any adjustments specified in the calculationPeriodDatesAdjustments\. The multiplier can be a positive or negative decimal\. This element should only be included if the multiplier is not equal to 1 (one) for the term of the stream\.
        * - spreadSchedule
          - \[`SpreadSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-spreadschedule-59569_>`_\]
          - The ISDA Spread or a Spread schedule expressed as explicit spreads and dates\. In the case of a schedule, the step dates may be subject to adjustment in accordance with any adjustments specified in calculationPeriodDatesAdjustments\. The spread is a per annum rate, expressed as a decimal\. For purposes of determining a calculation period amount, if positive the spread will be added to the floating rate and if negative the spread will be subtracted from the floating rate\. A positive 10 basis point (0\.1%) spread would be represented as 0\.001\. rateTreatment \: Optional RateTreatmentEnum \^ The specification of any rate conversion which needs to be applied to the observed rate before being used in any calculations\. The two common conversions are for securities quoted on a bank discount basis which will need to be converted to either a Money Market Yield or Bond Equivalent Yield\. See the Annex to the 2000 ISDA Definitions, Section 7\.3\. Certain General Definitions Relating to Floating Rate Options, paragraphs (g) and (h) for definitions of these terms\. capRateSchedule \: \[StrikeSchedule\] \^ The cap rate or cap rate schedule, if any, which applies to the floating rate\. The cap rate (strike) is only required where the floating rate on a swap stream is capped at a certain level\. A cap rate schedule is expressed as explicit cap rates and dates and the step dates may be subject to adjustment in accordance with any adjustments specified in calculationPeriodDatesAdjustments\. The cap rate is assumed to be exclusive of any spread and is a per annum rate, expressed as a decimal\. A cap rate of 5% would be represented as 0\.05\. floorRateSchedule \: \[StrikeSchedule\] \^ The floor rate or floor rate schedule, if any, which applies to the floating rate\. The floor rate (strike) is only required where the floating rate on a swap stream is floored at a certain strike level\. A floor rate schedule is expressed as explicit floor rates and dates and the step dates may be subject to adjustment in accordance with any adjustments specified in calculationPeriodDatesAdjustments\. The floor rate is assumed to be exclusive of any spread and is a per annum rate, expressed as a decimal\. A floor rate of 5% would be represented as 0\.05\. initialRate \: Optional Decimal \^ The initial floating rate reset agreed between the principal parties involved in the trade\. This is assumed to be the first required reset rate for the first regular calculation period\. It should only be included when the rate is not equal to the rate published on the source implied by the floating rate index\. An initial rate of 5% would be represented as 0\.05\.
        * - finalRateRounding
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Rounding <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-rounding-1657_>`_
+         - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Rounding <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-rounding-1657_>`_
          - The rounding convention to apply to the final rate used in determination of a calculation period amount\. averagingMethod \: Optional AveragingMethodEnum \^ If averaging is applicable, this component specifies whether a weighted or unweighted average method of calculation is to be used\. The component must only be included when averaging applies\. negativeInterestRateTreatment \: Optional NegativeInterestRateTreatmentEnum \^ The specification of any provisions for calculating payment obligations when a floating rate is negative (either due to a quoted negative floating rate or by operation of a spread that is subtracted from the floating rate)\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `FloatingRateCalculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-floatingratecalculation-25241_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `FloatingRateCalculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-floatingratecalculation-25241_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `FloatingRateCalculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-floatingratecalculation-25241_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `FloatingRateCalculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-floatingratecalculation-25241_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"finalRateRounding\" `FloatingRateCalculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-floatingratecalculation-25241_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Rounding <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-rounding-1657_>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"floatingRateIndex\" `FloatingRateCalculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-floatingratecalculation-25241_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"indexTenor\" `FloatingRateCalculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-floatingratecalculation-25241_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`Period <type-daml-finance-interface-types-date-v3-rollconvention-period-94990>`)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"spreadSchedule\" `FloatingRateCalculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-floatingratecalculation-25241_>`_ \[`SpreadSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-spreadschedule-59569_>`_\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"finalRateRounding\" `FloatingRateCalculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-floatingratecalculation-25241_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Rounding <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-rounding-1657_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"floatingRateIndex\" `FloatingRateCalculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-floatingratecalculation-25241_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"indexTenor\" `FloatingRateCalculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-floatingratecalculation-25241_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`Period <type-daml-finance-interface-types-date-v3-rollconvention-period-94990>`)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"spreadSchedule\" `FloatingRateCalculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-floatingratecalculation-25241_>`_ \[`SpreadSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-spreadschedule-59569_>`_\]
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxlinkednotionalschedule-96927:
 
@@ -529,13 +757,13 @@ Data Types
          - Type
          - Description
        * - constantNotionalScheduleReference
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          -
        * - initialValue
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+         - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
          -
        * - varyingNotionalCurrency
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          -
        * - varyingNotionalFixingDates
          - `FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248_>`_
@@ -544,9 +772,29 @@ Data Types
          - `FxSpotRateSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxspotratesource-88026_>`_
          -
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `FxLinkedNotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxlinkednotionalschedule-96927_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `FxLinkedNotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxlinkednotionalschedule-96927_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `FxLinkedNotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxlinkednotionalschedule-96927_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `FxLinkedNotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxlinkednotionalschedule-96927_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"constantNotionalScheduleReference\" `FxLinkedNotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxlinkednotionalschedule-96927_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"fxSpotRateSource\" `FxLinkedNotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxlinkednotionalschedule-96927_>`_ `FxSpotRateSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxspotratesource-88026_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"initialValue\" `FxLinkedNotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxlinkednotionalschedule-96927_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"varyingNotionalCurrency\" `FxLinkedNotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxlinkednotionalschedule-96927_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"varyingNotionalFixingDates\" `FxLinkedNotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxlinkednotionalschedule-96927_>`_ `FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"constantNotionalScheduleReference\" `FxLinkedNotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxlinkednotionalschedule-96927_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"fxSpotRateSource\" `FxLinkedNotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxlinkednotionalschedule-96927_>`_ `FxSpotRateSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxspotratesource-88026_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"initialValue\" `FxLinkedNotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxlinkednotionalschedule-96927_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"varyingNotionalCurrency\" `FxLinkedNotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxlinkednotionalschedule-96927_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"varyingNotionalFixingDates\" `FxLinkedNotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxlinkednotionalschedule-96927_>`_ `FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248_>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxspotratesource-88026:
 
@@ -570,20 +818,36 @@ Data Types
          - `InformationSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-informationsource-74973_>`_
          - The primary source for where the rate observation will occur\. Will typically be either a page or a reference bank published rate\. secondaryRateSource \: Optional InformationSource \^ An alternative, or secondary, source for where the rate observation will occur\. Will typically be either a page or a reference bank published rate\.
        * - fixingTime
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `BusinessCenterTime <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businesscentertime-84241_>`_
+         - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `BusinessCenterTime <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businesscentertime-84241_>`_
          - The time at which the spot currency exchange rate will be observed\. It is specified as a time in a business day calendar location, e\.g\., 11\:00am London time\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `FxSpotRateSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxspotratesource-88026_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `FxSpotRateSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxspotratesource-88026_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `FxSpotRateSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxspotratesource-88026_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `FxSpotRateSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxspotratesource-88026_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"fixingTime\" `FxSpotRateSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxspotratesource-88026_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `BusinessCenterTime <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businesscentertime-84241_>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"fxSpotRateSource\" `FxLinkedNotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxlinkednotionalschedule-96927_>`_ `FxSpotRateSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxspotratesource-88026_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"primaryRateSource\" `FxSpotRateSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxspotratesource-88026_>`_ `InformationSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-informationsource-74973_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"fixingTime\" `FxSpotRateSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxspotratesource-88026_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `BusinessCenterTime <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businesscentertime-84241_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"fxSpotRateSource\" `FxLinkedNotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxlinkednotionalschedule-96927_>`_ `FxSpotRateSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxspotratesource-88026_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"primaryRateSource\" `FxSpotRateSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxspotratesource-88026_>`_ `InformationSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-informationsource-74973_>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-hourminutetime-47030:
 
 **type** `HourMinuteTime <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-hourminutetime-47030_>`_
-  \= `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+  \= `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
 
   A type defining a time specified in hh\:mm\:ss format where the second component must be '00',
   e\.g\., 11am would be represented as 11\:00\:00\.
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"hourMinuteTime\" `BusinessCenterTime <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businesscentertime-84241_>`_ `HourMinuteTime <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-hourminutetime-47030_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"hourMinuteTime\" `BusinessCenterTime <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businesscentertime-84241_>`_ `HourMinuteTime <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-hourminutetime-47030_>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-informationsource-74973:
 
@@ -603,15 +867,27 @@ Data Types
          - Type
          - Description
        * - rateSource
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          - An information source for obtaining a market rate\. For example, Bloomberg, Reuters, Telerate etc\. rateSourcePage \: Optional RateSourcePage
        * - rateSourcePage
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          - A specific page for the rate source for obtaining a market rate\. rateSourcePageHeading \: Optional String \^ The heading for the rate source on a given rate source page\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `InformationSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-informationsource-74973_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `InformationSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-informationsource-74973_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `InformationSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-informationsource-74973_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `InformationSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-informationsource-74973_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"primaryRateSource\" `FxSpotRateSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxspotratesource-88026_>`_ `InformationSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-informationsource-74973_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"rateSource\" `InformationSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-informationsource-74973_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"rateSourcePage\" `InformationSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-informationsource-74973_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"primaryRateSource\" `FxSpotRateSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fxspotratesource-88026_>`_ `InformationSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-informationsource-74973_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"rateSource\" `InformationSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-informationsource-74973_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"rateSourcePage\" `InformationSource <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-informationsource-74973_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalschedule-81262:
 
@@ -631,15 +907,23 @@ Data Types
          - Type
          - Description
        * - id
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          -
        * - notionalStepSchedule
          - `NotionalStepSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalstepschedule-46668_>`_
          -
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `NotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalschedule-81262_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `NotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalschedule-81262_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `NotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalschedule-81262_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `NotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalschedule-81262_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"id\" `NotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalschedule-81262_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"notionalStepSchedule\" `NotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalschedule-81262_>`_ `NotionalStepSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalstepschedule-46668_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"id\" `NotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalschedule-81262_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"notionalStepSchedule\" `NotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalschedule-81262_>`_ `NotionalStepSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalstepschedule-46668_>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalschedulevalue-85970:
 
@@ -659,9 +943,13 @@ Data Types
 
     FX linked notional schedule\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `NotionalScheduleValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalschedulevalue-85970_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `NotionalScheduleValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalschedulevalue-85970_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `NotionalScheduleValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalschedulevalue-85970_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `NotionalScheduleValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalschedulevalue-85970_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"notionalScheduleValue\" `Calculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculation-57533_>`_ `NotionalScheduleValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalschedulevalue-85970_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"notionalScheduleValue\" `Calculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculation-57533_>`_ `NotionalScheduleValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalschedulevalue-85970_>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalstepschedule-46668:
 
@@ -682,18 +970,34 @@ Data Types
          - Type
          - Description
        * - initialValue
-         - `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+         - `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
          -
        * - step
          - \[`Step <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-step-53347_>`_\]
          -
        * - currency
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          -
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `NotionalStepSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalstepschedule-46668_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `NotionalStepSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalstepschedule-46668_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `NotionalStepSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalstepschedule-46668_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `NotionalStepSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalstepschedule-46668_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"currency\" `NotionalStepSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalstepschedule-46668_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"initialValue\" `NotionalStepSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalstepschedule-46668_>`_ `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"notionalStepSchedule\" `NotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalschedule-81262_>`_ `NotionalStepSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalstepschedule-46668_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"step\" `NotionalStepSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalstepschedule-46668_>`_ \[`Step <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-step-53347_>`_\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"currency\" `NotionalStepSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalstepschedule-46668_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"initialValue\" `NotionalStepSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalstepschedule-46668_>`_ `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"notionalStepSchedule\" `NotionalSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalschedule-81262_>`_ `NotionalStepSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalstepschedule-46668_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"step\" `NotionalStepSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalstepschedule-46668_>`_ \[`Step <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-step-53347_>`_\]
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528:
 
@@ -713,30 +1017,62 @@ Data Types
          - Type
          - Description
        * - calculationPeriodDatesReference
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          -
        * - paymentFrequency
          - `PaymentFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentfrequency-30561_>`_
          -
        * - firstPaymentDate
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Date <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
+         - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
          -
        * - lastRegularPaymentDate
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Date <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
+         - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
          -
        * - payRelativeTo
          - `DateRelativeToEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daterelativetoenum-92127_>`_
          -
        * - paymentDaysOffset
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `DateOffset <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-dateoffset-80142_>`_
+         - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `DateOffset <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-dateoffset-80142_>`_
          -
        * - paymentDatesAdjustments
          - `BusinessDayAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businessdayadjustments-9111_>`_
          -
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"calculationPeriodDatesReference\" `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"firstPaymentDate\" `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"lastRegularPaymentDate\" `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"payRelativeTo\" `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_ `DateRelativeToEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daterelativetoenum-92127_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"paymentDates\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"paymentDatesAdjustments\" `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_ `BusinessDayAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businessdayadjustments-9111_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"paymentDaysOffset\" `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `DateOffset <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-dateoffset-80142_>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"paymentFrequency\" `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_ `PaymentFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentfrequency-30561_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"calculationPeriodDatesReference\" `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"firstPaymentDate\" `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"lastRegularPaymentDate\" `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"payRelativeTo\" `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_ `DateRelativeToEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daterelativetoenum-92127_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"paymentDates\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"paymentDatesAdjustments\" `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_ `BusinessDayAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businessdayadjustments-9111_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"paymentDaysOffset\" `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `DateOffset <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-dateoffset-80142_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"paymentFrequency\" `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_ `PaymentFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentfrequency-30561_>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentfrequency-30561:
 
@@ -764,15 +1100,27 @@ Data Types
          - Type
          - Description
        * - periodMultiplier
-         - `Int <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
+         - `Int <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
          -
        * - period
          - `PeriodExtendedEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-periodextendedenum-38896_>`_
          -
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `PaymentFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentfrequency-30561_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `PaymentFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentfrequency-30561_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `PaymentFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentfrequency-30561_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `PaymentFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentfrequency-30561_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"paymentFrequency\" `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_ `PaymentFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentfrequency-30561_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"period\" `PaymentFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentfrequency-30561_>`_ `PeriodExtendedEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-periodextendedenum-38896_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"periodMultiplier\" `PaymentFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentfrequency-30561_>`_ `Int <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"paymentFrequency\" `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_ `PaymentFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentfrequency-30561_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"period\" `PaymentFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentfrequency-30561_>`_ `PeriodExtendedEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-periodextendedenum-38896_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"periodMultiplier\" `PaymentFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentfrequency-30561_>`_ `Int <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-periodextendedenum-38896:
 
@@ -790,9 +1138,21 @@ Data Types
   `T <constr-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-t-90605_>`_
 
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `PeriodExtendedEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-periodextendedenum-38896_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `PeriodExtendedEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-periodextendedenum-38896_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `PeriodExtendedEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-periodextendedenum-38896_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `PeriodExtendedEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-periodextendedenum-38896_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"period\" `CalculationPeriodFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodfrequency-78985_>`_ `PeriodExtendedEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-periodextendedenum-38896_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"period\" `PaymentFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentfrequency-30561_>`_ `PeriodExtendedEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-periodextendedenum-38896_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"period\" `ResetFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetfrequency-57746_>`_ `PeriodExtendedEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-periodextendedenum-38896_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"period\" `CalculationPeriodFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodfrequency-78985_>`_ `PeriodExtendedEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-periodextendedenum-38896_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"period\" `PaymentFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentfrequency-30561_>`_ `PeriodExtendedEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-periodextendedenum-38896_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"period\" `ResetFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetfrequency-57746_>`_ `PeriodExtendedEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-periodextendedenum-38896_>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-principalexchanges-43211:
 
@@ -813,18 +1173,34 @@ Data Types
          - Type
          - Description
        * - initialExchange
-         - `Bool <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-bool-66265>`_
+         - `Bool <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-bool-66265>`_
          - A true/false flag to indicate whether there is an initial exchange of principal on the effective date\.
        * - finalExchange
-         - `Bool <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-bool-66265>`_
+         - `Bool <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-bool-66265>`_
          - A true/false flag to indicate whether there is a final exchange of principal on the termination date\.
        * - intermediateExchange
-         - `Bool <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-bool-66265>`_
+         - `Bool <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-bool-66265>`_
          - A true/false flag to indicate whether there are intermediate or interim exchanges of principal during the term of the swap\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `PrincipalExchanges <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-principalexchanges-43211_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `PrincipalExchanges <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-principalexchanges-43211_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `PrincipalExchanges <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-principalexchanges-43211_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `PrincipalExchanges <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-principalexchanges-43211_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"finalExchange\" `PrincipalExchanges <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-principalexchanges-43211_>`_ `Bool <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-bool-66265>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"initialExchange\" `PrincipalExchanges <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-principalexchanges-43211_>`_ `Bool <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-bool-66265>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"intermediateExchange\" `PrincipalExchanges <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-principalexchanges-43211_>`_ `Bool <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-bool-66265>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"principalExchanges\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `PrincipalExchanges <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-principalexchanges-43211_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"finalExchange\" `PrincipalExchanges <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-principalexchanges-43211_>`_ `Bool <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-bool-66265>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"initialExchange\" `PrincipalExchanges <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-principalexchanges-43211_>`_ `Bool <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-bool-66265>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"intermediateExchange\" `PrincipalExchanges <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-principalexchanges-43211_>`_ `Bool <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-bool-66265>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"principalExchanges\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `PrincipalExchanges <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-principalexchanges-43211_>`_)
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-ratetypevalue-70501:
 
@@ -844,9 +1220,13 @@ Data Types
 
     Floating rate\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `RateTypeValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-ratetypevalue-70501_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `RateTypeValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-ratetypevalue-70501_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `RateTypeValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-ratetypevalue-70501_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `RateTypeValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-ratetypevalue-70501_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"rateTypeValue\" `Calculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculation-57533_>`_ `RateTypeValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-ratetypevalue-70501_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"rateTypeValue\" `Calculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculation-57533_>`_ `RateTypeValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-ratetypevalue-70501_>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315:
 
@@ -866,7 +1246,7 @@ Data Types
          - Type
          - Description
        * - calculationPeriodDatesReference
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          -
        * - resetRelativeTo
          - `DateRelativeToEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daterelativetoenum-92127_>`_
@@ -881,9 +1261,33 @@ Data Types
          - `ResetDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdatesadjustments-44820_>`_
          -
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"calculationPeriodDatesReference\" `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"fixingDates\" `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_ `FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"resetDates\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"resetDatesAdjustments\" `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_ `ResetDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdatesadjustments-44820_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"resetFrequency\" `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_ `ResetFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetfrequency-57746_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"resetRelativeTo\" `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_ `DateRelativeToEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daterelativetoenum-92127_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"calculationPeriodDatesReference\" `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"fixingDates\" `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_ `FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"resetDates\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"resetDatesAdjustments\" `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_ `ResetDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdatesadjustments-44820_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"resetFrequency\" `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_ `ResetFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetfrequency-57746_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"resetRelativeTo\" `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_ `DateRelativeToEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-daterelativetoenum-92127_>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdatesadjustments-44820:
 
@@ -907,12 +1311,24 @@ Data Types
          - :ref:`BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112>`
          -
        * - businessCenters
-         - \[`Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_\]
+         - \[`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_\]
          -
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `ResetDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdatesadjustments-44820_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `ResetDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdatesadjustments-44820_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `ResetDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdatesadjustments-44820_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `ResetDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdatesadjustments-44820_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"businessCenters\" `ResetDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdatesadjustments-44820_>`_ \[`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_\]
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"businessDayConvention\" `ResetDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdatesadjustments-44820_>`_ :ref:`BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112>`
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"resetDatesAdjustments\" `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_ `ResetDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdatesadjustments-44820_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"businessCenters\" `ResetDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdatesadjustments-44820_>`_ \[`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"businessDayConvention\" `ResetDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdatesadjustments-44820_>`_ :ref:`BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"resetDatesAdjustments\" `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_ `ResetDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdatesadjustments-44820_>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetfrequency-57746:
 
@@ -932,15 +1348,27 @@ Data Types
          - Type
          - Description
        * - periodMultiplier
-         - `Int <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
+         - `Int <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
          -
        * - period
          - `PeriodExtendedEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-periodextendedenum-38896_>`_
          -
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `ResetFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetfrequency-57746_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `ResetFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetfrequency-57746_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `ResetFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetfrequency-57746_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `ResetFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetfrequency-57746_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"period\" `ResetFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetfrequency-57746_>`_ `PeriodExtendedEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-periodextendedenum-38896_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"periodMultiplier\" `ResetFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetfrequency-57746_>`_ `Int <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"resetFrequency\" `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_ `ResetFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetfrequency-57746_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"period\" `ResetFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetfrequency-57746_>`_ `PeriodExtendedEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-periodextendedenum-38896_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"periodMultiplier\" `ResetFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetfrequency-57746_>`_ `Int <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"resetFrequency\" `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_ `ResetFrequency <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetfrequency-57746_>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-rounding-1657:
 
@@ -963,12 +1391,24 @@ Data Types
          - `RoundingDirectionEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-roundingdirectionenum-88988_>`_
          - Specifies the rounding direction\.
        * - precision
-         - `Int <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
+         - `Int <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
          - Specifies the rounding precision in terms of a number of decimal places\. Note how a percentage rate rounding of 5 decimal places is expressed as a rounding precision of 7 in the FpML document since the percentage is expressed as a decimal, e\.g\. 9\.876543% (or 0\.09876543) being rounded to the nearest 5 decimal places is 9\.87654% (or 0\.0987654)\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `Rounding <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-rounding-1657_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `Rounding <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-rounding-1657_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `Rounding <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-rounding-1657_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `Rounding <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-rounding-1657_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"finalRateRounding\" `FloatingRateCalculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-floatingratecalculation-25241_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Rounding <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-rounding-1657_>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"precision\" `Rounding <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-rounding-1657_>`_ `Int <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"roundingDirection\" `Rounding <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-rounding-1657_>`_ `RoundingDirectionEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-roundingdirectionenum-88988_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"finalRateRounding\" `FloatingRateCalculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-floatingratecalculation-25241_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Rounding <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-rounding-1657_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"precision\" `Rounding <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-rounding-1657_>`_ `Int <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-int-37261>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"roundingDirection\" `Rounding <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-rounding-1657_>`_ `RoundingDirectionEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-roundingdirectionenum-88988_>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-roundingdirectionenum-88988:
 
@@ -1000,9 +1440,13 @@ Data Types
     places (the precision) depending on its value\. For example, 5\.24 would be rounded down to 5\.2
     and 5\.25 would be rounded up to 5\.3 if a precision of 1 decimal place were specified\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `RoundingDirectionEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-roundingdirectionenum-88988_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `RoundingDirectionEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-roundingdirectionenum-88988_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `RoundingDirectionEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-roundingdirectionenum-88988_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `RoundingDirectionEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-roundingdirectionenum-88988_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"roundingDirection\" `Rounding <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-rounding-1657_>`_ `RoundingDirectionEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-roundingdirectionenum-88988_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"roundingDirection\" `Rounding <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-rounding-1657_>`_ `RoundingDirectionEnum <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-roundingdirectionenum-88988_>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-spreadschedule-59569:
 
@@ -1022,12 +1466,20 @@ Data Types
          - Type
          - Description
        * - initialValue
-         - `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+         - `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
          - The initial rate or amount, as the case may be\. An initial rate of 5% would be represented as 0\.05\. step \: \[Step\] \^ The schedule of step date and value pairs\. On each step date the associated step value becomes effective\. A list of steps may be ordered in the document by ascending step date\. An FpML document containing an unordered list of steps is still regarded as a conformant document\. type\_ \: Optional SpreadScheduleType
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `SpreadSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-spreadschedule-59569_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `SpreadSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-spreadschedule-59569_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `SpreadSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-spreadschedule-59569_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `SpreadSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-spreadschedule-59569_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"initialValue\" `SpreadSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-spreadschedule-59569_>`_ `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"spreadSchedule\" `FloatingRateCalculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-floatingratecalculation-25241_>`_ \[`SpreadSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-spreadschedule-59569_>`_\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"initialValue\" `SpreadSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-spreadschedule-59569_>`_ `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"spreadSchedule\" `FloatingRateCalculation <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-floatingratecalculation-25241_>`_ \[`SpreadSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-spreadschedule-59569_>`_\]
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-step-53347:
 
@@ -1050,15 +1502,31 @@ Data Types
          - Type
          - Description
        * - stepDate
-         - `Date <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
+         - `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
          -
        * - stepValue
-         - `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+         - `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
          -
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `Step <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-step-53347_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `Step <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-step-53347_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `Step <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-step-53347_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `Step <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-step-53347_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"step\" `FixedRateSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixedrateschedule-52475_>`_ \[`Step <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-step-53347_>`_\]
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"step\" `NotionalStepSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalstepschedule-46668_>`_ \[`Step <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-step-53347_>`_\]
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"stepDate\" `Step <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-step-53347_>`_ `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"stepValue\" `Step <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-step-53347_>`_ `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"step\" `FixedRateSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixedrateschedule-52475_>`_ \[`Step <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-step-53347_>`_\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"step\" `NotionalStepSchedule <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-notionalstepschedule-46668_>`_ \[`Step <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-step-53347_>`_\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"stepDate\" `Step <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-step-53347_>`_ `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"stepValue\" `Step <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-step-53347_>`_ `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubcalculationperiodamount-55158:
 
@@ -1082,18 +1550,34 @@ Data Types
          - Type
          - Description
        * - calculationPeriodDatesReference
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          -
        * - initialStub
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `StubValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubvalue-4311_>`_
+         - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `StubValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubvalue-4311_>`_
          -
        * - finalStub
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `StubValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubvalue-4311_>`_
+         - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `StubValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubvalue-4311_>`_
          -
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `StubCalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubcalculationperiodamount-55158_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `StubCalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubcalculationperiodamount-55158_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `StubCalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubcalculationperiodamount-55158_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `StubCalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubcalculationperiodamount-55158_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"calculationPeriodDatesReference\" `StubCalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubcalculationperiodamount-55158_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"finalStub\" `StubCalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubcalculationperiodamount-55158_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `StubValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubvalue-4311_>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"initialStub\" `StubCalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubcalculationperiodamount-55158_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `StubValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubvalue-4311_>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"stubCalculationPeriodAmount\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `StubCalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubcalculationperiodamount-55158_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"calculationPeriodDatesReference\" `StubCalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubcalculationperiodamount-55158_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"finalStub\" `StubCalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubcalculationperiodamount-55158_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `StubValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubvalue-4311_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"initialStub\" `StubCalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubcalculationperiodamount-55158_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `StubValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubvalue-4311_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"stubCalculationPeriodAmount\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `StubCalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubcalculationperiodamount-55158_>`_)
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubfloatingrate-62557:
 
@@ -1114,15 +1598,23 @@ Data Types
          - Type
          - Description
        * - floatingRateIndex
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          -
        * - indexTenor
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`Period <type-daml-finance-interface-types-date-v3-rollconvention-period-94990>`
+         - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`Period <type-daml-finance-interface-types-date-v3-rollconvention-period-94990>`
          -
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `StubFloatingRate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubfloatingrate-62557_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `StubFloatingRate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubfloatingrate-62557_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `StubFloatingRate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubfloatingrate-62557_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `StubFloatingRate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubfloatingrate-62557_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"floatingRateIndex\" `StubFloatingRate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubfloatingrate-62557_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"indexTenor\" `StubFloatingRate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubfloatingrate-62557_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`Period <type-daml-finance-interface-types-date-v3-rollconvention-period-94990>`)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"floatingRateIndex\" `StubFloatingRate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubfloatingrate-62557_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"indexTenor\" `StubFloatingRate <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubfloatingrate-62557_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`Period <type-daml-finance-interface-types-date-v3-rollconvention-period-94990>`)
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubvalue-4311:
 
@@ -1154,7 +1646,7 @@ Data Types
 
   .. _constr-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubvaluestubrate-6456:
 
-  `StubValue_StubRate <constr-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubvaluestubrate-6456_>`_ `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+  `StubValue_StubRate <constr-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubvaluestubrate-6456_>`_ `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
 
     An actual rate to apply for the initial or final stub period may have been agreed between
     the principal parties (in a similar way to how an initial rate may have been agreed for the
@@ -1166,9 +1658,17 @@ Data Types
     the two parties\. If an actual stub amount has been agreed then it would be included in this
     component\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `StubValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubvalue-4311_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `StubValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubvalue-4311_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `StubValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubvalue-4311_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `StubValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubvalue-4311_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"finalStub\" `StubCalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubcalculationperiodamount-55158_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `StubValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubvalue-4311_>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"initialStub\" `StubCalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubcalculationperiodamount-55158_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `StubValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubvalue-4311_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"finalStub\" `StubCalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubcalculationperiodamount-55158_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `StubValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubvalue-4311_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"initialStub\" `StubCalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubcalculationperiodamount-55158_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `StubValue <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubvalue-4311_>`_)
 
 .. _type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822:
 
@@ -1188,10 +1688,10 @@ Data Types
          - Type
          - Description
        * - payerPartyReference
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          -
        * - receiverPartyReference
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          -
        * - calculationPeriodDates
          - `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_
@@ -1200,18 +1700,58 @@ Data Types
          - `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_
          -
        * - resetDates
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_
+         - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_
          -
        * - calculationPeriodAmount
          - `CalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodamount-86226_>`_
          -
        * - stubCalculationPeriodAmount
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `StubCalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubcalculationperiodamount-55158_>`_
+         - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `StubCalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubcalculationperiodamount-55158_>`_
          -
        * - principalExchanges
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `PrincipalExchanges <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-principalexchanges-43211_>`_
+         - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `PrincipalExchanges <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-principalexchanges-43211_>`_
          -
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"calculationPeriodAmount\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ `CalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodamount-86226_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"calculationPeriodDates\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"payerPartyReference\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"paymentDates\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"principalExchanges\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `PrincipalExchanges <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-principalexchanges-43211_>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"receiverPartyReference\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"resetDates\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"stubCalculationPeriodAmount\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `StubCalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubcalculationperiodamount-55158_>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"swapStreams\" :ref:`Instrument <type-daml-finance-instrument-swap-v0-fpml-instrument-instrument-27235>` \[`SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_\]
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"swapStreams\" :ref:`Fpml <type-daml-finance-interface-instrument-swap-v0-fpml-types-fpml-35949>` \[`SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"calculationPeriodAmount\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ `CalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperiodamount-86226_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"calculationPeriodDates\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ `CalculationPeriodDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddates-23760_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"payerPartyReference\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"paymentDates\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ `PaymentDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-paymentdates-94528_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"principalExchanges\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `PrincipalExchanges <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-principalexchanges-43211_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"receiverPartyReference\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"resetDates\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `ResetDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdates-28315_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"stubCalculationPeriodAmount\" `SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `StubCalculationPeriodAmount <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-stubcalculationperiodamount-55158_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"swapStreams\" :ref:`Instrument <type-daml-finance-instrument-swap-v0-fpml-instrument-instrument-27235>` \[`SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"swapStreams\" :ref:`Fpml <type-daml-finance-interface-instrument-swap-v0-fpml-types-fpml-35949>` \[`SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822_>`_\]

@@ -122,9 +122,9 @@ When you want to additively combine more than two claims, you can use the ``andL
 
 .. warning::
 
-  By default, the ``and`` operator is the :ref:`function <function-da-internal-prelude-and-20777>`
-  defined in the Daml standard library. To use the claim constructor instead, use a qualified
-  import. Alternatively, you can hide the function from the standard library by using the syntax
+  By default, the ``and`` operator is the ``and`` function defined in the Daml standard library.
+  To use the claim constructor instead, use a qualified import. Alternatively, you can hide the
+  function from the standard library by using the syntax
 
   .. code-block:: daml
 

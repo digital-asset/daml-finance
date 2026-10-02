@@ -38,7 +38,7 @@ Templates
        - :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
        - The clock's identifier\.
      * - description
-       - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+       - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
        - The clock's description\.
      * - observers
        - :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
@@ -72,6 +72,6 @@ Functions
 .. _function-daml-finance-data-v4-time-dateclock-datetodateclocktime-8972:
 
 `dateToDateClockTime <function-daml-finance-data-v4-time-dateclock-datetodateclocktime-8972_>`_
-  \: `Date <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_ \-\> `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
+  \: `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_ \-\> `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
 
   Maps a ``Date`` to ``Time`` using the rule in the ``DateClock``\.

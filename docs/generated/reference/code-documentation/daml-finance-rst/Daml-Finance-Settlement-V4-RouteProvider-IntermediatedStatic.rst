@@ -28,13 +28,13 @@ Templates
        - Type
        - Description
      * - provider
-       - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+       - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
        - Party providing the facility\.
      * - observers
        - :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
        - Observers\.
      * - paths
-       - `Map <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-map-90052>`_ `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_ :ref:`Hierarchy <type-daml-finance-settlement-v4-hierarchy-hierarchy-41337>`
+       - `Map <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-map-90052>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_ :ref:`Hierarchy <type-daml-finance-settlement-v4-hierarchy-hierarchy-41337>`
        - Hierarchical paths used to settle holding transfers\. A path is specified for each instrument label\.
 
   + **Choice** Archive

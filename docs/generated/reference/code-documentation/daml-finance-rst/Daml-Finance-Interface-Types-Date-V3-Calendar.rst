@@ -27,15 +27,35 @@ Data Types
          - Type
          - Description
        * - calendarIds
-         - \[`Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_\]
+         - \[`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_\]
          - A list of calendar ids to define holidays\.
        * - convention
          - `BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112_>`_
          - The business day convention used for the adjustment\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `BusinessDayAdjustment <type-daml-finance-interface-types-date-v3-calendar-businessdayadjustment-71551_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `BusinessDayAdjustment <type-daml-finance-interface-types-date-v3-calendar-businessdayadjustment-71551_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `BusinessDayAdjustment <type-daml-finance-interface-types-date-v3-calendar-businessdayadjustment-71551_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `BusinessDayAdjustment <type-daml-finance-interface-types-date-v3-calendar-businessdayadjustment-71551_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"businessDayAdjustment\" :ref:`PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368>` `BusinessDayAdjustment <type-daml-finance-interface-types-date-v3-calendar-businessdayadjustment-71551_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"calendarIds\" `BusinessDayAdjustment <type-daml-finance-interface-types-date-v3-calendar-businessdayadjustment-71551_>`_ \[`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_\]
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"convention\" `BusinessDayAdjustment <type-daml-finance-interface-types-date-v3-calendar-businessdayadjustment-71551_>`_ `BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"effectiveDateBusinessDayAdjustment\" :ref:`PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368>` (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `BusinessDayAdjustment <type-daml-finance-interface-types-date-v3-calendar-businessdayadjustment-71551_>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"terminationDateBusinessDayAdjustment\" :ref:`PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368>` (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `BusinessDayAdjustment <type-daml-finance-interface-types-date-v3-calendar-businessdayadjustment-71551_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"businessDayAdjustment\" :ref:`PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368>` `BusinessDayAdjustment <type-daml-finance-interface-types-date-v3-calendar-businessdayadjustment-71551_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"calendarIds\" `BusinessDayAdjustment <type-daml-finance-interface-types-date-v3-calendar-businessdayadjustment-71551_>`_ \[`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"convention\" `BusinessDayAdjustment <type-daml-finance-interface-types-date-v3-calendar-businessdayadjustment-71551_>`_ `BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"effectiveDateBusinessDayAdjustment\" :ref:`PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368>` (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `BusinessDayAdjustment <type-daml-finance-interface-types-date-v3-calendar-businessdayadjustment-71551_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"terminationDateBusinessDayAdjustment\" :ref:`PeriodicSchedule <type-daml-finance-interface-types-date-v3-schedule-periodicschedule-77368>` (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `BusinessDayAdjustment <type-daml-finance-interface-types-date-v3-calendar-businessdayadjustment-71551_>`_)
 
 .. _type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112:
 
@@ -77,9 +97,33 @@ Data Types
 
     Adjust a non\-business day to the previous business day\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"businessDayConvention\" :ref:`BusinessDayAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businessdayadjustments-9111>` `BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"businessDayConvention\" :ref:`CalculationPeriodDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddatesadjustments-85977>` `BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"businessDayConvention\" :ref:`FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248>` `BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"businessDayConvention\" :ref:`ResetDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdatesadjustments-44820>` `BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"businessDayConvention\" :ref:`DateOffset <type-daml-finance-interface-types-date-v3-dateoffset-dateoffset-75159>` `BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"convention\" `BusinessDayAdjustment <type-daml-finance-interface-types-date-v3-calendar-businessdayadjustment-71551_>`_ `BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"businessDayConvention\" :ref:`BusinessDayAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-businessdayadjustments-9111>` `BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"businessDayConvention\" :ref:`CalculationPeriodDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-calculationperioddatesadjustments-85977>` `BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"businessDayConvention\" :ref:`FixingDates <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-fixingdates-95248>` `BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"businessDayConvention\" :ref:`ResetDatesAdjustments <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-resetdatesadjustments-44820>` `BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"businessDayConvention\" :ref:`DateOffset <type-daml-finance-interface-types-date-v3-dateoffset-dateoffset-75159>` `BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"convention\" `BusinessDayAdjustment <type-daml-finance-interface-types-date-v3-calendar-businessdayadjustment-71551_>`_ `BusinessDayConventionEnum <type-daml-finance-interface-types-date-v3-calendar-businessdayconventionenum-14112_>`_
 
 .. _type-daml-finance-interface-types-date-v3-calendar-holidaycalendardata-87370:
 
@@ -99,17 +143,45 @@ Data Types
          - Type
          - Description
        * - id
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          - The id of the holiday calendar\.
        * - weekend
-         - \[`DayOfWeek <https://docs.daml.com/daml/stdlib/DA-Date.html#type-da-date-types-dayofweek-18120>`_\]
+         - \[`DayOfWeek <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Date.html#type-da-date-types-dayofweek-18120>`_\]
          - A list of week days defining the weekend\.
        * - holidays
-         - \[`Date <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_\]
+         - \[`Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_\]
          - A list of dates defining holidays\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `HolidayCalendarData <type-daml-finance-interface-types-date-v3-calendar-holidaycalendardata-87370_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `HolidayCalendarData <type-daml-finance-interface-types-date-v3-calendar-holidaycalendardata-87370_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `HolidayCalendarData <type-daml-finance-interface-types-date-v3-calendar-holidaycalendardata-87370_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `HolidayCalendarData <type-daml-finance-interface-types-date-v3-calendar-holidaycalendardata-87370_>`_
 
-  **instance** `HasExerciseByKey <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercisebykey-36549>`_ :ref:`HolidayCalendar <type-daml-finance-data-v4-reference-holidaycalendar-holidaycalendar-24871>` :ref:`HolidayCalendarKey <type-daml-finance-data-v4-reference-holidaycalendar-holidaycalendarkey-90417>` :ref:`GetCalendar <type-daml-finance-data-v4-reference-holidaycalendar-getcalendar-25827>` `HolidayCalendarData <type-daml-finance-interface-types-date-v3-calendar-holidaycalendardata-87370_>`_
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"calendar\" :ref:`HolidayCalendar <type-daml-finance-data-v4-reference-holidaycalendar-holidaycalendar-24871>` `HolidayCalendarData <type-daml-finance-interface-types-date-v3-calendar-holidaycalendardata-87370_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"calendar\" :ref:`Create <type-daml-finance-interface-data-v4-reference-holidaycalendar-factory-create-25637>` `HolidayCalendarData <type-daml-finance-interface-types-date-v3-calendar-holidaycalendardata-87370_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"calendar\" :ref:`View <type-daml-finance-interface-data-v4-reference-holidaycalendar-view-55728>` `HolidayCalendarData <type-daml-finance-interface-types-date-v3-calendar-holidaycalendardata-87370_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"holidays\" `HolidayCalendarData <type-daml-finance-interface-types-date-v3-calendar-holidaycalendardata-87370_>`_ \[`Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_\]
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"id\" `HolidayCalendarData <type-daml-finance-interface-types-date-v3-calendar-holidaycalendardata-87370_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"newCalendar\" :ref:`UpdateCalendar <type-daml-finance-interface-data-v4-reference-holidaycalendar-updatecalendar-40272>` `HolidayCalendarData <type-daml-finance-interface-types-date-v3-calendar-holidaycalendardata-87370_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"weekend\" `HolidayCalendarData <type-daml-finance-interface-types-date-v3-calendar-holidaycalendardata-87370_>`_ \[`DayOfWeek <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Date.html#type-da-date-types-dayofweek-18120>`_\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"calendar\" :ref:`HolidayCalendar <type-daml-finance-data-v4-reference-holidaycalendar-holidaycalendar-24871>` `HolidayCalendarData <type-daml-finance-interface-types-date-v3-calendar-holidaycalendardata-87370_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"calendar\" :ref:`Create <type-daml-finance-interface-data-v4-reference-holidaycalendar-factory-create-25637>` `HolidayCalendarData <type-daml-finance-interface-types-date-v3-calendar-holidaycalendardata-87370_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"calendar\" :ref:`View <type-daml-finance-interface-data-v4-reference-holidaycalendar-view-55728>` `HolidayCalendarData <type-daml-finance-interface-types-date-v3-calendar-holidaycalendardata-87370_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"holidays\" `HolidayCalendarData <type-daml-finance-interface-types-date-v3-calendar-holidaycalendardata-87370_>`_ \[`Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"id\" `HolidayCalendarData <type-daml-finance-interface-types-date-v3-calendar-holidaycalendardata-87370_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"newCalendar\" :ref:`UpdateCalendar <type-daml-finance-interface-data-v4-reference-holidaycalendar-updatecalendar-40272>` `HolidayCalendarData <type-daml-finance-interface-types-date-v3-calendar-holidaycalendardata-87370_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"weekend\" `HolidayCalendarData <type-daml-finance-interface-types-date-v3-calendar-holidaycalendardata-87370_>`_ \[`DayOfWeek <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Date.html#type-da-date-types-dayofweek-18120>`_\]
+
+  **instance** `HasExerciseByKey <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercisebykey-36549>`_ :ref:`HolidayCalendar <type-daml-finance-data-v4-reference-holidaycalendar-holidaycalendar-24871>` :ref:`HolidayCalendarKey <type-daml-finance-data-v4-reference-holidaycalendar-holidaycalendarkey-90417>` :ref:`GetCalendar <type-daml-finance-data-v4-reference-holidaycalendar-getcalendar-25827>` `HolidayCalendarData <type-daml-finance-interface-types-date-v3-calendar-holidaycalendardata-87370_>`_

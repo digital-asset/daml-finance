@@ -25,7 +25,7 @@ Templates
        - Type
        - Description
      * - instructor
-       - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+       - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
        - Party instructing settlement (and the creation of the ``Batch``)\.
      * - consenters
        - :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
@@ -37,16 +37,16 @@ Templates
        - :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
        - Batch identifier\.
      * - description
-       - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+       - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
        - Batch description\.
      * - contextId
-       - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
+       - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
        - Identifier to link a batch to a context (e\.g\. the ``Effect`` it originated from)\.
      * - routedStepsWithInstructionId
        - \[(:ref:`RoutedStep <type-daml-finance-interface-settlement-v4-types-routedstep-26293>`, :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`)\]
        - The settlement ``RoutedStep``\\s and the identifiers of the corresponding ``Instruction``\\s\.
      * - settlementTime
-       - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
+       - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
        - Settlement time (if any)\.
 
   + **Choice** Archive

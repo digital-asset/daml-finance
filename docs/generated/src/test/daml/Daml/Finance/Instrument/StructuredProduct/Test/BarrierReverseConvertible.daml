@@ -72,6 +72,8 @@ run = script do
       , (dateToDateClockTime $ date 2019 May 15, 38.78)
       , (dateToDateClockTime $ date 2019 May 16, 18.78)
       , (dateToDateClockTime $ date 2019 May 17, 38.78)
+      , (dateToDateClockTime $ date 2019 Oct 09, 38.78)
+      , (now, 38.78)
       ]
   observableCid <- toInterfaceContractId <$> submit issuer do
     createCmd Observation with
@@ -95,51 +97,97 @@ run = script do
     referenceAssetId couponRate couponSchedule holidayCalendarIds dayCountConvention notional
     calendarDataProvider publicParty
 
+  -- Barrier hit date: Lifecycle and verify that no payments occur yet.
   let
     expectedConsumed = []
     expectedProduced = []
-  Some brcInstrumentAfterBarrierHit <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2019 Feb 13) brcInstrument issuer [observableCid] expectedConsumed expectedProduced
 
+  maybeBrcInstrumentAfterBarrierHit <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2019 Feb 13) brcInstrument issuer [observableCid]
+      expectedConsumed expectedProduced
+
+  brcInstrumentAfterBarrierHit <- case maybeBrcInstrumentAfterBarrierHit of
+    Some key -> pure key
+    None -> pure brcInstrument
+
+  -- First coupon date: Lifecycle and verify coupon payment.
   let
     expectedConsumed = []
     expectedProduced = [qty 0.0041666667 cashInstrument]
-  Some brcInstrumentAfterCouponPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    firstCouponDate brcInstrumentAfterBarrierHit issuer [observableCid] expectedConsumed
-    expectedProduced
 
+  maybeBrcInstrumentAfterCouponPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      firstCouponDate brcInstrumentAfterBarrierHit issuer [observableCid]
+      expectedConsumed expectedProduced
+
+  brcInstrumentAfterCouponPayment <- case maybeBrcInstrumentAfterCouponPayment of
+    Some key -> pure key
+    None -> pure brcInstrumentAfterBarrierHit
+
+  -- Expiry date: Lifecycle and verify redemption and final payments.
   let
     expectedConsumed = [qty 0.0305 cashInstrument]
-    expectedProduced = [(qty 0.0123611111 cashInstrument), (qty 1.0 cashInstrument)]
-  lifecycleAndVerifyPaymentEffects [publicParty] expiryDate brcInstrumentAfterCouponPayment issuer
-    [observableCid] expectedConsumed expectedProduced
+    expectedProduced =
+      [qty 0.0123611111 cashInstrument, qty 1.0 cashInstrument]
+
+  maybeBrcInstrumentAfterExpiry <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      expiryDate brcInstrumentAfterCouponPayment issuer [observableCid]
+      expectedConsumed expectedProduced
+
+  case maybeBrcInstrumentAfterExpiry of
+    Some key -> pure key
+    None -> pure brcInstrumentAfterCouponPayment
 
   -- Test option with barrier hit (on Feb 13). Option expires out of the money.
-
   brcLowStrikeInstrument <- originateBarrierReverseConvertible issuer issuer "BRCLowStrike"
     TransferableFungible "Option" observers now expiryDate strikeLow barrier barrierStartDate
     cashInstrument referenceAssetId couponRate couponSchedule holidayCalendarIds dayCountConvention
     notional calendarDataProvider publicParty
 
+  -- Barrier hit date for low-strike BRC
   let
     expectedConsumed = []
     expectedProduced = []
-  Some brcInstrumentAfterBarrierHit <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2019 Feb 13) brcLowStrikeInstrument issuer [observableCid] expectedConsumed
-    expectedProduced
 
+  maybeBrcLowStrikeAfterBarrierHit <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2019 Feb 13) brcLowStrikeInstrument issuer [observableCid]
+      expectedConsumed expectedProduced
+
+  brcLowStrikeAfterBarrierHit <- case maybeBrcLowStrikeAfterBarrierHit of
+    Some key -> pure key
+    None -> pure brcLowStrikeInstrument
+
+  -- First coupon date for low-strike BRC
   let
     expectedConsumed = []
     expectedProduced = [qty 0.0041666667 cashInstrument]
-  Some brcInstrumentAfterCouponPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    firstCouponDate brcInstrumentAfterBarrierHit issuer [observableCid] expectedConsumed
-    expectedProduced
 
+  maybeBrcLowStrikeAfterCouponPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      firstCouponDate brcLowStrikeAfterBarrierHit issuer [observableCid]
+      expectedConsumed expectedProduced
+
+  brcLowStrikeAfterCouponPayment <- case maybeBrcLowStrikeAfterCouponPayment of
+    Some key -> pure key
+    None -> pure brcLowStrikeAfterBarrierHit
+
+  -- Expiry date for low-strike BRC
   let
     expectedConsumed = []
-    expectedProduced = [(qty 0.0123611111 cashInstrument), (qty 1.0 cashInstrument)]
-  lifecycleAndVerifyPaymentEffects [publicParty] expiryDate brcInstrumentAfterCouponPayment issuer
-    [observableCid] expectedConsumed expectedProduced
+    expectedProduced =
+      [qty 0.0123611111 cashInstrument, qty 1.0 cashInstrument]
+
+  maybeBrcLowStrikeAfterExpiry <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      expiryDate brcLowStrikeAfterCouponPayment issuer [observableCid]
+      expectedConsumed expectedProduced
+
+  case maybeBrcLowStrikeAfterExpiry of
+    Some key -> pure key
+    None -> pure brcLowStrikeAfterCouponPayment
 
   --------------------------------------------------
   -- 2. BRC without barrier event (before expiry) --
@@ -154,26 +202,51 @@ run = script do
   verifyNoLifecycleEffects [publicParty] (date 2019 Feb 13) brcLowBarrierInstrument
     issuer [observableCid]
 
+  -- First coupon date: Lifecycle and verify coupon payment.
   let
     expectedConsumed = []
     expectedProduced = [qty 0.0041666667 cashInstrument]
-  Some brcInstrumentAfterCouponPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    firstCouponDate brcLowBarrierInstrument issuer [observableCid] expectedConsumed expectedProduced
 
+  maybeBrcInstrumentAfterCouponPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      firstCouponDate brcLowBarrierInstrument issuer [observableCid]
+      expectedConsumed expectedProduced
+
+  brcInstrumentAfterCouponPayment <- case maybeBrcInstrumentAfterCouponPayment of
+    Some key -> pure key
+    None -> pure brcLowBarrierInstrument
+
+  -- Expiry date: Lifecycle and verify redemption and final payments.
   let
     expectedConsumed = []
-    expectedProduced = [(qty 0.0123611111 cashInstrument), (qty 1.0 cashInstrument)]
-  Some brcInstrumentAfterExpiry <- lifecycleAndVerifyPaymentEffects [publicParty] expiryDate
-    brcInstrumentAfterCouponPayment issuer [observableCid] expectedConsumed expectedProduced
+    expectedProduced =
+      [qty 0.0123611111 cashInstrument, qty 1.0 cashInstrument]
 
+  maybeBrcInstrumentAfterExpiry <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      expiryDate brcInstrumentAfterCouponPayment issuer [observableCid]
+      expectedConsumed expectedProduced
+
+  brcInstrumentAfterExpiry <- case maybeBrcInstrumentAfterExpiry of
+    Some key -> pure key
+    None -> pure brcInstrumentAfterCouponPayment
+
+  -- Post-expiry date (May 16): Lifecycle and verify no further effects.
   let
     expectedConsumed = []
     expectedProduced = []
-  Some brcInstrumentAfterBarrierHit <- lifecycleAndVerifyPaymentEffects [publicParty]
-    (date 2019 May 16) brcInstrumentAfterExpiry issuer [observableCid] expectedConsumed
-    expectedProduced
 
-  verifyNoLifecycleEffects [publicParty] (date 2019 May 17) brcInstrumentAfterBarrierHit
+  maybeBrcAfterPostExpiry <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (date 2019 May 16) brcInstrumentAfterExpiry issuer [observableCid]
+      expectedConsumed expectedProduced
+
+  brcAfterPostExpiry <- case maybeBrcAfterPostExpiry of
+    Some key -> pure key
+    None -> pure brcInstrumentAfterExpiry
+
+  -- One more day: must still be no effects.
+  verifyNoLifecycleEffects [publicParty] (date 2019 May 17) brcAfterPostExpiry
     issuer [observableCid]
 
   pure ()

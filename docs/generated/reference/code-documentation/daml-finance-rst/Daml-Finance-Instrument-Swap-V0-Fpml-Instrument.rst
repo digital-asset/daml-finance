@@ -26,31 +26,31 @@ Templates
        - Type
        - Description
      * - depository
-       - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+       - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
        - The depository of the instrument\.
      * - issuer
-       - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+       - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
        - The issuer of the instrument\.
      * - id
        - :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
        - An identifier of the instrument\.
      * - version
-       - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+       - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
        - The instrument's version\.
      * - holdingStandard
        - :ref:`HoldingStandard <type-daml-finance-interface-types-common-v3-types-holdingstandard-63293>`
        - The holding standard for holdings referencing this instrument\.
      * - description
-       - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+       - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
        - A description of the instrument\.
      * - swapStreams
        - \[:ref:`SwapStream <type-daml-finance-interface-instrument-swap-v0-fpml-fpmltypes-swapstream-97822>`\]
        - Each element describes a stream of swap payments, for example a regular fixed or floating rate\.
      * - issuerPartyRef
-       - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+       - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
        - Used to the identify which counterparty is the issuer in the swapStream\.
      * - calendarDataProvider
-       - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+       - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
        - The reference data provider to use for the holiday calendar\.
      * - currencies
        - \[:ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>`\]
@@ -59,7 +59,7 @@ Templates
        - :ref:`PartiesMap <type-daml-finance-interface-types-common-v3-types-partiesmap-43006>`
        - The observers of the instrument\.
      * - lastEventTimestamp
-       - `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
+       - `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
        - (Market) time of the last recorded lifecycle event\. If no event has occurred yet, the time of creation should be used\.
 
   + **Choice** Archive

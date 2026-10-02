@@ -33,7 +33,7 @@ Interfaces
 
     Controller\: (DA\.Internal\.Record\.getField @\"custodian\" account), (DA\.Internal\.Record\.getField @\"owner\" account)
 
-    Returns\: `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-holding-v4-holding-i-25641>`
+    Returns\: `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ Holding
 
     .. list-table::
        :widths: 15 10 30
@@ -49,7 +49,7 @@ Interfaces
          - :ref:`AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962>`
          - The account at which the holding is held\. Defines the holding's owner and custodian\.
        * - amount
-         - `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+         - `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
          - Number of units\.
        * - observers
          - :ref:`PartiesMap <type-daml-finance-interface-types-common-v3-types-partiesmap-43006>`
@@ -73,7 +73,7 @@ Interfaces
          - Type
          - Description
        * - viewer
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party fetching the view\.
 
   + .. _type-daml-finance-interface-holding-v4-factory-remove-83370:
@@ -88,7 +88,7 @@ Interfaces
 
     (no fields)
 
-  + **Method create' \:** `Create <type-daml-finance-interface-holding-v4-factory-create-84550_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-holding-v4-holding-i-25641>`)
+  + **Method create' \:** `Create <type-daml-finance-interface-holding-v4-factory-create-84550_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ Holding)
 
     Implementation of ``Create`` choice\.
 
@@ -121,7 +121,7 @@ Data Types
 
   Type synonym for ``View``\.
 
-  **instance** `HasFromAnyView <https://docs.daml.com/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Factory <type-daml-finance-interface-holding-v4-factory-factory-22859_>`_ `V <type-daml-finance-interface-holding-v4-factory-v-3225_>`_
+  **instance** `HasFromAnyView <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Factory <type-daml-finance-interface-holding-v4-factory-factory-22859_>`_ `V <type-daml-finance-interface-holding-v4-factory-v-3225_>`_
 
 .. _type-daml-finance-interface-holding-v4-factory-view-66511:
 
@@ -139,7 +139,7 @@ Data Types
          - Type
          - Description
        * - provider
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The provider of the ``Factory``\.
        * - id
          - :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
@@ -147,9 +147,21 @@ Data Types
 
   **instance** HasInterfaceKey `Factory <type-daml-finance-interface-holding-v4-factory-factory-22859_>`_ `View <type-daml-finance-interface-holding-v4-factory-view-66511_>`_ :ref:`HoldingFactoryKey <type-daml-finance-interface-types-common-v3-types-holdingfactorykey-40007>` Reference GetCid SetCid SetObservers `GetView <type-daml-finance-interface-holding-v4-factory-getview-97414_>`_
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-holding-v4-factory-view-66511_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-holding-v4-factory-view-66511_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-holding-v4-factory-view-66511_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-holding-v4-factory-view-66511_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"factoryView\" Reference `View <type-daml-finance-interface-holding-v4-factory-view-66511_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"id\" `View <type-daml-finance-interface-holding-v4-factory-view-66511_>`_ :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"provider\" `View <type-daml-finance-interface-holding-v4-factory-view-66511_>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"factoryView\" Reference `View <type-daml-finance-interface-holding-v4-factory-view-66511_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"id\" `View <type-daml-finance-interface-holding-v4-factory-view-66511_>`_ :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"provider\" `View <type-daml-finance-interface-holding-v4-factory-view-66511_>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
 
 Functions
 ---------
@@ -164,7 +176,7 @@ Functions
 .. _function-daml-finance-interface-holding-v4-factory-holdingfactorykey-61521:
 
 `holdingFactoryKey <function-daml-finance-interface-holding-v4-factory-holdingfactorykey-61521_>`_
-  \: `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ i `Factory <type-daml-finance-interface-holding-v4-factory-factory-22859_>`_ \=\> i \-\> :ref:`HoldingFactoryKey <type-daml-finance-interface-types-common-v3-types-holdingfactorykey-40007>`
+  \: `HasToInterface <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ i `Factory <type-daml-finance-interface-holding-v4-factory-factory-22859_>`_ \=\> i \-\> :ref:`HoldingFactoryKey <type-daml-finance-interface-types-common-v3-types-holdingfactorykey-40007>`
 
   Retrieves the key of a ``Factory``\.
 
@@ -176,33 +188,33 @@ Functions
 .. _function-daml-finance-interface-holding-v4-factory-createtick-50998:
 
 `create' <function-daml-finance-interface-holding-v4-factory-createtick-50998_>`_
-  \: `Factory <type-daml-finance-interface-holding-v4-factory-factory-22859_>`_ \-\> `Create <type-daml-finance-interface-holding-v4-factory-create-84550_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-holding-v4-holding-i-25641>`)
+  \: `Factory <type-daml-finance-interface-holding-v4-factory-factory-22859_>`_ \-\> `Create <type-daml-finance-interface-holding-v4-factory-create-84550_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ Holding)
 
 .. _function-daml-finance-interface-holding-v4-factory-createfactory-37513:
 
 `createFactory <function-daml-finance-interface-holding-v4-factory-createfactory-37513_>`_
-  \: (`HasCreate <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hascreate-45738>`_ f, `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ f `Factory <type-daml-finance-interface-holding-v4-factory-factory-22859_>`_) \=\> f \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Factory <type-daml-finance-interface-holding-v4-factory-factory-22859_>`_)
+  \: (`HasCreate <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-template-functions-hascreate-45738>`_ f, `HasToInterface <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ f `Factory <type-daml-finance-interface-holding-v4-factory-factory-22859_>`_) \=\> f \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Factory <type-daml-finance-interface-holding-v4-factory-factory-22859_>`_)
 
   Create factory including reference\.
 
 .. _function-daml-finance-interface-holding-v4-factory-disclose-27612:
 
 `disclose <function-daml-finance-interface-holding-v4-factory-disclose-27612_>`_
-  \: (`Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_, :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`) \-\> `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_ \-\> :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>` \-\> :ref:`HoldingFactoryKey <type-daml-finance-interface-types-common-v3-types-holdingfactorykey-40007>` \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Factory <type-daml-finance-interface-holding-v4-factory-factory-22859_>`_)
+  \: (`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_, :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`) \-\> `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_ \-\> :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>` \-\> :ref:`HoldingFactoryKey <type-daml-finance-interface-types-common-v3-types-holdingfactorykey-40007>` \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Factory <type-daml-finance-interface-holding-v4-factory-factory-22859_>`_)
 
   Disclose factory\.
 
 .. _function-daml-finance-interface-holding-v4-factory-undisclose-93111:
 
 `undisclose <function-daml-finance-interface-holding-v4-factory-undisclose-93111_>`_
-  \: (`Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_, :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`) \-\> `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_ \-\> :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>` \-\> :ref:`HoldingFactoryKey <type-daml-finance-interface-types-common-v3-types-holdingfactorykey-40007>` \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Factory <type-daml-finance-interface-holding-v4-factory-factory-22859_>`_))
+  \: (`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_, :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`) \-\> `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_ \-\> :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>` \-\> :ref:`HoldingFactoryKey <type-daml-finance-interface-types-common-v3-types-holdingfactorykey-40007>` \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Factory <type-daml-finance-interface-holding-v4-factory-factory-22859_>`_))
 
   Undisclose factory\.
 
 .. _function-daml-finance-interface-holding-v4-factory-exerciseinterfacebykey-335:
 
 `exerciseInterfaceByKey <function-daml-finance-interface-holding-v4-factory-exerciseinterfacebykey-335_>`_
-  \: (`HasInterfaceTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfacetyperep-84221>`_ i, `HasExercise <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercise-70422>`_ i c r) \=\> :ref:`HoldingFactoryKey <type-daml-finance-interface-types-common-v3-types-holdingfactorykey-40007>` \-\> `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_ \-\> c \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ r
+  \: (`HasInterfaceTypeRep <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfacetyperep-84221>`_ i, `HasExercise <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercise-70422>`_ i c r) \=\> :ref:`HoldingFactoryKey <type-daml-finance-interface-types-common-v3-types-holdingfactorykey-40007>` \-\> `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_ \-\> c \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ r
 
   Exercise interface by key\.
   This method can be used to exercise a choice on a ``Factory`` given its ``HoldingFactoryKey``\.

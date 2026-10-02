@@ -27,34 +27,34 @@ Templates
        - Type
        - Description
      * - depository
-       - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+       - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
        - The instrument depository\.
      * - issuer
-       - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+       - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
        - The instrument issuer\.
      * - id
        - :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
        - The identifier with corresponding version\.
      * - version
-       - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+       - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
        - The instrument's version\.
      * - holdingStandard
        - :ref:`HoldingStandard <type-daml-finance-interface-types-common-v3-types-holdingstandard-63293>`
        - The holding standard for holdings referencing this instrument\.
      * - description
-       - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+       - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
        - A human readable description of the instrument\.
      * - claims
        - :ref:`C <type-daml-finance-interface-claims-v4-types-c-76802>`
        - The claim tree\.
      * - acquisitionTime
-       - `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
+       - `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
        - The claim's acquisition time\. This usually corresponds to the start date of the contract\.
      * - observers
        - :ref:`PartiesMap <type-daml-finance-interface-types-common-v3-types-partiesmap-43006>`
        - Observers\.
      * - lastEventTimestamp
-       - `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
+       - `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
        - (Market) time of the last recorded lifecycle event\. If no event has occurred yet, the time of creation should be used\.
 
   + **Choice** Archive

@@ -18,7 +18,7 @@ Typeclasses
   .. _function-daml-finance-interface-types-date-v3-classes-toutctime-62631:
 
   `toUTCTime <function-daml-finance-interface-types-date-v3-classes-toutctime-62631_>`_
-    \: a \-\> `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
+    \: a \-\> `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
 
   **instance** `HasUTCTimeConversion <class-daml-finance-interface-types-date-v3-classes-hasutctimeconversion-43124_>`_ :ref:`DateClock <type-daml-finance-data-v4-time-dateclock-dateclock-18944>`
 

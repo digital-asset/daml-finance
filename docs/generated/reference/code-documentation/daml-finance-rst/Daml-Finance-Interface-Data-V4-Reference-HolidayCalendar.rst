@@ -43,7 +43,7 @@ Interfaces
          - Type
          - Description
        * - viewer
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party fetching the view\.
 
   + .. _type-daml-finance-interface-data-v4-reference-holidaycalendar-updatecalendar-40272:
@@ -54,7 +54,7 @@ Interfaces
 
     Controller\: (DA\.Internal\.Record\.getField @\"provider\" (view this))
 
-    Returns\: `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `HolidayCalendar <type-daml-finance-interface-data-v4-reference-holidaycalendar-holidaycalendar-62534_>`_
+    Returns\: `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `HolidayCalendar <type-daml-finance-interface-data-v4-reference-holidaycalendar-holidaycalendar-62534_>`_
 
     .. list-table::
        :widths: 15 10 30
@@ -67,7 +67,7 @@ Interfaces
          - :ref:`HolidayCalendarData <type-daml-finance-interface-types-date-v3-calendar-holidaycalendardata-87370>`
          - The new ``HolidayCalendarData``\.
 
-  + **Method updateCalendar \:** `UpdateCalendar <type-daml-finance-interface-data-v4-reference-holidaycalendar-updatecalendar-40272_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `HolidayCalendar <type-daml-finance-interface-data-v4-reference-holidaycalendar-holidaycalendar-62534_>`_)
+  + **Method updateCalendar \:** `UpdateCalendar <type-daml-finance-interface-data-v4-reference-holidaycalendar-updatecalendar-40272_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `HolidayCalendar <type-daml-finance-interface-data-v4-reference-holidaycalendar-holidaycalendar-62534_>`_)
 
     Updates the holiday calendar\.
 
@@ -81,7 +81,7 @@ Data Types
 
   Type synonym for ``HolidayCalendar``\.
 
-  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-data-v4-reference-holidaycalendar-factory-factory-89386>` \"create'\" (:ref:`Create <type-daml-finance-interface-data-v4-reference-holidaycalendar-factory-create-25637>` \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-data-v4-reference-holidaycalendar-i-49491_>`_))
+  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-data-v4-reference-holidaycalendar-factory-factory-89386>` \"create'\" (:ref:`Create <type-daml-finance-interface-data-v4-reference-holidaycalendar-factory-create-25637>` \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-data-v4-reference-holidaycalendar-i-49491_>`_))
 
 .. _type-daml-finance-interface-data-v4-reference-holidaycalendar-v-77764:
 
@@ -90,7 +90,7 @@ Data Types
 
   Type synonym for ``View``\.
 
-  **instance** `HasFromAnyView <https://docs.daml.com/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `HolidayCalendar <type-daml-finance-interface-data-v4-reference-holidaycalendar-holidaycalendar-62534_>`_ `V <type-daml-finance-interface-data-v4-reference-holidaycalendar-v-77764_>`_
+  **instance** `HasFromAnyView <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `HolidayCalendar <type-daml-finance-interface-data-v4-reference-holidaycalendar-holidaycalendar-62534_>`_ `V <type-daml-finance-interface-data-v4-reference-holidaycalendar-v-77764_>`_
 
 .. _type-daml-finance-interface-data-v4-reference-holidaycalendar-view-55728:
 
@@ -110,11 +110,19 @@ Data Types
          - Type
          - Description
        * - provider
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The parties providing the ``HolidayCalendar``\.
        * - calendar
          - :ref:`HolidayCalendarData <type-daml-finance-interface-types-date-v3-calendar-holidaycalendardata-87370>`
          - Holiday Calendar Data used to define holidays\.
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"calendar\" `View <type-daml-finance-interface-data-v4-reference-holidaycalendar-view-55728_>`_ :ref:`HolidayCalendarData <type-daml-finance-interface-types-date-v3-calendar-holidaycalendardata-87370>`
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"provider\" `View <type-daml-finance-interface-data-v4-reference-holidaycalendar-view-55728_>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"calendar\" `View <type-daml-finance-interface-data-v4-reference-holidaycalendar-view-55728_>`_ :ref:`HolidayCalendarData <type-daml-finance-interface-types-date-v3-calendar-holidaycalendardata-87370>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"provider\" `View <type-daml-finance-interface-data-v4-reference-holidaycalendar-view-55728_>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
 
 Functions
 ---------
@@ -122,4 +130,4 @@ Functions
 .. _function-daml-finance-interface-data-v4-reference-holidaycalendar-updatecalendar-64684:
 
 `updateCalendar <function-daml-finance-interface-data-v4-reference-holidaycalendar-updatecalendar-64684_>`_
-  \: `HolidayCalendar <type-daml-finance-interface-data-v4-reference-holidaycalendar-holidaycalendar-62534_>`_ \-\> `UpdateCalendar <type-daml-finance-interface-data-v4-reference-holidaycalendar-updatecalendar-40272_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `HolidayCalendar <type-daml-finance-interface-data-v4-reference-holidaycalendar-holidaycalendar-62534_>`_)
+  \: `HolidayCalendar <type-daml-finance-interface-data-v4-reference-holidaycalendar-holidaycalendar-62534_>`_ \-\> `UpdateCalendar <type-daml-finance-interface-data-v4-reference-holidaycalendar-updatecalendar-40272_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `HolidayCalendar <type-daml-finance-interface-data-v4-reference-holidaycalendar-holidaycalendar-62534_>`_)

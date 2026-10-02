@@ -98,19 +98,39 @@ Data Types
 
   **instance** Recursive (`Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x o) (ObservationF t x o)
 
-  **instance** `Functor <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-base-functor-31205>`_ (`Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x)
+  **instance** `Functor <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-base-functor-31205>`_ (`Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x)
 
-  **instance** (`Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ x, `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ o, `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ t) \=\> `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ (`Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x o)
+  **instance** (`Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ x, `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ o, `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ t) \=\> `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ (`Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x o)
 
-  **instance** `Additive <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-num-additive-25881>`_ x \=\> `Additive <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-num-additive-25881>`_ (`Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x o)
+  **instance** `Additive <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-num-additive-25881>`_ x \=\> `Additive <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-num-additive-25881>`_ (`Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x o)
 
-  **instance** `Multiplicative <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-num-multiplicative-10593>`_ x \=\> `Divisible <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-num-divisible-86689>`_ (`Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x o)
+  **instance** `Multiplicative <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-num-multiplicative-10593>`_ x \=\> `Divisible <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-num-divisible-86689>`_ (`Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x o)
 
-  **instance** `Multiplicative <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-num-multiplicative-10593>`_ x \=\> `Multiplicative <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-num-multiplicative-10593>`_ (`Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x o)
+  **instance** `Multiplicative <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-num-multiplicative-10593>`_ x \=\> `Multiplicative <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-num-multiplicative-10593>`_ (`Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x o)
 
-  **instance** (`Additive <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-num-additive-25881>`_ x, `Multiplicative <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-num-multiplicative-10593>`_ x) \=\> `Number <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-num-number-53664>`_ (`Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x o)
+  **instance** (`Additive <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-num-additive-25881>`_ x, `Multiplicative <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-num-multiplicative-10593>`_ x) \=\> `Number <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-num-number-53664>`_ (`Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x o)
 
-  **instance** (`Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ t, `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ x, `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ o) \=\> `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ (`Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x o)
+  **instance** (`Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ t, `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ x, `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ o) \=\> `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ (`Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x o)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"k\" (:ref:`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050>` t x a o) (`Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x o)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"k\" (ClaimF t x a o b) (`Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x o)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"key\" (`Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x o) o
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"t\" (`Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x o) t
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"value\" (`Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x o) x
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"k\" (:ref:`Claim <type-contingentclaims-core-v3-internal-claim-claim-83050>` t x a o) (`Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x o)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"k\" (ClaimF t x a o b) (`Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x o)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"key\" (`Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x o) o
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"t\" (`Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x o) t
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"value\" (`Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x o) x
 
 Functions
 ---------
@@ -132,7 +152,7 @@ Functions
 .. _function-contingentclaims-core-v3-observation-eval-64097:
 
 `eval <function-contingentclaims-core-v3-observation-eval-64097_>`_
-  \: (`Ord <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ t, `Number <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-num-number-53664>`_ x, `Divisible <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-num-divisible-86689>`_ x, `CanAbort <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-lf-canabort-29060>`_ m) \=\> (o \-\> t \-\> m x) \-\> `Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x o \-\> t \-\> m x
+  \: (`Ord <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ t, `Number <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-num-number-53664>`_ x, `Divisible <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-num-divisible-86689>`_ x, `CanAbort <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-lf-canabort-29060>`_ m) \=\> (o \-\> t \-\> m x) \-\> `Observation <type-contingentclaims-core-v3-observation-observation-12406_>`_ t x o \-\> t \-\> m x
 
   Reify the ``Observation`` into an observation function\.
   This function is used to convert an abstract observation, e\.g\. ``LIBOR 3M + 0.005`` to the actual

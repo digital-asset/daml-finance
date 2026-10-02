@@ -32,7 +32,7 @@ Interfaces
 
     Controller\: (DA\.Internal\.Record\.getField @\"providers\" (view this))
 
-    Returns\: (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Time <type-daml-finance-interface-data-v4-reference-time-time-96632_>`_, `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`Event <type-daml-finance-interface-lifecycle-v4-event-time-event-26986>`)
+    Returns\: (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Time <type-daml-finance-interface-data-v4-reference-time-time-96632_>`_, `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`Event <type-daml-finance-interface-lifecycle-v4-event-time-event-26986>`)
 
     .. list-table::
        :widths: 15 10 30
@@ -45,7 +45,7 @@ Interfaces
          - :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
          - Event identifier\.
        * - eventDescription
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          - Event description\.
 
   + **Choice** Archive
@@ -74,7 +74,7 @@ Interfaces
          - Type
          - Description
        * - viewer
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party retrieving the view\.
 
   + .. _type-daml-finance-interface-data-v4-reference-time-rewind-93104:
@@ -85,7 +85,7 @@ Interfaces
 
     Controller\: (DA\.Internal\.Record\.getField @\"providers\" (view this))
 
-    Returns\: (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Time <type-daml-finance-interface-data-v4-reference-time-time-96632_>`_, `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`Event <type-daml-finance-interface-lifecycle-v4-event-time-event-26986>`)
+    Returns\: (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Time <type-daml-finance-interface-data-v4-reference-time-time-96632_>`_, `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`Event <type-daml-finance-interface-lifecycle-v4-event-time-event-26986>`)
 
     .. list-table::
        :widths: 15 10 30
@@ -98,14 +98,14 @@ Interfaces
          - :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
          - Event identifier\.
        * - eventDescription
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          - Event description\.
 
-  + **Method advance \:** `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Time <type-daml-finance-interface-data-v4-reference-time-time-96632_>`_ \-\> `Advance <type-daml-finance-interface-data-v4-reference-time-advance-64582_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Time <type-daml-finance-interface-data-v4-reference-time-time-96632_>`_, `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`Event <type-daml-finance-interface-lifecycle-v4-event-time-event-26986>`)
+  + **Method advance \:** `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Time <type-daml-finance-interface-data-v4-reference-time-time-96632_>`_ \-\> `Advance <type-daml-finance-interface-data-v4-reference-time-advance-64582_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Time <type-daml-finance-interface-data-v4-reference-time-time-96632_>`_, `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`Event <type-daml-finance-interface-lifecycle-v4-event-time-event-26986>`)
 
     Implementation of the ``Advance`` choice\.
 
-  + **Method rewind \:** `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Time <type-daml-finance-interface-data-v4-reference-time-time-96632_>`_ \-\> `Rewind <type-daml-finance-interface-data-v4-reference-time-rewind-93104_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Time <type-daml-finance-interface-data-v4-reference-time-time-96632_>`_, `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`Event <type-daml-finance-interface-lifecycle-v4-event-time-event-26986>`)
+  + **Method rewind \:** `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Time <type-daml-finance-interface-data-v4-reference-time-time-96632_>`_ \-\> `Rewind <type-daml-finance-interface-data-v4-reference-time-rewind-93104_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Time <type-daml-finance-interface-data-v4-reference-time-time-96632_>`_, `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`Event <type-daml-finance-interface-lifecycle-v4-event-time-event-26986>`)
 
     Implementation of the ``Rewind`` choice\.
 
@@ -126,7 +126,7 @@ Data Types
 
   Type synonym for ``View``\.
 
-  **instance** `HasFromAnyView <https://docs.daml.com/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Time <type-daml-finance-interface-data-v4-reference-time-time-96632_>`_ `V <type-daml-finance-interface-data-v4-reference-time-v-96032_>`_
+  **instance** `HasFromAnyView <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Time <type-daml-finance-interface-data-v4-reference-time-time-96632_>`_ `V <type-daml-finance-interface-data-v4-reference-time-v-96032_>`_
 
 .. _type-daml-finance-interface-data-v4-reference-time-view-8124:
 
@@ -152,9 +152,17 @@ Data Types
          - :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
          - Textual identifier for the time rule\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-data-v4-reference-time-view-8124_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-data-v4-reference-time-view-8124_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-data-v4-reference-time-view-8124_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-data-v4-reference-time-view-8124_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"id\" `View <type-daml-finance-interface-data-v4-reference-time-view-8124_>`_ :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"providers\" `View <type-daml-finance-interface-data-v4-reference-time-view-8124_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"id\" `View <type-daml-finance-interface-data-v4-reference-time-view-8124_>`_ :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"providers\" `View <type-daml-finance-interface-data-v4-reference-time-view-8124_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
 
 Functions
 ---------
@@ -162,9 +170,9 @@ Functions
 .. _function-daml-finance-interface-data-v4-reference-time-advance-63914:
 
 `advance <function-daml-finance-interface-data-v4-reference-time-advance-63914_>`_
-  \: `Time <type-daml-finance-interface-data-v4-reference-time-time-96632_>`_ \-\> `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Time <type-daml-finance-interface-data-v4-reference-time-time-96632_>`_ \-\> `Advance <type-daml-finance-interface-data-v4-reference-time-advance-64582_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Time <type-daml-finance-interface-data-v4-reference-time-time-96632_>`_, `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`Event <type-daml-finance-interface-lifecycle-v4-event-time-event-26986>`)
+  \: `Time <type-daml-finance-interface-data-v4-reference-time-time-96632_>`_ \-\> `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Time <type-daml-finance-interface-data-v4-reference-time-time-96632_>`_ \-\> `Advance <type-daml-finance-interface-data-v4-reference-time-advance-64582_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Time <type-daml-finance-interface-data-v4-reference-time-time-96632_>`_, `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`Event <type-daml-finance-interface-lifecycle-v4-event-time-event-26986>`)
 
 .. _function-daml-finance-interface-data-v4-reference-time-rewind-25948:
 
 `rewind <function-daml-finance-interface-data-v4-reference-time-rewind-25948_>`_
-  \: `Time <type-daml-finance-interface-data-v4-reference-time-time-96632_>`_ \-\> `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Time <type-daml-finance-interface-data-v4-reference-time-time-96632_>`_ \-\> `Rewind <type-daml-finance-interface-data-v4-reference-time-rewind-93104_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Time <type-daml-finance-interface-data-v4-reference-time-time-96632_>`_, `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`Event <type-daml-finance-interface-lifecycle-v4-event-time-event-26986>`)
+  \: `Time <type-daml-finance-interface-data-v4-reference-time-time-96632_>`_ \-\> `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Time <type-daml-finance-interface-data-v4-reference-time-time-96632_>`_ \-\> `Rewind <type-daml-finance-interface-data-v4-reference-time-rewind-93104_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Time <type-daml-finance-interface-data-v4-reference-time-time-96632_>`_, `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`Event <type-daml-finance-interface-lifecycle-v4-event-time-event-26986>`)

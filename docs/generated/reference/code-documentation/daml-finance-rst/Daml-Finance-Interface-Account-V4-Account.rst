@@ -35,7 +35,7 @@ Interfaces
 
     Controller\: (DA\.Internal\.Record\.getField @\"custodian\" (view this)), (DA\.Internal\.Record\.getField @\"incoming\" (DA\.Internal\.Record\.getField @\"controllers\" (view this)))
 
-    Returns\: `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-holding-v4-holding-i-25641>`
+    Returns\: `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ Holding
 
     .. list-table::
        :widths: 15 10 30
@@ -45,7 +45,7 @@ Interfaces
          - Type
          - Description
        * - quantity
-         - :ref:`Quantity <type-daml-finance-interface-types-common-v3-types-quantity-28585>` :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>` `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+         - :ref:`Quantity <type-daml-finance-interface-types-common-v3-types-quantity-28585>` :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>` `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
          - The target ``Instrument`` and corresponding amount\.
 
   + .. _type-daml-finance-interface-account-v4-account-debit-98062:
@@ -66,7 +66,7 @@ Interfaces
          - Type
          - Description
        * - holdingCid
-         - `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-holding-v4-holding-i-25641>`
+         - `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ Holding
          - The ``Holding``'s contract id\.
 
   + .. _type-daml-finance-interface-account-v4-account-getview-21073:
@@ -87,7 +87,7 @@ Interfaces
          - Type
          - Description
        * - viewer
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party fetching the view\.
 
   + .. _type-daml-finance-interface-account-v4-account-remove-91479:
@@ -102,11 +102,11 @@ Interfaces
 
     (no fields)
 
-  + **Method credit \:** `Credit <type-daml-finance-interface-account-v4-account-credit-92816_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-holding-v4-holding-i-25641>`)
+  + **Method credit \:** `Credit <type-daml-finance-interface-account-v4-account-credit-92816_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ Holding)
 
     Implementation of the ``Credit`` choice\.
 
-  + **Method debit \:** `Debit <type-daml-finance-interface-account-v4-account-debit-98062_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ ()
+  + **Method debit \:** `Debit <type-daml-finance-interface-account-v4-account-debit-98062_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ ()
 
     Implementation of the ``Debit`` choice\.
 
@@ -141,9 +141,29 @@ Data Types
          - :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
          - Parties approving a transfer (incoming)\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `Controllers <type-daml-finance-interface-account-v4-account-controllers-59817_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `Controllers <type-daml-finance-interface-account-v4-account-controllers-59817_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `Controllers <type-daml-finance-interface-account-v4-account-controllers-59817_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `Controllers <type-daml-finance-interface-account-v4-account-controllers-59817_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"controllers\" :ref:`Account <type-daml-finance-account-v4-account-account-35720>` `Controllers <type-daml-finance-interface-account-v4-account-controllers-59817_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"controllers\" `View <type-daml-finance-interface-account-v4-account-view-18066_>`_ `Controllers <type-daml-finance-interface-account-v4-account-controllers-59817_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"controllers\" :ref:`Create <type-daml-finance-interface-account-v4-factory-create-72130>` `Controllers <type-daml-finance-interface-account-v4-account-controllers-59817_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"incoming\" `Controllers <type-daml-finance-interface-account-v4-account-controllers-59817_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"outgoing\" `Controllers <type-daml-finance-interface-account-v4-account-controllers-59817_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"controllers\" :ref:`Account <type-daml-finance-account-v4-account-account-35720>` `Controllers <type-daml-finance-interface-account-v4-account-controllers-59817_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"controllers\" `View <type-daml-finance-interface-account-v4-account-view-18066_>`_ `Controllers <type-daml-finance-interface-account-v4-account-controllers-59817_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"controllers\" :ref:`Create <type-daml-finance-interface-account-v4-factory-create-72130>` `Controllers <type-daml-finance-interface-account-v4-account-controllers-59817_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"incoming\" `Controllers <type-daml-finance-interface-account-v4-account-controllers-59817_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"outgoing\" `Controllers <type-daml-finance-interface-account-v4-account-controllers-59817_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
 
 .. _type-daml-finance-interface-account-v4-account-i-22897:
 
@@ -152,7 +172,7 @@ Data Types
 
   Type synonym for ``Account``\.
 
-  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-account-v4-factory-factory-48831>` \"create'\" (:ref:`Create <type-daml-finance-interface-account-v4-factory-create-72130>` \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-account-v4-account-i-22897_>`_))
+  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-account-v4-factory-factory-48831>` \"create'\" (:ref:`Create <type-daml-finance-interface-account-v4-factory-create-72130>` \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-account-v4-account-i-22897_>`_))
 
 .. _type-daml-finance-interface-account-v4-account-r-46890:
 
@@ -169,7 +189,7 @@ Data Types
 
   Type synonym for ``View``\.
 
-  **instance** `HasFromAnyView <https://docs.daml.com/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Account <type-daml-finance-interface-account-v4-account-account-93407_>`_ `V <type-daml-finance-interface-account-v4-account-v-29510_>`_
+  **instance** `HasFromAnyView <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Account <type-daml-finance-interface-account-v4-account-account-93407_>`_ `V <type-daml-finance-interface-account-v4-account-v-29510_>`_
 
 .. _type-daml-finance-interface-account-v4-account-view-18066:
 
@@ -189,16 +209,16 @@ Data Types
          - Type
          - Description
        * - custodian
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - Party providing accounting services\.
        * - owner
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - Party owning this account\.
        * - id
          - :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
          - Identifier for the account\.
        * - description
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          - Human readable description of the account\.
        * - controllers
          - `Controllers <type-daml-finance-interface-account-v4-account-controllers-59817_>`_
@@ -206,9 +226,33 @@ Data Types
 
   **instance** HasInterfaceKey `Account <type-daml-finance-interface-account-v4-account-account-93407_>`_ `View <type-daml-finance-interface-account-v4-account-view-18066_>`_ :ref:`AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962>` Reference GetCid SetCid SetObservers `GetView <type-daml-finance-interface-account-v4-account-getview-21073_>`_
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-account-v4-account-view-18066_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-account-v4-account-view-18066_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-account-v4-account-view-18066_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-account-v4-account-view-18066_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"accountView\" Reference `View <type-daml-finance-interface-account-v4-account-view-18066_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"controllers\" `View <type-daml-finance-interface-account-v4-account-view-18066_>`_ `Controllers <type-daml-finance-interface-account-v4-account-controllers-59817_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"custodian\" `View <type-daml-finance-interface-account-v4-account-view-18066_>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"description\" `View <type-daml-finance-interface-account-v4-account-view-18066_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"id\" `View <type-daml-finance-interface-account-v4-account-view-18066_>`_ :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"owner\" `View <type-daml-finance-interface-account-v4-account-view-18066_>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"accountView\" Reference `View <type-daml-finance-interface-account-v4-account-view-18066_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"controllers\" `View <type-daml-finance-interface-account-v4-account-view-18066_>`_ `Controllers <type-daml-finance-interface-account-v4-account-controllers-59817_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"custodian\" `View <type-daml-finance-interface-account-v4-account-view-18066_>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"description\" `View <type-daml-finance-interface-account-v4-account-view-18066_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"id\" `View <type-daml-finance-interface-account-v4-account-view-18066_>`_ :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"owner\" `View <type-daml-finance-interface-account-v4-account-view-18066_>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
 
 Functions
 ---------
@@ -223,7 +267,7 @@ Functions
 .. _function-daml-finance-interface-account-v4-account-accountkey-74157:
 
 `accountKey <function-daml-finance-interface-account-v4-account-accountkey-74157_>`_
-  \: `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ i `Account <type-daml-finance-interface-account-v4-account-account-93407_>`_ \=\> i \-\> :ref:`AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962>`
+  \: `HasToInterface <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ i `Account <type-daml-finance-interface-account-v4-account-account-93407_>`_ \=\> i \-\> :ref:`AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962>`
 
   Retrieves the key of an ``Account``\.
 
@@ -235,31 +279,31 @@ Functions
 .. _function-daml-finance-interface-account-v4-account-credit-27484:
 
 `credit <function-daml-finance-interface-account-v4-account-credit-27484_>`_
-  \: `Account <type-daml-finance-interface-account-v4-account-account-93407_>`_ \-\> `Credit <type-daml-finance-interface-account-v4-account-credit-92816_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-holding-v4-holding-i-25641>`)
+  \: `Account <type-daml-finance-interface-account-v4-account-account-93407_>`_ \-\> `Credit <type-daml-finance-interface-account-v4-account-credit-92816_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ Holding)
 
 .. _function-daml-finance-interface-account-v4-account-debit-31346:
 
 `debit <function-daml-finance-interface-account-v4-account-debit-31346_>`_
-  \: `Account <type-daml-finance-interface-account-v4-account-account-93407_>`_ \-\> `Debit <type-daml-finance-interface-account-v4-account-debit-98062_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ ()
+  \: `Account <type-daml-finance-interface-account-v4-account-account-93407_>`_ \-\> `Debit <type-daml-finance-interface-account-v4-account-debit-98062_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ ()
 
 .. _function-daml-finance-interface-account-v4-account-disclose-16489:
 
 `disclose <function-daml-finance-interface-account-v4-account-disclose-16489_>`_
-  \: (`Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_, :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`) \-\> `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_ \-\> :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>` \-\> :ref:`AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962>` \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Account <type-daml-finance-interface-account-v4-account-account-93407_>`_)
+  \: (`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_, :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`) \-\> `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_ \-\> :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>` \-\> :ref:`AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962>` \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Account <type-daml-finance-interface-account-v4-account-account-93407_>`_)
 
   Disclose account\.
 
 .. _function-daml-finance-interface-account-v4-account-undisclose-26330:
 
 `undisclose <function-daml-finance-interface-account-v4-account-undisclose-26330_>`_
-  \: (`Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_, :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`) \-\> `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_ \-\> :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>` \-\> :ref:`AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962>` \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Account <type-daml-finance-interface-account-v4-account-account-93407_>`_))
+  \: (`Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_, :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`) \-\> `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_ \-\> :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>` \-\> :ref:`AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962>` \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Account <type-daml-finance-interface-account-v4-account-account-93407_>`_))
 
   Undisclose account\.
 
 .. _function-daml-finance-interface-account-v4-account-exerciseinterfacebykey-87310:
 
 `exerciseInterfaceByKey <function-daml-finance-interface-account-v4-account-exerciseinterfacebykey-87310_>`_
-  \: (`HasInterfaceTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfacetyperep-84221>`_ i, `HasExercise <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercise-70422>`_ i c r) \=\> :ref:`AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962>` \-\> `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_ \-\> c \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ r
+  \: (`HasInterfaceTypeRep <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfacetyperep-84221>`_ i, `HasExercise <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercise-70422>`_ i c r) \=\> :ref:`AccountKey <type-daml-finance-interface-types-common-v3-types-accountkey-55962>` \-\> `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_ \-\> c \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ r
 
   Exercise interface by key\.
   This method can be used to exercise a choice on an ``Account`` given its ``AccountKey``\.

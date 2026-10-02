@@ -18,13 +18,17 @@ Data Types
 
   .. _constr-daml-finance-data-v4-time-dateclock-types-unit-64017:
 
-  `Unit <constr-daml-finance-data-v4-time-dateclock-types-unit-64017_>`_ `Date <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
+  `Unit <constr-daml-finance-data-v4-time-dateclock-types-unit-64017_>`_ `Date <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-date-32253>`_
 
 
   **instance** :ref:`HasUTCTimeConversion <class-daml-finance-interface-types-date-v3-classes-hasutctimeconversion-43124>` `Unit <type-daml-finance-data-v4-time-dateclock-types-unit-49992_>`_
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `Unit <type-daml-finance-data-v4-time-dateclock-types-unit-49992_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `Unit <type-daml-finance-data-v4-time-dateclock-types-unit-49992_>`_
 
-  **instance** `Ord <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ `Unit <type-daml-finance-data-v4-time-dateclock-types-unit-49992_>`_
+  **instance** `Ord <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-ord-6395>`_ `Unit <type-daml-finance-data-v4-time-dateclock-types-unit-49992_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `Unit <type-daml-finance-data-v4-time-dateclock-types-unit-49992_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `Unit <type-daml-finance-data-v4-time-dateclock-types-unit-49992_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"date\" :ref:`DateClock <type-daml-finance-data-v4-time-dateclock-dateclock-18944>` `Unit <type-daml-finance-data-v4-time-dateclock-types-unit-49992_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"date\" :ref:`DateClock <type-daml-finance-data-v4-time-dateclock-dateclock-18944>` `Unit <type-daml-finance-data-v4-time-dateclock-types-unit-49992_>`_

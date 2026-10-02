@@ -43,7 +43,7 @@ Interfaces
          - Type
          - Description
        * - viewer
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party retrieving the view\.
 
 
@@ -57,7 +57,7 @@ Data Types
 
   Type synonym for ``Instrument``\.
 
-  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-instrument-structuredproduct-v0-autocallable-factory-factory-17934>` \"create'\" (:ref:`Create <type-daml-finance-interface-instrument-structuredproduct-v0-autocallable-factory-create-58961>` \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-instrument-structuredproduct-v0-autocallable-instrument-i-91905_>`_))
+  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-instrument-structuredproduct-v0-autocallable-factory-factory-17934>` \"create'\" (:ref:`Create <type-daml-finance-interface-instrument-structuredproduct-v0-autocallable-factory-create-58961>` \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-instrument-structuredproduct-v0-autocallable-instrument-i-91905_>`_))
 
 .. _type-daml-finance-interface-instrument-structuredproduct-v0-autocallable-instrument-v-59478:
 
@@ -66,7 +66,7 @@ Data Types
 
   Type synonym for ``View``\.
 
-  **instance** `HasFromAnyView <https://docs.daml.com/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Instrument <type-daml-finance-interface-instrument-structuredproduct-v0-autocallable-instrument-instrument-75792_>`_ `V <type-daml-finance-interface-instrument-structuredproduct-v0-autocallable-instrument-v-59478_>`_
+  **instance** `HasFromAnyView <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Instrument <type-daml-finance-interface-instrument-structuredproduct-v0-autocallable-instrument-instrument-75792_>`_ `V <type-daml-finance-interface-instrument-structuredproduct-v0-autocallable-instrument-v-59478_>`_
 
 .. _type-daml-finance-interface-instrument-structuredproduct-v0-autocallable-instrument-view-56578:
 
@@ -89,6 +89,10 @@ Data Types
          - :ref:`AutoCallable <type-daml-finance-interface-instrument-structuredproduct-v0-autocallable-types-autocallable-58435>`
          - Attributes of an AutoCallable\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-instrument-structuredproduct-v0-autocallable-instrument-view-56578_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-instrument-structuredproduct-v0-autocallable-instrument-view-56578_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-instrument-structuredproduct-v0-autocallable-instrument-view-56578_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-instrument-structuredproduct-v0-autocallable-instrument-view-56578_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"autoCallable\" `View <type-daml-finance-interface-instrument-structuredproduct-v0-autocallable-instrument-view-56578_>`_ :ref:`AutoCallable <type-daml-finance-interface-instrument-structuredproduct-v0-autocallable-types-autocallable-58435>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"autoCallable\" `View <type-daml-finance-interface-instrument-structuredproduct-v0-autocallable-instrument-view-56578_>`_ :ref:`AutoCallable <type-daml-finance-interface-instrument-structuredproduct-v0-autocallable-types-autocallable-58435>`

@@ -27,7 +27,7 @@ Templates
        - Type
        - Description
      * - provider
-       - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+       - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
        - Party providing the facility\.
      * - observers
        - :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`

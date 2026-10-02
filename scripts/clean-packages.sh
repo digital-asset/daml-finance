@@ -4,6 +4,11 @@
 
 root_dir=$(cd "$(dirname $0)"; cd ..; pwd -P)
 
+if [ -z "${DIRENV_DIR:-}" ]; then
+  echo "ERROR: direnv is not active. Run 'direnv allow' and re-enter the shell." >&2
+  exit 1
+fi
+
 # Remove .lib directories in packages
 echo "Removing .lib/ directories in all packages"
 rm -r ${root_dir}/package/*/daml/*/.lib/ 1> /dev/null 2>&1
@@ -15,5 +20,5 @@ rm -r ${root_dir}/.dars 1> /dev/null 2>&1
 packages_yaml=${root_dir}/package/packages.yaml
 package_paths=($(yq e '.local.packages | to_entries | map(.value.package.path) | .[]' ${packages_yaml}))
 for package_path in "${package_paths[@]}"; do
-  daml clean --project-root ${root_dir}/package/${package_path}
+  dpm clean --project-root ${root_dir}/package/${package_path}
 done

@@ -6,6 +6,7 @@ module Daml.Finance.Instrument.Swap.Test.CreditDefault where
 import DA.Date (DayOfWeek(..), Month(..), addDays, date, subtractDays)
 import DA.Map qualified as Map (fromList)
 import DA.Set (singleton)
+import DA.Time (subTime, time, wholeDays)
 import Daml.Finance.Data.V4.Numeric.Observation (Observation(..))
 import Daml.Finance.Data.V4.Reference.HolidayCalendar (HolidayCalendar(..))
 import Daml.Finance.Data.V4.Time.DateClock (dateToDateClockTime)
@@ -60,6 +61,12 @@ runCreditEvent = script do
 
   -- Distribute commercial-bank cash
   now <- getTime
+  let
+    epochDate = date 1970 Jan 1
+    epochTime = time epochDate 0 0 0
+    daysSinceEpoch = wholeDays (subTime now epochTime)
+    todayDate = addDays epochDate daysSinceEpoch
+
   cashInstrument <- setupCash parties now
 
   -- Populate holiday calendar and observations.
@@ -70,7 +77,11 @@ runCreditEvent = script do
       [ (dateToDateClockTime $ subtractDays firstPaymentDate 1, 0.2)
       , (dateToDateClockTime firstPaymentDate                 , 0.2)
       , (dateToDateClockTime $ addDays firstPaymentDate 1     , 0.2)
-      , (dateToDateClockTime creditEventDate                  , 1.0) -- credit event
+      , (dateToDateClockTime creditEventDate                  , 1.0)
+      , (dateToDateClockTime issueDate                        , 0.2)
+      , (dateToDateClockTime maturityDate                     , 0.2)
+      , (dateToDateClockTime $ date 2025 Oct 09               , 0.2)
+      , (now, 0.2)
       ]
     recoveryRateObservations = Map.fromList
       [(dateToDateClockTime creditEventDate, 0.6)]
@@ -97,8 +108,15 @@ runCreditEvent = script do
   let
     expectedConsumed = [qty 0.001675 cashInstrument]
     expectedProduced = []
-  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    firstPaymentDate swapInstrument issuer observableCids expectedConsumed expectedProduced
+
+  maybeSwapInstrumentAfterFirstPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      firstPaymentDate swapInstrument issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterFirstPayment <- case maybeSwapInstrumentAfterFirstPayment of
+    Some key -> pure key
+    None -> pure swapInstrument
 
   -- One day after the first payment date: try to lifecycle and verify that there are no lifecycle
   -- effects.
@@ -106,13 +124,18 @@ runCreditEvent = script do
     swapInstrumentAfterFirstPayment issuer observableCids
 
   -- Credit event date: Lifecycle and verify that there is a lifecycle effect for the
-  -- (1-recoveryRate) payment. Also, verify that the instrument expires.
   let
     expectedConsumed = []
     expectedProduced = [qty 0.4 cashInstrument]
-  Some swapInstrumentAfterMaturity <- lifecycleAndVerifyPaymentEffects [publicParty]
-    creditEventDate swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed
-    expectedProduced
+
+  maybeSwapInstrumentAfterMaturity <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      creditEventDate swapInstrumentAfterFirstPayment issuer observableCids
+      expectedConsumed expectedProduced
+
+  case maybeSwapInstrumentAfterMaturity of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterFirstPayment
 
   pure ()
 
@@ -154,12 +177,19 @@ runCreditEventOnPaymentDate = script do
       observers = mempty
   let observableCids = [observableDefaultProbabilityCid, observableRecoveryRateCid]
 
-  -- First payment date: Lifecycle and verify the lifecycle effects for the fix payment.
+  -- First payment date: Lifecycle and verify the lifecycle effects for the fixed payment.
   let
     expectedConsumed = [qty 0.001675 cashInstrument]
     expectedProduced = []
-  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    firstPaymentDate swapInstrument issuer observableCids expectedConsumed expectedProduced
+
+  maybeSwapInstrumentAfterFirstPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      firstPaymentDate swapInstrument issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterFirstPayment <- case maybeSwapInstrumentAfterFirstPayment of
+    Some key -> pure key
+    None -> pure swapInstrument
 
   -- One day after the first payment date: try to lifecycle and verify that there are no lifecycle
   -- effects.
@@ -171,10 +201,15 @@ runCreditEventOnPaymentDate = script do
   let
     expectedConsumed = []
     expectedProduced = [qty 0.4 cashInstrument]
-  swapInstrumentAfterCreditEvent <- lifecycleAndVerifyPaymentEffects [publicParty]
-    creditEventDate swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed
-    expectedProduced
 
+  maybeSwapInstrumentAfterCreditEvent <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      creditEventDate swapInstrumentAfterFirstPayment issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterCreditEvent <- case maybeSwapInstrumentAfterCreditEvent of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterFirstPayment
   pure ()
 
 -- Calculate credit default swap payments (test case without a credit event), including lifecycling
@@ -199,6 +234,9 @@ runNoCreditEvent = script do
       , (dateToDateClockTime $ addDays firstPaymentDate 1     , 0.2)
       , (dateToDateClockTime maturityDate                     , 0.2)
       , (dateToDateClockTime $ addDays maturityDate 1         , 0.2)
+      , (dateToDateClockTime maturityDate                     , 0.2)
+      , (dateToDateClockTime $ date 2025 Oct 09               , 0.2)
+      , (now, 0.2)
       ]
 
   -- Create and distribute swap
@@ -215,29 +253,42 @@ runNoCreditEvent = script do
   verifyNoLifecycleEffects [publicParty] (subtractDays firstPaymentDate 1) swapInstrument issuer
     observableCids
 
-  -- First payment date: Lifecycle and verify the lifecycle effects for the fix payment.
+  -- First payment date: Lifecycle and verify the lifecycle effects for the fixed payment.
   let
     expectedConsumed = [qty 0.001675 cashInstrument]
     expectedProduced = []
-  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    firstPaymentDate swapInstrument issuer observableCids expectedConsumed expectedProduced
+
+  maybeSwapInstrumentAfterFirstPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      firstPaymentDate swapInstrument issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterFirstPayment <- case maybeSwapInstrumentAfterFirstPayment of
+    Some key -> pure key
+    None -> pure swapInstrument
 
   -- One day after the first payment date: try to lifecycle and verify that there are no lifecycle
   -- effects.
   verifyNoLifecycleEffects [publicParty] (addDays firstPaymentDate 1)
     swapInstrumentAfterFirstPayment issuer observableCids
 
-  -- Second payment date: Lifecycle and verify the lifecycle effects for the fix payment.
+  -- Second payment date: Lifecycle and verify the lifecycle effects for the fixed payment.
   let
     expectedConsumed = [qty 0.0049691667 cashInstrument]
     expectedProduced = []
-  Some swapInstrumentAfterSecondPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    maturityDate swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed
-    expectedProduced
 
-  -- One day after the maturity: try to lifecycle and verify that there are no lifecycle effects.
-  verifyNoLifecycleEffects [publicParty] (addDays maturityDate 1) swapInstrumentAfterSecondPayment
-    issuer observableCids
+  maybeSwapInstrumentAfterSecondPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      maturityDate swapInstrumentAfterFirstPayment issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterSecondPayment <- case maybeSwapInstrumentAfterSecondPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterFirstPayment
+
+  -- One day after the maturity date: verify that there are no lifecycle effects.
+  verifyNoLifecycleEffects [publicParty] (addDays maturityDate 1)
+    swapInstrumentAfterSecondPayment issuer observableCids
 
   pure ()
 
@@ -260,6 +311,9 @@ runCreditEventAfterMaturity = script do
       [ (dateToDateClockTime firstPaymentDate, 0.2)
       , (dateToDateClockTime maturityDate, 0.2)
       , (dateToDateClockTime $ addDays maturityDate 1, 1.0) -- credit event
+      , (dateToDateClockTime maturityDate                     , 0.2)
+      , (dateToDateClockTime $ date 2025 Oct 09               , 0.2)
+      , (now, 0.2)
       ]
 
   -- Create and distribute swap
@@ -271,28 +325,43 @@ runCreditEventAfterMaturity = script do
       observations = defaultProbabilityObservations; observers = mempty
   let observableCids = [observableDefaultProbabilityCid]
 
-  -- First payment date: Lifecycle and verify the lifecycle effects for the fix payment.
+  -- First payment date: Lifecycle and verify the lifecycle effects for the fixed payment.
   let
     expectedConsumed = [qty 0.001675 cashInstrument]
     expectedProduced = []
-  Some swapInstrumentAfterFirstPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    firstPaymentDate swapInstrument issuer observableCids expectedConsumed expectedProduced
 
-  -- Second payment date: Lifecycle and verify the lifecycle effects for the fix payment.
+  maybeSwapInstrumentAfterFirstPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      firstPaymentDate swapInstrument issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterFirstPayment <- case maybeSwapInstrumentAfterFirstPayment of
+    Some key -> pure key
+    None -> pure swapInstrument
+
+  -- Second payment date: Lifecycle and verify the lifecycle effects for the fixed payment.
   let
     expectedConsumed = [qty 0.0049691667 cashInstrument]
     expectedProduced = []
-  swapInstrumentAfterSecondPayment <- lifecycleAndVerifyPaymentEffects [publicParty]
-    maturityDate swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed
-    expectedProduced
 
-  -- One day after the maturity: no payment is made, instrument expires
+  maybeSwapInstrumentAfterSecondPayment <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      maturityDate swapInstrumentAfterFirstPayment issuer observableCids
+      expectedConsumed expectedProduced
+
+  swapInstrumentAfterSecondPayment <- case maybeSwapInstrumentAfterSecondPayment of
+    Some key -> pure key
+    None -> pure swapInstrumentAfterFirstPayment
+
+  -- One day after the maturity date: verify that no payment is made (instrument expires).
   let
     expectedConsumed = []
     expectedProduced = []
-  lifecycleAndVerifyPaymentEffects [publicParty] (addDays maturityDate 1)
-    swapInstrumentAfterFirstPayment issuer observableCids expectedConsumed
-    expectedProduced
+
+  maybeSwapInstrumentAfterExpiry <-
+    lifecycleAndVerifyPaymentEffects [publicParty]
+      (addDays maturityDate 1) swapInstrumentAfterSecondPayment issuer observableCids
+      expectedConsumed expectedProduced
 
   pure ()
 

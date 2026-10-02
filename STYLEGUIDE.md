@@ -301,9 +301,9 @@ enforce some of the points in this style guide:
 
 - `\n{2,}$` finds two or more empty lines.
 
-- `^.{101,}$` finds rows that contain more than 100 characters.
+- `^(?!(?:\s*)(?:import|module|--\s*https)).{101,}$` finds rows that are longer then 100 characters.
 
-- `\b(\w+)\s*=\s*\1\b` finds `w = w` where `w` is some arbitrary word.
+- `^\s*([a-z]+)\s*=\s*(?![A-Z])\1\s*(?=;|$)` finds `w = w` where `w` is some arbitrary word.
 
 - `\b(\w+)\s*=\s*(\w+)\s*(?:,\s*\b(\w+)\s*=\s*(\w+)\s*){1,}` finds comma separated assignments like
   `Foo with a = b, c = d` (we prefer using `;` like in `Foo with a = b; c = d`).
@@ -311,3 +311,8 @@ enforce some of the points in this style guide:
 - `submitMulti \[\w+\] \[\]` finds `submitMulti` which can be replaced by `submit`.
 
 - `(\w+),(\w+)` finds comma separated values with no whitespace.
+
+- `^\s*let.*\n\s*let.*` finds two consecutive lines that both start with the keyword `let`.
+
+- `^import\s+(?!Daml\.Script)([\w.]+)(?:\s+qualified)?(?:\s+as\s+\w+)?\s*(\(\s*\))?\s*$` find import
+  lines missing explicit imports.

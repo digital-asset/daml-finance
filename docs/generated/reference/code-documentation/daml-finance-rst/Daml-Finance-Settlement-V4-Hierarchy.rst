@@ -28,15 +28,27 @@ Data Types
          - Type
          - Description
        * - rootCustodian
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - Root custodian of the instrument\.
        * - pathsToRootCustodian
-         - \[\[`Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_\]\]
+         - \[\[`Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_\]\]
          - Paths from \"leaf\" owners to the root custodian of the instrument\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `Hierarchy <type-daml-finance-settlement-v4-hierarchy-hierarchy-41337_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `Hierarchy <type-daml-finance-settlement-v4-hierarchy-hierarchy-41337_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `Hierarchy <type-daml-finance-settlement-v4-hierarchy-hierarchy-41337_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `Hierarchy <type-daml-finance-settlement-v4-hierarchy-hierarchy-41337_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"paths\" :ref:`IntermediatedStatic <type-daml-finance-settlement-v4-routeprovider-intermediatedstatic-intermediatedstatic-19069>` (`Map <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-map-90052>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_ `Hierarchy <type-daml-finance-settlement-v4-hierarchy-hierarchy-41337_>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"pathsToRootCustodian\" `Hierarchy <type-daml-finance-settlement-v4-hierarchy-hierarchy-41337_>`_ \[\[`Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_\]\]
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"rootCustodian\" `Hierarchy <type-daml-finance-settlement-v4-hierarchy-hierarchy-41337_>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"paths\" :ref:`IntermediatedStatic <type-daml-finance-settlement-v4-routeprovider-intermediatedstatic-intermediatedstatic-19069>` (`Map <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-map-90052>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_ `Hierarchy <type-daml-finance-settlement-v4-hierarchy-hierarchy-41337_>`_)
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"pathsToRootCustodian\" `Hierarchy <type-daml-finance-settlement-v4-hierarchy-hierarchy-41337_>`_ \[\[`Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_\]\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"rootCustodian\" `Hierarchy <type-daml-finance-settlement-v4-hierarchy-hierarchy-41337_>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
 
 Functions
 ---------
@@ -44,4 +56,4 @@ Functions
 .. _function-daml-finance-settlement-v4-hierarchy-unfoldstep-66521:
 
 `unfoldStep <function-daml-finance-settlement-v4-hierarchy-unfoldstep-66521_>`_
-  \: `Hierarchy <type-daml-finance-settlement-v4-hierarchy-hierarchy-41337_>`_ \-\> :ref:`Step <type-daml-finance-interface-settlement-v4-types-step-16302>` \-\> `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ \[:ref:`RoutedStep <type-daml-finance-interface-settlement-v4-types-routedstep-26293>`\]
+  \: `Hierarchy <type-daml-finance-settlement-v4-hierarchy-hierarchy-41337_>`_ \-\> :ref:`Step <type-daml-finance-interface-settlement-v4-types-step-16302>` \-\> `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ \[:ref:`RoutedStep <type-daml-finance-interface-settlement-v4-types-routedstep-26293>`\]

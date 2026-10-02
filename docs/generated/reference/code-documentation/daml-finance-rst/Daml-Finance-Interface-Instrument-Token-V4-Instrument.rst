@@ -44,7 +44,7 @@ Interfaces
          - Type
          - Description
        * - viewer
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party retrieving the view\.
 
 
@@ -58,7 +58,7 @@ Data Types
 
   Type synonym for ``Instrument``\.
 
-  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-instrument-token-v4-factory-factory-54831>` \"create'\" (:ref:`Create <type-daml-finance-interface-instrument-token-v4-factory-create-20178>` \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-instrument-token-v4-instrument-i-45050_>`_))
+  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-instrument-token-v4-factory-factory-54831>` \"create'\" (:ref:`Create <type-daml-finance-interface-instrument-token-v4-factory-create-20178>` \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-instrument-token-v4-instrument-i-45050_>`_))
 
 .. _type-daml-finance-interface-instrument-token-v4-instrument-v-42717:
 
@@ -67,7 +67,7 @@ Data Types
 
   Type synonym for ``View``\.
 
-  **instance** `HasFromAnyView <https://docs.daml.com/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Instrument <type-daml-finance-interface-instrument-token-v4-instrument-instrument-75613_>`_ `V <type-daml-finance-interface-instrument-token-v4-instrument-v-42717_>`_
+  **instance** `HasFromAnyView <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Instrument <type-daml-finance-interface-instrument-token-v4-instrument-instrument-75613_>`_ `V <type-daml-finance-interface-instrument-token-v4-instrument-v-42717_>`_
 
 .. _type-daml-finance-interface-instrument-token-v4-instrument-view-88163:
 
@@ -90,6 +90,10 @@ Data Types
          - :ref:`Token <type-daml-finance-interface-instrument-token-v4-types-token-51711>`
          - Attributes of a Token Instrument\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-instrument-token-v4-instrument-view-88163_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-instrument-token-v4-instrument-view-88163_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-instrument-token-v4-instrument-view-88163_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-instrument-token-v4-instrument-view-88163_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"token\" `View <type-daml-finance-interface-instrument-token-v4-instrument-view-88163_>`_ :ref:`Token <type-daml-finance-interface-instrument-token-v4-types-token-51711>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"token\" `View <type-daml-finance-interface-instrument-token-v4-instrument-view-88163_>`_ :ref:`Token <type-daml-finance-interface-instrument-token-v4-types-token-51711>`

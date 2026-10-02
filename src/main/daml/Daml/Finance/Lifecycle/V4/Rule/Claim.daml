@@ -5,14 +5,15 @@ module Daml.Finance.Lifecycle.V4.Rule.Claim where
 
 import DA.Set (member, singleton)
 import Daml.Finance.Interface.Account.V4.Util (getCustodian, getOwner)
-import Daml.Finance.Interface.Holding.V4.Util (getAmount, getInstrument)
 import Daml.Finance.Interface.Lifecycle.V4.Effect qualified as Effect (Calculate(..), CalculationResult(..), GetView(..))
 import Daml.Finance.Interface.Lifecycle.V4.Rule.Claim qualified as Claim (ClaimEffect(..), ClaimResult(..), I, View(..))
 import Daml.Finance.Interface.Settlement.V4.Factory qualified as SettlementFactory (I, Instruct(..))
 import Daml.Finance.Interface.Settlement.V4.RouteProvider qualified as RouteProvider (Discover(..), I)
-import Daml.Finance.Interface.Settlement.V4.Types (Step(..))
+import Daml.Finance.Interface.Settlement.V4.Types qualified as SettlementTypes (Quantity(..), Step(..))
 import Daml.Finance.Interface.Types.Common.V3.Types (Parties, Quantity(..))
-import Daml.Finance.Lifecycle.V4.Rule.Util
+import Daml.Finance.Interface.Util.V3.HoldingSplice (getAmount, getInstrument)
+import Daml.Finance.Lifecycle.V4.Rule.Util (mergeConsumedAndProduced, net, splitPending)
+import Daml.Finance.Settlement.V4.Conversion (fromInstrumentKey)
 
 -- | Type synonym for `Rule`.
 type T = Rule
@@ -55,20 +56,32 @@ template Rule
               custodian = getCustodian holding
               sender = if consume then owner else custodian
               receiver = if consume then custodian else owner
-            in map (\quantity -> Step with sender; receiver; quantity) quantities
+            in map (\quantity -> SettlementTypes.Step with sender; receiver; quantity) quantities
 
           calculateSteps holding = do
             Effect.CalculationResult{consumed; produced} <-
               exercise effectCid Effect.Calculate with
                 actor = claimer
-                quantity = Quantity with unit = getInstrument holding; amount = getAmount holding
+                quantity = Quantity with
+                  unit = getInstrument holding
+                  amount = getAmount holding
             let
               (consumedNetted, producedNetted) =
                 if netInstructions
                 then splitPending . net $ mergeConsumedAndProduced consumed produced
                 else (consumed, produced)
-              consumedSteps = createSteps True consumedNetted holding
-              producedSteps = createSteps False producedNetted holding
+
+              -- Convert legacy InstrumentQuantity (InstrumentKey) to new Quantity (InstrumentId)
+              toNewQuantity (Quantity with unit; amount) =
+                SettlementTypes.Quantity with
+                  unit = fromInstrumentKey unit
+                  amount
+
+              consumedNew = map toNewQuantity consumedNetted
+              producedNew = map toNewQuantity producedNetted
+
+              consumedSteps = createSteps True consumedNew holding
+              producedSteps = createSteps False producedNew holding
             pure $ consumedSteps <> producedSteps
 
         -- Settlement steps

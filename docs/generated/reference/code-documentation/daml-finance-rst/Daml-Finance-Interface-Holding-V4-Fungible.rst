@@ -43,7 +43,7 @@ Interfaces
          - Type
          - Description
        * - viewer
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party fetching the view\.
 
   + .. _type-daml-finance-interface-holding-v4-fungible-merge-76684:
@@ -54,7 +54,7 @@ Interfaces
 
     Controller\: (DA\.Internal\.Record\.getField @\"modifiers\" (view this))
 
-    Returns\: `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Fungible <type-daml-finance-interface-holding-v4-fungible-fungible-31071_>`_
+    Returns\: `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Fungible <type-daml-finance-interface-holding-v4-fungible-fungible-31071_>`_
 
     .. list-table::
        :widths: 15 10 30
@@ -64,7 +64,7 @@ Interfaces
          - Type
          - Description
        * - fungibleCids
-         - \[`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Fungible <type-daml-finance-interface-holding-v4-fungible-fungible-31071_>`_\]
+         - \[`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Fungible <type-daml-finance-interface-holding-v4-fungible-fungible-31071_>`_\]
          - The fungible contracts to merge which will get consumed\.
 
   + .. _type-daml-finance-interface-holding-v4-fungible-split-16580:
@@ -85,14 +85,14 @@ Interfaces
          - Type
          - Description
        * - amounts
-         - \[`Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_\]
+         - \[`Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_\]
          - The quantities to split the fungible asset by, creating a new contract per amount\.
 
-  + **Method merge \:** `Merge <type-daml-finance-interface-holding-v4-fungible-merge-76684_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Fungible <type-daml-finance-interface-holding-v4-fungible-fungible-31071_>`_)
+  + **Method merge \:** `Merge <type-daml-finance-interface-holding-v4-fungible-merge-76684_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Fungible <type-daml-finance-interface-holding-v4-fungible-fungible-31071_>`_)
 
     Implementation of the ``Merge`` choice\.
 
-  + **Method split \:** `Split <type-daml-finance-interface-holding-v4-fungible-split-16580_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `SplitResult <type-daml-finance-interface-holding-v4-fungible-splitresult-97497_>`_
+  + **Method split \:** `Split <type-daml-finance-interface-holding-v4-fungible-split-16580_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `SplitResult <type-daml-finance-interface-holding-v4-fungible-splitresult-97497_>`_
 
     Implementation of the ``Split`` choice\.
 
@@ -124,17 +124,25 @@ Data Types
          - Type
          - Description
        * - splitCids
-         - \[`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Fungible <type-daml-finance-interface-holding-v4-fungible-fungible-31071_>`_\]
+         - \[`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Fungible <type-daml-finance-interface-holding-v4-fungible-fungible-31071_>`_\]
          - The contract ids for the split holdings\.
        * - rest
-         - `Optional <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Fungible <type-daml-finance-interface-holding-v4-fungible-fungible-31071_>`_)
+         - `Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Fungible <type-daml-finance-interface-holding-v4-fungible-fungible-31071_>`_)
          - Contract id for the holding on the remaining amount\. It is ``None`` when the split is exact\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `SplitResult <type-daml-finance-interface-holding-v4-fungible-splitresult-97497_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `SplitResult <type-daml-finance-interface-holding-v4-fungible-splitresult-97497_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `SplitResult <type-daml-finance-interface-holding-v4-fungible-splitresult-97497_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `SplitResult <type-daml-finance-interface-holding-v4-fungible-splitresult-97497_>`_
 
-  **instance** HasMethod `Fungible <type-daml-finance-interface-holding-v4-fungible-fungible-31071_>`_ \"split\" (`Split <type-daml-finance-interface-holding-v4-fungible-split-16580_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `SplitResult <type-daml-finance-interface-holding-v4-fungible-splitresult-97497_>`_)
+  **instance** HasMethod `Fungible <type-daml-finance-interface-holding-v4-fungible-fungible-31071_>`_ \"split\" (`Split <type-daml-finance-interface-holding-v4-fungible-split-16580_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `SplitResult <type-daml-finance-interface-holding-v4-fungible-splitresult-97497_>`_)
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"rest\" `SplitResult <type-daml-finance-interface-holding-v4-fungible-splitresult-97497_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Fungible <type-daml-finance-interface-holding-v4-fungible-fungible-31071_>`_))
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"splitCids\" `SplitResult <type-daml-finance-interface-holding-v4-fungible-splitresult-97497_>`_ \[`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Fungible <type-daml-finance-interface-holding-v4-fungible-fungible-31071_>`_\]
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"rest\" `SplitResult <type-daml-finance-interface-holding-v4-fungible-splitresult-97497_>`_ (`Optional <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-prelude-optional-37153>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Fungible <type-daml-finance-interface-holding-v4-fungible-fungible-31071_>`_))
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"splitCids\" `SplitResult <type-daml-finance-interface-holding-v4-fungible-splitresult-97497_>`_ \[`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Fungible <type-daml-finance-interface-holding-v4-fungible-fungible-31071_>`_\]
 
 .. _type-daml-finance-interface-holding-v4-fungible-v-97914:
 
@@ -143,7 +151,7 @@ Data Types
 
   Type synonym for ``View``\.
 
-  **instance** `HasFromAnyView <https://docs.daml.com/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Fungible <type-daml-finance-interface-holding-v4-fungible-fungible-31071_>`_ `V <type-daml-finance-interface-holding-v4-fungible-v-97914_>`_
+  **instance** `HasFromAnyView <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Fungible <type-daml-finance-interface-holding-v4-fungible-fungible-31071_>`_ `V <type-daml-finance-interface-holding-v4-fungible-v-97914_>`_
 
 .. _type-daml-finance-interface-holding-v4-fungible-view-93398:
 
@@ -166,9 +174,13 @@ Data Types
          - :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
          - Parties which have the authorization to modify a fungible asset\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-holding-v4-fungible-view-93398_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-holding-v4-fungible-view-93398_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-holding-v4-fungible-view-93398_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-holding-v4-fungible-view-93398_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"modifiers\" `View <type-daml-finance-interface-holding-v4-fungible-view-93398_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"modifiers\" `View <type-daml-finance-interface-holding-v4-fungible-view-93398_>`_ :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
 
 Functions
 ---------
@@ -176,9 +188,9 @@ Functions
 .. _function-daml-finance-interface-holding-v4-fungible-split-85728:
 
 `split <function-daml-finance-interface-holding-v4-fungible-split-85728_>`_
-  \: `Fungible <type-daml-finance-interface-holding-v4-fungible-fungible-31071_>`_ \-\> `Split <type-daml-finance-interface-holding-v4-fungible-split-16580_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `SplitResult <type-daml-finance-interface-holding-v4-fungible-splitresult-97497_>`_
+  \: `Fungible <type-daml-finance-interface-holding-v4-fungible-fungible-31071_>`_ \-\> `Split <type-daml-finance-interface-holding-v4-fungible-split-16580_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `SplitResult <type-daml-finance-interface-holding-v4-fungible-splitresult-97497_>`_
 
 .. _function-daml-finance-interface-holding-v4-fungible-merge-52600:
 
 `merge <function-daml-finance-interface-holding-v4-fungible-merge-52600_>`_
-  \: `Fungible <type-daml-finance-interface-holding-v4-fungible-fungible-31071_>`_ \-\> `Merge <type-daml-finance-interface-holding-v4-fungible-merge-76684_>`_ \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Fungible <type-daml-finance-interface-holding-v4-fungible-fungible-31071_>`_)
+  \: `Fungible <type-daml-finance-interface-holding-v4-fungible-fungible-31071_>`_ \-\> `Merge <type-daml-finance-interface-holding-v4-fungible-merge-76684_>`_ \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `Fungible <type-daml-finance-interface-holding-v4-fungible-fungible-31071_>`_)

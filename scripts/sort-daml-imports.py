@@ -56,6 +56,7 @@ def sort_within_parentheses(import_line):
             if not stack:
                 in_brackets = import_line[start + 1:i]
                 in_brackets_split = [x.strip() for x in in_brackets.split(',')]
+                in_brackets_split = [x for x in in_brackets_split if x]
                 # Separate items starting with '('
                 special_items = [x for x in in_brackets_split if x.startswith('(')]
                 # Sort other items, capital letters first

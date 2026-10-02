@@ -323,103 +323,114 @@ testgiveExercise = script do
     expected : C = give (give (When (TimeGte t0) (one a)))
   rem === expected
 
--- | Lifecycle a bond with three fixing dates. Uses ledger time effects.
+-- | Lifecycle a bond with three fixing dates (mocked time version)
 testBond : Script ()
 testBond = script do
   let
     principal = 1_000.0
     coupon = principal * 0.015
+    a = "BondHolder" -- replace with actual party if needed
+    t0 = date 2024 Jan 15
+    t1 = date 2024 Jul 15
+    t2 = date 2025 Jan 15
     bond = fixed principal coupon a
 
-  setDate t0
-  t <- getDate
-
-  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 (bond [t0, t1, t2]) t0 t
+  -- Simulate lifecycle at t0
+  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 (bond [t0, t1, t2]) t0 t0
   remaining === bond [t1, t2]
-  pending === [Lifecycle.Pending t coupon a]
+  pending === [Lifecycle.Pending t0 coupon a]
 
-  setDate t1
-  t <- getDate
-
-  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t0 t
+  -- Simulate lifecycle at t1
+  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t0 t1
   remaining === bond [t2]
-  pending === [Lifecycle.Pending t coupon a]
+  pending === [Lifecycle.Pending t1 coupon a]
 
   -- Check bond coupon doesn't get processed twice
-  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t0 t
+  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t0 t1
   remaining === bond [t2]
   pending === []
 
-  setDate t2
-  t <- getDate
-
-  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t0 t
+  -- Simulate lifecycle at t2 (maturity)
+  Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t0 t2
   remaining === zero
-  pending === [Lifecycle.Pending t coupon a, Lifecycle.Pending t principal a]
+  pending === [Lifecycle.Pending t2 coupon a, Lifecycle.Pending t2 principal a]
 
+  pure ()
+
+
+-- | Test a European call option lifecycle with mocked time (no ledger time effects)
 testEuropeanCall : Script ()
 testEuropeanCall = script do
   let
     strike = 23.0
+    a = "OptionHolder"  -- Replace with actual party or variable if needed
+    t0 = date 2024 Jan 15
+    t1 = date 2025 Jan 15
     payoff = scale (O.observe "spot" - O.pure strike) (one a)
     option = european t1 payoff
     bearer = True
 
-  -- Before maturity
-  setDate t0
-  t <- getDate
+  -- Before maturity (simulated t = t0)
+  let t = t0
 
   -- Exercise is a no-op
   remaining <- Lifecycle.exercise observe25 (bearer, "EXERCISE") option t0 t
   remaining === option
 
-  -- and so is settlement
+  -- Settlement is also a no-op before maturity
   Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 option t0 t
   remaining === option
   pending === []
 
-  -- At maturity
-  setDate t1
-  t <- getDate
+  -- At maturity (simulated t = t1)
+  let t = t1
 
+  -- Exercise at maturity
   remaining <- Lifecycle.exercise observe25 (bearer, "EXERCISE") option t0 t
   remaining === when (at t1) payoff
 
+  -- Lifecycle at maturity — should produce pending payoff
   Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 remaining t0 t
   remaining === zero
   pending === [Lifecycle.Pending t 2.0 a]
 
--- | Test for an american option.
+  pure ()
+
+
+-- | Test for an American option (mocked time version).
 -- The contract is acquired at time `t0` and can be exercised between `t1` and `t2`.
 testAmericanPut : Script ()
 testAmericanPut = script do
   let
     strike = 30.0
+    a = "OptionHolder"  -- replace with actual party if available
+    t0 = date 2024 Jan 15
+    t1 = date 2024 Jul 15
+    t2 = date 2025 Jan 15
     payoff = scale (O.pure strike - O.observe "spot") (one a)
     option = american t1 t2 payoff
     bearer = True
 
-  -- Scenario 1) Before knock-in
-  setDate t0
-  t <- getDate
+  -- Scenario 1) Before knock-in (t = t0)
+  let t = t0
 
   Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 option t0 t
   remaining === option
   pending === []
 
   remaining <- Lifecycle.exercise observe25 (bearer, "EXERCISE") remaining t0 t
-  remaining === option -- not in acquisition range yet
+  remaining === option  -- not in acquisition range yet
 
-  -- Scenario 2) in acquisition range
-  setDate t1
-  t <- getDate
+
+  -- Scenario 2) In acquisition range (t = t1)
+  let t = t1
 
   -- Settlement before exercise is a no-op
   Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 option t0 t
   remaining === option
   pending === []
 
-  -- Exercise `anytime`
+  -- Exercise “anytime”
   remaining <- Lifecycle.exercise observe25 (bearer, "EXERCISE") option t0 t
   remaining === when (TimeGte t1) (when (TimeGte t1) payoff)
 
@@ -427,16 +438,16 @@ testAmericanPut = script do
   remaining === zero
   pending === [Lifecycle.Pending t 5.0 a]
 
-  -- Scenario 3) at maturity
-  setDate t2
-  t <- getDate
+
+  -- Scenario 3) At maturity (t = t2)
+  let t = t2
 
   -- Settlement before exercise has been done is a no-op
   Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 option t0 t
   remaining === option
   pending === []
 
-  -- Exercise `anytime`
+  -- Exercise “anytime”
   remaining <- Lifecycle.exercise observe25 (bearer, "EXERCISE") option t0 t
   remaining === when (TimeGte t1) (when (TimeGte t2) payoff)
 
@@ -445,16 +456,18 @@ testAmericanPut = script do
   remaining === zero
   pending === [Lifecycle.Pending t 5.0 a]
 
-  -- Scenario 4) after expiration
-  setDate $ succ t2
-  t <- getDate
+
+  -- Scenario 4) After expiration (t = succ t2)
+  let t = succ t2
 
   remaining <- Lifecycle.exercise observe25 (bearer, "EXERCISE") option t0 t
-  remaining === option -- past maturity; no exercise possible
+  remaining === option  -- past maturity; no exercise possible
 
   Lifecycle.Result{pending, remaining} <- Lifecycle.lifecycle observe25 option t0 t
-  remaining === zero -- past maturity; contract is now worthless
+  remaining === zero  -- past maturity; contract is now worthless
   pending === []
+
+  pure ()
 
 -- | Ensure that acquisition time is propagated correctly (deterministic time).
 testFloatingRateNote : Script ()

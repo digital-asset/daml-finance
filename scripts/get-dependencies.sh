@@ -24,7 +24,26 @@ else
   for dependency_path in "${dependencies[@]}"; do
 
     echo "Processing dependency ${dependency_path}"
+    if [[ "${dependency_path}" == *"splice-api-token-"* ]]; then
+      echo "Detected Token Standard dependency; ensuring local DARs are available..."
+      mkdir -p ${project_root_dir}/.lib/splice
+      TOKEN_DAR=$(basename "${dependency_path}")
+      echo "${TOKEN_DAR}"
+    
 
+      if [ ! -f "${project_root_dir}/.lib/splice/${TOKEN_DAR}" ]; then
+        # Try local Splice-node directory (preferred for dev)
+        if [ -f "${root_dir}/lib/${TOKEN_DAR}" ]; then
+          cp "${root_dir}/lib/${TOKEN_DAR}" "${project_root_dir}/.lib/splice/"
+          echo "Copied ${TOKEN_DAR} from lib file"    # TODO - Source from gitHub not "lib" file
+        # Otherwise, fetch automatically from GitHub release (v0.4.20)
+        fi
+      else
+        echo "${TOKEN_DAR} already present"
+      fi
+      continue
+    fi
+    
     # TODO: Adjust the regex to match the new major-version-in-path structure
     # isValidPath=`awk '{ match($0, /^.lib\/[a-zA-Z\-]*\/([a-zA-Z\.]*\/v?[0-9\.]*|v?[0-9\.]*)\/[a-zA-Z0-9\.\-]*\.dar$/); print RLENGTH }' <<< ${dependency_path}`
     # if [[ ${isValidPath} -eq -1 ]]; then
@@ -76,8 +95,14 @@ else
         if ( ls ${package_root_dir}/${package_name}/.daml/dist/${file_name} 1> /dev/null 2>&1 ); then
           mkdir -p ${project_lib_dir}/${repo_name}/${tag} && cp ${package_root_dir}/${package_name}/.daml/dist/${file_name} ${project_root_dir}/${dependency_path}
         else
-          echo -e "${red}ERROR: Unable to locally locate dependency ${file_name}. Ensure this dependency has been successfully built.${colour_off}"
-          exit 1
+          # fallback to global repo-level .lib folder
+          if [[ -a ${root_dir}/.lib/splice/${file_name} ]]; then
+            echo "Using global shared splice dependency at ${root_dir}/.lib/splice/${file_name}"
+            mkdir -p ${project_lib_dir}/splice && cp ${root_dir}/.lib/splice/${file_name} ${project_root_dir}/${dependency_path}
+          else
+            echo -e "${red}ERROR: Unable to locally locate dependency ${file_name}. Ensure this dependency has been successfully built.${colour_off}"
+            exit 1
+          fi
         fi
       fi
 

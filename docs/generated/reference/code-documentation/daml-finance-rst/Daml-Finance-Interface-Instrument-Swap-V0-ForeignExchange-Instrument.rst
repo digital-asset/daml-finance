@@ -43,7 +43,7 @@ Interfaces
          - Type
          - Description
        * - viewer
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party retrieving the view\.
 
 
@@ -57,7 +57,7 @@ Data Types
 
   Type synonym for ``Instrument``\.
 
-  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-instrument-swap-v0-foreignexchange-factory-factory-72691>` \"create'\" (:ref:`Create <type-daml-finance-interface-instrument-swap-v0-foreignexchange-factory-create-93054>` \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-instrument-swap-v0-foreignexchange-instrument-i-60062_>`_))
+  **instance** HasMethod :ref:`Factory <type-daml-finance-interface-instrument-swap-v0-foreignexchange-factory-factory-72691>` \"create'\" (:ref:`Create <type-daml-finance-interface-instrument-swap-v0-foreignexchange-factory-create-93054>` \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ (`ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ `I <type-daml-finance-interface-instrument-swap-v0-foreignexchange-instrument-i-60062_>`_))
 
 .. _type-daml-finance-interface-instrument-swap-v0-foreignexchange-instrument-v-22969:
 
@@ -66,7 +66,7 @@ Data Types
 
   Type synonym for ``View``\.
 
-  **instance** `HasFromAnyView <https://docs.daml.com/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Instrument <type-daml-finance-interface-instrument-swap-v0-foreignexchange-instrument-instrument-7777_>`_ `V <type-daml-finance-interface-instrument-swap-v0-foreignexchange-instrument-v-22969_>`_
+  **instance** `HasFromAnyView <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Instrument <type-daml-finance-interface-instrument-swap-v0-foreignexchange-instrument-instrument-7777_>`_ `V <type-daml-finance-interface-instrument-swap-v0-foreignexchange-instrument-v-22969_>`_
 
 .. _type-daml-finance-interface-instrument-swap-v0-foreignexchange-instrument-view-20015:
 
@@ -89,6 +89,10 @@ Data Types
          - :ref:`ForeignExchange <type-daml-finance-interface-instrument-swap-v0-foreignexchange-types-foreignexchange-59609>`
          - Attributes of an FX swap\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-instrument-swap-v0-foreignexchange-instrument-view-20015_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-instrument-swap-v0-foreignexchange-instrument-view-20015_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-instrument-swap-v0-foreignexchange-instrument-view-20015_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-instrument-swap-v0-foreignexchange-instrument-view-20015_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"foreignExchange\" `View <type-daml-finance-interface-instrument-swap-v0-foreignexchange-instrument-view-20015_>`_ :ref:`ForeignExchange <type-daml-finance-interface-instrument-swap-v0-foreignexchange-types-foreignexchange-59609>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"foreignExchange\" `View <type-daml-finance-interface-instrument-swap-v0-foreignexchange-instrument-view-20015_>`_ :ref:`ForeignExchange <type-daml-finance-interface-instrument-swap-v0-foreignexchange-types-foreignexchange-59609>`

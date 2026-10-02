@@ -27,6 +27,6 @@ Data Types
 
     Put option\.
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `OptionTypeEnum <type-daml-finance-interface-instrument-structuredproduct-v0-types-optiontypeenum-54786_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `OptionTypeEnum <type-daml-finance-interface-instrument-structuredproduct-v0-types-optiontypeenum-54786_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `OptionTypeEnum <type-daml-finance-interface-instrument-structuredproduct-v0-types-optiontypeenum-54786_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `OptionTypeEnum <type-daml-finance-interface-instrument-structuredproduct-v0-types-optiontypeenum-54786_>`_

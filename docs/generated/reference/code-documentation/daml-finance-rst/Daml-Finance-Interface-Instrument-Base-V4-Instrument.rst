@@ -43,7 +43,7 @@ Interfaces
          - Type
          - Description
        * - viewer
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The party retrieving the view\.
 
   + .. _type-daml-finance-interface-instrument-base-v4-instrument-remove-35281:
@@ -75,7 +75,7 @@ Data Types
 .. _type-daml-finance-interface-instrument-base-v4-instrument-q-66135:
 
 **type** `Q <type-daml-finance-interface-instrument-base-v4-instrument-q-66135_>`_
-  \= :ref:`Quantity <type-daml-finance-interface-types-common-v3-types-quantity-28585>` :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>` `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
+  \= :ref:`Quantity <type-daml-finance-interface-types-common-v3-types-quantity-28585>` :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>` `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_
 
   Instrument quantity\.
 
@@ -94,7 +94,11 @@ Data Types
 
   Type synonym for ``View``\.
 
-  **instance** `HasFromAnyView <https://docs.daml.com/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Instrument <type-daml-finance-interface-instrument-base-v4-instrument-instrument-74494_>`_ `V <type-daml-finance-interface-instrument-base-v4-instrument-v-55368_>`_
+  **instance** `HasFromAnyView <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Internal-Interface-AnyView.html#class-da-internal-interface-anyview-hasfromanyview-30108>`_ `Instrument <type-daml-finance-interface-instrument-base-v4-instrument-instrument-74494_>`_ `V <type-daml-finance-interface-instrument-base-v4-instrument-v-55368_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"instrumentView\" Reference `V <type-daml-finance-interface-instrument-base-v4-instrument-v-55368_>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"instrumentView\" Reference `V <type-daml-finance-interface-instrument-base-v4-instrument-v-55368_>`_
 
 .. _type-daml-finance-interface-instrument-base-v4-instrument-view-52900:
 
@@ -114,32 +118,60 @@ Data Types
          - Type
          - Description
        * - issuer
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The instrument's issuer\.
        * - depository
-         - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+         - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
          - The instrument's depository\.
        * - id
          - :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
          - The instrument's identifier\.
        * - version
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          - A textual instrument version\.
        * - holdingStandard
          - :ref:`HoldingStandard <type-daml-finance-interface-types-common-v3-types-holdingstandard-63293>`
          - The holding standard for holdings referencing this instrument\.
        * - description
-         - `Text <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+         - `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
          - A human readable description of the instrument\.
        * - validAsOf
-         - `Time <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
+         - `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
          - Timestamp as of which the instrument is valid\. This usually coincides with the timestamp of the event that creates the instrument\. It usually does not coincide with ledger time\. This is required for lifecycling of some instruments, in order to keep track of the last time the instrument was lifecycled\. For instruments where this is not applicable, it can be set to the current time\.
 
   **instance** HasInterfaceKey `Instrument <type-daml-finance-interface-instrument-base-v4-instrument-instrument-74494_>`_ `View <type-daml-finance-interface-instrument-base-v4-instrument-view-52900_>`_ :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>` Reference GetCid SetCid SetObservers `GetView <type-daml-finance-interface-instrument-base-v4-instrument-getview-66559_>`_
 
-  **instance** `Eq <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-instrument-base-v4-instrument-view-52900_>`_
+  **instance** `Eq <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-classes-eq-22713>`_ `View <type-daml-finance-interface-instrument-base-v4-instrument-view-52900_>`_
 
-  **instance** `Show <https://docs.daml.com/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-instrument-base-v4-instrument-view-52900_>`_
+  **instance** `Show <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-ghc-show-show-65360>`_ `View <type-daml-finance-interface-instrument-base-v4-instrument-view-52900_>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"depository\" `View <type-daml-finance-interface-instrument-base-v4-instrument-view-52900_>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"description\" `View <type-daml-finance-interface-instrument-base-v4-instrument-view-52900_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"holdingStandard\" `View <type-daml-finance-interface-instrument-base-v4-instrument-view-52900_>`_ :ref:`HoldingStandard <type-daml-finance-interface-types-common-v3-types-holdingstandard-63293>`
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"id\" `View <type-daml-finance-interface-instrument-base-v4-instrument-view-52900_>`_ :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"issuer\" `View <type-daml-finance-interface-instrument-base-v4-instrument-view-52900_>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"validAsOf\" `View <type-daml-finance-interface-instrument-base-v4-instrument-view-52900_>`_ `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
+
+  **instance** `GetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-getfield-53979>`_ \"version\" `View <type-daml-finance-interface-instrument-base-v4-instrument-view-52900_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"depository\" `View <type-daml-finance-interface-instrument-base-v4-instrument-view-52900_>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"description\" `View <type-daml-finance-interface-instrument-base-v4-instrument-view-52900_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"holdingStandard\" `View <type-daml-finance-interface-instrument-base-v4-instrument-view-52900_>`_ :ref:`HoldingStandard <type-daml-finance-interface-types-common-v3-types-holdingstandard-63293>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"id\" `View <type-daml-finance-interface-instrument-base-v4-instrument-view-52900_>`_ :ref:`Id <type-daml-finance-interface-types-common-v3-types-id-28519>`
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"issuer\" `View <type-daml-finance-interface-instrument-base-v4-instrument-view-52900_>`_ `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"validAsOf\" `View <type-daml-finance-interface-instrument-base-v4-instrument-view-52900_>`_ `Time <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-time-63886>`_
+
+  **instance** `SetField <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/DA-Record.html#class-da-internal-record-setfield-4311>`_ \"version\" `View <type-daml-finance-interface-instrument-base-v4-instrument-view-52900_>`_ `Text <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-text-51952>`_
 
 Functions
 ---------
@@ -154,7 +186,7 @@ Functions
 .. _function-daml-finance-interface-instrument-base-v4-instrument-instrumentkey-25474:
 
 `instrumentKey <function-daml-finance-interface-instrument-base-v4-instrument-instrumentkey-25474_>`_
-  \: `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ i `Instrument <type-daml-finance-interface-instrument-base-v4-instrument-instrument-74494_>`_ \=\> i \-\> :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>`
+  \: `HasToInterface <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ i `Instrument <type-daml-finance-interface-instrument-base-v4-instrument-instrument-74494_>`_ \=\> i \-\> :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>`
 
   Retrieves the key of an ``Instrument``\.
 
@@ -166,28 +198,28 @@ Functions
 .. _function-daml-finance-interface-instrument-base-v4-instrument-qty-30556:
 
 `qty <function-daml-finance-interface-instrument-base-v4-instrument-qty-30556_>`_
-  \: `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_ \-\> :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>` \-\> `Q <type-daml-finance-interface-instrument-base-v4-instrument-q-66135_>`_
+  \: `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_ \-\> :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>` \-\> `Q <type-daml-finance-interface-instrument-base-v4-instrument-q-66135_>`_
 
   Wraps an amount and an instrument key into an instrument quantity\.
 
 .. _function-daml-finance-interface-instrument-base-v4-instrument-scale-95016:
 
 `scale <function-daml-finance-interface-instrument-base-v4-instrument-scale-95016_>`_
-  \: `Decimal <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_ \-\> `Q <type-daml-finance-interface-instrument-base-v4-instrument-q-66135_>`_ \-\> `Q <type-daml-finance-interface-instrument-base-v4-instrument-q-66135_>`_
+  \: `Decimal <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-decimal-18135>`_ \-\> `Q <type-daml-finance-interface-instrument-base-v4-instrument-q-66135_>`_ \-\> `Q <type-daml-finance-interface-instrument-base-v4-instrument-q-66135_>`_
 
   Scale ``Quantity`` by the provided factor\.
 
 .. _function-daml-finance-interface-instrument-base-v4-instrument-fetchinstrument-72799:
 
 `fetchInstrument <function-daml-finance-interface-instrument-base-v4-instrument-fetchinstrument-72799_>`_
-  \: `HasToInterface <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ t :ref:`I <type-daml-finance-interface-holding-v4-holding-i-25641>` \=\> t \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `Instrument <type-daml-finance-interface-instrument-base-v4-instrument-instrument-74494_>`_
+  \: `HasToInterface <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-interface-hastointerface-68104>`_ t Holding \=\> t \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ `Instrument <type-daml-finance-interface-instrument-base-v4-instrument-instrument-74494_>`_
 
   Fetch instrument from holding\.
 
 .. _function-daml-finance-interface-instrument-base-v4-instrument-exerciseinterfacebykey-98720:
 
 `exerciseInterfaceByKey <function-daml-finance-interface-instrument-base-v4-instrument-exerciseinterfacebykey-98720_>`_
-  \: (`HasInterfaceTypeRep <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfacetyperep-84221>`_ i, `HasExercise <https://docs.daml.com/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercise-70422>`_ i c r) \=\> :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>` \-\> `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_ \-\> c \-\> `Update <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ r
+  \: (`HasInterfaceTypeRep <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-interface-hasinterfacetyperep-84221>`_ i, `HasExercise <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#class-da-internal-template-functions-hasexercise-70422>`_ i c r) \=\> :ref:`InstrumentKey <type-daml-finance-interface-types-common-v3-types-instrumentkey-82717>` \-\> `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_ \-\> c \-\> `Update <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-update-68072>`_ r
 
   Exercise interface by key\.
   This method can be used to exercise a choice on an ``Instrument`` given its ``InstrumentKey``\.

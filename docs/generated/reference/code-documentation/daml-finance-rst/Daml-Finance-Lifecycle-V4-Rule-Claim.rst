@@ -25,7 +25,7 @@ Templates
        - Type
        - Description
      * - provider
-       - `Party <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
+       - `Party <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-party-57932>`_
        - Provider of the claim rule\. Together with the actors of the ``ClaimEffect`` choice the authorization requirements to upgrade the holdings being claimed have to be met\.
      * - claimers
        - :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
@@ -34,13 +34,13 @@ Templates
        - :ref:`Parties <type-daml-finance-interface-types-common-v3-types-parties-67059>`
        - Any of the parties can trigger settlement of the resulting batch\.
      * - routeProviderCid
-       - `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-v4-routeprovider-i-81585>`
+       - `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-v4-routeprovider-i-81585>`
        - RouteProvider used to discover settlement routes\.
      * - settlementFactoryCid
-       - `ContractId <https://docs.daml.com/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-v4-factory-i-2953>`
+       - `ContractId <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-da-internal-lf-contractid-95282>`_ :ref:`I <type-daml-finance-interface-settlement-v4-factory-i-2953>`
        - Settlement factory contract used to create a ``Batch`` of ``Instruction``\\s\.
      * - netInstructions
-       - `Bool <https://docs.daml.com/daml/stdlib/Prelude.html#type-ghc-types-bool-66265>`_
+       - `Bool <https://docs.digitalasset.com/build/3.4/reference/daml/stdlib/Prelude.html#type-ghc-types-bool-66265>`_
        - Configure whether netting should be enabled for quantities having the same (instrument, sender, receiver)\.
 
   + **Choice** Archive
