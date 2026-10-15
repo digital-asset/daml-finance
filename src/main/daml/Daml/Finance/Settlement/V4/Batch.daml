@@ -16,6 +16,10 @@ import Daml.Finance.Interface.Settlement.V4.Types (Allocation(..), Approval(..),
 import Daml.Finance.Interface.Types.Common.V3.Types (Id(..), Parties)
 import Daml.Finance.Settlement.V4.Instruction (Instruction(..), mustAuthorizeHelper)
 
+import Splice.Api.Token.AllocationV1 qualified as AllocationV1
+import Splice.Api.Token.MetadataV1
+import Splice.Api.Token.HoldingV1 qualified as HoldingV1
+
 -- | Type synonym for `Batch`.
 type T = Batch
 
@@ -120,6 +124,49 @@ orderPassThroughChains routedStepsWithInstructions =
           PassThroughFrom _ -> pure (ordered, used)
           _ -> pure (ordered', used')
     ) ([], mempty) routedStepsWithInstructions
+
+-- Wrapper for Batch to turn it into a standards Allocation.
+template BatchAllocation
+  with
+    batchCid : ContractId Batch.I
+    allocation : AllocationV1.AllocationSpecification
+    holdingCids : [ContractId HoldingV1.Holding]
+    meta : Metadata
+  where
+    signatory allocation.transferLeg.sender
+    observer allocation.settlement.executor
+
+    interface instance AllocationV1.Allocation for BatchAllocation where
+      view = AllocationV1.AllocationView with ..
+
+      allocation_executeTransferImpl self args = do
+        -- We should be doing some validations here that the batch matches the allocation specification
+        -- and that the holdings match.
+        batch <- fetch batchCid
+        new_holdings <- exercise batchCid Batch.Settle with actors = Set.singleton allocation.transferLeg.sender
+        receiverHoldingCids <- foldlA (\acc (holding_cid, rs) -> do
+            if rs.receiver == allocation.transferLeg.receiver
+              then return $ (coerceInterfaceContractId @HoldingV1.Holding holding_cid)::acc
+              else return acc
+          )
+          []
+          (zip new_holdings (view batch).routedSteps)
+          
+        return AllocationV1.Allocation_ExecuteTransferResult with
+          senderHoldingCids = []
+          receiverHoldingCids
+          meta = emptyMetadata
+
+      allocation_cancelImpl self args = do 
+        return AllocationV1.Allocation_CancelResult with
+          senderHoldingCids = holdingCids
+          meta = emptyMetadata
+      allocation_withdrawImpl self args = do 
+        return AllocationV1.Allocation_WithdrawResult with
+          senderHoldingCids = holdingCids
+          meta = emptyMetadata
+
+
 
 -- | HIDE
 -- Follows the pass-through chain and collects the corresponding instructions in an ordered list.

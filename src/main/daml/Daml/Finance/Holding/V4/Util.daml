@@ -5,7 +5,7 @@ module Daml.Finance.Holding.V4.Util where
 
 import DA.Action (foldlA)
 import DA.Foldable qualified as F (all)
-import DA.Set (fromList, isSubsetOf)
+import DA.Set (toList, fromList, isSubsetOf)
 import DA.Traversable qualified as T (forA)
 import Daml.Finance.Interface.Account.V4.Account qualified as Account (Credit(..), Debit(..), I, R, exerciseInterfaceByKey)
 import Daml.Finance.Interface.Account.V4.Util (fetchAccount)
@@ -14,7 +14,11 @@ import Daml.Finance.Interface.Holding.V4.Holding qualified as Holding (I)
 import Daml.Finance.Interface.Holding.V4.Transferable qualified as Transferable (I, Transfer(..))
 import Daml.Finance.Interface.Util.V3.Common (qty, verify)
 import Daml.Finance.Interface.Util.V3.InterfaceKey (fetchInterfaceByKey)
-import Daml.Finance.Interface.Util.V3.Lockable qualified as Lockable (mustNotBeLocked)
+import Daml.Finance.Interface.Util.V3.Lockable qualified as Lockable (I, mustNotBeLocked)
+import Splice.Api.Token.HoldingV1 qualified as HoldingV1 (HoldingView(..), Lock(..)) 
+import Splice.Api.Token.MetadataV1 qualified as MetadataV1 (Metadata(..)) 
+import Daml.Finance.Instrument.Util (instrumentKeyToInstrumentId)
+import DA.TextMap qualified as TextMap (fromList)
 
 -- | Default implementation of `transfer` for the `Transferable` interface.
 transferImpl : Transferable.I -> ContractId Transferable.I -> Transferable.Transfer
@@ -107,3 +111,26 @@ getRestAmount amounts currentAmount = do
     <> ", currentAmount=" <> show currentAmount
   let rest = currentAmount - splitAmountSum
   pure $ if rest == 0.0 then None else Some rest
+
+-- Convert a lockable holding to a standards holding
+lockableHoldingToStandardsHolding : forall t . (Template t, HasToInterface t Lockable.I, HasToInterface t Holding.I) =>
+  t -> HoldingV1.HoldingView
+lockableHoldingToStandardsHolding x =
+  HoldingV1.HoldingView with 
+    owner = account.owner
+    instrumentId = instrumentKeyToInstrumentId instrument
+    amount = amount
+    lock = fmap (\l -> HoldingV1.Lock with
+        holders = toList l.lockers
+        expiresAt = None
+        expiresAfter = None
+        context = Some (show l.context) -- Cound be more sophisticated here.
+      ) lock
+    meta = MetadataV1.Metadata with values = TextMap.fromList [("account", show account)] -- Could be more sophisticated here.
+  where
+    holding = view (toInterface @Holding.I x)
+    account = holding.account
+    instrument = holding.instrument
+    amount = holding.amount
+    lockable = view (toInterface @Lockable.I x)
+    lock = lockable.lock
